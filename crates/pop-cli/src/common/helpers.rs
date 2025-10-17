@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::{self, traits::*};
+use crate::cli::traits::{Cli, Confirm};
 use anyhow::Result;
 use std::{
 	fs,
@@ -104,10 +104,7 @@ macro_rules! multiselect_pick {
 /// # Arguments
 /// * `destination_path`: Path to the target output directory.
 /// * `cli` - Command-line interface for user interaction.
-pub fn check_destination_path(
-	destination_path: &Path,
-	cli: &mut impl cli::traits::Cli,
-) -> Result<PathBuf> {
+pub fn check_destination_path(destination_path: &Path, cli: &mut impl Cli) -> Result<PathBuf> {
 	if destination_path.exists() {
 		if !cli
 			.confirm(format!(
@@ -130,14 +127,27 @@ pub fn check_destination_path(
 	Ok(destination_path.to_path_buf())
 }
 
+/// Temporarily changes the current working directory while executing a closure.
+#[cfg(test)]
+pub fn with_current_dir<F, R>(dir: &Path, f: F) -> Result<R>
+where
+	F: FnOnce() -> Result<R>,
+{
+	let original_dir = std::env::current_dir()?;
+	std::env::set_current_dir(dir)?;
+	let result = f();
+	std::env::set_current_dir(original_dir)?;
+	result
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use cli::MockCli;
+	use crate::cli::MockCli;
 	use tempfile::tempdir;
 
 	#[test]
-	fn check_destination_path_works() -> anyhow::Result<()> {
+	fn check_destination_path_works() -> Result<()> {
 		let dir = tempdir()?;
 		let name_template = format!("{}/test-parachain", dir.path().display());
 		let parachain_path = dir.path().join(&name_template);
@@ -174,7 +184,7 @@ mod tests {
 
 		assert!(matches!(
 			check_destination_path(&parachain_path, &mut cli),
-			anyhow::Result::Err(message) if message.to_string() == format!(
+			Err(message) if message.to_string() == format!(
 				"\"{}\" directory already exists.",
 				parachain_path.display()
 			)

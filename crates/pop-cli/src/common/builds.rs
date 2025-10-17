@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use std::{env::current_dir, path::PathBuf};
-
 #[cfg(feature = "chain")]
 use {
 	crate::cli::traits::{Cli, Select},
-	pop_chains::{binary_path, build_chain},
+	pop_chains::{ChainSpecBuilder, binary_path, build_chain},
 	pop_common::{
 		Profile,
 		manifest::{Manifest, get_workspace_project_names},
@@ -55,6 +54,43 @@ pub fn ensure_node_binary_exists(
 	}
 }
 
+/// Creates a chain specification builder based on project structure.
+///
+/// # Arguments
+/// * `path` - Path to the project.
+/// * `profile` - Build profile to use.
+/// * `default_bootnode` - Whether to use default bootnode.
+/// * `cli` - Command line interface implementation.
+///
+/// # Returns
+/// The chain spec builder for the node or the runtime.
+#[cfg(feature = "chain")]
+pub fn create_chain_spec_builder(
+	path: &Path,
+	profile: &Profile,
+	default_bootnode: bool,
+	cli: &mut impl Cli,
+) -> anyhow::Result<ChainSpecBuilder> {
+	let default_node_path = path.join("node");
+	if default_node_path.is_dir() {
+		let node_path = default_node_path.canonicalize()?;
+		cli.info(format!("Using node at {}", node_path.display()))?;
+		Ok(ChainSpecBuilder::Node { node_path, default_bootnode, profile: profile.clone() })
+	} else {
+		let runtime_path = find_runtime_dir(path, cli)?;
+		cli.info(format!("Using runtime at {}", runtime_path.display()))?;
+		Ok(ChainSpecBuilder::Runtime { runtime_path, profile: profile.clone() })
+	}
+}
+
+/// Finds the runtime directory in a project, prompting user selection if multiple candidates exist.
+///
+/// # Arguments
+/// * `project_path` - Path to the project.
+/// * `cli` - Command line interface implementation.
+///
+/// # Returns
+/// Path to the selected runtime directory.
 #[cfg(feature = "chain")]
 pub fn find_runtime_dir(project_path: &Path, cli: &mut impl Cli) -> anyhow::Result<PathBuf> {
 	let default_runtime_path = project_path.join("runtime");
@@ -113,14 +149,11 @@ pub fn guide_user_to_select_profile(cli: &mut impl Cli) -> anyhow::Result<Profil
 }
 
 #[cfg(test)]
-#[cfg(feature = "chain")]
 mod tests {
-	use std::fs::{self, File};
-
 	use super::*;
-	use crate::cli::MockCli;
-	use duct::cmd;
-	use tempfile::tempdir;
+
+	#[cfg(feature = "chain")]
+	use {crate::cli::MockCli, duct::cmd, std::fs, std::fs::File, tempfile::tempdir};
 
 	#[test]
 	#[cfg(feature = "chain")]
@@ -342,5 +375,78 @@ version = "0.1.0"
 		assert!(result.is_err());
 		assert!(result.unwrap_err().to_string().contains("No runtime project found"));
 		Ok(())
+	}
+
+	#[test]
+	#[cfg(feature = "chain")]
+	fn create_chain_spec_builder_with_node_works() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+
+		// Create node directory
+		let node_dir = temp_dir.path().join("node");
+		fs::create_dir(&node_dir)?;
+
+		let mut cli = MockCli::new()
+			.expect_info(format!("Using node at {}", node_dir.canonicalize()?.display()));
+
+		let result = create_chain_spec_builder(temp_dir.path(), &Profile::Release, true, &mut cli)?;
+
+		// Verify it returns ChainSpecBuilder::Node variant
+		match result {
+			ChainSpecBuilder::Node { node_path, default_bootnode, profile } => {
+				assert_eq!(node_path, node_dir.canonicalize()?);
+				assert!(default_bootnode);
+				assert_eq!(profile, Profile::Release);
+			},
+			_ => panic!("Expected ChainSpecBuilder::Node variant"),
+		}
+
+		cli.verify()
+	}
+
+	#[test]
+	#[cfg(feature = "chain")]
+	fn create_chain_spec_builder_with_runtime_works() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+
+		// Create workspace structure
+		let workspace_toml = temp_dir.path().join("Cargo.toml");
+		fs::write(
+			&workspace_toml,
+			r#"[workspace]
+members = ["runtime"]
+
+[workspace.package]
+name = "test-workspace"
+"#,
+		)?;
+
+		// Create runtime directory (no node directory)
+		let runtime_dir = temp_dir.path().join("runtime");
+		fs::create_dir(&runtime_dir)?;
+		fs::write(
+			runtime_dir.join("Cargo.toml"),
+			r#"[package]
+name = "runtime"
+version = "0.1.0"
+"#,
+		)?;
+
+		let mut cli = MockCli::new()
+			.expect_info(format!("Using runtime at {}", runtime_dir.canonicalize()?.display()));
+
+		let result =
+			create_chain_spec_builder(temp_dir.path(), &Profile::Release, false, &mut cli)?;
+
+		// Verify it returns ChainSpecBuilder::Runtime variant
+		match result {
+			ChainSpecBuilder::Runtime { runtime_path, profile } => {
+				assert_eq!(runtime_path, runtime_dir.canonicalize()?);
+				assert_eq!(profile, Profile::Release);
+			},
+			_ => panic!("Expected ChainSpecBuilder::Runtime variant"),
+		}
+
+		cli.verify()
 	}
 }
