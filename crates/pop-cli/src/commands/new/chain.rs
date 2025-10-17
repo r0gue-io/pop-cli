@@ -116,7 +116,7 @@ impl NewChainCommand {
 /// Guide the user to generate a parachain from available templates.
 async fn guide_user_to_generate_parachain(
 	verify: bool,
-	cli: &mut impl cli::traits::Cli,
+	cli: &mut impl Cli,
 ) -> Result<NewChainCommand> {
 	cli.intro("Generate a parachain")?;
 
@@ -178,7 +178,7 @@ async fn generate_parachain_from_template(
 	tag_version: Option<String>,
 	config: Config,
 	verify: bool,
-	cli: &mut impl cli::traits::Cli,
+	cli: &mut impl Cli,
 ) -> Result<()> {
 	cli.intro(format!(
 		"Generating \"{name_template}\" using {} from {}!",
@@ -190,7 +190,14 @@ async fn generate_parachain_from_template(
 
 	let spinner = cliclack::spinner();
 	spinner.start("Generating parachain...");
-	let tag = instantiate_template_dir(template, &destination_path, tag_version, config)?;
+	let release = if let Some(tag_version) = tag_version {
+		Some(tag_version)
+	} else {
+		get_latest_release(&GitHub::parse(template.repository_url()?)?)
+			.await
+			.map(|r| Some(r.tag_name))?
+	};
+	let tag = instantiate_template_dir(template, &destination_path, release, config)?;
 	if let Err(err) = Git::git_init(&destination_path, "initialized parachain") &&
 		err.class() == git2::ErrorClass::Config &&
 		err.code() == git2::ErrorCode::NotFound
@@ -253,7 +260,7 @@ async fn generate_parachain_from_template(
 fn is_template_supported(
 	provider: &Provider,
 	template: &ChainTemplate,
-	cli: &mut impl cli::traits::Cli,
+	cli: &mut impl Cli,
 ) -> Result<()> {
 	if !provider.provides(template) {
 		return Err(anyhow::anyhow!(format!(
@@ -270,10 +277,7 @@ fn is_template_supported(
 	Ok(())
 }
 
-fn display_select_options(
-	provider: &Provider,
-	cli: &mut impl cli::traits::Cli,
-) -> Result<ChainTemplate> {
+fn display_select_options(provider: &Provider, cli: &mut impl Cli) -> Result<ChainTemplate> {
 	let mut prompt = cli.select("Select the type of parachain:".to_string());
 	for (i, template) in provider.templates().into_iter().enumerate() {
 		if i == 0 {
@@ -289,7 +293,7 @@ fn get_customization_value(
 	symbol: Option<String>,
 	decimals: Option<u8>,
 	initial_endowment: Option<String>,
-	cli: &mut impl cli::traits::Cli,
+	cli: &mut impl Cli,
 ) -> Result<Config> {
 	if !(Provider::Pop.provides(template) || template == &ChainTemplate::ParityGeneric) &&
 		(symbol.is_some() || decimals.is_some() || initial_endowment.is_some())
@@ -313,7 +317,7 @@ fn get_customization_value(
 async fn choose_release(
 	template: &ChainTemplate,
 	verify: bool,
-	cli: &mut impl cli::traits::Cli,
+	cli: &mut impl Cli,
 ) -> Result<Option<String>> {
 	let url = url::Url::parse(template.repository_url()?).expect("valid repository url");
 	let repo = GitHub::parse(url.as_str())?;
@@ -349,8 +353,13 @@ async fn choose_release(
 	Ok(release_name)
 }
 
+async fn get_latest_release(repo: &GitHub) -> Result<Release> {
+	let releases = repo.releases(false).await?;
+	releases.into_iter().next().ok_or(anyhow::anyhow!("No releases found"))
+}
+
 async fn get_latest_3_releases(repo: &GitHub, verify: bool) -> Result<Vec<Release>> {
-	let mut releases: Vec<Release> = repo.releases(false).await?;
+	let mut releases = repo.releases(false).await?;
 	releases.truncate(3);
 	if verify {
 		// Get the commit sha for the releases
@@ -362,10 +371,7 @@ async fn get_latest_3_releases(repo: &GitHub, verify: bool) -> Result<Vec<Releas
 	Ok(releases)
 }
 
-fn display_release_versions_to_user(
-	releases: Vec<Release>,
-	cli: &mut impl cli::traits::Cli,
-) -> Result<String> {
+fn display_release_versions_to_user(releases: Vec<Release>, cli: &mut impl Cli) -> Result<String> {
 	let mut prompt = cli.select("Select a specific release:".to_string());
 	for (i, release) in releases.iter().enumerate() {
 		if i == 0 {
@@ -383,7 +389,7 @@ fn display_release_versions_to_user(
 	Ok(prompt.interact()?.to_string())
 }
 
-fn prompt_customizable_options(cli: &mut impl cli::traits::Cli) -> Result<Config> {
+fn prompt_customizable_options(cli: &mut impl Cli) -> Result<Config> {
 	let symbol: String = cli
 		.input("What is the symbol of your parachain token?")
 		.placeholder(DEFAULT_TOKEN_SYMBOL)
