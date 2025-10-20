@@ -2,7 +2,10 @@
 
 use std::path::Path;
 
-use crate::cli::{self, traits::*};
+use crate::{
+	cli::{self, traits::*},
+	install::frontend::{ensure_bun, ensure_node_v20, ensure_npx},
+};
 use anyhow::Result;
 use duct::cmd;
 use pop_common::{
@@ -35,13 +38,32 @@ pub fn prompt_frontend_template(
 /// # Arguments
 /// * `target` - Location where the smart contract will be created.
 /// * `template` - Frontend template to generate the contract from.
-pub fn create_frontend(target: &Path, template: &FrontendTemplate) -> Result<()> {
-	let command = template
-		.command()
-		.ok_or_else(|| anyhow::anyhow!("no command configured for {:?}", template))?;
-	// TODO: Ensure `node` and `npx` are available in PATH (Or check for others bun...)
-	// If error exist the proces and show an error to the user, or install?
-	cmd("npx", vec![command, "frontend"]).dir(target.canonicalize()?).run()?;
+/// * `cli`: Command line interface.
+pub fn create_frontend(
+	target: &Path,
+	template: &FrontendTemplate,
+	cli: &mut impl cli::traits::Cli,
+) -> Result<()> {
+	ensure_node_v20()?;
+	ensure_npx()?;
+	let project_dir = target.canonicalize()?;
+	match template {
+		// Inkathon requires Bun installed.
+		FrontendTemplate::Inkathon => {
+			let bun = ensure_bun(cli)?;
+			cmd(&bun, &["x", "create-inkathon-app@latest", "frontend"])
+				.dir(&project_dir)
+				.env("SKIP_INSTALL_SIMPLE_GIT_HOOKS", "1")
+				.unchecked()
+				.run()?;
+		},
+		_ => {
+			let command = template
+				.command()
+				.ok_or_else(|| anyhow::anyhow!("no command configured for {:?}", template))?;
+			cmd("npx", vec![command, "frontend"]).dir(&project_dir).run()?;
+		},
+	}
 	Ok(())
 }
 

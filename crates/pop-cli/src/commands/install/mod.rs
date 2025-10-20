@@ -15,6 +15,9 @@ use os_info::Type;
 use strum_macros::Display;
 use tokio::fs;
 
+/// Utilities for installing the needed libraries for frontend development.
+pub mod frontend;
+
 const DOCS_URL: &str = "https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/";
 
 #[derive(Display)]
