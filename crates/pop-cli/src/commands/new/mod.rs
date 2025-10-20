@@ -9,7 +9,7 @@ use std::fmt::{Display, Formatter, Result};
 pub mod chain;
 #[cfg(feature = "contract")]
 pub mod contract;
-/// Utilities for selecting a frontendtemplate and generate it.
+/// Utilities for selecting a frontend template and generate it.
 pub mod frontend;
 #[cfg(feature = "chain")]
 pub mod pallet;

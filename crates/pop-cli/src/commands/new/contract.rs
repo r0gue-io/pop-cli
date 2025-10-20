@@ -204,7 +204,7 @@ fn generate_contract_from_template(
 	next_steps.push("Use `pop up contract` to deploy your contract to a live network.".to_string());
 
 	if let Some(frontend_template) = &frontend_template {
-		create_frontend(contract_path.as_path(), frontend_template)?;
+		create_frontend(contract_path.as_path(), frontend_template, cli)?;
 		next_steps.push(format!(
 			"Frontend template {frontend_template} created inside {:?}. Go to the folder and follow the README instructions to get started.", contract_path.display()
 		))
