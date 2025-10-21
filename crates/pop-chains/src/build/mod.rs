@@ -3,9 +3,7 @@
 use crate::errors::{Error, handle_command_error};
 use anyhow::{Result, anyhow};
 use duct::cmd;
-use pop_common::{
-	Profile, account_id::convert_to_evm_accounts, find_workspace_toml, manifest::from_path,
-};
+use pop_common::{Profile, account_id::convert_to_evm_accounts, manifest::from_path};
 use sc_chain_spec::{GenericChainSpec, NoExtension};
 use serde_json::{Value, json};
 use sp_core::bytes::to_hex;
@@ -87,7 +85,7 @@ impl ChainSpecBuilder {
 	pub fn artifact_path(&self) -> Result<PathBuf> {
 		let manifest = from_path(&self.path())?;
 		let package = manifest.package().name();
-		let root_folder = find_workspace_toml(&self.path())
+		let root_folder = rustilities::manifest::find_workspace_manifest(&self.path())
 			.ok_or(anyhow::anyhow!("Not inside a workspace"))?
 			.parent()
 			.expect("Path to Cargo.toml workspace root folder must exist")

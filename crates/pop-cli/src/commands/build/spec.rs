@@ -6,7 +6,7 @@ use crate::{
 		traits::{Cli as _, *},
 	},
 	common::{
-		builds::{create_chain_spec_builder, guide_user_to_select_profile},
+		builds::{ChainPath, create_chain_spec_builder, guide_user_to_select_profile},
 		omni_node::source_polkadot_omni_node_binary,
 		runtime::build_deterministic_runtime,
 	},
@@ -431,16 +431,16 @@ impl BuildSpecCommand {
 		// If deterministic build is selected, use the provided runtime path or prompt the user if
 		// missing.
 		let runtime_dir = if deterministic {
-			runtime_dir.unwrap_or_else(|| {
+			Some(runtime_dir.unwrap_or_else(|| {
 				cli.input("Enter the directory path where the runtime is located:")
 					.placeholder(DEFAULT_RUNTIME_DIR)
 					.default_input(DEFAULT_RUNTIME_DIR)
 					.interact()
 					.map(PathBuf::from)
 					.unwrap_or_else(|_| PathBuf::from(DEFAULT_RUNTIME_DIR))
-			})
+			}))
 		} else {
-			DEFAULT_RUNTIME_DIR.into()
+			runtime_dir
 		};
 
 		// If deterministic build is selected, extract package name from runtime path provided
@@ -448,9 +448,13 @@ impl BuildSpecCommand {
 		let package = if deterministic {
 			package
 				.or_else(|| {
-					from_path(&runtime_dir)
-						.ok()
-						.and_then(|manifest| manifest.package.map(|pkg| pkg.name))
+					from_path(
+						runtime_dir
+							.as_ref()
+							.expect("Deterministic builds always have a runtime_dir"),
+					)
+					.ok()
+					.and_then(|manifest| manifest.package.map(|pkg| pkg.name))
 				})
 				.unwrap_or_else(|| {
 					cli.input("Enter the runtime package name:")
@@ -539,7 +543,7 @@ pub(crate) struct BuildSpec {
 	genesis_code: bool,
 	deterministic: bool,
 	package: String,
-	runtime_dir: PathBuf,
+	runtime_dir: Option<PathBuf>,
 	use_existing_plain_spec: bool,
 }
 
@@ -554,8 +558,13 @@ impl BuildSpec {
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<GenesisArtifacts> {
 		let mut generated_files = vec![];
+		let builder_path = if let Some(runtime_dir) = &self.runtime_dir {
+			ChainPath::Exact(runtime_dir)
+		} else {
+			ChainPath::Base(&self.path)
+		};
 		let builder =
-			create_chain_spec_builder(&self.path, &self.profile, self.default_bootnode, cli)?;
+			create_chain_spec_builder(builder_path, &self.profile, self.default_bootnode, cli)?;
 		let is_runtime_build = matches!(builder, ChainSpecBuilder::Runtime { .. });
 		let artifact_exists = builder.artifact_path().is_ok();
 		if self.skip_build && builder.artifact_path().is_err() {
@@ -595,7 +604,9 @@ impl BuildSpec {
 					&spinner,
 					&self.package,
 					self.profile.clone(),
-					self.runtime_dir.clone(),
+					self.runtime_dir
+						.clone()
+						.expect("Deterministic builds always contains runtime_dir"),
 				)
 				.map_err(|e| {
 					anyhow::anyhow!("Failed to build the deterministic runtime: {}", e.to_string())

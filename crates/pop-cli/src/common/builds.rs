@@ -54,10 +54,18 @@ pub fn ensure_node_binary_exists(
 	}
 }
 
+/// Represent how the contained Path should be used.
+pub(crate) enum ChainPath<'a> {
+	/// The path's gonna be used to search for something else inside it (eg, a runtime, node,...)
+	Base(&'a Path),
+	/// The path is the exact one that should be used
+	Exact(&'a Path),
+}
+
 /// Creates a chain specification builder based on project structure.
 ///
 /// # Arguments
-/// * `path` - Path to the project.
+/// * `path` - Path to the project. If `[ChainPath::Exact]` is used, it'll point to a runtime.
 /// * `profile` - Build profile to use.
 /// * `default_bootnode` - Whether to use default bootnode.
 /// * `cli` - Command line interface implementation.
@@ -66,20 +74,28 @@ pub fn ensure_node_binary_exists(
 /// The chain spec builder for the node or the runtime.
 #[cfg(feature = "chain")]
 pub fn create_chain_spec_builder(
-	path: &Path,
+	path: ChainPath,
 	profile: &Profile,
 	default_bootnode: bool,
 	cli: &mut impl Cli,
 ) -> anyhow::Result<ChainSpecBuilder> {
-	let default_node_path = path.join("node");
-	if default_node_path.is_dir() {
-		let node_path = default_node_path.canonicalize()?;
-		cli.info(format!("Using node at {}", node_path.display()))?;
-		Ok(ChainSpecBuilder::Node { node_path, default_bootnode, profile: profile.clone() })
-	} else {
-		let runtime_path = find_runtime_dir(path, cli)?;
-		cli.info(format!("Using runtime at {}", runtime_path.display()))?;
-		Ok(ChainSpecBuilder::Runtime { runtime_path, profile: profile.clone() })
+	match path {
+		ChainPath::Base(path) => {
+			let default_node_path = path.join("node");
+			if default_node_path.is_dir() {
+				let node_path = default_node_path.canonicalize()?;
+				cli.info(format!("Using node at {}", node_path.display()))?;
+				Ok(ChainSpecBuilder::Node { node_path, default_bootnode, profile: profile.clone() })
+			} else {
+				let runtime_path = find_runtime_dir(path, cli)?;
+				cli.info(format!("Using runtime at {}", runtime_path.display()))?;
+				Ok(ChainSpecBuilder::Runtime { runtime_path, profile: profile.clone() })
+			}
+		},
+		ChainPath::Exact(runtime_path) => Ok(ChainSpecBuilder::Runtime {
+			runtime_path: runtime_path.to_owned(),
+			profile: profile.clone(),
+		}),
 	}
 }
 
