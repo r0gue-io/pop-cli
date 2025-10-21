@@ -115,10 +115,14 @@ impl ChainSpecBuilder {
 	/// # Arguments
 	/// * `chain_or_preset` - The chain (when using a node) or preset (when using a runtime) name.
 	/// * `output_file` - The path where the chain spec should be written.
+	/// * `name` - The name to be used on the chain spec if specified.
+	/// * `id` - The ID to be used on the chain spec if specified.
 	pub fn generate_plain_chain_spec(
 		&self,
 		chain_or_preset: &str,
 		output_file: &Path,
+		name: Option<&String>,
+		id: Option<&String>,
 	) -> Result<(), Error> {
 		match self {
 			ChainSpecBuilder::Node { default_bootnode, .. } => generate_plain_chain_spec_with_node(
@@ -131,6 +135,8 @@ impl ChainSpecBuilder {
 				fs::read(self.artifact_path()?)?,
 				output_file,
 				chain_or_preset,
+				name,
+				id,
 			),
 		}
 	}
@@ -327,16 +333,27 @@ pub fn generate_raw_chain_spec_with_runtime(
 /// * `wasm` - The WebAssembly runtime bytes.
 /// * `plain_chain_spec` - The path where the plain chain specification should be written.
 /// * `preset` - Preset name for genesis configuration.
+/// * `name` - The name to be used on the chain spec if specified.
+/// * `id` - The ID to be used on the chain spec if specified.
 pub fn generate_plain_chain_spec_with_runtime(
 	wasm: Vec<u8>,
 	plain_chain_spec: &Path,
 	preset: &str,
+	name: Option<&String>,
+	id: Option<&String>,
 ) -> Result<(), Error> {
-	let chain_spec = GenericChainSpec::<NoExtension>::builder(&wasm[..], None)
-		.with_genesis_config_preset_name(preset.trim())
-		.build()
-		.as_json(false)
-		.map_err(|e| anyhow::anyhow!(e))?;
+	let mut chain_spec = GenericChainSpec::<NoExtension>::builder(&wasm[..], None)
+		.with_genesis_config_preset_name(preset.trim());
+
+	if let Some(name) = name {
+		chain_spec = chain_spec.with_name(name);
+	}
+
+	if let Some(id) = id {
+		chain_spec = chain_spec.with_id(id);
+	}
+
+	let chain_spec = chain_spec.build().as_json(false).map_err(|e| anyhow::anyhow!(e))?;
 	fs::write(plain_chain_spec, chain_spec)?;
 
 	Ok(())

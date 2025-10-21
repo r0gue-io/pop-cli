@@ -151,7 +151,7 @@ pub struct BuildSpecCommand {
 	#[arg(long, value_enum)]
 	pub(crate) profile: Option<Profile>,
 	/// Parachain ID to be used when generating the chain spec files.
-	#[arg(short, long)]
+	#[arg(long = "para-id")]
 	pub(crate) para_id: Option<u32>,
 	/// Whether to keep localhost as a bootnode.
 	#[arg(short = 'b', long)]
@@ -173,6 +173,12 @@ pub struct BuildSpecCommand {
 	/// Relay chain this parachain will connect to.
 	#[arg(short = 'r', long, value_enum)]
 	pub(crate) relay: Option<RelayChain>,
+	/// Name to be used in the specification
+	#[arg(short, long)]
+	pub(crate) name: Option<String>,
+	/// Id to be used in the specification
+	#[arg(short, long)]
+	pub(crate) id: Option<String>,
 	/// Protocol-id to use in the specification.
 	#[arg(short = 'P', long = "protocol-id")]
 	pub(crate) protocol_id: Option<String>,
@@ -236,6 +242,8 @@ impl BuildSpecCommand {
 			chain_type,
 			chain,
 			relay,
+			name,
+			id,
 			protocol_id,
 			properties,
 			features,
@@ -479,6 +487,8 @@ impl BuildSpecCommand {
 			protocol_id,
 			properties,
 			features,
+			name,
+			id,
 			skip_build,
 			genesis_state,
 			genesis_code,
@@ -536,6 +546,8 @@ pub(crate) struct BuildSpec {
 	chain: Option<String>,
 	relay: RelayChain,
 	protocol_id: String,
+	name: Option<String>,
+	id: Option<String>,
 	properties: Option<String>,
 	features: Vec<String>,
 	skip_build: bool,
@@ -594,7 +606,12 @@ impl BuildSpec {
                            .interact()?
 			};
 			spinner.start("Generating chain specification...");
-			builder.generate_plain_chain_spec(&chain_or_preset, &self.output_file)?;
+			builder.generate_plain_chain_spec(
+				&chain_or_preset,
+				&self.output_file,
+				self.name.as_ref(),
+				self.id.as_ref(),
+			)?;
 			// Customize spec based on input.
 			self.customize(&self.output_file)?;
 			// Deterministic build.

@@ -54,6 +54,7 @@ pub fn ensure_node_binary_exists(
 	}
 }
 
+#[cfg(feature = "chain")]
 /// Represent how the contained Path should be used.
 pub(crate) enum ChainPath<'a> {
 	/// The path's gonna be used to search for something else inside it (eg, a runtime, node,...)
