@@ -152,7 +152,7 @@ pub struct BuildSpecCommand {
 	pub(crate) profile: Option<Profile>,
 	/// Parachain ID to be used when generating the chain spec files.
 	#[arg(short, long)]
-	pub(crate) id: Option<u32>,
+	pub(crate) para_id: Option<u32>,
 	/// Whether to keep localhost as a bootnode.
 	#[arg(short = 'b', long)]
 	pub(crate) default_bootnode: Option<bool>,
@@ -231,7 +231,7 @@ impl BuildSpecCommand {
 			path,
 			output_file,
 			profile,
-			id,
+			para_id,
 			default_bootnode,
 			chain_type,
 			chain,
@@ -288,7 +288,7 @@ impl BuildSpecCommand {
 		let chain_spec = ChainSpec::from(&output_file).ok();
 
 		// Para id.
-		let id = match id {
+		let para_id = match para_id {
 			Some(id) => id,
 			None => {
 				let default = chain_spec
@@ -471,7 +471,7 @@ impl BuildSpecCommand {
 			path,
 			output_file,
 			profile,
-			id,
+			para_id,
 			default_bootnode,
 			chain_type,
 			chain,
@@ -530,7 +530,7 @@ pub(crate) struct BuildSpec {
 	path: PathBuf,
 	output_file: PathBuf,
 	profile: Profile,
-	id: u32,
+	para_id: u32,
 	default_bootnode: bool,
 	chain_type: ChainType,
 	chain: Option<String>,
@@ -646,7 +646,7 @@ impl BuildSpec {
 		// Generate genesis artifacts.
 		let genesis_code_file = if self.genesis_code {
 			spinner.set_message("Generating genesis code...");
-			let wasm_file_name = format!("para-{}.wasm", self.id);
+			let wasm_file_name = format!("para-{}.wasm", self.para_id);
 			let wasm_file = builder.export_wasm_file(&raw_chain_spec, &wasm_file_name)?;
 			generated_files
 				.push(format!("WebAssembly runtime file exported at: {}", wasm_file.display()));
@@ -656,7 +656,7 @@ impl BuildSpec {
 		};
 		let genesis_state_file = if self.genesis_state {
 			spinner.set_message("Generating genesis state...");
-			let genesis_file_name = format!("para-{}-genesis-state", self.id);
+			let genesis_file_name = format!("para-{}-genesis-state", self.para_id);
 			let binary_path = match builder {
 				ChainSpecBuilder::Runtime { .. } =>
 					source_polkadot_omni_node_binary(cli, &spinner, &crate::cache()?, true).await?,
@@ -720,7 +720,7 @@ impl BuildSpec {
 	// Customize a chain specification.
 	fn customize(&self, path: &Path) -> anyhow::Result<()> {
 		let mut chain_spec = ChainSpec::from(path)?;
-		chain_spec.replace_para_id(self.id)?;
+		chain_spec.replace_para_id(self.para_id)?;
 		chain_spec.replace_relay_chain(self.relay.as_ref())?;
 		chain_spec.replace_chain_type(self.chain_type.as_ref())?;
 		chain_spec.replace_protocol_id(&self.protocol_id)?;
@@ -805,7 +805,7 @@ mod tests {
 					path,
 					output_file: Some(PathBuf::from(output_file)),
 					profile: Some(profile.clone()),
-					id: Some(para_id),
+					para_id: Some(para_id),
 					default_bootnode: Some(default_bootnode),
 					chain_type: Some(chain_type.clone()),
 					features: "".to_string(),
@@ -864,7 +864,7 @@ mod tests {
 			let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
 			assert_eq!(build_spec.chain, chain);
 			assert_eq!(build_spec.output_file, PathBuf::from(output_file));
-			assert_eq!(build_spec.id, para_id);
+			assert_eq!(build_spec.para_id, para_id);
 			assert_eq!(build_spec.profile, profile);
 			assert_eq!(build_spec.default_bootnode, default_bootnode);
 			assert_eq!(build_spec.chain_type, chain_type);
@@ -915,7 +915,7 @@ mod tests {
 					path: path.clone(),
 					output_file: Some(PathBuf::from(output_file)),
 					profile: Some(profile.clone()),
-					id: Some(para_id),
+					para_id: Some(para_id),
 					default_bootnode: None,
 					chain_type: Some(chain_type.clone()),
 					features: "".to_string(),
@@ -1012,7 +1012,7 @@ mod tests {
 				}
 				let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
 				if !changes && no_flags_used {
-					assert_eq!(build_spec.id, 2000);
+					assert_eq!(build_spec.para_id, 2000);
 					assert_eq!(build_spec.chain_type, Development);
 					assert_eq!(build_spec.relay, PaseoLocal);
 					assert_eq!(build_spec.protocol_id, "my-protocol");
@@ -1022,7 +1022,7 @@ mod tests {
 					assert_eq!(build_spec.package, DEFAULT_PACKAGE);
 					assert_eq!(build_spec.runtime_dir, PathBuf::from(DEFAULT_RUNTIME_DIR));
 				} else if changes && no_flags_used {
-					assert_eq!(build_spec.id, para_id);
+					assert_eq!(build_spec.para_id, para_id);
 					assert_eq!(build_spec.profile, profile);
 					assert_eq!(build_spec.default_bootnode, default_bootnode);
 					assert_eq!(build_spec.chain_type, chain_type);
