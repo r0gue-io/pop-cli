@@ -12,7 +12,6 @@ use pop_chains::{
 	TemplatePalletConfig, TemplatePalletConfigCommonTypes, TemplatePalletOptions,
 	TemplatePalletStorageTypes, create_pallet_template,
 };
-use pop_common::{add_crate_to_workspace, find_workspace_toml, prefix_with_current_dir_if_needed};
 use std::{path::PathBuf, process::Command};
 use strum::{EnumMessage, IntoEnumIterator};
 
@@ -154,13 +153,8 @@ impl NewPalletCommand {
 			PathBuf::from(path)
 		};
 
-		// If the user has introduced something like pallets/my_pallet, probably it refers to
-		// ./pallets/my_pallet. We need to transform this path, as otherwise the Cargo.toml won't be
-		// detected and the pallet won't be added to the workspace.
-		let pallet_path = prefix_with_current_dir_if_needed(pallet_path);
-
 		// Determine if the pallet is being created inside a workspace
-		let workspace_toml = find_workspace_toml(&pallet_path);
+		let workspace_toml = rustilities::manifest::find_workspace_manifest(&pallet_path);
 		check_destination_path(&pallet_path, cli)?;
 
 		let spinner = cliclack::spinner();
@@ -182,7 +176,7 @@ impl NewPalletCommand {
 
 		// If the pallet has been created inside a workspace, add it to that workspace
 		if let Some(workspace_toml) = workspace_toml {
-			add_crate_to_workspace(&workspace_toml, &pallet_path)?;
+			rustilities::manifest::add_crate_to_workspace(&workspace_toml, &pallet_path)?;
 		}
 
 		// Format the dir. If this fails we do nothing, it's not a major failure
