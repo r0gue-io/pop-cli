@@ -20,6 +20,8 @@ mod generator;
 mod new_chain;
 /// Tools for creating new runtime pallets.
 mod new_pallet;
+/// Provides functionality for running runtime-only parachains.
+pub mod omni_node;
 /// A registry of parachains.
 pub mod registry;
 /// Relay chain interaction and management.
