@@ -1076,15 +1076,15 @@ mod tests {
 				} else if !no_flags_used {
 					assert_eq!(build_spec.para_id, para_id);
 					assert_eq!(build_spec.profile, profile);
-					assert_eq!(build_spec.default_bootnode, false);
+					assert!(!build_spec.default_bootnode);
 					assert_eq!(build_spec.chain_type, chain_type);
 					assert_eq!(build_spec.name, Some(name.to_string()));
 					assert_eq!(build_spec.id, Some(id.to_string()));
 					assert_eq!(build_spec.relay, relay);
 					assert_eq!(build_spec.protocol_id, protocol_id);
-					assert_eq!(build_spec.genesis_state, false);
-					assert_eq!(build_spec.genesis_code, false);
-					assert_eq!(build_spec.deterministic, false);
+					assert!(!build_spec.genesis_state);
+					assert!(!build_spec.genesis_code);
+					assert!(!build_spec.deterministic);
 					assert_eq!(build_spec.package, "parachain-template-runtime");
 					assert_eq!(build_spec.runtime_dir, Some(runtime_dir.clone()));
 				}

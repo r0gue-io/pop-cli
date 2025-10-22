@@ -1081,7 +1081,7 @@ mod tests {
 		let plain_chain_spec = &temp_dir.path().join("plain-parachain-chainspec.json");
 		generate_plain_chain_spec_with_runtime(
 			Vec::from(MOCK_WASM),
-			&plain_chain_spec,
+			plain_chain_spec,
 			"local_testnet",
 			Some("POP Chain Spec"),
 			Some("pop-chain-spec"),
@@ -1105,7 +1105,7 @@ mod tests {
 		let plain_chain_spec = &temp_dir.path().join("plain-parachain-chainspec.json");
 		generate_plain_chain_spec_with_runtime(
 			Vec::from(MOCK_WASM),
-			&plain_chain_spec,
+			plain_chain_spec,
 			"local_testnet",
 			Some("POP Chain Spec"),
 			None,
@@ -1129,7 +1129,7 @@ mod tests {
 		let plain_chain_spec = &temp_dir.path().join("plain-parachain-chainspec.json");
 		generate_plain_chain_spec_with_runtime(
 			Vec::from(MOCK_WASM),
-			&plain_chain_spec,
+			plain_chain_spec,
 			"local_testnet",
 			None,
 			Some("pop-chain-spec"),
@@ -1154,7 +1154,7 @@ mod tests {
 		let plain_chain_spec = &temp_dir.path().join("plain-parachain-chainspec.json");
 		generate_plain_chain_spec_with_runtime(
 			Vec::from(MOCK_WASM),
-			&plain_chain_spec,
+			plain_chain_spec,
 			"local_testnet",
 			None,
 			None,
