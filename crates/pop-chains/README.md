@@ -48,11 +48,13 @@ use std::path::Path;
 
 let path = Path::new("./"); // Location of the parachain project.
 let builder = ChainSpecBuilder::Node { node_path: path.join("node"), default_bootnode: false, profile: Profile::Release };
+let spec_name = "MySpec";
+let spec_id = "my_spec";
 // Build the node binary first
 builder.build(&[]).unwrap();
 // Generate a plain chain specification file of a parachain
 let plain_chain_spec_path = path.join("plain-parachain-chainspec.json");
-builder.generate_plain_chain_spec("dev", &plain_chain_spec_path).unwrap();
+builder.generate_plain_chain_spec("dev", &plain_chain_spec_path, Some(spec_name), Some(spec_id)).unwrap();
 // Customize your chain specification
 let mut chain_spec = ChainSpec::from(&plain_chain_spec_path).unwrap();
 chain_spec.replace_para_id(2002);
@@ -72,11 +74,13 @@ use std::path::Path;
 
 let path = Path::new("./"); // Location of the parachain project.
 let builder = ChainSpecBuilder::Node { node_path: path.join("node"), default_bootnode: false, profile: Profile::Release };
+let spec_name = "MySpec";
+let spec_id = "my_spec";
 // Build the node binary first
 let binary_path = builder.build(&[]).unwrap();
 // Generate a plain chain specification file of a parachain
 let plain_chain_spec_path = path.join("plain-parachain-chainspec.json");
-builder.generate_plain_chain_spec("dev", &plain_chain_spec_path).unwrap();
+builder.generate_plain_chain_spec("dev", &plain_chain_spec_path, Some(spec_name), Some(spec_id)).unwrap();
 // Generate a raw chain specification file of a parachain
 let chain_spec = builder.generate_raw_chain_spec(&plain_chain_spec_path, "raw-parachain-chainspec.json").unwrap();
 // Export the WebAssembly runtime for the parachain.

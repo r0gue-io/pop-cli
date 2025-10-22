@@ -85,7 +85,7 @@ impl ChainSpecBuilder {
 	pub fn artifact_path(&self) -> Result<PathBuf> {
 		let manifest = from_path(&self.path())?;
 		let package = manifest.package().name();
-		let root_folder = rustilities::manifest::find_workspace_manifest(&self.path())
+		let root_folder = rustilities::manifest::find_workspace_manifest(self.path())
 			.ok_or(anyhow::anyhow!("Not inside a workspace"))?
 			.parent()
 			.expect("Path to Cargo.toml workspace root folder must exist")
@@ -121,8 +121,8 @@ impl ChainSpecBuilder {
 		&self,
 		chain_or_preset: &str,
 		output_file: &Path,
-		name: Option<&String>,
-		id: Option<&String>,
+		name: Option<&str>,
+		id: Option<&str>,
 	) -> Result<(), Error> {
 		match self {
 			ChainSpecBuilder::Node { default_bootnode, .. } => generate_plain_chain_spec_with_node(
@@ -339,8 +339,8 @@ pub fn generate_plain_chain_spec_with_runtime(
 	wasm: Vec<u8>,
 	plain_chain_spec: &Path,
 	preset: &str,
-	name: Option<&String>,
-	id: Option<&String>,
+	name: Option<&str>,
+	id: Option<&str>,
 ) -> Result<(), Error> {
 	let mut chain_spec = GenericChainSpec::<NoExtension>::builder(&wasm[..], None)
 		.with_genesis_config_preset_name(preset.trim());

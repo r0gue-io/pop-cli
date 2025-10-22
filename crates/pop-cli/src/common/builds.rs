@@ -93,10 +93,15 @@ pub fn create_chain_spec_builder(
 				Ok(ChainSpecBuilder::Runtime { runtime_path, profile: profile.clone() })
 			}
 		},
-		ChainPath::Exact(runtime_path) => Ok(ChainSpecBuilder::Runtime {
-			runtime_path: runtime_path.to_owned(),
-			profile: profile.clone(),
-		}),
+		ChainPath::Exact(runtime_path) => {
+			let runtime_path = runtime_path.canonicalize()?;
+			cli.info(format!("Using runtime at {}", runtime_path.display()))?;
+
+			Ok(ChainSpecBuilder::Runtime {
+				runtime_path: runtime_path.to_owned(),
+				profile: profile.clone(),
+			})
+		},
 	}
 }
 
@@ -406,7 +411,12 @@ version = "0.1.0"
 		let mut cli = MockCli::new()
 			.expect_info(format!("Using node at {}", node_dir.canonicalize()?.display()));
 
-		let result = create_chain_spec_builder(temp_dir.path(), &Profile::Release, true, &mut cli)?;
+		let result = create_chain_spec_builder(
+			ChainPath::Base(temp_dir.path()),
+			&Profile::Release,
+			true,
+			&mut cli,
+		)?;
 
 		// Verify it returns ChainSpecBuilder::Node variant
 		match result {
@@ -423,7 +433,7 @@ version = "0.1.0"
 
 	#[test]
 	#[cfg(feature = "chain")]
-	fn create_chain_spec_builder_with_runtime_works() -> anyhow::Result<()> {
+	fn create_chain_spec_builder_with_runtime_works_using_base_path() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 
 		// Create workspace structure
@@ -452,8 +462,12 @@ version = "0.1.0"
 		let mut cli = MockCli::new()
 			.expect_info(format!("Using runtime at {}", runtime_dir.canonicalize()?.display()));
 
-		let result =
-			create_chain_spec_builder(temp_dir.path(), &Profile::Release, false, &mut cli)?;
+		let result = create_chain_spec_builder(
+			ChainPath::Base(temp_dir.path()),
+			&Profile::Release,
+			false,
+			&mut cli,
+		)?;
 
 		// Verify it returns ChainSpecBuilder::Runtime variant
 		match result {
@@ -465,5 +479,98 @@ version = "0.1.0"
 		}
 
 		cli.verify()
+	}
+
+	#[test]
+	#[cfg(feature = "chain")]
+	fn create_chain_spec_builder_with_runtime_works_using_exact_path() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+
+		// Create workspace structure
+		let workspace_toml = temp_dir.path().join("Cargo.toml");
+		fs::write(
+			&workspace_toml,
+			r#"[workspace]
+members = ["runtime"]
+
+[workspace.package]
+name = "test-workspace"
+"#,
+		)?;
+
+		// Create runtime directory (no node directory)
+		let runtime_dir_not_called_runtime = temp_dir.path().join("something");
+		fs::create_dir(&runtime_dir_not_called_runtime)?;
+		fs::write(
+			runtime_dir_not_called_runtime.join("Cargo.toml"),
+			r#"[package]
+name = "runtime"
+version = "0.1.0"
+"#,
+		)?;
+
+		let mut cli = MockCli::new().expect_info(format!(
+			"Using runtime at {}",
+			runtime_dir_not_called_runtime.canonicalize()?.display()
+		));
+
+		let result = create_chain_spec_builder(
+			ChainPath::Exact(&runtime_dir_not_called_runtime),
+			&Profile::Release,
+			false,
+			&mut cli,
+		)?;
+
+		// Verify it returns ChainSpecBuilder::Runtime variant
+		match result {
+			ChainSpecBuilder::Runtime { runtime_path, profile } => {
+				assert_eq!(runtime_path, runtime_dir_not_called_runtime.canonicalize()?);
+				assert_eq!(profile, Profile::Release);
+			},
+			_ => panic!("Expected ChainSpecBuilder::Runtime variant"),
+		}
+
+		cli.verify()
+	}
+
+	#[test]
+	#[cfg(feature = "chain")]
+	fn create_chain_spec_builder_with_runtime_using_exact_path_fails_if_path_cannot_be_canonicalized()
+	-> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+
+		// Create workspace structure
+		let workspace_toml = temp_dir.path().join("Cargo.toml");
+		fs::write(
+			&workspace_toml,
+			r#"[workspace]
+members = ["runtime"]
+
+[workspace.package]
+name = "test-workspace"
+"#,
+		)?;
+
+		// Create runtime directory (no node directory)
+		let runtime_dir_not_called_runtime = temp_dir.path().join("something");
+		let mut cli = MockCli::new().expect_info(format!("nothing"));
+
+		let result = create_chain_spec_builder(
+			ChainPath::Exact(&runtime_dir_not_called_runtime),
+			&Profile::Release,
+			false,
+			&mut cli,
+		);
+
+		match result {
+			Err(err) if err.downcast_ref::<std::io::Error>().is_some() => {
+				assert_eq!(
+					err.downcast_ref::<std::io::Error>().unwrap().kind(),
+					std::io::ErrorKind::NotFound
+				);
+				Ok(())
+			},
+			_ => panic!("The dir doesn't exist"),
+		}
 	}
 }

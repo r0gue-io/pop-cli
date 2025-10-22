@@ -609,8 +609,8 @@ impl BuildSpec {
 			builder.generate_plain_chain_spec(
 				&chain_or_preset,
 				&self.output_file,
-				self.name.as_ref(),
-				self.id.as_ref(),
+				self.name.as_deref(),
+				self.id.as_deref(),
 			)?;
 			// Customize spec based on input.
 			self.customize(&self.output_file)?;
@@ -804,6 +804,8 @@ mod tests {
 		let genesis_state = true;
 		let output_file = "artifacts/chain-spec.json";
 		let para_id = 4242;
+		let name = "POP Chain Spec";
+		let id = "pop";
 		let protocol_id = "pop";
 		let relay = Polkadot;
 		let profile = Profile::Production;
@@ -822,6 +824,8 @@ mod tests {
 					path,
 					output_file: Some(PathBuf::from(output_file)),
 					profile: Some(profile.clone()),
+					name: Some(name.to_string()),
+					id: Some(id.to_string()),
 					para_id: Some(para_id),
 					default_bootnode: Some(default_bootnode),
 					chain_type: Some(chain_type.clone()),
@@ -885,13 +889,15 @@ mod tests {
 			assert_eq!(build_spec.profile, profile);
 			assert_eq!(build_spec.default_bootnode, default_bootnode);
 			assert_eq!(build_spec.chain_type, chain_type);
+			assert_eq!(build_spec.name, Some(name.to_string()));
+			assert_eq!(build_spec.id, Some(id.to_string()));
 			assert_eq!(build_spec.relay, relay);
 			assert_eq!(build_spec.protocol_id, protocol_id);
 			assert_eq!(build_spec.genesis_state, genesis_state);
 			assert_eq!(build_spec.genesis_code, genesis_code);
 			assert_eq!(build_spec.deterministic, deterministic);
 			assert_eq!(build_spec.package, package);
-			assert_eq!(build_spec.runtime_dir, runtime_dir);
+			assert_eq!(build_spec.runtime_dir, Some(runtime_dir.clone()));
 			cli.verify()?;
 		}
 		Ok(())
@@ -905,6 +911,8 @@ mod tests {
 		let genesis_state = true;
 		let output_file = "artifacts/chain-spec.json";
 		let para_id = 4242;
+		let name = "POP Chain Spec";
+		let id = "pop";
 		let protocol_id = "pop";
 		let relay = Polkadot;
 		let profile = Profile::Production;
@@ -936,6 +944,8 @@ mod tests {
 					default_bootnode: None,
 					chain_type: Some(chain_type.clone()),
 					features: "".to_string(),
+					name: Some(name.to_string()),
+					id: Some(id.to_string()),
 					chain: Some(chain_spec_path.to_string_lossy().to_string()),
 					relay: Some(relay.clone()),
 					protocol_id: Some(protocol_id.to_string()),
@@ -1033,23 +1043,27 @@ mod tests {
 					assert_eq!(build_spec.chain_type, Development);
 					assert_eq!(build_spec.relay, PaseoLocal);
 					assert_eq!(build_spec.protocol_id, "my-protocol");
+					assert_eq!(build_spec.name, None);
+					assert_eq!(build_spec.id, None);
 					assert_eq!(build_spec.genesis_state, genesis_state);
 					assert_eq!(build_spec.genesis_code, genesis_code);
 					assert!(!build_spec.deterministic);
 					assert_eq!(build_spec.package, DEFAULT_PACKAGE);
-					assert_eq!(build_spec.runtime_dir, PathBuf::from(DEFAULT_RUNTIME_DIR));
+					assert_eq!(build_spec.runtime_dir, None);
 				} else if changes && no_flags_used {
 					assert_eq!(build_spec.para_id, para_id);
 					assert_eq!(build_spec.profile, profile);
 					assert_eq!(build_spec.default_bootnode, default_bootnode);
 					assert_eq!(build_spec.chain_type, chain_type);
+					assert_eq!(build_spec.name, Some(name.to_string()));
+					assert_eq!(build_spec.id, Some(id.to_string()));
 					assert_eq!(build_spec.relay, relay);
 					assert_eq!(build_spec.protocol_id, protocol_id);
 					assert_eq!(build_spec.genesis_state, genesis_state);
 					assert_eq!(build_spec.genesis_code, genesis_code);
 					assert_eq!(build_spec.deterministic, deterministic);
 					assert_eq!(build_spec.package, package);
-					assert_eq!(build_spec.runtime_dir, runtime_dir);
+					assert_eq!(build_spec.runtime_dir, Some(runtime_dir.clone()));
 				}
 				// Assert that the chain spec file is correctly detected and used.
 				assert_eq!(build_spec.chain, Some(chain_spec_path.to_string_lossy().to_string()));

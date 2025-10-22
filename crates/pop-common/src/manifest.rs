@@ -124,15 +124,13 @@ pub fn add_feature(project: &Path, (key, items): (String, Vec<String>)) -> anyho
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::fs::{File, write};
+	use std::fs::{File, read_to_string, write};
 	use tempfile::TempDir;
 
 	struct TestBuilder {
 		main_tempdir: TempDir,
 		workspace: Option<TempDir>,
-		inside_workspace_dir: Option<TempDir>,
 		workspace_cargo_toml: Option<PathBuf>,
-		outside_workspace_dir: Option<TempDir>,
 	}
 
 	impl Default for TestBuilder {
@@ -140,9 +138,7 @@ mod tests {
 			Self {
 				main_tempdir: TempDir::new().expect("Failed to create tempdir"),
 				workspace: None,
-				inside_workspace_dir: None,
 				workspace_cargo_toml: None,
-				outside_workspace_dir: None,
 			}
 		}
 	}
@@ -150,16 +146,6 @@ mod tests {
 	impl TestBuilder {
 		fn add_workspace(self) -> Self {
 			Self { workspace: TempDir::new_in(self.main_tempdir.as_ref()).ok(), ..self }
-		}
-
-		fn add_inside_workspace_dir(self) -> Self {
-			Self {
-				inside_workspace_dir: TempDir::new_in(self.workspace.as_ref().expect(
-					"add_inside_workspace_dir is only callable if workspace has been created",
-				))
-				.ok(),
-				..self
-			}
 		}
 
 		fn add_workspace_cargo_toml(self, cargo_toml_content: &str) -> Self {
@@ -172,10 +158,6 @@ mod tests {
 			File::create(&workspace_cargo_toml).expect("Failed to create Cargo.toml");
 			write(&workspace_cargo_toml, cargo_toml_content).expect("Failed to write Cargo.toml");
 			Self { workspace_cargo_toml: Some(workspace_cargo_toml.to_path_buf()), ..self }
-		}
-
-		fn add_outside_workspace_dir(self) -> Self {
-			Self { outside_workspace_dir: TempDir::new_in(self.main_tempdir.as_ref()).ok(), ..self }
 		}
 	}
 
@@ -208,7 +190,7 @@ mod tests {
 
 		let binding = test_builder.workspace.expect("Workspace should exist");
 		let project_path = binding.path();
-		let cargo_toml_path = project_path.join("Cargo.toml");
+		let cargo_toml_path = test_builder.workspace_cargo_toml.clone().unwrap();
 
 		// Call the function to add the production profile
 		let result = add_production_profile(project_path);
@@ -249,7 +231,7 @@ mod tests {
 			vec!["feature-a".to_string(), "feature-b".to_string(), "feature-c".to_string()];
 		let binding = test_builder.workspace.expect("Workspace should exist");
 		let project_path = binding.path();
-		let cargo_toml_path = project_path.join("Cargo.toml");
+		let cargo_toml_path = test_builder.workspace_cargo_toml.clone().unwrap();
 
 		// Call the function to add the production profile
 		let result = add_feature(
