@@ -815,6 +815,7 @@ mod tests {
 		let path = PathBuf::from("./");
 		let properties = "tokenSymbol=UNIT,decimals=12,isEthereum=false";
 
+		let mut flags_used = false;
 		for (build_spec_cmd, chain) in [
 			// No flags used.
 			(BuildSpecCommand::default(), None),
@@ -881,6 +882,8 @@ mod tests {
 				.expect_confirm("Would you like to build the runtime deterministically? This requires a containerization solution (Docker/Podman) and is recommended for production builds.", deterministic)
 				.expect_input("Enter the directory path where the runtime is located:", runtime_dir.display().to_string())
 				.expect_input("Enter the runtime package name:", package.to_string());
+			} else {
+				flags_used = true;
 			}
 			let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
 			assert_eq!(build_spec.chain, chain);
@@ -889,8 +892,6 @@ mod tests {
 			assert_eq!(build_spec.profile, profile);
 			assert_eq!(build_spec.default_bootnode, default_bootnode);
 			assert_eq!(build_spec.chain_type, chain_type);
-			assert_eq!(build_spec.name, Some(name.to_string()));
-			assert_eq!(build_spec.id, Some(id.to_string()));
 			assert_eq!(build_spec.relay, relay);
 			assert_eq!(build_spec.protocol_id, protocol_id);
 			assert_eq!(build_spec.genesis_state, genesis_state);
@@ -898,6 +899,14 @@ mod tests {
 			assert_eq!(build_spec.deterministic, deterministic);
 			assert_eq!(build_spec.package, package);
 			assert_eq!(build_spec.runtime_dir, Some(runtime_dir.clone()));
+			if flags_used {
+				assert_eq!(build_spec.name, Some(name.to_string()));
+				assert_eq!(build_spec.id, Some(id.to_string()));
+			} else {
+				assert_eq!(build_spec.name, None);
+				assert_eq!(build_spec.id, None);
+			}
+
 			cli.verify()?;
 		}
 		Ok(())
@@ -1055,14 +1064,28 @@ mod tests {
 					assert_eq!(build_spec.profile, profile);
 					assert_eq!(build_spec.default_bootnode, default_bootnode);
 					assert_eq!(build_spec.chain_type, chain_type);
-					assert_eq!(build_spec.name, Some(name.to_string()));
-					assert_eq!(build_spec.id, Some(id.to_string()));
+					assert_eq!(build_spec.name, None);
+					assert_eq!(build_spec.id, None);
 					assert_eq!(build_spec.relay, relay);
 					assert_eq!(build_spec.protocol_id, protocol_id);
 					assert_eq!(build_spec.genesis_state, genesis_state);
 					assert_eq!(build_spec.genesis_code, genesis_code);
 					assert_eq!(build_spec.deterministic, deterministic);
 					assert_eq!(build_spec.package, package);
+					assert_eq!(build_spec.runtime_dir, Some(runtime_dir.clone()));
+				} else if !no_flags_used {
+					assert_eq!(build_spec.para_id, para_id);
+					assert_eq!(build_spec.profile, profile);
+					assert_eq!(build_spec.default_bootnode, false);
+					assert_eq!(build_spec.chain_type, chain_type);
+					assert_eq!(build_spec.name, Some(name.to_string()));
+					assert_eq!(build_spec.id, Some(id.to_string()));
+					assert_eq!(build_spec.relay, relay);
+					assert_eq!(build_spec.protocol_id, protocol_id);
+					assert_eq!(build_spec.genesis_state, false);
+					assert_eq!(build_spec.genesis_code, false);
+					assert_eq!(build_spec.deterministic, false);
+					assert_eq!(build_spec.package, "parachain-template-runtime");
 					assert_eq!(build_spec.runtime_dir, Some(runtime_dir.clone()));
 				}
 				// Assert that the chain spec file is correctly detected and used.

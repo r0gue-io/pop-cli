@@ -796,6 +796,8 @@ mod tests {
 	use strum::VariantArray;
 	use tempfile::{Builder, TempDir, tempdir};
 
+	static MOCK_WASM: &[u8] = include_bytes!("../../../../artifacts/mock_runtime.compact.wasm");
+
 	fn setup_template_and_instantiate() -> Result<TempDir> {
 		let temp_dir = tempdir().expect("Failed to create temp dir");
 		let config = Config {
@@ -1067,6 +1069,104 @@ mod tests {
 			"para-2001-genesis-state",
 		)?;
 		assert!(genesis_file.exists());
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn generate_plain_chain_spec_with_runtime_works_with_name_and_id_override() -> Result<()>
+	{
+		let temp_dir =
+			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+		// Test generate chain spec
+		let plain_chain_spec = &temp_dir.path().join("plain-parachain-chainspec.json");
+		generate_plain_chain_spec_with_runtime(
+			Vec::from(MOCK_WASM),
+			&plain_chain_spec,
+			"local_testnet",
+			Some("POP Chain Spec"),
+			Some("pop-chain-spec"),
+		)?;
+		assert!(plain_chain_spec.exists());
+		let raw_chain_spec =
+			generate_raw_chain_spec_with_runtime(plain_chain_spec, "raw-parachain-chainspec.json")?;
+		assert!(raw_chain_spec.exists());
+		let content = fs::read_to_string(raw_chain_spec.clone()).expect("Could not read file");
+		assert!(content.contains("\"name\": \"POP Chain Spec\""));
+		assert!(content.contains("\"id\": \"pop-chain-spec\""));
+		assert!(content.contains("\"bootNodes\": []"));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn generate_plain_chain_spec_with_runtime_works_with_name_override() -> Result<()> {
+		let temp_dir =
+			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+		// Test generate chain spec
+		let plain_chain_spec = &temp_dir.path().join("plain-parachain-chainspec.json");
+		generate_plain_chain_spec_with_runtime(
+			Vec::from(MOCK_WASM),
+			&plain_chain_spec,
+			"local_testnet",
+			Some("POP Chain Spec"),
+			None,
+		)?;
+		assert!(plain_chain_spec.exists());
+		let raw_chain_spec =
+			generate_raw_chain_spec_with_runtime(plain_chain_spec, "raw-parachain-chainspec.json")?;
+		assert!(raw_chain_spec.exists());
+		let content = fs::read_to_string(raw_chain_spec.clone()).expect("Could not read file");
+		assert!(content.contains("\"name\": \"POP Chain Spec\""));
+		assert!(content.contains("\"id\": \"dev\""));
+		assert!(content.contains("\"bootNodes\": []"));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn generate_plain_chain_spec_with_runtime_works_with_id_override() -> Result<()> {
+		let temp_dir =
+			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+		// Test generate chain spec
+		let plain_chain_spec = &temp_dir.path().join("plain-parachain-chainspec.json");
+		generate_plain_chain_spec_with_runtime(
+			Vec::from(MOCK_WASM),
+			&plain_chain_spec,
+			"local_testnet",
+			None,
+			Some("pop-chain-spec"),
+		)?;
+		assert!(plain_chain_spec.exists());
+		let raw_chain_spec =
+			generate_raw_chain_spec_with_runtime(plain_chain_spec, "raw-parachain-chainspec.json")?;
+		assert!(raw_chain_spec.exists());
+		let content = fs::read_to_string(raw_chain_spec.clone()).expect("Could not read file");
+		assert!(content.contains("\"name\": \"Development\""));
+		assert!(content.contains("\"id\": \"pop-chain-spec\""));
+		assert!(content.contains("\"bootNodes\": []"));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn generate_plain_chain_spec_with_runtime_works_without_name_and_id_override()
+	-> Result<()> {
+		let temp_dir =
+			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+		// Test generate chain spec
+		let plain_chain_spec = &temp_dir.path().join("plain-parachain-chainspec.json");
+		generate_plain_chain_spec_with_runtime(
+			Vec::from(MOCK_WASM),
+			&plain_chain_spec,
+			"local_testnet",
+			None,
+			None,
+		)?;
+		assert!(plain_chain_spec.exists());
+		let raw_chain_spec =
+			generate_raw_chain_spec_with_runtime(plain_chain_spec, "raw-parachain-chainspec.json")?;
+		assert!(raw_chain_spec.exists());
+		let content = fs::read_to_string(raw_chain_spec.clone()).expect("Could not read file");
+		assert!(content.contains("\"name\": \"Development\""));
+		assert!(content.contains("\"id\": \"dev\""));
+		assert!(content.contains("\"bootNodes\": []"));
 		Ok(())
 	}
 
