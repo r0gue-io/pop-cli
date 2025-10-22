@@ -151,7 +151,7 @@ pub struct BuildSpecCommand {
 	#[arg(long, value_enum)]
 	pub(crate) profile: Option<Profile>,
 	/// Parachain ID to be used when generating the chain spec files.
-	#[arg(short = "i", long = "para-id")]
+	#[arg(short = 'i', long = "para-id")]
 	pub(crate) para_id: Option<u32>,
 	/// Whether to keep localhost as a bootnode.
 	#[arg(short = 'b', long)]
