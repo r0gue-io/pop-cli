@@ -515,7 +515,7 @@ version = "0.1.0"
 		));
 
 		let result = create_chain_spec_builder(
-			ChainPath::Exact(runtime_dir_not_called_runtime),
+			ChainPath::Exact(runtime_dir_not_called_runtime.clone()),
 			&Profile::Release,
 			false,
 			&mut cli,
