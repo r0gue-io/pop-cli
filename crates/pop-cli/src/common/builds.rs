@@ -56,11 +56,11 @@ pub fn ensure_node_binary_exists(
 
 #[cfg(feature = "chain")]
 /// Represent how the contained Path should be used.
-pub(crate) enum ChainPath<'a> {
-	/// The path's gonna be used to search for something else inside it (eg, a runtime, node,...)
-	Base(&'a Path),
+pub(crate) enum ChainPath {
+	/// The path's going to be used to search for something else inside it (eg, a runtime, node,...)
+	Base(PathBuf),
 	/// The path is the exact one that should be used
-	Exact(&'a Path),
+	Exact(PathBuf),
 }
 
 /// Creates a chain specification builder based on project structure.
@@ -88,7 +88,7 @@ pub fn create_chain_spec_builder(
 				cli.info(format!("Using node at {}", node_path.display()))?;
 				Ok(ChainSpecBuilder::Node { node_path, default_bootnode, profile: profile.clone() })
 			} else {
-				let runtime_path = find_runtime_dir(path, cli)?;
+				let runtime_path = find_runtime_dir(&path, cli)?;
 				cli.info(format!("Using runtime at {}", runtime_path.display()))?;
 				Ok(ChainSpecBuilder::Runtime { runtime_path, profile: profile.clone() })
 			}
@@ -412,7 +412,7 @@ version = "0.1.0"
 			.expect_info(format!("Using node at {}", node_dir.canonicalize()?.display()));
 
 		let result = create_chain_spec_builder(
-			ChainPath::Base(temp_dir.path()),
+			ChainPath::Base(temp_dir.path().to_path_buf()),
 			&Profile::Release,
 			true,
 			&mut cli,
@@ -463,7 +463,7 @@ version = "0.1.0"
 			.expect_info(format!("Using runtime at {}", runtime_dir.canonicalize()?.display()));
 
 		let result = create_chain_spec_builder(
-			ChainPath::Base(temp_dir.path()),
+			ChainPath::Base(temp_dir.path().to_path_buf()),
 			&Profile::Release,
 			false,
 			&mut cli,
@@ -515,7 +515,7 @@ version = "0.1.0"
 		));
 
 		let result = create_chain_spec_builder(
-			ChainPath::Exact(&runtime_dir_not_called_runtime),
+			ChainPath::Exact(runtime_dir_not_called_runtime),
 			&Profile::Release,
 			false,
 			&mut cli,
@@ -556,7 +556,7 @@ name = "test-workspace"
 		let mut cli = MockCli::new().expect_info("nothing".to_string());
 
 		let result = create_chain_spec_builder(
-			ChainPath::Exact(&runtime_dir_not_called_runtime),
+			ChainPath::Exact(runtime_dir_not_called_runtime),
 			&Profile::Release,
 			false,
 			&mut cli,

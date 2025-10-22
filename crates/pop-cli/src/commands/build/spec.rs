@@ -173,11 +173,11 @@ pub struct BuildSpecCommand {
 	/// Relay chain this parachain will connect to.
 	#[arg(short = 'r', long, value_enum)]
 	pub(crate) relay: Option<RelayChain>,
-	/// Name to be used in the specification
+	/// Name to be used in the specification.
 	#[arg(short, long)]
 	pub(crate) name: Option<String>,
-	/// Id to be used in the specification
-	#[arg(short, long)]
+	/// Id to be used in the specification.
+	#[arg(long)]
 	pub(crate) id: Option<String>,
 	/// Protocol-id to use in the specification.
 	#[arg(short = 'P', long = "protocol-id")]
@@ -571,9 +571,9 @@ impl BuildSpec {
 	) -> anyhow::Result<GenesisArtifacts> {
 		let mut generated_files = vec![];
 		let builder_path = if let Some(runtime_dir) = &self.runtime_dir {
-			ChainPath::Exact(runtime_dir)
+			ChainPath::Exact(runtime_dir.to_path_buf())
 		} else {
-			ChainPath::Base(&self.path)
+			ChainPath::Base(self.path.to_path_buf())
 		};
 		let builder =
 			create_chain_spec_builder(builder_path, &self.profile, self.default_bootnode, cli)?;
