@@ -8,7 +8,7 @@ use crate::{
 		runtime::{build_runtime, ensure_runtime_binary_exists},
 	},
 };
-use pop_common::{Profile, find_workspace_toml};
+use pop_common::Profile;
 use std::{
 	collections::HashSet,
 	path::{Path, PathBuf},
@@ -89,7 +89,7 @@ impl BuildRuntime {
 		if self.profile == Profile::Debug {
 			cli.warning("NOTE: this command now defaults to DEBUG builds. Please use `--release` (or simply `-r`) for a release build...")?;
 		}
-		let workspace_root = find_workspace_toml(&self.path);
+		let workspace_root = rustilities::manifest::find_workspace_manifest(&self.path);
 		let target_path = self
 			.profile
 			.target_directory(&workspace_root.unwrap_or(self.path.to_path_buf()))

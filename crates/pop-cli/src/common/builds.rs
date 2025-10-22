@@ -54,10 +54,19 @@ pub fn ensure_node_binary_exists(
 	}
 }
 
+#[cfg(feature = "chain")]
+/// Represent how the contained Path should be used.
+pub(crate) enum ChainPath {
+	/// The path's going to be used to search for something else inside it (eg, a runtime, node,...)
+	Base(PathBuf),
+	/// The path is the exact one that should be used
+	Exact(PathBuf),
+}
+
 /// Creates a chain specification builder based on project structure.
 ///
 /// # Arguments
-/// * `path` - Path to the project.
+/// * `path` - Path to the project. If `[ChainPath::Exact]` is used, it'll point to a runtime.
 /// * `profile` - Build profile to use.
 /// * `default_bootnode` - Whether to use default bootnode.
 /// * `cli` - Command line interface implementation.
@@ -66,20 +75,33 @@ pub fn ensure_node_binary_exists(
 /// The chain spec builder for the node or the runtime.
 #[cfg(feature = "chain")]
 pub fn create_chain_spec_builder(
-	path: &Path,
+	path: ChainPath,
 	profile: &Profile,
 	default_bootnode: bool,
 	cli: &mut impl Cli,
 ) -> anyhow::Result<ChainSpecBuilder> {
-	let default_node_path = path.join("node");
-	if default_node_path.is_dir() {
-		let node_path = default_node_path.canonicalize()?;
-		cli.info(format!("Using node at {}", node_path.display()))?;
-		Ok(ChainSpecBuilder::Node { node_path, default_bootnode, profile: profile.clone() })
-	} else {
-		let runtime_path = find_runtime_dir(path, cli)?;
-		cli.info(format!("Using runtime at {}", runtime_path.display()))?;
-		Ok(ChainSpecBuilder::Runtime { runtime_path, profile: profile.clone() })
+	match path {
+		ChainPath::Base(path) => {
+			let default_node_path = path.join("node");
+			if default_node_path.is_dir() {
+				let node_path = default_node_path.canonicalize()?;
+				cli.info(format!("Using node at {}", node_path.display()))?;
+				Ok(ChainSpecBuilder::Node { node_path, default_bootnode, profile: profile.clone() })
+			} else {
+				let runtime_path = find_runtime_dir(&path, cli)?;
+				cli.info(format!("Using runtime at {}", runtime_path.display()))?;
+				Ok(ChainSpecBuilder::Runtime { runtime_path, profile: profile.clone() })
+			}
+		},
+		ChainPath::Exact(runtime_path) => {
+			let runtime_path = runtime_path.canonicalize()?;
+			cli.info(format!("Using runtime at {}", runtime_path.display()))?;
+
+			Ok(ChainSpecBuilder::Runtime {
+				runtime_path: runtime_path.to_owned(),
+				profile: profile.clone(),
+			})
+		},
 	}
 }
 
@@ -389,7 +411,12 @@ version = "0.1.0"
 		let mut cli = MockCli::new()
 			.expect_info(format!("Using node at {}", node_dir.canonicalize()?.display()));
 
-		let result = create_chain_spec_builder(temp_dir.path(), &Profile::Release, true, &mut cli)?;
+		let result = create_chain_spec_builder(
+			ChainPath::Base(temp_dir.path().to_path_buf()),
+			&Profile::Release,
+			true,
+			&mut cli,
+		)?;
 
 		// Verify it returns ChainSpecBuilder::Node variant
 		match result {
@@ -406,7 +433,7 @@ version = "0.1.0"
 
 	#[test]
 	#[cfg(feature = "chain")]
-	fn create_chain_spec_builder_with_runtime_works() -> anyhow::Result<()> {
+	fn create_chain_spec_builder_with_runtime_works_using_base_path() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 
 		// Create workspace structure
@@ -435,8 +462,12 @@ version = "0.1.0"
 		let mut cli = MockCli::new()
 			.expect_info(format!("Using runtime at {}", runtime_dir.canonicalize()?.display()));
 
-		let result =
-			create_chain_spec_builder(temp_dir.path(), &Profile::Release, false, &mut cli)?;
+		let result = create_chain_spec_builder(
+			ChainPath::Base(temp_dir.path().to_path_buf()),
+			&Profile::Release,
+			false,
+			&mut cli,
+		)?;
 
 		// Verify it returns ChainSpecBuilder::Runtime variant
 		match result {
@@ -448,5 +479,98 @@ version = "0.1.0"
 		}
 
 		cli.verify()
+	}
+
+	#[test]
+	#[cfg(feature = "chain")]
+	fn create_chain_spec_builder_with_runtime_works_using_exact_path() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+
+		// Create workspace structure
+		let workspace_toml = temp_dir.path().join("Cargo.toml");
+		fs::write(
+			&workspace_toml,
+			r#"[workspace]
+members = ["runtime"]
+
+[workspace.package]
+name = "test-workspace"
+"#,
+		)?;
+
+		// Create runtime directory (no node directory)
+		let runtime_dir_not_called_runtime = temp_dir.path().join("something");
+		fs::create_dir(&runtime_dir_not_called_runtime)?;
+		fs::write(
+			runtime_dir_not_called_runtime.join("Cargo.toml"),
+			r#"[package]
+name = "runtime"
+version = "0.1.0"
+"#,
+		)?;
+
+		let mut cli = MockCli::new().expect_info(format!(
+			"Using runtime at {}",
+			runtime_dir_not_called_runtime.canonicalize()?.display()
+		));
+
+		let result = create_chain_spec_builder(
+			ChainPath::Exact(runtime_dir_not_called_runtime.clone()),
+			&Profile::Release,
+			false,
+			&mut cli,
+		)?;
+
+		// Verify it returns ChainSpecBuilder::Runtime variant
+		match result {
+			ChainSpecBuilder::Runtime { runtime_path, profile } => {
+				assert_eq!(runtime_path, runtime_dir_not_called_runtime.canonicalize()?);
+				assert_eq!(profile, Profile::Release);
+			},
+			_ => panic!("Expected ChainSpecBuilder::Runtime variant"),
+		}
+
+		cli.verify()
+	}
+
+	#[test]
+	#[cfg(feature = "chain")]
+	fn create_chain_spec_builder_with_runtime_using_exact_path_fails_if_path_cannot_be_canonicalized()
+	-> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+
+		// Create workspace structure
+		let workspace_toml = temp_dir.path().join("Cargo.toml");
+		fs::write(
+			&workspace_toml,
+			r#"[workspace]
+members = ["runtime"]
+
+[workspace.package]
+name = "test-workspace"
+"#,
+		)?;
+
+		// Create runtime directory (no node directory)
+		let runtime_dir_not_called_runtime = temp_dir.path().join("something");
+		let mut cli = MockCli::new().expect_info("nothing".to_string());
+
+		let result = create_chain_spec_builder(
+			ChainPath::Exact(runtime_dir_not_called_runtime),
+			&Profile::Release,
+			false,
+			&mut cli,
+		);
+
+		match result {
+			Err(err) if err.downcast_ref::<std::io::Error>().is_some() => {
+				assert_eq!(
+					err.downcast_ref::<std::io::Error>().unwrap().kind(),
+					std::io::ErrorKind::NotFound
+				);
+				Ok(())
+			},
+			_ => panic!("The dir doesn't exist"),
+		}
 	}
 }

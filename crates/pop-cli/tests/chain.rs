@@ -116,7 +116,7 @@ async fn parachain_lifecycle() -> Result<()> {
 			"spec",
 			"--output",
 			"./target/pop/test-spec.json",
-			"--id",
+			"--para-id",
 			"2222",
 			"--type",
 			"development",
