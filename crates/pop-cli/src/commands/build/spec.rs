@@ -6,7 +6,7 @@ use crate::{
 		traits::{Cli as _, *},
 	},
 	common::{
-		builds::{create_chain_spec_builder, guide_user_to_select_profile},
+		builds::{ChainPath, create_chain_spec_builder, guide_user_to_select_profile},
 		omni_node::source_polkadot_omni_node_binary,
 		runtime::build_deterministic_runtime,
 	},
@@ -151,8 +151,8 @@ pub struct BuildSpecCommand {
 	#[arg(long, value_enum)]
 	pub(crate) profile: Option<Profile>,
 	/// Parachain ID to be used when generating the chain spec files.
-	#[arg(short, long)]
-	pub(crate) id: Option<u32>,
+	#[arg(short = 'i', long = "para-id")]
+	pub(crate) para_id: Option<u32>,
 	/// Whether to keep localhost as a bootnode.
 	#[arg(short = 'b', long)]
 	pub(crate) default_bootnode: Option<bool>,
@@ -173,6 +173,12 @@ pub struct BuildSpecCommand {
 	/// Relay chain this parachain will connect to.
 	#[arg(short = 'r', long, value_enum)]
 	pub(crate) relay: Option<RelayChain>,
+	/// Name to be used in the specification.
+	#[arg(short, long)]
+	pub(crate) name: Option<String>,
+	/// Id to be used in the specification.
+	#[arg(long)]
+	pub(crate) id: Option<String>,
 	/// Protocol-id to use in the specification.
 	#[arg(short = 'P', long = "protocol-id")]
 	pub(crate) protocol_id: Option<String>,
@@ -231,11 +237,13 @@ impl BuildSpecCommand {
 			path,
 			output_file,
 			profile,
-			id,
+			para_id,
 			default_bootnode,
 			chain_type,
 			chain,
 			relay,
+			name,
+			id,
 			protocol_id,
 			properties,
 			features,
@@ -288,7 +296,7 @@ impl BuildSpecCommand {
 		let chain_spec = ChainSpec::from(&output_file).ok();
 
 		// Para id.
-		let id = match id {
+		let para_id = match para_id {
 			Some(id) => id,
 			None => {
 				let default = chain_spec
@@ -431,16 +439,16 @@ impl BuildSpecCommand {
 		// If deterministic build is selected, use the provided runtime path or prompt the user if
 		// missing.
 		let runtime_dir = if deterministic {
-			runtime_dir.unwrap_or_else(|| {
+			Some(runtime_dir.unwrap_or_else(|| {
 				cli.input("Enter the directory path where the runtime is located:")
 					.placeholder(DEFAULT_RUNTIME_DIR)
 					.default_input(DEFAULT_RUNTIME_DIR)
 					.interact()
 					.map(PathBuf::from)
 					.unwrap_or_else(|_| PathBuf::from(DEFAULT_RUNTIME_DIR))
-			})
+			}))
 		} else {
-			DEFAULT_RUNTIME_DIR.into()
+			runtime_dir
 		};
 
 		// If deterministic build is selected, extract package name from runtime path provided
@@ -448,9 +456,13 @@ impl BuildSpecCommand {
 		let package = if deterministic {
 			package
 				.or_else(|| {
-					from_path(&runtime_dir)
-						.ok()
-						.and_then(|manifest| manifest.package.map(|pkg| pkg.name))
+					from_path(
+						runtime_dir
+							.as_ref()
+							.expect("Deterministic builds always have a runtime_dir"),
+					)
+					.ok()
+					.and_then(|manifest| manifest.package.map(|pkg| pkg.name))
 				})
 				.unwrap_or_else(|| {
 					cli.input("Enter the runtime package name:")
@@ -467,7 +479,7 @@ impl BuildSpecCommand {
 			path,
 			output_file,
 			profile,
-			id,
+			para_id,
 			default_bootnode,
 			chain_type,
 			chain,
@@ -475,6 +487,8 @@ impl BuildSpecCommand {
 			protocol_id,
 			properties,
 			features,
+			name,
+			id,
 			skip_build,
 			genesis_state,
 			genesis_code,
@@ -526,12 +540,14 @@ pub(crate) struct BuildSpec {
 	path: PathBuf,
 	output_file: PathBuf,
 	profile: Profile,
-	id: u32,
+	para_id: u32,
 	default_bootnode: bool,
 	chain_type: ChainType,
 	chain: Option<String>,
 	relay: RelayChain,
 	protocol_id: String,
+	name: Option<String>,
+	id: Option<String>,
 	properties: Option<String>,
 	features: Vec<String>,
 	skip_build: bool,
@@ -539,7 +555,7 @@ pub(crate) struct BuildSpec {
 	genesis_code: bool,
 	deterministic: bool,
 	package: String,
-	runtime_dir: PathBuf,
+	runtime_dir: Option<PathBuf>,
 	use_existing_plain_spec: bool,
 }
 
@@ -554,8 +570,13 @@ impl BuildSpec {
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<GenesisArtifacts> {
 		let mut generated_files = vec![];
+		let builder_path = if let Some(runtime_dir) = &self.runtime_dir {
+			ChainPath::Exact(runtime_dir.to_path_buf())
+		} else {
+			ChainPath::Base(self.path.to_path_buf())
+		};
 		let builder =
-			create_chain_spec_builder(&self.path, &self.profile, self.default_bootnode, cli)?;
+			create_chain_spec_builder(builder_path, &self.profile, self.default_bootnode, cli)?;
 		let is_runtime_build = matches!(builder, ChainSpecBuilder::Runtime { .. });
 		let artifact_exists = builder.artifact_path().is_ok();
 		if self.skip_build && builder.artifact_path().is_err() {
@@ -585,7 +606,12 @@ impl BuildSpec {
                            .interact()?
 			};
 			spinner.start("Generating chain specification...");
-			builder.generate_plain_chain_spec(&chain_or_preset, &self.output_file)?;
+			builder.generate_plain_chain_spec(
+				&chain_or_preset,
+				&self.output_file,
+				self.name.as_deref(),
+				self.id.as_deref(),
+			)?;
 			// Customize spec based on input.
 			self.customize(&self.output_file)?;
 			// Deterministic build.
@@ -595,7 +621,9 @@ impl BuildSpec {
 					&spinner,
 					&self.package,
 					self.profile.clone(),
-					self.runtime_dir.clone(),
+					self.runtime_dir
+						.clone()
+						.expect("Deterministic builds always contains runtime_dir"),
 				)
 				.map_err(|e| {
 					anyhow::anyhow!("Failed to build the deterministic runtime: {}", e.to_string())
@@ -635,7 +663,7 @@ impl BuildSpec {
 		// Generate genesis artifacts.
 		let genesis_code_file = if self.genesis_code {
 			spinner.set_message("Generating genesis code...");
-			let wasm_file_name = format!("para-{}.wasm", self.id);
+			let wasm_file_name = format!("para-{}.wasm", self.para_id);
 			let wasm_file = builder.export_wasm_file(&raw_chain_spec, &wasm_file_name)?;
 			generated_files
 				.push(format!("WebAssembly runtime file exported at: {}", wasm_file.display()));
@@ -645,7 +673,7 @@ impl BuildSpec {
 		};
 		let genesis_state_file = if self.genesis_state {
 			spinner.set_message("Generating genesis state...");
-			let genesis_file_name = format!("para-{}-genesis-state", self.id);
+			let genesis_file_name = format!("para-{}-genesis-state", self.para_id);
 			let binary_path = match builder {
 				ChainSpecBuilder::Runtime { .. } =>
 					source_polkadot_omni_node_binary(cli, &spinner, &crate::cache()?, true).await?,
@@ -709,7 +737,7 @@ impl BuildSpec {
 	// Customize a chain specification.
 	fn customize(&self, path: &Path) -> anyhow::Result<()> {
 		let mut chain_spec = ChainSpec::from(path)?;
-		chain_spec.replace_para_id(self.id)?;
+		chain_spec.replace_para_id(self.para_id)?;
 		chain_spec.replace_relay_chain(self.relay.as_ref())?;
 		chain_spec.replace_chain_type(self.chain_type.as_ref())?;
 		chain_spec.replace_protocol_id(&self.protocol_id)?;
@@ -776,6 +804,8 @@ mod tests {
 		let genesis_state = true;
 		let output_file = "artifacts/chain-spec.json";
 		let para_id = 4242;
+		let name = "POP Chain Spec";
+		let id = "pop";
 		let protocol_id = "pop";
 		let relay = Polkadot;
 		let profile = Profile::Production;
@@ -785,6 +815,7 @@ mod tests {
 		let path = PathBuf::from("./");
 		let properties = "tokenSymbol=UNIT,decimals=12,isEthereum=false";
 
+		let mut flags_used = false;
 		for (build_spec_cmd, chain) in [
 			// No flags used.
 			(BuildSpecCommand::default(), None),
@@ -794,7 +825,9 @@ mod tests {
 					path,
 					output_file: Some(PathBuf::from(output_file)),
 					profile: Some(profile.clone()),
-					id: Some(para_id),
+					name: Some(name.to_string()),
+					id: Some(id.to_string()),
+					para_id: Some(para_id),
 					default_bootnode: Some(default_bootnode),
 					chain_type: Some(chain_type.clone()),
 					features: "".to_string(),
@@ -849,11 +882,13 @@ mod tests {
 				.expect_confirm("Would you like to build the runtime deterministically? This requires a containerization solution (Docker/Podman) and is recommended for production builds.", deterministic)
 				.expect_input("Enter the directory path where the runtime is located:", runtime_dir.display().to_string())
 				.expect_input("Enter the runtime package name:", package.to_string());
+			} else {
+				flags_used = true;
 			}
 			let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
 			assert_eq!(build_spec.chain, chain);
 			assert_eq!(build_spec.output_file, PathBuf::from(output_file));
-			assert_eq!(build_spec.id, para_id);
+			assert_eq!(build_spec.para_id, para_id);
 			assert_eq!(build_spec.profile, profile);
 			assert_eq!(build_spec.default_bootnode, default_bootnode);
 			assert_eq!(build_spec.chain_type, chain_type);
@@ -863,7 +898,15 @@ mod tests {
 			assert_eq!(build_spec.genesis_code, genesis_code);
 			assert_eq!(build_spec.deterministic, deterministic);
 			assert_eq!(build_spec.package, package);
-			assert_eq!(build_spec.runtime_dir, runtime_dir);
+			assert_eq!(build_spec.runtime_dir, Some(runtime_dir.clone()));
+			if flags_used {
+				assert_eq!(build_spec.name, Some(name.to_string()));
+				assert_eq!(build_spec.id, Some(id.to_string()));
+			} else {
+				assert_eq!(build_spec.name, None);
+				assert_eq!(build_spec.id, None);
+			}
+
 			cli.verify()?;
 		}
 		Ok(())
@@ -877,6 +920,8 @@ mod tests {
 		let genesis_state = true;
 		let output_file = "artifacts/chain-spec.json";
 		let para_id = 4242;
+		let name = "POP Chain Spec";
+		let id = "pop";
 		let protocol_id = "pop";
 		let relay = Polkadot;
 		let profile = Profile::Production;
@@ -904,10 +949,12 @@ mod tests {
 					path: path.clone(),
 					output_file: Some(PathBuf::from(output_file)),
 					profile: Some(profile.clone()),
-					id: Some(para_id),
+					para_id: Some(para_id),
 					default_bootnode: None,
 					chain_type: Some(chain_type.clone()),
 					features: "".to_string(),
+					name: Some(name.to_string()),
+					id: Some(id.to_string()),
 					chain: Some(chain_spec_path.to_string_lossy().to_string()),
 					relay: Some(relay.clone()),
 					protocol_id: Some(protocol_id.to_string()),
@@ -1001,27 +1048,45 @@ mod tests {
 				}
 				let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
 				if !changes && no_flags_used {
-					assert_eq!(build_spec.id, 2000);
+					assert_eq!(build_spec.para_id, 2000);
 					assert_eq!(build_spec.chain_type, Development);
 					assert_eq!(build_spec.relay, PaseoLocal);
 					assert_eq!(build_spec.protocol_id, "my-protocol");
+					assert_eq!(build_spec.name, None);
+					assert_eq!(build_spec.id, None);
 					assert_eq!(build_spec.genesis_state, genesis_state);
 					assert_eq!(build_spec.genesis_code, genesis_code);
 					assert!(!build_spec.deterministic);
 					assert_eq!(build_spec.package, DEFAULT_PACKAGE);
-					assert_eq!(build_spec.runtime_dir, PathBuf::from(DEFAULT_RUNTIME_DIR));
+					assert_eq!(build_spec.runtime_dir, None);
 				} else if changes && no_flags_used {
-					assert_eq!(build_spec.id, para_id);
+					assert_eq!(build_spec.para_id, para_id);
 					assert_eq!(build_spec.profile, profile);
 					assert_eq!(build_spec.default_bootnode, default_bootnode);
 					assert_eq!(build_spec.chain_type, chain_type);
+					assert_eq!(build_spec.name, None);
+					assert_eq!(build_spec.id, None);
 					assert_eq!(build_spec.relay, relay);
 					assert_eq!(build_spec.protocol_id, protocol_id);
 					assert_eq!(build_spec.genesis_state, genesis_state);
 					assert_eq!(build_spec.genesis_code, genesis_code);
 					assert_eq!(build_spec.deterministic, deterministic);
 					assert_eq!(build_spec.package, package);
-					assert_eq!(build_spec.runtime_dir, runtime_dir);
+					assert_eq!(build_spec.runtime_dir, Some(runtime_dir.clone()));
+				} else if !no_flags_used {
+					assert_eq!(build_spec.para_id, para_id);
+					assert_eq!(build_spec.profile, profile);
+					assert!(!build_spec.default_bootnode);
+					assert_eq!(build_spec.chain_type, chain_type);
+					assert_eq!(build_spec.name, Some(name.to_string()));
+					assert_eq!(build_spec.id, Some(id.to_string()));
+					assert_eq!(build_spec.relay, relay);
+					assert_eq!(build_spec.protocol_id, protocol_id);
+					assert!(!build_spec.genesis_state);
+					assert!(!build_spec.genesis_code);
+					assert!(!build_spec.deterministic);
+					assert_eq!(build_spec.package, "parachain-template-runtime");
+					assert_eq!(build_spec.runtime_dir, Some(runtime_dir.clone()));
 				}
 				// Assert that the chain spec file is correctly detected and used.
 				assert_eq!(build_spec.chain, Some(chain_spec_path.to_string_lossy().to_string()));

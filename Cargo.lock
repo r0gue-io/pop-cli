@@ -1815,6 +1815,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "cargo_toml"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5fbd1fe9db3ebf71b89060adaf7b0504c2d6a425cf061313099547e382c2e472"
+dependencies = [
+ "serde",
+ "toml 0.8.20",
+]
+
+[[package]]
 name = "cc"
 version = "1.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8958,6 +8968,7 @@ dependencies = [
  "indexmap 2.9.0",
  "parity-scale-codec",
  "pop-common",
+ "rustilities",
  "sc-chain-spec",
  "sc-cli",
  "scale-info",
@@ -9008,6 +9019,7 @@ dependencies = [
  "pop-telemetry",
  "regex",
  "reqwest",
+ "rustilities",
  "scale-value",
  "serde",
  "serde_json",
@@ -9031,7 +9043,7 @@ dependencies = [
  "anyhow",
  "assert_cmd",
  "bytes",
- "cargo_toml",
+ "cargo_toml 0.20.5",
  "contract-build 5.0.3",
  "contract-extrinsics 5.0.3",
  "derivative",
@@ -10133,6 +10145,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "faf0c4a6ece9950b9abdb62b1cfcf2a68b3b67a10ba445b3bb85be2a293d0632"
 dependencies = [
  "nom",
+]
+
+[[package]]
+name = "rustilities"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "647edbdbbd488fa193058afbb7232161ca3696fe5619580ce6d354001c301cbf"
+dependencies = [
+ "cargo_toml 0.21.0",
+ "thiserror 2.0.12",
+ "toml_edit",
 ]
 
 [[package]]
