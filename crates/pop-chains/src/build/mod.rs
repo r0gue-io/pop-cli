@@ -796,7 +796,7 @@ mod tests {
 	use strum::VariantArray;
 	use tempfile::{Builder, TempDir, tempdir};
 
-	static MOCK_WASM: &[u8] = include_bytes!("../../../../artifacts/mock_runtime.compact.wasm");
+	static MOCK_WASM: &[u8] = include_bytes!("../../../../tests/runtimes/base_parachain.wasm");
 
 	fn setup_template_and_instantiate() -> Result<TempDir> {
 		let temp_dir = tempdir().expect("Failed to create temp dir");
