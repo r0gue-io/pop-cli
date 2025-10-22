@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use std::path::Path;
-
 use crate::{
 	cli::{self, traits::*},
 	install::frontend::{ensure_bun, ensure_node_v20, ensure_npx},
@@ -12,6 +10,7 @@ use pop_common::{
 	FrontendTemplate, FrontendType,
 	templates::{Template, Type},
 };
+use std::path::Path;
 
 /// Prompts the user to pick a frontend template for the given frontend type (Chain or Contract).
 ///

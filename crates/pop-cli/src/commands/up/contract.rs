@@ -5,7 +5,10 @@ use crate::{
 		Cli,
 		traits::{Cli as _, Confirm},
 	},
-	commands::call::contract::CallContractCommand,
+	commands::{
+		call::contract::CallContractCommand,
+		up::frontend::{resolve_frontend_dir, run_frontend},
+	},
 	common::{
 		contracts::{
 			check_ink_node_and_prompt, has_contract_been_built, map_account, normalize_call_args,
@@ -100,6 +103,9 @@ pub struct UpContractCommand {
 	/// If the contract is not built, it will be built regardless.
 	#[clap(long)]
 	pub(crate) skip_build: bool,
+	/// Also start a frontend dev server from a frontend directory.
+	#[clap(long = "with-frontend", action)]
+	pub(crate) with_frontend: bool,
 }
 
 impl UpContractCommand {
@@ -379,6 +385,13 @@ impl UpContractCommand {
 			}
 		};
 
+		// Run a frontend dev server.
+		if self.with_frontend {
+			if let Some(frontend_dir) = resolve_frontend_dir(&std::env::current_dir()?, &mut Cli)? {
+				run_frontend(&frontend_dir)?;
+			}
+		}
+
 		// Finally upload and instantiate.
 		if !self.dry_run {
 			let spinner = spinner();
@@ -528,6 +541,7 @@ impl Default for UpContractCommand {
 			upload_only: false,
 			skip_confirm: false,
 			skip_build: false,
+			with_frontend: false,
 		}
 	}
 }
