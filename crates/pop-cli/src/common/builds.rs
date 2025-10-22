@@ -553,7 +553,7 @@ name = "test-workspace"
 
 		// Create runtime directory (no node directory)
 		let runtime_dir_not_called_runtime = temp_dir.path().join("something");
-		let mut cli = MockCli::new().expect_info(format!("nothing"));
+		let mut cli = MockCli::new().expect_info("nothing".to_string());
 
 		let result = create_chain_spec_builder(
 			ChainPath::Exact(&runtime_dir_not_called_runtime),
