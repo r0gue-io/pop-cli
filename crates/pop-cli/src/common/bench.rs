@@ -8,7 +8,6 @@ use crate::{
 };
 use cliclack::ProgressBar;
 use pop_chains::omni_bencher_generator;
-use pop_common::sourcing::Binary;
 use std::{
 	self,
 	cmp::Ordering,
