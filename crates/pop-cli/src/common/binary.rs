@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
 use duct::cmd;
 #[cfg(any(feature = "chain", test))]
 use std::cmp::Ordering;
@@ -120,9 +121,11 @@ macro_rules! impl_binary_generator {
 }
 
 /// Represents a semantic version (major.minor.patch).
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct SemanticVersion(pub u8, pub u8, pub u8);
 
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
 impl TryFrom<String> for SemanticVersion {
 	type Error = anyhow::Error;
 	fn try_from(binary: String) -> Result<Self, Self::Error> {
