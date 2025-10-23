@@ -17,6 +17,8 @@ use {
 
 #[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 mod contract;
+/// Utilities for selecting a frontend template and generate it.
+mod frontend;
 #[cfg(feature = "chain")]
 pub(super) mod network;
 #[cfg(feature = "chain")]
@@ -170,6 +172,7 @@ mod tests {
 				upload_only: true,
 				skip_confirm: false,
 				skip_build: true,
+				with_frontend: false,
 			},
 			#[cfg(feature = "chain")]
 			rollup: rollup::UpCommand::default(),
