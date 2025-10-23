@@ -436,10 +436,10 @@ pub(crate) async fn spawn(
 			}
 
 			// Run a frontend dev server.
-			if with_frontend {
-				if let Some(frontend_dir) = resolve_frontend_dir(&std::env::current_dir()?, cli)? {
-					run_frontend(&frontend_dir)?;
-				}
+			if with_frontend &&
+				let Some(frontend_dir) = resolve_frontend_dir(&std::env::current_dir()?, cli)?
+			{
+				run_frontend(&frontend_dir)?;
 			}
 
 			cli.outro("Done")?;

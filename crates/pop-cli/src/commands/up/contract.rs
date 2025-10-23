@@ -386,10 +386,10 @@ impl UpContractCommand {
 		};
 
 		// Run a frontend dev server.
-		if self.with_frontend {
-			if let Some(frontend_dir) = resolve_frontend_dir(&std::env::current_dir()?, &mut Cli)? {
-				run_frontend(&frontend_dir)?;
-			}
+		if self.with_frontend &&
+			let Some(frontend_dir) = resolve_frontend_dir(&std::env::current_dir()?, &mut Cli)?
+		{
+			run_frontend(&frontend_dir)?;
 		}
 
 		// Finally upload and instantiate.
