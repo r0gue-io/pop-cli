@@ -42,10 +42,10 @@ pub fn resolve_frontend_dir(
 /// * `target` - Location where the smart contract will be created.
 pub fn run_frontend(target: &Path) -> Result<()> {
 	if is_cmd_available("bun") {
-		cmd("bun", &["run", "dev"]).dir(&target).run()?;
+		cmd("bun", &["run", "dev"]).dir(target).run()?;
 	}
 	if is_cmd_available("npm") {
-		cmd("npm", &["run", "dev"]).dir(&target).run()?;
+		cmd("npm", &["run", "dev"]).dir(target).run()?;
 	}
 	Ok(())
 }

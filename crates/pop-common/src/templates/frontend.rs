@@ -53,11 +53,11 @@ pub enum FrontendTemplate {
 		props(Command = "create-inkathon-app@latest", Type = "Contract",)
 	)]
 	Inkathon,
-	/// Typeink template: The ultimate toolkit for dApps development on Polkadot, powered by https://dedot.dev!.
+	/// Typeink template: The ultimate toolkit for dApps development on Polkadot, powered by <https://dedot.dev>!.
 	#[strum(
 		serialize = "typink",
 		message = "Typink",
-		detailed_message = "The ultimate toolkit for dApps development on Polkadot, powered by https://dedot.dev!",
+		detailed_message = "The ultimate toolkit for dApps development on Polkadot, powered by https://dedot.dev",
 		props(Command = "create-typink@latest", Type = "Contract",)
 	)]
 	Typink,
