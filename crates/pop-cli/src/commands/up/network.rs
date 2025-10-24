@@ -31,14 +31,8 @@ use tokio::time::sleep;
 #[derive(Args, Clone, Default)]
 pub(crate) struct ConfigFileCommand {
 	/// The Zombienet network configuration file to be used.
-	#[arg(value_name = "FILE", conflicts_with = "file")]
-	pub path: Option<PathBuf>,
-	/// [DEPRECATED] The Zombienet network configuration file to be used (will be removed in
-	/// v0.10.0).
-	#[arg(short = 'f', long = "file")]
-	#[deprecated(since = "0.9.0", note = "will be removed in v0.10.0")]
-	#[allow(rustdoc::broken_intra_doc_links)]
-	pub(crate) file: Option<PathBuf>,
+	#[arg(value_name = "FILE")]
+	pub path: PathBuf,
 	/// The version of the binary to be used for the relay chain, as per the release tag (e.g.
 	/// "stable2503"). See <https://github.com/paritytech/polkadot-sdk/releases> for more details.
 	#[arg(short, long)]
@@ -79,29 +73,8 @@ impl ConfigFileCommand {
 	pub(crate) async fn execute(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		cli.intro("Launch a local network")?;
 
-		// Show warning if file argument provided.
-		#[allow(deprecated)]
-		if self.file.is_some() {
-			cli.warning(
-				"DEPRECATION: Please use `pop up network [PATH]` (or simply `pop u n [PATH]`) in the future...",
-			)?;
-		}
-
-		// Determine network config from args.
-		let network_config = match self.path.as_ref() {
-			Some(path) => path,
-			#[allow(deprecated)]
-			None => match self.file.as_deref() {
-				None => {
-					cli.outro_cancel("🚫 A network configuration file must be specified. See `pop up network --help` for usage.".to_string())?;
-					return Ok(());
-				},
-				Some(path) => path,
-			},
-		};
-
 		spawn(
-			network_config.try_into()?,
+			self.path.as_path().try_into()?,
 			self.relay_chain.as_deref(),
 			self.relay_chain_runtime.as_deref(),
 			self.system_parachain.as_deref(),
@@ -426,11 +399,11 @@ pub(crate) async fn spawn(
 						// Allow relay node time to start
 						sleep(Duration::from_secs(10)).await;
 						progress.set_message("Preparing channels...");
-						let relay_endpoint = network.relaychain().nodes()[0].wait_client().await?;
+						let relay_endpoint = network.relaychain().nodes()[0].ws_uri().to_string();
 						let ids: Vec<_> =
 							network.parachains().iter().map(|p| p.para_id()).collect();
 						tokio::spawn(async move {
-							if let Err(e) = clear_dmpq(relay_endpoint, &ids).await {
+							if let Err(e) = clear_dmpq(&relay_endpoint, &ids).await {
 								progress.stop(format!("🚫 Could not prepare channels: {e}"));
 								return Ok::<(), Error>(());
 							}

@@ -786,15 +786,16 @@ fn prepare_output_path(output_path: impl AsRef<Path>) -> anyhow::Result<PathBuf>
 		.and_then(|ext| ext.to_str())
 		.map(|ext| ext.eq_ignore_ascii_case("json"))
 		.unwrap_or(false);
+	let is_dir = output_path.is_dir();
 
-	if !is_json_file {
-		// Treat as directory.
+	if is_dir || (!output_path.exists() && !is_json_file) {
+		// Treat as directory (existing or to-be-created)
 		if !output_path.exists() {
 			create_dir_all(&output_path)?;
 		}
 		output_path.push(DEFAULT_SPEC_NAME);
 	} else {
-		// Treat as file.
+		// Treat as file; ensure parent dir exists
 		if let Some(parent_dir) = output_path.parent() &&
 			!parent_dir.exists()
 		{

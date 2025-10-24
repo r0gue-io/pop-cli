@@ -3,7 +3,7 @@
 #![doc = include_str!("../README.md")]
 #![cfg(any(feature = "v5", feature = "v6"))]
 
-#[cfg(all(feature = "v5", feature = "v6"))]
+#[cfg(all(feature = "v5", feature = "v6", not(test)))]
 compile_error!("only feature \"v5\" OR \"v6\" must be enabled");
 
 mod build;
@@ -18,6 +18,8 @@ mod up;
 mod utils;
 
 pub use build::{Verbosity, build_smart_contract, is_supported};
+#[cfg(feature = "v6")]
+pub use call::get_call_payload_with_deposit;
 pub use call::{
 	CallOpts, call_smart_contract, call_smart_contract_from_signed_payload, dry_run_call,
 	dry_run_gas_estimate_call, get_call_payload, set_up_call,

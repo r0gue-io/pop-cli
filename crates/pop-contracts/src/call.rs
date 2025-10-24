@@ -243,7 +243,7 @@ pub fn get_call_payload(
 /// * `call_exec` - A struct containing the details of the contract call.
 /// * `gas_limit` - The maximum amount of gas allocated for executing the contract call.
 #[cfg(feature = "v6")]
-pub fn get_call_payload(
+pub fn get_call_payload_with_deposit(
 	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,
 	storage_deposit_limit: u128,
