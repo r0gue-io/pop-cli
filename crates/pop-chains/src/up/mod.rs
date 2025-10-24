@@ -348,7 +348,7 @@ impl NetworkConfiguration {
 			.collect();
 
 		let mut builder = NetworkConfigBuilder::new().with_relaychain(|builder| {
-			let mut builder = builder.with_chain(relay_chain.chain()).with_node(|builder| {
+			let mut builder = builder.with_chain(relay_chain.chain()).with_validator(|builder| {
 				let mut builder = builder
 					.with_name(validators.first().expect("at least two validators defined above"));
 				if let Some(port) = port {
@@ -358,7 +358,7 @@ impl NetworkConfiguration {
 			});
 
 			for validator in validators.iter().skip(1) {
-				builder = builder.with_node(|builder| builder.with_name(validator))
+				builder = builder.with_validator(|builder| builder.with_name(validator))
 			}
 			builder
 		});
@@ -482,12 +482,12 @@ impl NetworkConfiguration {
 				}
 
 				// Add nodes from source
-				let mut builder = builder.with_node(|builder| {
+				let mut builder = builder.with_validator(|builder| {
 					let source = nodes.first().expect("expected at least one node");
 					Self::build_node_from_source(builder, source, binary_path.as_str())
 				});
 				for source in nodes.iter().skip(1) {
-					builder = builder.with_node(|builder| {
+					builder = builder.with_validator(|builder| {
 						Self::build_node_from_source(builder, source, binary_path.as_str())
 					});
 				}
@@ -942,7 +942,7 @@ chain = "paseo-local"
 			let cache = PathBuf::from(temp_dir.path());
 			let config = NetworkConfigBuilder::new()
 				.with_relaychain(|b| {
-					b.with_chain("paseo-local").with_node(|b| b.with_name("alice"))
+					b.with_chain("paseo-local").with_validator(|b| b.with_name("alice"))
 				})
 				.build()
 				.unwrap();
@@ -1119,7 +1119,7 @@ command = "polkadot"
 			let config = NetworkConfigBuilder::new()
 				.with_relaychain(|b| {
 					b.with_chain("paseo-local")
-						.with_node(|b| b.with_name("alice").with_command("polkadot"))
+						.with_validator(|b| b.with_name("alice").with_command("polkadot"))
 				})
 				.build()
 				.unwrap();
@@ -1218,9 +1218,9 @@ command = "polkadot-stable2503"
 			let config = NetworkConfigBuilder::new()
 				.with_relaychain(|b| {
 					b.with_chain("paseo-local")
-						.with_node(|b| b.with_name("alice").with_command("polkadot"))
-						.with_node(|b| b.with_name("bob").with_command("polkadot"))
-						.with_node(|b| b.with_name("charlie").with_command("p0lk4d0t"))
+						.with_validator(|b| b.with_name("alice").with_command("polkadot"))
+						.with_validator(|b| b.with_name("bob").with_command("polkadot"))
+						.with_validator(|b| b.with_name("charlie").with_command("p0lk4d0t"))
 				})
 				.build()
 				.unwrap();
@@ -1927,7 +1927,7 @@ chain = "paseo-local"
 		fn initializing_from_network_config_works() -> Result<(), Error> {
 			let network_config = NetworkConfigBuilder::new()
 				.with_relaychain(|b| {
-					b.with_chain("paseo-local").with_node(|b| b.with_name("alice"))
+					b.with_chain("paseo-local").with_validator(|b| b.with_name("alice"))
 				})
 				.build()
 				.unwrap();
@@ -2160,6 +2160,7 @@ rpc_port = 9944
 					r#"[settings]
 timeout = 1000
 node_spawn_timeout = 300
+tear_down_on_failure = true
 
 [relaychain]
 chain = "paseo-local"
@@ -2197,7 +2198,6 @@ balance = 2000000000000
 
 [[parachains.collators]]
 name = "asset-hub-2"
-command = "{1}"
 validator = true
 invulnerable = true
 bootnode = false
@@ -2341,6 +2341,7 @@ command = "polkadot-parachain"
 					r#"[settings]
 timeout = 1000
 node_spawn_timeout = 300
+tear_down_on_failure = true
 
 [relaychain]
 chain = "paseo-local"
@@ -2483,6 +2484,7 @@ max_message_size = 8000
 					r#"[settings]
 timeout = 1000
 node_spawn_timeout = 300
+tear_down_on_failure = true
 
 [relaychain]
 chain = "paseo-local"
@@ -2619,6 +2621,7 @@ name = "asset-hub"
 					r#"[settings]
 timeout = 1000
 node_spawn_timeout = 300
+tear_down_on_failure = true
 
 [relaychain]
 chain = "paseo-local"
@@ -2736,6 +2739,7 @@ balances = [["5Ec4AhPKXY9B4ayGshkz2wFMh7N8gP7XKfAvtt1cigpG9FkJ", 420000000000]]
 					r#"[settings]
 timeout = 1000
 node_spawn_timeout = 300
+tear_down_on_failure = true
 
 [relaychain]
 chain = "paseo-local"

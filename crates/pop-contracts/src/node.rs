@@ -262,14 +262,12 @@ mod tests {
 		let expected = Chain::ContractsNode;
 		let archive = archive_name_by_target()?;
 		let contents = release_directory_by_target(BIN_NAME)?;
-		#[cfg(feature = "v5")]
-		let owner = "paritytech";
-		#[cfg(feature = "v5")]
-		let versions = ["v0.41.0", "v0.42.0"];
-		#[cfg(feature = "v6")]
-		let owner = "use-ink";
-		#[cfg(feature = "v6")]
-		let versions = ["v0.43.0"];
+		#[cfg(all(feature = "v5", not(feature = "v6")))]
+		let (owner, versions): (&str, &[&str]) = ("paritytech", &["v0.41.0", "v0.42.0"]);
+		#[cfg(all(feature = "v6", not(feature = "v5")))]
+		let (owner, versions): (&str, &[&str]) = ("use-ink", &["v0.43.0"]);
+		#[cfg(all(feature = "v5", feature = "v6"))]
+		let (owner, versions): (&str, &[&str]) = ("use-ink", &["v0.43.0"]);
 		for version in versions {
 			let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 			let cache = temp_dir.path().join("cache");

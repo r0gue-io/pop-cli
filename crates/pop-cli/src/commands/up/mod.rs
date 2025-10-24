@@ -95,7 +95,8 @@ impl Command {
 		let project_path = ensure_project_path(args.path.clone(), args.path_pos.clone());
 		#[cfg(feature = "chain")]
 		if project_path.is_file() {
-			let cmd = network::ConfigFileCommand { path: Some(project_path), ..Default::default() };
+			let cmd =
+				network::ConfigFileCommand { path: project_path.clone(), ..Default::default() };
 			cmd.execute(cli).await?;
 			return Ok(Network);
 		}
