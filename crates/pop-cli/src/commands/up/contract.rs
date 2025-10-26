@@ -112,6 +112,12 @@ impl UpContractCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(mut self) -> anyhow::Result<()> {
 		Cli.intro("Deploy a smart contract")?;
+		// Run a frontend dev server.
+		if self.with_frontend &&
+			let Some(frontend_dir) = resolve_frontend_dir(&std::env::current_dir()?, &mut Cli)?
+		{
+			run_frontend(&frontend_dir)?;
+		}
 		// Check if build exists in the specified "Contract build directory"
 		let contract_already_built = has_contract_been_built(&self.path);
 		if !self.skip_build || !contract_already_built {
@@ -384,13 +390,6 @@ impl UpContractCommand {
 				},
 			}
 		};
-
-		// Run a frontend dev server.
-		if self.with_frontend &&
-			let Some(frontend_dir) = resolve_frontend_dir(&std::env::current_dir()?, &mut Cli)?
-		{
-			run_frontend(&frontend_dir)?;
-		}
 
 		// Finally upload and instantiate.
 		if !self.dry_run {

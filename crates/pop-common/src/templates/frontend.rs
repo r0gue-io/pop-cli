@@ -5,7 +5,7 @@ use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString};
 
 use crate::templates::{Template, Type};
 
-/// Supported frontend template tyes.
+/// Supported frontend template types.
 #[derive(
 	AsRefStr, Clone, Default, Debug, Display, EnumMessage, EnumString, Eq, PartialEq, VariantArray,
 )]
@@ -122,7 +122,7 @@ mod tests {
 			),
 			(
 				Typink,
-				"The ultimate toolkit for dApps development on Polkadot, powered by https://dedot.dev!",
+				"The ultimate toolkit for dApps development on Polkadot, powered by https://dedot.dev",
 			),
 			(CreatePolkadotDapp, "Create Polkadot DApp in one command (Parity)."),
 			(

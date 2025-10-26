@@ -282,6 +282,12 @@ pub(crate) async fn spawn(
 	with_frontend: bool,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<()> {
+	// Run a frontend dev server.
+	if with_frontend &&
+		let Some(frontend_dir) = resolve_frontend_dir(&std::env::current_dir()?, cli)?
+	{
+		run_frontend(&frontend_dir)?;
+	}
 	// Initialize from arguments
 	let cache = crate::cache()?;
 	let mut zombienet = match Zombienet::new(
@@ -434,14 +440,6 @@ pub(crate) async fn spawn(
 					cli.warning(format!("🚫 Failed to remove zombienet directory: {e}"))?;
 				}
 			}
-
-			// Run a frontend dev server.
-			if with_frontend &&
-				let Some(frontend_dir) = resolve_frontend_dir(&std::env::current_dir()?, cli)?
-			{
-				run_frontend(&frontend_dir)?;
-			}
-
 			cli.outro("Done")?;
 		},
 		Err(e) => {

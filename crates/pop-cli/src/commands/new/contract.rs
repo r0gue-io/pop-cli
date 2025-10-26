@@ -79,7 +79,7 @@ impl NewContractCommand {
 
 		is_template_supported(contract_type, &template)?;
 		let mut frontend_template: Option<FrontendTemplate> = None;
-		if self.with_frontend {
+		if contract_config.with_frontend {
 			frontend_template =
 				Some(prompt_frontend_template(&FrontendType::Contract, &mut cli::Cli)?);
 		}
@@ -206,7 +206,7 @@ fn generate_contract_from_template(
 	if let Some(frontend_template) = &frontend_template {
 		create_frontend(contract_path.as_path(), frontend_template, cli)?;
 		next_steps.push(format!(
-			"Frontend template {frontend_template} created inside {:?}. Go to the folder and follow the README instructions to get started.", contract_path.display()
+			"Frontend template {frontend_template} created inside {}. Go to the folder and follow the README instructions to get started.", contract_path.display()
 		))
 	};
 

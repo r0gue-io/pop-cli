@@ -108,7 +108,7 @@ impl NewChainCommand {
 		let tag_version = parachain_config.release_tag.clone();
 
 		let mut frontend_template: Option<FrontendTemplate> = None;
-		if self.with_frontend {
+		if parachain_config.with_frontend {
 			frontend_template =
 				Some(prompt_frontend_template(&FrontendType::Chain, &mut cli::Cli)?);
 		}

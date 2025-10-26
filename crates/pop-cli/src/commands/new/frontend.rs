@@ -50,11 +50,32 @@ pub fn create_frontend(
 		// Inkathon requires Bun installed.
 		FrontendTemplate::Inkathon => {
 			let bun = ensure_bun(cli)?;
-			cmd(&bun, &["x", "create-inkathon-app@latest", "frontend"])
+			cmd(&bun, &["x", "create-inkathon-app@latest", "frontend", "-y"])
 				.dir(&project_dir)
 				.env("SKIP_INSTALL_SIMPLE_GIT_HOOKS", "1")
 				.unchecked()
 				.run()?;
+		},
+		// Typeink we can specify the parameters directly
+		FrontendTemplate::Typink => {
+			let command = template
+				.command()
+				.ok_or_else(|| anyhow::anyhow!("no command configured for {:?}", template))?;
+			cmd(
+				"npx",
+				vec![
+					command,
+					"--name",
+					"frontend",
+					"--template",
+					"inkv6-nextjs",
+					"--networks",
+					"Passet Hub",
+					"--no-git",
+				],
+			)
+			.dir(&project_dir)
+			.run()?;
 		},
 		_ => {
 			let command = template
