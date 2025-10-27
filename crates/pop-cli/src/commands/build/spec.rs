@@ -349,7 +349,7 @@ impl BuildSpecCommand {
 								relay.get_detailed_message().unwrap_or_default(),
 							);
 						}
-						prompt.interact()?.clone()
+						*prompt.interact()?
 					} else {
 						default
 					}
@@ -764,11 +764,10 @@ impl BuildSpec {
 				self.para_id.expect("If not relay, para_id is provided by the user; qed"),
 			)?;
 			chain_spec.replace_relay_chain(
-				&self
-					.relay
+				self.relay
 					.as_ref()
 					.expect("If not relay, the used relay is provided by the user; qed;")
-					.to_string(),
+					.as_ref(),
 			)?;
 		}
 		chain_spec.replace_chain_type(self.chain_type.as_ref())?;
@@ -865,7 +864,7 @@ mod tests {
 					chain_type: Some(chain_type.clone()),
 					features: "".to_string(),
 					chain: Some("local".to_string()),
-					relay: Some(relay.clone()),
+					relay: Some(relay),
 					protocol_id: Some(protocol_id.to_string()),
 					properties: Some(properties.to_string()),
 					skip_build: true,
@@ -926,7 +925,7 @@ mod tests {
 					Some(false),
 					true,
 					Some(relays()),
-					relay.clone() as usize,
+					relay as usize,
 					None,
 				).expect_select(
 					"Choose the build profile of the binary that should be used: ",
@@ -1022,7 +1021,7 @@ mod tests {
 					name: Some(name.to_string()),
 					id: Some(id.to_string()),
 					chain: Some(chain_spec_path.to_string_lossy().to_string()),
-					relay: Some(relay.clone()),
+					relay: Some(relay),
 					protocol_id: Some(protocol_id.to_string()),
 					properties: Some(properties.to_string()),
 					skip_build: true,
@@ -1090,7 +1089,7 @@ mod tests {
 							Some(false),
 							true,
 							Some(relays()),
-							relay.clone() as usize,
+							relay as usize,
 							None,
 						);
 					}
