@@ -850,7 +850,7 @@ mod tests {
 		for (build_spec_cmd, chain) in [
 			// No flags used.
 			(BuildSpecCommand::default(), None),
-			// All flags used.
+			// All flags used. Parachain
 			(
 				BuildSpecCommand {
 					path,
@@ -858,12 +858,39 @@ mod tests {
 					profile: Some(profile.clone()),
 					name: Some(name.to_string()),
 					id: Some(id.to_string()),
+					is_relay: false,
 					para_id: Some(para_id),
 					default_bootnode: Some(default_bootnode),
 					chain_type: Some(chain_type.clone()),
 					features: "".to_string(),
 					chain: Some("local".to_string()),
 					relay: Some(relay.clone()),
+					protocol_id: Some(protocol_id.to_string()),
+					properties: Some(properties.to_string()),
+					skip_build: true,
+					genesis_state: Some(genesis_state),
+					genesis_code: Some(genesis_code),
+					deterministic: Some(deterministic),
+					package: Some(package.to_string()),
+					runtime_dir: Some(runtime_dir.clone()),
+				},
+				Some("local".to_string()),
+			),
+			// All flags used. Relay
+			(
+				BuildSpecCommand {
+					path,
+					output_file: Some(PathBuf::from(output_file)),
+					profile: Some(profile.clone()),
+					name: Some(name.to_string()),
+					id: Some(id.to_string()),
+					is_relay: true,
+					para_id: None,
+					default_bootnode: Some(default_bootnode),
+					chain_type: Some(chain_type.clone()),
+					features: "".to_string(),
+					chain: Some("local".to_string()),
+					relay: None,
 					protocol_id: Some(protocol_id.to_string()),
 					properties: Some(properties.to_string()),
 					skip_build: true,
@@ -919,11 +946,9 @@ mod tests {
 			let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
 			assert_eq!(build_spec.chain, chain);
 			assert_eq!(build_spec.output_file, PathBuf::from(output_file));
-			assert_eq!(build_spec.para_id, para_id);
 			assert_eq!(build_spec.profile, profile);
 			assert_eq!(build_spec.default_bootnode, default_bootnode);
 			assert_eq!(build_spec.chain_type, chain_type);
-			assert_eq!(build_spec.relay, relay);
 			assert_eq!(build_spec.protocol_id, protocol_id);
 			assert_eq!(build_spec.genesis_state, genesis_state);
 			assert_eq!(build_spec.genesis_code, genesis_code);
@@ -936,6 +961,14 @@ mod tests {
 			} else {
 				assert_eq!(build_spec.name, None);
 				assert_eq!(build_spec.id, None);
+			}
+
+			if build.is_relay {
+				assert_eq!(build_spec.para_id, None);
+				assert_eq!(build_spec.relay, None);
+			} else {
+				assert_eq!(build_spec.para_id, Some(para_id));
+				assert_eq!(build_spec.relay, Some(relay));
 			}
 
 			cli.verify()?;
@@ -975,11 +1008,12 @@ mod tests {
 					chain: Some(chain_spec_path.to_string_lossy().to_string()),
 					..Default::default()
 				},
-				// All flags used.
+				// All flags used. Parachain
 				BuildSpecCommand {
 					path: path.clone(),
 					output_file: Some(PathBuf::from(output_file)),
 					profile: Some(profile.clone()),
+					is_relay: false,
 					para_id: Some(para_id),
 					default_bootnode: None,
 					chain_type: Some(chain_type.clone()),
@@ -988,6 +1022,29 @@ mod tests {
 					id: Some(id.to_string()),
 					chain: Some(chain_spec_path.to_string_lossy().to_string()),
 					relay: Some(relay.clone()),
+					protocol_id: Some(protocol_id.to_string()),
+					properties: Some(properties.to_string()),
+					skip_build: true,
+					genesis_state: None,
+					genesis_code: None,
+					deterministic: None,
+					package: Some(package.to_string()),
+					runtime_dir: Some(runtime_dir.clone()),
+				},
+				// All flags used. Relay
+				BuildSpecCommand {
+					path: path.clone(),
+					output_file: Some(PathBuf::from(output_file)),
+					profile: Some(profile.clone()),
+					is_relay: true,
+					para_id: None,
+					default_bootnode: None,
+					chain_type: Some(chain_type.clone()),
+					features: "".to_string(),
+					name: Some(name.to_string()),
+					id: Some(id.to_string()),
+					chain: Some(chain_spec_path.to_string_lossy().to_string()),
+					relay: None,
 					protocol_id: Some(protocol_id.to_string()),
 					properties: Some(properties.to_string()),
 					skip_build: true,
@@ -1079,9 +1136,9 @@ mod tests {
 				}
 				let build_spec = build_spec_cmd.configure_build_spec(&mut cli).await?;
 				if !changes && no_flags_used {
-					assert_eq!(build_spec.para_id, 2000);
+					assert_eq!(build_spec.para_id, Some(2000));
 					assert_eq!(build_spec.chain_type, Development);
-					assert_eq!(build_spec.relay, PaseoLocal);
+					assert_eq!(build_spec.relay, Some(PaseoLocal));
 					assert_eq!(build_spec.protocol_id, "my-protocol");
 					assert_eq!(build_spec.name, None);
 					assert_eq!(build_spec.id, None);
@@ -1091,13 +1148,13 @@ mod tests {
 					assert_eq!(build_spec.package, DEFAULT_PACKAGE);
 					assert_eq!(build_spec.runtime_dir, None);
 				} else if changes && no_flags_used {
-					assert_eq!(build_spec.para_id, para_id);
+					assert_eq!(build_spec.para_id, Some(para_id));
 					assert_eq!(build_spec.profile, profile);
 					assert_eq!(build_spec.default_bootnode, default_bootnode);
 					assert_eq!(build_spec.chain_type, chain_type);
 					assert_eq!(build_spec.name, None);
 					assert_eq!(build_spec.id, None);
-					assert_eq!(build_spec.relay, relay);
+					assert_eq!(build_spec.relay, Some(relay));
 					assert_eq!(build_spec.protocol_id, protocol_id);
 					assert_eq!(build_spec.genesis_state, genesis_state);
 					assert_eq!(build_spec.genesis_code, genesis_code);
@@ -1105,13 +1162,18 @@ mod tests {
 					assert_eq!(build_spec.package, package);
 					assert_eq!(build_spec.runtime_dir, Some(runtime_dir.clone()));
 				} else if !no_flags_used {
-					assert_eq!(build_spec.para_id, para_id);
 					assert_eq!(build_spec.profile, profile);
 					assert!(!build_spec.default_bootnode);
 					assert_eq!(build_spec.chain_type, chain_type);
 					assert_eq!(build_spec.name, Some(name.to_string()));
 					assert_eq!(build_spec.id, Some(id.to_string()));
-					assert_eq!(build_spec.relay, relay);
+					if build_spec.is_relay {
+						assert_eq!(build_spec.para_id, None);
+						assert_eq!(build_spec.relay, None);
+					} else {
+						assert_eq!(build_spec.para_id, Some(para_id));
+						assert_eq!(build_spec.relay, Some(relay));
+					}
 					assert_eq!(build_spec.protocol_id, protocol_id);
 					assert!(!build_spec.genesis_state);
 					assert!(!build_spec.genesis_code);
