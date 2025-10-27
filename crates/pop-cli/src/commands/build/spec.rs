@@ -170,6 +170,9 @@ pub struct BuildSpecCommand {
 	/// file).
 	#[arg(short, long)]
 	pub(crate) chain: Option<String>,
+	/// Generate a relay chain specification
+	#[arg(short='R', long="is-relay", conflicts_with_all=["para_id", "relay"])]
+	pub(crate) is_relay: bool,
 	/// Relay chain this parachain will connect to.
 	#[arg(short = 'r', long, value_enum)]
 	pub(crate) relay: Option<RelayChain>,
@@ -253,6 +256,7 @@ impl BuildSpecCommand {
 			deterministic,
 			package,
 			runtime_dir,
+			is_relay,
 			..
 		} = self;
 
@@ -295,27 +299,62 @@ impl BuildSpecCommand {
 		// If chain specification file already exists, obtain values for defaults when prompting.
 		let chain_spec = ChainSpec::from(&output_file).ok();
 
-		// Para id.
-		let para_id = match para_id {
-			Some(id) => id,
-			None => {
-				let default = chain_spec
-					.as_ref()
-					.and_then(|cs| cs.get_chain_id().map(|id| id as u32))
-					.unwrap_or(DEFAULT_PARA_ID);
-				if prompt {
-					// Prompt for para id.
-					let default_str = default.to_string();
-					cli.input("What parachain ID should be used?")
-						.default_input(&default_str)
-						.default_input(&default_str)
-						.interact()?
-						.parse::<u32>()
-						.unwrap_or(DEFAULT_PARA_ID)
-				} else {
-					default
-				}
-			},
+		let (para_id, relay) = if is_relay {
+			(None, None)
+		} else {
+			// Para id.
+			let para_id = match para_id {
+				Some(id) => id,
+				None => {
+					let default = chain_spec
+						.as_ref()
+						.and_then(|cs| cs.get_chain_id().map(|id| id as u32))
+						.unwrap_or(DEFAULT_PARA_ID);
+					if prompt {
+						// Prompt for para id.
+						let default_str = default.to_string();
+						cli.input("What parachain ID should be used?")
+							.default_input(&default_str)
+							.default_input(&default_str)
+							.interact()?
+							.parse::<u32>()
+							.unwrap_or(DEFAULT_PARA_ID)
+					} else {
+						default
+					}
+				},
+			};
+
+			// Relay.
+			let relay = match relay {
+				Some(relay) => relay,
+				None => {
+					let default = chain_spec
+						.as_ref()
+						.and_then(|cs| cs.get_relay_chain())
+						.and_then(|r| RelayChain::from_str(r, true).ok())
+						.unwrap_or_default();
+					if prompt {
+						// Prompt for relay.
+						let mut prompt = cli
+							.select(
+								"Choose the relay your chain will be connecting to: ".to_string(),
+							)
+							.initial_value(&default);
+						for relay in RelayChain::VARIANTS {
+							prompt = prompt.item(
+								relay,
+								relay.get_message().unwrap_or(relay.as_ref()),
+								relay.get_detailed_message().unwrap_or_default(),
+							);
+						}
+						prompt.interact()?.clone()
+					} else {
+						default
+					}
+				},
+			};
+			(Some(para_id), Some(relay))
 		};
 
 		// Chain type.
@@ -336,34 +375,6 @@ impl BuildSpecCommand {
 							chain_type,
 							chain_type.get_message().unwrap_or(chain_type.as_ref()),
 							chain_type.get_detailed_message().unwrap_or_default(),
-						);
-					}
-					prompt.interact()?.clone()
-				} else {
-					default
-				}
-			},
-		};
-
-		// Relay.
-		let relay = match relay {
-			Some(relay) => relay,
-			None => {
-				let default = chain_spec
-					.as_ref()
-					.and_then(|cs| cs.get_relay_chain())
-					.and_then(|r| RelayChain::from_str(r, true).ok())
-					.unwrap_or_default();
-				if prompt {
-					// Prompt for relay.
-					let mut prompt = cli
-						.select("Choose the relay your chain will be connecting to: ".to_string())
-						.initial_value(&default);
-					for relay in RelayChain::VARIANTS {
-						prompt = prompt.item(
-							relay,
-							relay.get_message().unwrap_or(relay.as_ref()),
-							relay.get_detailed_message().unwrap_or_default(),
 						);
 					}
 					prompt.interact()?.clone()
@@ -482,6 +493,7 @@ impl BuildSpecCommand {
 			para_id,
 			default_bootnode,
 			chain_type,
+			is_relay,
 			chain,
 			relay,
 			protocol_id,
@@ -540,11 +552,12 @@ pub(crate) struct BuildSpec {
 	path: PathBuf,
 	output_file: PathBuf,
 	profile: Profile,
-	para_id: u32,
+	is_relay: bool,
+	para_id: Option<u32>,
 	default_bootnode: bool,
 	chain_type: ChainType,
 	chain: Option<String>,
-	relay: RelayChain,
+	relay: Option<RelayChain>,
 	protocol_id: String,
 	name: Option<String>,
 	id: Option<String>,
@@ -663,7 +676,11 @@ impl BuildSpec {
 		// Generate genesis artifacts.
 		let genesis_code_file = if self.genesis_code {
 			spinner.set_message("Generating genesis code...");
-			let wasm_file_name = format!("para-{}.wasm", self.para_id);
+			let wasm_file_name = if let Some(para_id) = self.para_id {
+				format!("para-{}.wasm", para_id)
+			} else {
+				"relay.wasm".to_owned()
+			};
 			let wasm_file = builder.export_wasm_file(&raw_chain_spec, &wasm_file_name)?;
 			generated_files
 				.push(format!("WebAssembly runtime file exported at: {}", wasm_file.display()));
@@ -673,7 +690,11 @@ impl BuildSpec {
 		};
 		let genesis_state_file = if self.genesis_state {
 			spinner.set_message("Generating genesis state...");
-			let genesis_file_name = format!("para-{}-genesis-state", self.para_id);
+			let genesis_file_name = if let Some(para_id) = self.para_id {
+				format!("para-{}-genesis-state", para_id)
+			} else {
+				"relay-genesis-state.wasm".to_owned()
+			};
 			let binary_path = match builder {
 				ChainSpecBuilder::Runtime { .. } =>
 					source_polkadot_omni_node_binary(cli, &spinner, &crate::cache()?, true).await?,
@@ -737,8 +758,18 @@ impl BuildSpec {
 	// Customize a chain specification.
 	fn customize(&self, path: &Path) -> anyhow::Result<()> {
 		let mut chain_spec = ChainSpec::from(path)?;
-		chain_spec.replace_para_id(self.para_id)?;
-		chain_spec.replace_relay_chain(self.relay.as_ref())?;
+		if !self.is_relay {
+			chain_spec.replace_para_id(
+				self.para_id.expect("If not relay, para_id is provided by the user; qed"),
+			)?;
+			chain_spec.replace_relay_chain(
+				&self
+					.relay
+					.as_ref()
+					.expect("If not relay, the used relay is provided by the user; qed;")
+					.to_string(),
+			)?;
+		}
 		chain_spec.replace_chain_type(self.chain_type.as_ref())?;
 		chain_spec.replace_protocol_id(&self.protocol_id)?;
 		if let Some(properties) = &self.properties {
