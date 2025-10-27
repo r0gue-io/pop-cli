@@ -74,6 +74,7 @@ pub(crate) enum ChainType {
 #[derive(
 	AsRefStr,
 	Clone,
+	Copy,
 	Default,
 	Debug,
 	Display,
@@ -853,7 +854,7 @@ mod tests {
 			// All flags used. Parachain
 			(
 				BuildSpecCommand {
-					path,
+					path: path.clone(),
 					output_file: Some(PathBuf::from(output_file)),
 					profile: Some(profile.clone()),
 					name: Some(name.to_string()),
@@ -879,7 +880,7 @@ mod tests {
 			// All flags used. Relay
 			(
 				BuildSpecCommand {
-					path,
+					path: path.clone(),
 					output_file: Some(PathBuf::from(output_file)),
 					profile: Some(profile.clone()),
 					name: Some(name.to_string()),
@@ -963,7 +964,7 @@ mod tests {
 				assert_eq!(build_spec.id, None);
 			}
 
-			if build.is_relay {
+			if build_spec.is_relay {
 				assert_eq!(build_spec.para_id, None);
 				assert_eq!(build_spec.relay, None);
 			} else {
