@@ -3,9 +3,7 @@
 use crate::errors::{Error, handle_command_error};
 use anyhow::{Result, anyhow};
 use duct::cmd;
-use pop_common::{
-	Profile, account_id::convert_to_evm_accounts, find_workspace_toml, manifest::from_path,
-};
+use pop_common::{Profile, account_id::convert_to_evm_accounts, manifest::from_path};
 use sc_chain_spec::{GenericChainSpec, NoExtension};
 use serde_json::{Value, json};
 use sp_core::bytes::to_hex;
@@ -87,7 +85,7 @@ impl ChainSpecBuilder {
 	pub fn artifact_path(&self) -> Result<PathBuf> {
 		let manifest = from_path(&self.path())?;
 		let package = manifest.package().name();
-		let root_folder = find_workspace_toml(&self.path())
+		let root_folder = rustilities::manifest::find_workspace_manifest(self.path())
 			.ok_or(anyhow::anyhow!("Not inside a workspace"))?
 			.parent()
 			.expect("Path to Cargo.toml workspace root folder must exist")
@@ -117,10 +115,14 @@ impl ChainSpecBuilder {
 	/// # Arguments
 	/// * `chain_or_preset` - The chain (when using a node) or preset (when using a runtime) name.
 	/// * `output_file` - The path where the chain spec should be written.
+	/// * `name` - The name to be used on the chain spec if specified.
+	/// * `id` - The ID to be used on the chain spec if specified.
 	pub fn generate_plain_chain_spec(
 		&self,
 		chain_or_preset: &str,
 		output_file: &Path,
+		name: Option<&str>,
+		id: Option<&str>,
 	) -> Result<(), Error> {
 		match self {
 			ChainSpecBuilder::Node { default_bootnode, .. } => generate_plain_chain_spec_with_node(
@@ -133,6 +135,8 @@ impl ChainSpecBuilder {
 				fs::read(self.artifact_path()?)?,
 				output_file,
 				chain_or_preset,
+				name,
+				id,
 			),
 		}
 	}
@@ -329,16 +333,27 @@ pub fn generate_raw_chain_spec_with_runtime(
 /// * `wasm` - The WebAssembly runtime bytes.
 /// * `plain_chain_spec` - The path where the plain chain specification should be written.
 /// * `preset` - Preset name for genesis configuration.
+/// * `name` - The name to be used on the chain spec if specified.
+/// * `id` - The ID to be used on the chain spec if specified.
 pub fn generate_plain_chain_spec_with_runtime(
 	wasm: Vec<u8>,
 	plain_chain_spec: &Path,
 	preset: &str,
+	name: Option<&str>,
+	id: Option<&str>,
 ) -> Result<(), Error> {
-	let chain_spec = GenericChainSpec::<NoExtension>::builder(&wasm[..], None)
-		.with_genesis_config_preset_name(preset.trim())
-		.build()
-		.as_json(false)
-		.map_err(|e| anyhow::anyhow!(e))?;
+	let mut chain_spec = GenericChainSpec::<NoExtension>::builder(&wasm[..], None)
+		.with_genesis_config_preset_name(preset.trim());
+
+	if let Some(name) = name {
+		chain_spec = chain_spec.with_name(name);
+	}
+
+	if let Some(id) = id {
+		chain_spec = chain_spec.with_id(id);
+	}
+
+	let chain_spec = chain_spec.build().as_json(false).map_err(|e| anyhow::anyhow!(e))?;
 	fs::write(plain_chain_spec, chain_spec)?;
 
 	Ok(())
@@ -781,6 +796,8 @@ mod tests {
 	use strum::VariantArray;
 	use tempfile::{Builder, TempDir, tempdir};
 
+	static MOCK_WASM: &[u8] = include_bytes!("../../../../tests/runtimes/base_parachain.wasm");
+
 	fn setup_template_and_instantiate() -> Result<TempDir> {
 		let temp_dir = tempdir().expect("Failed to create temp dir");
 		let config = Config {
@@ -1052,6 +1069,104 @@ mod tests {
 			"para-2001-genesis-state",
 		)?;
 		assert!(genesis_file.exists());
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn generate_plain_chain_spec_with_runtime_works_with_name_and_id_override() -> Result<()>
+	{
+		let temp_dir =
+			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+		// Test generate chain spec
+		let plain_chain_spec = &temp_dir.path().join("plain-parachain-chainspec.json");
+		generate_plain_chain_spec_with_runtime(
+			Vec::from(MOCK_WASM),
+			plain_chain_spec,
+			"local_testnet",
+			Some("POP Chain Spec"),
+			Some("pop-chain-spec"),
+		)?;
+		assert!(plain_chain_spec.exists());
+		let raw_chain_spec =
+			generate_raw_chain_spec_with_runtime(plain_chain_spec, "raw-parachain-chainspec.json")?;
+		assert!(raw_chain_spec.exists());
+		let content = fs::read_to_string(raw_chain_spec.clone()).expect("Could not read file");
+		assert!(content.contains("\"name\": \"POP Chain Spec\""));
+		assert!(content.contains("\"id\": \"pop-chain-spec\""));
+		assert!(content.contains("\"bootNodes\": []"));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn generate_plain_chain_spec_with_runtime_works_with_name_override() -> Result<()> {
+		let temp_dir =
+			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+		// Test generate chain spec
+		let plain_chain_spec = &temp_dir.path().join("plain-parachain-chainspec.json");
+		generate_plain_chain_spec_with_runtime(
+			Vec::from(MOCK_WASM),
+			plain_chain_spec,
+			"local_testnet",
+			Some("POP Chain Spec"),
+			None,
+		)?;
+		assert!(plain_chain_spec.exists());
+		let raw_chain_spec =
+			generate_raw_chain_spec_with_runtime(plain_chain_spec, "raw-parachain-chainspec.json")?;
+		assert!(raw_chain_spec.exists());
+		let content = fs::read_to_string(raw_chain_spec.clone()).expect("Could not read file");
+		assert!(content.contains("\"name\": \"POP Chain Spec\""));
+		assert!(content.contains("\"id\": \"dev\""));
+		assert!(content.contains("\"bootNodes\": []"));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn generate_plain_chain_spec_with_runtime_works_with_id_override() -> Result<()> {
+		let temp_dir =
+			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+		// Test generate chain spec
+		let plain_chain_spec = &temp_dir.path().join("plain-parachain-chainspec.json");
+		generate_plain_chain_spec_with_runtime(
+			Vec::from(MOCK_WASM),
+			plain_chain_spec,
+			"local_testnet",
+			None,
+			Some("pop-chain-spec"),
+		)?;
+		assert!(plain_chain_spec.exists());
+		let raw_chain_spec =
+			generate_raw_chain_spec_with_runtime(plain_chain_spec, "raw-parachain-chainspec.json")?;
+		assert!(raw_chain_spec.exists());
+		let content = fs::read_to_string(raw_chain_spec.clone()).expect("Could not read file");
+		assert!(content.contains("\"name\": \"Development\""));
+		assert!(content.contains("\"id\": \"pop-chain-spec\""));
+		assert!(content.contains("\"bootNodes\": []"));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn generate_plain_chain_spec_with_runtime_works_without_name_and_id_override()
+	-> Result<()> {
+		let temp_dir =
+			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+		// Test generate chain spec
+		let plain_chain_spec = &temp_dir.path().join("plain-parachain-chainspec.json");
+		generate_plain_chain_spec_with_runtime(
+			Vec::from(MOCK_WASM),
+			plain_chain_spec,
+			"local_testnet",
+			None,
+			None,
+		)?;
+		assert!(plain_chain_spec.exists());
+		let raw_chain_spec =
+			generate_raw_chain_spec_with_runtime(plain_chain_spec, "raw-parachain-chainspec.json")?;
+		assert!(raw_chain_spec.exists());
+		let content = fs::read_to_string(raw_chain_spec.clone()).expect("Could not read file");
+		assert!(content.contains("\"name\": \"Development\""));
+		assert!(content.contains("\"id\": \"dev\""));
+		assert!(content.contains("\"bootNodes\": []"));
 		Ok(())
 	}
 

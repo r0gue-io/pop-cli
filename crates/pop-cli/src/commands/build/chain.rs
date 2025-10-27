@@ -4,7 +4,7 @@ use super::{PACKAGE, PARACHAIN};
 use crate::{
 	cli,
 	common::{
-		builds::create_chain_spec_builder,
+		builds::{ChainPath, create_chain_spec_builder},
 		runtime::Feature::{Benchmark, TryRuntime},
 	},
 	style::style,
@@ -65,7 +65,12 @@ impl BuildChain {
 
 		// Build parachain.
 		cli.warning("NOTE: this may take some time...")?;
-		let builder = create_chain_spec_builder(&self.path, &self.profile, false, cli)?;
+		let builder = create_chain_spec_builder(
+			ChainPath::Base(self.path.to_path_buf()),
+			&self.profile,
+			false,
+			cli,
+		)?;
 		let features_arr: Vec<_> = features.into_iter().map(|s| s.to_string()).collect();
 		let binary = builder.build(features_arr.as_slice())?;
 		cli.info(format!("The {project} was built in {} mode.", self.profile))?;

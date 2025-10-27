@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, registry::traits::Rollup, up::chain_specs::Runtime};
+use crate::{
+	errors::Error, omni_node::PolkadotOmniNodeCli::PolkadotOmniNode, registry::traits::Rollup,
+	up::chain_specs::Runtime,
+};
 pub use chain_specs::Runtime as Relay;
 use glob::glob;
 use indexmap::IndexMap;
+use pop_common::sourcing::traits::{Source as _, enums::Source as _};
 pub use pop_common::{
 	Profile,
 	git::{GitHub, Repository},
@@ -209,6 +213,12 @@ impl Zombienet {
 				}
 				return Err(Error::MissingBinary(command));
 			}
+
+			if command.starts_with(PolkadotOmniNode.binary()) {
+				paras.insert(id, Chain::from_omni_node(id, cache)?);
+				continue 'outer;
+			}
+
 			return Err(Error::MissingBinary(command));
 		}
 		Ok(paras)
@@ -778,6 +788,19 @@ impl Chain {
 				chain_spec_generator: None,
 			})
 		}
+	}
+
+	fn from_omni_node(id: u32, cache: &Path) -> Result<Chain, Error> {
+		Ok(Chain {
+			id,
+			binary: Binary::Source {
+				name: PolkadotOmniNode.binary().to_string(),
+				source: Box::new(PolkadotOmniNode.source()?),
+				cache: cache.to_path_buf(),
+			},
+			chain: None,
+			chain_spec_generator: None,
+		})
 	}
 }
 

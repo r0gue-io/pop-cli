@@ -23,7 +23,7 @@ use pop_chains::{
 	try_runtime::TryStateSelect,
 	try_runtime_generator, try_state_details, try_state_label,
 };
-use pop_common::{Profile, sourcing::Binary};
+use pop_common::Profile;
 use std::{
 	cmp::Ordering,
 	collections::HashSet,

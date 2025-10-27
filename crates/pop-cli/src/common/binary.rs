@@ -116,9 +116,9 @@ macro_rules! impl_binary_generator {
 
 		impl BinaryGenerator for $generator_name {
 			async fn generate(
-				cache_path: PathBuf,
+				cache_path: std::path::PathBuf,
 				version: Option<&str>,
-			) -> Result<Binary, pop_common::Error> {
+			) -> Result<pop_common::sourcing::Binary, pop_common::Error> {
 				$generate_fn(cache_path, version).await
 			}
 		}

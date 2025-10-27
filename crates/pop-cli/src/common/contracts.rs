@@ -6,7 +6,7 @@ use crate::{
 	impl_binary_generator,
 };
 use cliclack::ProgressBar;
-use pop_common::{manifest::from_path, sourcing::Binary};
+use pop_common::manifest::from_path;
 use pop_contracts::{ContractFunction, contracts_node_generator};
 use std::{
 	path::{Path, PathBuf},

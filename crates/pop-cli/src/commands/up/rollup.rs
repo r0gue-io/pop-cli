@@ -430,7 +430,7 @@ async fn generate_spec_files(
 	}
 
 	let mut build_spec = BuildSpecCommand {
-		id: Some(id),
+		para_id: Some(id),
 		genesis_code: Some(true),
 		genesis_state: Some(true),
 		chain_type: Some(ChainType::Live),
