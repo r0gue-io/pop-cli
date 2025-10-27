@@ -81,6 +81,9 @@ pub(crate) enum Command {
 	#[cfg(feature = "chain")]
 	#[clap()]
 	Westend(network::BuildCommand<WESTEND>),
+	/// Launch a frontend dev server.
+	#[clap(alias = "f")]
+	Frontend(frontend::FrontendCommand),
 }
 
 impl Command {
@@ -134,6 +137,7 @@ impl Display for Command {
 			Command::Kusama(_) => write!(f, "kusama"),
 			Command::Polkadot(_) => write!(f, "polkadot"),
 			Command::Westend(_) => write!(f, "westend"),
+			Command::Frontend(_) => write!(f, "frontend"),
 		}
 	}
 }
@@ -174,7 +178,6 @@ mod tests {
 				upload_only: true,
 				skip_confirm: false,
 				skip_build: true,
-				with_frontend: false,
 			},
 			#[cfg(feature = "chain")]
 			rollup: rollup::UpCommand::default(),

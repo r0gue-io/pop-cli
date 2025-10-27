@@ -2,8 +2,44 @@
 
 use crate::cli::{self, traits::*};
 use anyhow::Result;
+use clap::Args;
 use duct::cmd;
 use std::path::{Path, PathBuf};
+
+/// Launch a frontend dev server.
+#[derive(Args, Clone, Default)]
+pub(crate) struct FrontendCommand {
+	/// Path to the frontend directory
+	#[arg(long, short)]
+	pub(crate) path: Option<PathBuf>,
+}
+
+impl FrontendCommand {
+	/// Executes the command.
+	pub(crate) fn execute(self, cli: &mut impl cli::traits::Cli) -> Result<()> {
+		cli.intro("Launch frontend dev server")?;
+
+		let frontend_dir = if let Some(path) = self.path {
+			if path.is_dir() {
+				Some(path)
+			} else {
+				cli.warning(format!("The provided path '{}' is not a directory.", path.display()))?;
+				resolve_frontend_dir(&std::env::current_dir()?, cli)?
+			}
+		} else {
+			resolve_frontend_dir(&std::env::current_dir()?, cli)?
+		};
+
+		if let Some(frontend_dir) = frontend_dir {
+			run_frontend(&frontend_dir)?;
+			cli.outro("Frontend dev server launched")?;
+		} else {
+			cli.outro_cancel("Frontend directory not found")?;
+		}
+
+		Ok(())
+	}
+}
 
 /// Resolve a frontend directory. Default is ./frontend under current working directory. If not
 /// present, prompt the user.

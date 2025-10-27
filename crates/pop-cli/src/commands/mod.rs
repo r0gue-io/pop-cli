@@ -157,6 +157,7 @@ impl Command {
 						up::Command::Polkadot(mut cmd) => cmd.execute(Polkadot, &mut Cli).await.map(|_| Up(Network)),
 						#[cfg(feature = "chain")]
 						up::Command::Westend(mut cmd) => cmd.execute(Westend, &mut Cli).await.map(|_| Up(Network)),
+						up::Command::Frontend(cmd) => cmd.execute(&mut Cli).map(|_| Null),
 					},
 				}
 			},

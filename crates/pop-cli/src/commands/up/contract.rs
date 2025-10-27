@@ -5,10 +5,7 @@ use crate::{
 		Cli,
 		traits::{Cli as _, Confirm},
 	},
-	commands::{
-		call::contract::CallContractCommand,
-		up::frontend::{resolve_frontend_dir, run_frontend},
-	},
+	commands::call::contract::CallContractCommand,
 	common::{
 		contracts::{
 			check_ink_node_and_prompt, has_contract_been_built, map_account, normalize_call_args,
@@ -103,21 +100,12 @@ pub struct UpContractCommand {
 	/// If the contract is not built, it will be built regardless.
 	#[clap(long)]
 	pub(crate) skip_build: bool,
-	/// Also start a frontend dev server from a frontend directory.
-	#[clap(long = "with-frontend", action)]
-	pub(crate) with_frontend: bool,
 }
 
 impl UpContractCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(mut self) -> anyhow::Result<()> {
 		Cli.intro("Deploy a smart contract")?;
-		// Run a frontend dev server.
-		if self.with_frontend &&
-			let Some(frontend_dir) = resolve_frontend_dir(&std::env::current_dir()?, &mut Cli)?
-		{
-			run_frontend(&frontend_dir)?;
-		}
 		// Check if build exists in the specified "Contract build directory"
 		let contract_already_built = has_contract_been_built(&self.path);
 		if !self.skip_build || !contract_already_built {
@@ -540,7 +528,6 @@ impl Default for UpContractCommand {
 			upload_only: false,
 			skip_confirm: false,
 			skip_build: false,
-			with_frontend: false,
 		}
 	}
 }

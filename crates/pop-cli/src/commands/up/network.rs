@@ -2,7 +2,6 @@
 
 use crate::{
 	cli::{self, traits::Confirm},
-	commands::up::frontend::{resolve_frontend_dir, run_frontend},
 	style::{Theme, style},
 };
 use clap::{
@@ -67,9 +66,6 @@ pub(crate) struct ConfigFileCommand {
 	/// Automatically remove the state upon tearing down the network.
 	#[clap(long = "rm")]
 	pub(crate) auto_remove: bool,
-	/// Also start a frontend dev server from a frontend directory.
-	#[clap(long = "with-frontend", action)]
-	pub(crate) with_frontend: bool,
 }
 
 impl ConfigFileCommand {
@@ -90,7 +86,6 @@ impl ConfigFileCommand {
 			self.skip_confirm,
 			self.auto_remove,
 			self.command.as_deref(),
-			self.with_frontend,
 			cli,
 		)
 		.await
@@ -137,9 +132,6 @@ pub(crate) struct BuildCommand<const FILTER: u8> {
 	/// Automatically remove the state upon tearing down the network.
 	#[clap(long = "rm")]
 	auto_remove: bool,
-	/// Also start a frontend dev server from a frontend directory.
-	#[clap(long = "with-frontend", action)]
-	with_frontend: bool,
 }
 
 impl<const FILTER: u8> BuildCommand<FILTER> {
@@ -191,7 +183,6 @@ impl<const FILTER: u8> BuildCommand<FILTER> {
 			self.skip_confirm,
 			self.auto_remove,
 			self.command.as_deref(),
-			self.with_frontend,
 			cli,
 		)
 		.await
@@ -279,15 +270,8 @@ pub(crate) async fn spawn(
 	skip_confirm: bool,
 	auto_remove: bool,
 	command: Option<&str>,
-	with_frontend: bool,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<()> {
-	// Run a frontend dev server.
-	if with_frontend &&
-		let Some(frontend_dir) = resolve_frontend_dir(&std::env::current_dir()?, cli)?
-	{
-		run_frontend(&frontend_dir)?;
-	}
 	// Initialize from arguments
 	let cache = crate::cache()?;
 	let mut zombienet = match Zombienet::new(
