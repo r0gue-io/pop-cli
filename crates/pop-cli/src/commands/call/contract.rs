@@ -425,23 +425,7 @@ impl CallContractCommand {
 			// No message provided, prompt user to select one
 			let mut prompt = cli.select("Select the message to call (type to filter)");
 			for callable in &callables {
-				match &callable {
-					ContractCallable::Function(message) => {
-						let prelude = if message.mutates { "📝 [MUTATES] " } else { "[READS] " };
-						prompt = prompt.item(
-							callable.clone(),
-							format!("{}{}", prelude, message.label),
-							&message.docs,
-						);
-					},
-					ContractCallable::Storage(storage) => {
-						prompt = prompt.item(
-							callable.clone(),
-							format!("[STORAGE] {}", &storage.name),
-							storage.type_name.clone(),
-						);
-					},
-				}
+				prompt = prompt.item(callable, callable.hint(), callable.docs());
 			}
 			let callable = prompt.filter_mode().interact()?;
 			self.message = Some(callable.name());

@@ -51,6 +51,27 @@ impl ContractCallable {
 			ContractCallable::Storage(s) => s.name.clone(),
 		}
 	}
+
+	/// Returns a descriptive hint string indicating the type of this callable entity.
+	pub fn hint(&self) -> String {
+		match self {
+			ContractCallable::Function(f) => {
+				let prelude = if f.mutates { "📝 [MUTATES] " } else { "[READS] " };
+				format!("{}{}", prelude, f.label)
+			},
+			ContractCallable::Storage(s) => {
+				format!("[STORAGE] {}", &s.name)
+			},
+		}
+	}
+
+	/// Returns a descriptive documentation string for this callable entity.
+	pub fn docs(&self) -> String {
+		match self {
+			ContractCallable::Function(f) => f.docs.clone(),
+			ContractCallable::Storage(s) => s.type_name.clone(),
+		}
+	}
 }
 
 /// Describes a parameter.
