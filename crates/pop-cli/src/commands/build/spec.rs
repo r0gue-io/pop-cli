@@ -316,7 +316,6 @@ impl BuildSpecCommand {
 						let default_str = default.to_string();
 						cli.input("What parachain ID should be used?")
 							.default_input(&default_str)
-							.default_input(&default_str)
 							.interact()?
 							.parse::<u32>()
 							.unwrap_or(DEFAULT_PARA_ID)
@@ -405,7 +404,7 @@ impl BuildSpecCommand {
 					.to_string();
 				if prompt {
 					// Prompt for protocol id.
-					cli.input("Enter the protocol ID that will identify your network:")
+					cli.input("Enter the protocol ID that will identify your network: ")
 						.placeholder(&default)
 						.default_input(&default)
 						.interact()?
@@ -677,12 +676,7 @@ impl BuildSpec {
 		// Generate genesis artifacts.
 		let genesis_code_file = if self.genesis_code {
 			spinner.set_message("Generating genesis code...");
-			let wasm_file_name = if let Some(para_id) = self.para_id {
-				format!("para-{}.wasm", para_id)
-			} else {
-				"relay.wasm".to_owned()
-			};
-			let wasm_file = builder.export_wasm_file(&raw_chain_spec, &wasm_file_name)?;
+			let wasm_file = builder.export_wasm_file(&raw_chain_spec, "genesis-code.wasm")?;
 			generated_files
 				.push(format!("WebAssembly runtime file exported at: {}", wasm_file.display()));
 			Some(wasm_file)
@@ -691,11 +685,6 @@ impl BuildSpec {
 		};
 		let genesis_state_file = if self.genesis_state {
 			spinner.set_message("Generating genesis state...");
-			let genesis_file_name = if let Some(para_id) = self.para_id {
-				format!("para-{}-genesis-state", para_id)
-			} else {
-				"relay-genesis-state.wasm".to_owned()
-			};
 			let binary_path = match builder {
 				ChainSpecBuilder::Runtime { .. } =>
 					source_polkadot_omni_node_binary(cli, &spinner, &crate::cache()?, true).await?,
@@ -704,7 +693,7 @@ impl BuildSpec {
 			let genesis_state_file = generate_genesis_state_file_with_node(
 				&binary_path,
 				&raw_chain_spec,
-				&genesis_file_name,
+				"genesis-state",
 			)?;
 			generated_files
 				.push(format!("Genesis State file exported at: {}", genesis_state_file.display()));
@@ -761,12 +750,12 @@ impl BuildSpec {
 		let mut chain_spec = ChainSpec::from(path)?;
 		if !self.is_relay {
 			chain_spec.replace_para_id(
-				self.para_id.expect("If not relay, para_id is provided by the user; qed"),
+				self.para_id.ok_or_else(|| anyhow::anyhow!("Missing para_id for chain spec"))?,
 			)?;
 			chain_spec.replace_relay_chain(
 				self.relay
 					.as_ref()
-					.expect("If not relay, the used relay is provided by the user; qed;")
+					.ok_or_else(|| anyhow::anyhow!("Missing relay chain for chain spec"))?
 					.as_ref(),
 			)?;
 		}
@@ -908,11 +897,18 @@ mod tests {
 			if build_spec_cmd.chain.is_none() {
 				cli = cli
 					.expect_input(
-						"Name or path for the plain chain spec file:", output_file.to_string())
-					.expect_input(
-						"What parachain ID should be used?", para_id.to_string())
-					.expect_input(
-						"Enter the protocol ID that will identify your network:", protocol_id.to_string())
+						"Name or path for the plain chain spec file:",
+						output_file.to_string(),
+					)
+					.expect_input("What parachain ID should be used?", para_id.to_string())
+					.expect_select(
+						"Choose the relay your chain will be connecting to: ",
+						Some(false),
+						true,
+						Some(relays()),
+						relay as usize,
+						None,
+					)
 					.expect_select(
 						"Choose the chain type: ",
 						Some(false),
@@ -920,26 +916,31 @@ mod tests {
 						Some(chain_types()),
 						chain_type.clone() as usize,
 						None,
-					).expect_select(
-					"Choose the relay your chain will be connecting to: ",
-					Some(false),
-					true,
-					Some(relays()),
-					relay as usize,
-					None,
-				).expect_select(
-					"Choose the build profile of the binary that should be used: ",
-					Some(false),
-					true,
-					Some(profiles()),
-					profile.clone() as usize,
-					None,
-				).expect_confirm("Would you like to use local host as a bootnode ?", default_bootnode
-				).expect_confirm("Should the genesis state file be generated ?", genesis_state
-				).expect_confirm("Should the genesis code file be generated ?", genesis_code)
-				.expect_confirm("Would you like to build the runtime deterministically? This requires a containerization solution (Docker/Podman) and is recommended for production builds.", deterministic)
-				.expect_input("Enter the directory path where the runtime is located:", runtime_dir.display().to_string())
-				.expect_input("Enter the runtime package name:", package.to_string());
+					)
+					.expect_input(
+						"Enter the protocol ID that will identify your network: ",
+						protocol_id.to_string(),
+					)
+					.expect_select(
+						"Choose the build profile of the binary that should be used: ",
+						Some(false),
+						true,
+						Some(profiles()),
+						profile.clone() as usize,
+						None,
+					)
+					.expect_confirm(
+						"Would you like to use local host as a bootnode ?",
+						default_bootnode,
+					)
+					.expect_confirm("Should the genesis state file be generated ?", genesis_state)
+					.expect_confirm("Should the genesis code file be generated ?", genesis_code)
+					.expect_confirm("Would you like to build the runtime deterministically? This requires a containerization solution (Docker/Podman) and is recommended for production builds.", deterministic)
+					.expect_input(
+						"Enter the directory path where the runtime is located:",
+						runtime_dir.display().to_string(),
+					)
+					.expect_input("Enter the runtime package name:", package.to_string());
 			} else {
 				flags_used = true;
 			}
@@ -1061,16 +1062,20 @@ mod tests {
 				);
 				// When user wants to make changes to chain spec file via prompts and no flags
 				// provided.
-				let no_flags_used = build_spec_cmd.relay.is_none();
+				let no_flags_used = build_spec_cmd.runtime_dir.is_none();
 				if changes && no_flags_used {
-					if build_spec_cmd.id.is_none() {
+					if build_spec_cmd.para_id.is_none() {
 						cli = cli
 							.expect_input("What parachain ID should be used?", para_id.to_string());
 					}
-					if build_spec_cmd.protocol_id.is_none() {
-						cli = cli.expect_input(
-							"Enter the protocol ID that will identify your network:",
-							protocol_id.to_string(),
+					if build_spec_cmd.relay.is_none() {
+						cli = cli.expect_select(
+							"Choose the relay your chain will be connecting to: ",
+							Some(false),
+							true,
+							Some(relays()),
+							relay as usize,
+							None,
 						);
 					}
 					if build_spec_cmd.chain_type.is_none() {
@@ -1083,16 +1088,6 @@ mod tests {
 							None,
 						);
 					}
-					if build_spec_cmd.relay.is_none() {
-						cli = cli.expect_select(
-							"Choose the relay your chain will be connecting to: ",
-							Some(false),
-							true,
-							Some(relays()),
-							relay as usize,
-							None,
-						);
-					}
 					if build_spec_cmd.profile.is_none() {
 						cli = cli.expect_select(
 							"Choose the build profile of the binary that should be used: ",
@@ -1101,6 +1096,12 @@ mod tests {
 							Some(profiles()),
 							profile.clone() as usize,
 							None,
+						);
+					}
+					if build_spec_cmd.protocol_id.is_none() {
+						cli = cli.expect_input(
+							"Enter the protocol ID that will identify your network: ",
+							protocol_id.to_string(),
 						);
 					}
 					if build_spec_cmd.default_bootnode.is_none() {
