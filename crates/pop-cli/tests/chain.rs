@@ -107,7 +107,7 @@ async fn parachain_lifecycle() -> Result<()> {
 	let binary_path = replace_mock_with_binary(&working_dir, binary_name)?;
 	assert!(binary_path.exists());
 
-	// pop build spec --output ./target/pop/test-spec.json --id 2222 --type development --relay
+	// pop build spec --output ./target/pop/test-spec.json --para-id 2222 --type development --relay
 	// paseo-local --protocol-id pop-protocol --chain local --deterministic=true
 	let mut command = pop(
 		&working_dir,
@@ -141,8 +141,8 @@ async fn parachain_lifecycle() -> Result<()> {
 	assert!(working_dir.join("target").exists());
 	assert!(working_dir.join("target/pop/test-spec.json").exists());
 	assert!(working_dir.join("target/pop/test-spec-raw.json").exists());
-	assert!(working_dir.join("target/pop/para-2222.wasm").exists());
-	assert!(working_dir.join("target/pop/para-2222-genesis-state").exists());
+	assert!(working_dir.join("target/pop/genesis-code.wasm").exists());
+	assert!(working_dir.join("target/pop/genesis-state").exists());
 
 	let content = fs::read_to_string(working_dir.join("target/pop/test-spec-raw.json"))
 		.expect("Could not read file");
