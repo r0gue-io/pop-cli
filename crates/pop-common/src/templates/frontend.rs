@@ -43,17 +43,8 @@ impl Type<FrontendTemplate> for FrontendType {
 	VariantArray,
 )]
 pub enum FrontendTemplate {
-	/// Inkathon template: Next generation full-stack boilerplate for ink! smart contracts running
-	/// on PolkaVM.
-	#[default]
-	#[strum(
-		serialize = "inkathon",
-		message = "Inkathon",
-		detailed_message = "Next generation full-stack boilerplate for ink! smart contracts running on PolkaVM.",
-		props(Command = "create-inkathon-app@latest", Type = "Contract",)
-	)]
-	Inkathon,
 	/// Typeink template: The ultimate toolkit for dApps development on Polkadot, powered by <https://dedot.dev>!.
+	#[default]
 	#[strum(
 		serialize = "typink",
 		message = "Typink",
@@ -61,6 +52,15 @@ pub enum FrontendTemplate {
 		props(Command = "create-typink@latest", Type = "Contract",)
 	)]
 	Typink,
+	/// Inkathon template: Next generation full-stack boilerplate for ink! smart contracts running
+	/// on PolkaVM.
+	#[strum(
+		serialize = "inkathon",
+		message = "Inkathon",
+		detailed_message = "Next generation full-stack boilerplate for ink! smart contracts running on PolkaVM.",
+		props(Command = "create-inkathon-app@latest", Type = "Contract",)
+	)]
+	Inkathon,
 	/// Parity template: Create Polkadot DApp in one command.
 	#[strum(
 		serialize = "create-polkadot-dapp",
@@ -136,7 +136,7 @@ mod tests {
 	fn test_convert_string_to_template() {
 		let template_names = templates_names();
 		// Test the default
-		assert_eq!(FrontendTemplate::from_str("").unwrap_or_default(), Inkathon);
+		assert_eq!(FrontendTemplate::from_str("").unwrap_or_default(), Typink);
 		// Test the rest
 		for template in FrontendTemplate::VARIANTS {
 			assert_eq!(
@@ -168,7 +168,7 @@ mod tests {
 	#[test]
 	fn test_templates_of_type() {
 		let mut frontend_type = FrontendType::Contract;
-		assert_eq!(frontend_type.templates(), [&Inkathon, &Typink]);
+		assert_eq!(frontend_type.templates(), [&Typink, &Inkathon]);
 		frontend_type = FrontendType::Chain;
 		assert_eq!(frontend_type.templates(), [&CreatePolkadotDapp, &CreateDotApp]);
 	}

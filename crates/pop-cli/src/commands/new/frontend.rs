@@ -46,11 +46,15 @@ pub fn create_frontend(
 	ensure_node_v20()?;
 	ensure_npx()?;
 	let project_dir = target.canonicalize()?;
+	let command = template
+		.command()
+		.ok_or_else(|| anyhow::anyhow!("no command configured for {:?}", template))?;
 	match template {
 		// Inkathon requires Bun installed.
 		FrontendTemplate::Inkathon => {
 			let bun = ensure_bun(cli)?;
-			cmd(&bun, &["x", "create-inkathon-app@latest", "frontend", "-y"])
+			cmd(&bun, &["add", "polkadot-api"]).dir(&project_dir).unchecked().run()?;
+			cmd(&bun, &[command, "frontend", "--yes"])
 				.dir(&project_dir)
 				.env("SKIP_INSTALL_SIMPLE_GIT_HOOKS", "1")
 				.unchecked()
@@ -58,9 +62,6 @@ pub fn create_frontend(
 		},
 		// Typeink we can specify the parameters directly
 		FrontendTemplate::Typink => {
-			let command = template
-				.command()
-				.ok_or_else(|| anyhow::anyhow!("no command configured for {:?}", template))?;
 			cmd(
 				"npx",
 				vec![
@@ -78,9 +79,6 @@ pub fn create_frontend(
 			.run()?;
 		},
 		_ => {
-			let command = template
-				.command()
-				.ok_or_else(|| anyhow::anyhow!("no command configured for {:?}", template))?;
 			cmd("npx", vec![command, "frontend"]).dir(&project_dir).run()?;
 		},
 	}
@@ -131,7 +129,7 @@ mod tests {
 		);
 
 		let user_input = prompt_frontend_template(&FrontendType::Contract, &mut cli)?;
-		assert_eq!(user_input, FrontendTemplate::Inkathon);
+		assert_eq!(user_input, FrontendTemplate::Typink);
 
 		cli.verify()
 	}
