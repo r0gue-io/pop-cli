@@ -604,6 +604,9 @@ impl Call {
 		if self.sudo {
 			full_message.push_str(" --sudo");
 		}
+		if self.skip_confirm {
+			full_message.push_str(" --skip-confirm");
+		}
 		full_message
 	}
 }
