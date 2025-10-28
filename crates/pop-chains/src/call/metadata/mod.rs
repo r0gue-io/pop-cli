@@ -607,24 +607,42 @@ pub fn parse_dispatchable_arguments(
 	params: &[Param],
 	raw_params: Vec<String>,
 ) -> Result<Vec<Value>, Error> {
-	params
-		.iter()
-		.zip(raw_params)
-		.map(|(param, raw_param)| {
-			// Convert sequence parameters to hex if is_sequence
-			let processed_param = if param.is_sequence && !raw_param.starts_with("0x") {
-				to_hex(&raw_param)
-			} else {
-				raw_param
-			};
-			scale_value::stringify::from_str_custom()
-				.add_custom_parser(custom_parsers::parse_hex)
-				.add_custom_parser(custom_parsers::parse_ss58)
-				.parse(&processed_param)
-				.0
-				.map_err(|_| Error::ParamProcessingError)
-		})
-		.collect()
+	let mut result = Vec::new();
+	let mut i = 0;
+	for param in params {
+		let mut n = param.sub_params.len().max(1);
+		if n > 1 {
+			// Check whether the first parameter is a tuple or not
+			let first_param = raw_params[i].trim();
+			let is_tuple = first_param.starts_with('(') && first_param.ends_with(')');
+			if is_tuple {
+				n = 1;
+			}
+		};
+		let values = raw_params
+			.iter()
+			.skip(i)
+			.take(n)
+			.map(|s| s.trim().to_string())
+			.collect::<Vec<_>>();
+		i += n;
+		let value = if values.len() > 1 {
+			// Transform into a tuple
+			format!("({})", values.join(","))
+		} else {
+			values[0].to_string()
+		};
+		let processed_param =
+			if param.is_sequence && !value.starts_with("0x") { to_hex(&value) } else { value };
+		let r = scale_value::stringify::from_str_custom()
+			.add_custom_parser(custom_parsers::parse_hex)
+			.add_custom_parser(custom_parsers::parse_ss58)
+			.parse(&processed_param)
+			.0
+			.map_err(|_| Error::ParamProcessingError)?;
+		result.push(r);
+	}
+	Ok(result)
 }
 
 #[cfg(test)]
