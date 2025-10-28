@@ -305,7 +305,11 @@ impl CallChainCommand {
 						let key_param = type_to_param(&name.to_string(), registry, key_ty)
 							.map_err(|e| anyhow!("Failed to parse storage key type: {e}"))?;
 
-						let mut params = self.args.clone();
+						let mut params = if self.args.len() == key_param.sub_params.len() {
+							vec![format!("({})", self.args.join(",",))]
+						} else {
+							self.args.clone()
+						};
 						if key_param.sub_params.is_empty() && params.is_empty() {
 							// Prompt user for the storage key
 							let key_value = prompt_for_param(cli, &key_param, false)?;
