@@ -305,11 +305,28 @@ impl CallChainCommand {
 						let key_param = type_to_param(&name.to_string(), registry, key_ty)
 							.map_err(|e| anyhow!("Failed to parse storage key type: {e}"))?;
 
-						let mut params = if self.args.len() == key_param.sub_params.len() {
-							vec![format!("({})", self.args.join(",",))]
-						} else {
-							self.args.clone()
-						};
+						let is_composite = key_param.sub_params.len() > 1;
+						let (mut params, len) =
+							if self.args.len() == key_param.sub_params.len() && is_composite {
+								(vec![format!("({})", self.args.join(","))], self.args.len())
+							} else if self.args.len() == 1 && is_composite {
+								// Handle composite tuple string like "(A, B, C)"
+								let arg = self.args[0]
+									.trim()
+									.trim_start_matches("(")
+									.trim_start_matches("[")
+									.trim_end_matches(")")
+									.trim_end_matches("]")
+									.to_string();
+								let len = arg
+									.split(',')
+									.map(|s| s.trim().to_string())
+									.collect::<Vec<_>>()
+									.len();
+								(self.args.clone(), len)
+							} else {
+								(self.args.clone(), self.args.len())
+							};
 						if key_param.sub_params.is_empty() && params.is_empty() {
 							// Prompt user for the storage key
 							let key_value = prompt_for_param(cli, &key_param, false)?;
@@ -319,7 +336,7 @@ impl CallChainCommand {
 								storage.query_all = true;
 							}
 						} else {
-							for sub_param in key_param.sub_params.iter().skip(self.args.len()) {
+							for sub_param in key_param.sub_params.iter().skip(len) {
 								let sub_key_value = prompt_for_param(cli, sub_param, false)?;
 								if !sub_key_value.is_empty() {
 									params.push(sub_key_value);
