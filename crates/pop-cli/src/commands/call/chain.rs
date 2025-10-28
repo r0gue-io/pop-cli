@@ -24,6 +24,13 @@ use url::Url;
 const DEFAULT_URI: &str = "//Alice";
 const ENCODED_CALL_DATA_MAX_LEN: usize = 500; // Maximum length of encoded call data to display.
 
+fn to_tuple(args: &[String]) -> String {
+	if args.len() < 2 {
+		panic!("Cannot convert to tuple: too few arguments");
+	}
+	format!("({})", args.join(","))
+}
+
 /// Command to construct and execute extrinsics with configurable pallets, functions, arguments, and
 /// signing options.
 #[derive(Args, Clone, Default)]
@@ -308,7 +315,7 @@ impl CallChainCommand {
 						let is_composite = key_param.sub_params.len() > 1;
 						let (mut params, len) =
 							if self.args.len() == key_param.sub_params.len() && is_composite {
-								(vec![format!("({})", self.args.join(","))], self.args.len())
+								(vec![to_tuple(self.args.as_slice())], self.args.len())
 							} else if self.args.len() == 1 && is_composite {
 								// Handle composite tuple string like "(A, B, C)"
 								let arg = self.args[0]
@@ -344,6 +351,9 @@ impl CallChainCommand {
 									storage.query_all = true;
 									break;
 								}
+							}
+							if is_composite && params.len() > 1 {
+								params = vec![to_tuple(params.as_slice())];
 							}
 						}
 						params
