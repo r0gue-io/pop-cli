@@ -22,7 +22,7 @@ fn format_single_tuples<T, W: Write>(value: &Value<T>, mut writer: W) -> Option<
 		vals.len() == 1
 	{
 		let val = &vals[0];
-		return match raw_value_to_string(val) {
+		return match raw_value_to_string(val, "") {
 			Ok(r) => match writer.write_str(&r) {
 				Ok(_) => Some(Ok(())),
 				Err(_) => None,
@@ -61,7 +61,7 @@ fn format_hex<T, W: Write>(value: &Value<T>, mut writer: W) -> Option<core::fmt:
 /// # Returns
 /// * `Ok(String)` - The formatted string representation of the value.
 /// * `Err(_)` - If the value cannot be converted to string.
-pub fn raw_value_to_string<T>(value: &Value<T>) -> anyhow::Result<String> {
+pub fn raw_value_to_string<T>(value: &Value<T>, indent: &str) -> anyhow::Result<String> {
 	let mut result = String::new();
 	scale_value::stringify::to_writer_custom()
 		.compact()
@@ -69,7 +69,14 @@ pub fn raw_value_to_string<T>(value: &Value<T>) -> anyhow::Result<String> {
 		.add_custom_formatter(|v, w| format_hex(v, w))
 		.add_custom_formatter(|v, w| format_single_tuples(v, w))
 		.write(value, &mut result)?;
-	Ok(result)
+
+	// Add indentation to each line
+	let indented = result
+		.lines()
+		.map(|line| format!("{indent}{line}"))
+		.collect::<Vec<_>>()
+		.join("\n");
+	Ok(indented)
 }
 
 /// Renders storage key-value pairs into a human-readable string format.
@@ -90,16 +97,17 @@ pub fn render_storage_key_values(
 	key_value_pairs: &[(Vec<Value>, RawValue)],
 ) -> anyhow::Result<String> {
 	let mut result = String::new();
+	let indent = "  ";
 	for (keys, value) in key_value_pairs {
 		result.push_str("[\n");
 		if !keys.is_empty() {
 			for key in keys {
-				result.push_str(&format!("  {},\n", raw_value_to_string(key)?));
+				result.push_str(&raw_value_to_string(key, indent)?);
 			}
+			result.push_str(",\n");
 		}
-		let value = raw_value_to_string(value)?;
-		result.push_str(&format!("  {}\n", value.replace('\n', "\n  ")));
-		result.push_str("]\n");
+		result.push_str(&raw_value_to_string(value, indent)?);
+		result.push_str("\n]\n");
 	}
 	Ok(result)
 }
@@ -825,29 +833,29 @@ mod tests {
 	fn raw_value_to_string_works() -> Result<()> {
 		// Test simple integer value
 		let value = Value::u128(250).map_context(|_| 0u32);
-		let result = raw_value_to_string(&value)?;
+		let result = raw_value_to_string(&value, "")?;
 		assert_eq!(result, "250");
 
 		// Test boolean value
 		let value = Value::bool(true).map_context(|_| 0u32);
-		let result = raw_value_to_string(&value)?;
+		let result = raw_value_to_string(&value, "")?;
 		assert_eq!(result, "true");
 
 		// Test string value
 		let value = Value::string("hello").map_context(|_| 0u32);
-		let result = raw_value_to_string(&value)?;
+		let result = raw_value_to_string(&value, "")?;
 		assert_eq!(result, "\"hello\"");
 
 		// Test single-element tuple (should unwrap) - demonstrates format_single_tuples
 		let inner = Value::u128(42);
 		let value = Value::unnamed_composite(vec![inner]).map_context(|_| 0u32);
-		let result = raw_value_to_string(&value)?;
+		let result = raw_value_to_string(&value, "")?;
 		assert_eq!(result, "0x2a"); // 42 in hex - unwrapped from tuple
 
 		// Test multi-element composite - hex formatted
 		let value =
 			Value::unnamed_composite(vec![Value::u128(1), Value::u128(2)]).map_context(|_| 0u32);
-		let result = raw_value_to_string(&value)?;
+		let result = raw_value_to_string(&value, "")?;
 		assert_eq!(result, "0x0102"); // Formatted as hex bytes
 
 		Ok(())

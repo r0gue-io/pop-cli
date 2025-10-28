@@ -138,7 +138,7 @@ impl CallChainCommand {
 				},
 				CallItem::Constant(constant) => {
 					// We already have the value of a constant, so we don't need to query it
-					cli.success(&raw_value_to_string(&constant.value)?)?;
+					cli.success(&raw_value_to_string(&constant.value, "")?)?;
 				},
 				CallItem::Storage(ref storage) => {
 					// Parse string arguments to Value types for storage query
@@ -1156,7 +1156,7 @@ mod tests {
 		let value = result.unwrap();
 		// The value should be a primitive (block number)
 		assert!(matches!(value.value, ValueDef::Primitive(_)));
-		let formatted_value = raw_value_to_string(&value)?;
+		let formatted_value = raw_value_to_string(&value, "")?;
 		assert!(!formatted_value.is_empty(), "Formatted value should not be empty");
 
 		// Test querying a map storage item (System::Account with Alice's account)
@@ -1177,7 +1177,7 @@ mod tests {
 		let account_result = account_storage.query(&client, vec![account_key]).await?;
 		assert!(account_result.is_some(), "Alice's account should exist in test chain");
 		let account_value = account_result.unwrap();
-		let formatted_account = raw_value_to_string(&account_value)?;
+		let formatted_account = raw_value_to_string(&account_value, "")?;
 		assert!(!formatted_account.is_empty(), "Account data should not be empty");
 
 		Ok(())
@@ -1206,7 +1206,7 @@ mod tests {
 
 		// Constants have their values already decoded
 		let constant_value = &version_constant.value;
-		let formatted_value = raw_value_to_string(constant_value)?;
+		let formatted_value = raw_value_to_string(constant_value, "")?;
 		assert!(!formatted_value.is_empty(), "Constant value should not be empty");
 		// Version should be a composite value with spec_name, spec_version, etc.
 		assert!(matches!(constant_value.value, ValueDef::Composite(_)));
@@ -1219,7 +1219,7 @@ mod tests {
 			.expect("System::BlockHashCount constant should exist");
 
 		let block_hash_count_value = &block_hash_count_constant.value;
-		let formatted_block_hash_count = raw_value_to_string(block_hash_count_value)?;
+		let formatted_block_hash_count = raw_value_to_string(block_hash_count_value, "")?;
 		assert!(!formatted_block_hash_count.is_empty(), "BlockHashCount value should not be empty");
 		// BlockHashCount should be a primitive value (u32)
 		assert!(matches!(block_hash_count_value.value, ValueDef::Primitive(_)));
@@ -1232,7 +1232,7 @@ mod tests {
 			.expect("System::SS58Prefix constant should exist");
 
 		let ss58_prefix_value = &ss58_prefix_constant.value;
-		let formatted_ss58_prefix = raw_value_to_string(ss58_prefix_value)?;
+		let formatted_ss58_prefix = raw_value_to_string(ss58_prefix_value, "")?;
 		assert!(!formatted_ss58_prefix.is_empty(), "SS58Prefix value should not be empty");
 		assert!(matches!(ss58_prefix_value.value, ValueDef::Primitive(_)));
 
