@@ -14,12 +14,13 @@ use clap::{
 	builder::{PossibleValue, PossibleValuesParser, TypedValueParser},
 };
 use console::style;
-use pop_common::{
-	enum_variants, get_project_name_from_path,
-	templates::{Template, Type},
+use pop_common::{enum_variants, get_project_name_from_path, templates::Template};
+use pop_contracts::{Contract, create_smart_contract, is_valid_contract_name};
+use std::{
+	fs,
+	path::{Path, PathBuf},
+	str::FromStr,
 };
-use pop_contracts::{Contract, ContractType, create_smart_contract, is_valid_contract_name};
-use std::{fs, path::Path, str::FromStr};
 use strum::VariantArray;
 
 #[derive(Args, Clone)]
@@ -27,14 +28,6 @@ use strum::VariantArray;
 pub struct NewContractCommand {
 	/// The name of the contract.
 	pub(crate) name: Option<String>,
-	/// The type of contract.
-	#[arg(
-		default_value = ContractType::Examples.as_ref(),
-		short,
-		long,
-		value_parser = enum_variants!(ContractType)
-	)]
-	pub(crate) contract_type: Option<ContractType>,
 	/// The template to use.
 	#[arg(short, long, value_parser = enum_variants!(Contract))]
 	pub(crate) template: Option<Contract>,
@@ -42,19 +35,41 @@ pub struct NewContractCommand {
 
 impl NewContractCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(self) -> Result<Contract> {
+	pub(crate) async fn execute(mut self) -> Result<Contract> {
 		let mut cli = Cli;
-		// If the user doesn't provide a name, guide them in generating a contract.
-		let contract_config = if self.name.is_none() {
-			guide_user_to_generate_contract(&mut cli).await?
-		} else {
-			self.clone()
-		};
 
-		let path_project = &contract_config
-			.name
-			.clone()
-			.expect("name can not be none as fallback above is interactive input; qed");
+		// Prompt for missing fields interactively
+		if self.name.is_none() || self.template.is_none() {
+			cli.intro("Generate a contract")?;
+
+			// Prompt for template if not provided
+			if self.template.is_none() {
+				let template = {
+					let mut template_prompt = cli.select("Select a template:".to_string());
+					for (i, template) in Contract::templates().iter().enumerate() {
+						if i == 0 {
+							template_prompt = template_prompt.initial_value(template);
+						}
+						template_prompt =
+							template_prompt.item(template, template.name(), template.description());
+					}
+					template_prompt.interact()?.clone()
+				};
+				self.template = Some(template);
+			}
+
+			// Prompt for name if not provided
+			if self.name.is_none() {
+				let name: String = cli
+					.input("Where should your project be created?")
+					.placeholder("./my_contract")
+					.default_input("./my_contract")
+					.interact()?;
+				self.name = Some(name);
+			}
+		}
+
+		let path_project = &self.name.clone().expect("name can not be none; qed");
 		let path = Path::new(path_project);
 		let name = get_project_name_from_path(path, "my_contract");
 
@@ -64,14 +79,9 @@ impl NewContractCommand {
 			return Ok(Contract::Standard);
 		}
 
-		let contract_type = &contract_config.contract_type.clone().unwrap_or_default();
-		let template = match &contract_config.template {
-			Some(template) => template.clone(),
-			None => contract_type.default_template().expect("contract types have defaults; qed."), /* Default contract type */
-		};
+		let template = self.template.clone().unwrap_or_default();
 
-		is_template_supported(contract_type, &template)?;
-		generate_contract_from_template(name, path, &template, &mut cli)?;
+		let contract_path = generate_contract_from_template(name, path, &template, &mut cli)?;
 
 		// If the contract is part of a workspace, add it to that workspace
 		if let Some(workspace_toml) = rustilities::manifest::find_workspace_manifest(path) {
@@ -79,7 +89,7 @@ impl NewContractCommand {
 			// This ensures paths are absolute and consistent, especially when using simple names
 			rustilities::manifest::add_crate_to_workspace(
 				&workspace_toml.canonicalize()?,
-				&path.canonicalize()?,
+				&contract_path.canonicalize()?,
 			)?;
 		}
 
@@ -87,77 +97,12 @@ impl NewContractCommand {
 	}
 }
 
-/// Determines whether the specified template is supported by the type.
-fn is_template_supported(contract_type: &ContractType, template: &Contract) -> Result<()> {
-	if !contract_type.provides(template) {
-		return Err(anyhow::anyhow!(format!(
-			"The contract type \"{:?}\" doesn't support the {:?} template.",
-			contract_type, template
-		)));
-	};
-	Ok(())
-}
-
-/// Guide the user to generate a contract from available templates.
-async fn guide_user_to_generate_contract(
-	cli: &mut impl cli::traits::Cli,
-) -> Result<NewContractCommand> {
-	cli.intro("Generate a contract")?;
-
-	let contract_type = {
-		let mut contract_type_prompt = cli.select("Select a template type: ".to_string());
-		for (i, contract_type) in ContractType::types().iter().enumerate() {
-			if i == 0 {
-				contract_type_prompt = contract_type_prompt.initial_value(contract_type);
-			}
-			contract_type_prompt = contract_type_prompt.item(
-				contract_type,
-				contract_type.name(),
-				format!(
-					"{} {} available option(s)",
-					contract_type.description(),
-					contract_type.templates().len(),
-				),
-			);
-		}
-		contract_type_prompt.interact()?
-	};
-	let template = display_select_options(contract_type, cli)?;
-
-	// Prompt for location.
-	let name: String = cli
-		.input("Where should your project be created?")
-		.placeholder("./my_contract")
-		.default_input("./my_contract")
-		.interact()?;
-
-	Ok(NewContractCommand {
-		name: Some(name),
-		contract_type: Some(contract_type.clone()),
-		template: Some(template),
-	})
-}
-
-fn display_select_options(
-	contract_type: &ContractType,
-	cli: &mut impl cli::traits::Cli,
-) -> Result<Contract> {
-	let mut prompt = cli.select("Select the contract:".to_string());
-	for (i, template) in contract_type.templates().into_iter().enumerate() {
-		if i == 0 {
-			prompt = prompt.initial_value(template);
-		}
-		prompt = prompt.item(template, template.name(), template.description());
-	}
-	Ok(prompt.interact()?.clone())
-}
-
 fn generate_contract_from_template(
 	name: &str,
 	path: &Path,
 	template: &Contract,
 	cli: &mut impl cli::traits::Cli,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<PathBuf> {
 	cli.intro(format!("Generating \"{}\" using {}!", name, template.name(),))?;
 
 	let contract_path = check_destination_path(path, cli)?;
@@ -193,7 +138,7 @@ fn generate_contract_from_template(
 		"Need help? Learn more at {}\n",
 		style("https://learn.onpop.io").magenta().underlined()
 	))?;
-	Ok(())
+	Ok(contract_path)
 }
 
 #[cfg(test)]
@@ -204,14 +149,12 @@ mod tests {
 		Command::New,
 		cli::MockCli,
 		commands::new::{Command::Contract, NewArgs},
-		new::contract::{guide_user_to_generate_contract, is_template_supported},
 	};
 	use anyhow::Result;
 	use clap::Parser;
 	use console::style;
-	use pop_common::templates::{Template, Type};
-	use pop_contracts::{Contract as ContractTemplate, ContractType};
-	use strum::VariantArray;
+	use pop_common::templates::Template;
+	use pop_contracts::Contract as ContractTemplate;
 	use tempfile::tempdir;
 
 	#[tokio::test]
@@ -226,54 +169,6 @@ mod tests {
 		// Execute
 		command.execute().await?;
 		Ok(())
-	}
-
-	#[tokio::test]
-	async fn guide_user_to_generate_contract_works() -> anyhow::Result<()> {
-		let mut items_select_contract_type: Vec<(String, String)> = Vec::new();
-		for contract_type in ContractType::VARIANTS {
-			items_select_contract_type.push((
-				contract_type.name().to_string(),
-				format!(
-					"{} {} available option(s)",
-					contract_type.description(),
-					contract_type.templates().len(),
-				),
-			));
-		}
-		let mut items_select_contract: Vec<(String, String)> = Vec::new();
-		for contract_template in ContractType::Erc.templates() {
-			items_select_contract.push((
-				contract_template.name().to_string(),
-				contract_template.description().to_string(),
-			));
-		}
-		let mut cli = MockCli::new()
-			.expect_intro("Generate a contract")
-			.expect_input("Where should your project be created?", "./erc20".into())
-			.expect_select(
-				"Select a template type: ",
-				Some(false),
-				true,
-				Some(items_select_contract_type),
-				1, // "ERC",
-				None,
-			)
-			.expect_select(
-				"Select the contract:",
-				Some(false),
-				true,
-				Some(items_select_contract),
-				0, // "ERC20"
-				None,
-			);
-
-		let user_input = guide_user_to_generate_contract(&mut cli).await?;
-		assert_eq!(user_input.name, Some("./erc20".to_string()));
-		assert_eq!(user_input.contract_type, Some(ContractType::Erc));
-		assert_eq!(user_input.template, Some(ContractTemplate::ERC20));
-
-		cli.verify()
 	}
 
 	#[test]
@@ -305,25 +200,6 @@ mod tests {
 			&mut cli,
 		)?;
 		cli.verify()
-	}
-
-	#[test]
-	fn is_template_supported_works() -> Result<()> {
-		is_template_supported(&ContractType::Erc, &ContractTemplate::ERC20)?;
-		is_template_supported(&ContractType::Erc, &ContractTemplate::ERC721)?;
-		assert!(
-			is_template_supported(&ContractType::Erc, &ContractTemplate::CrossContract).is_err()
-		);
-		assert!(is_template_supported(&ContractType::Erc, &ContractTemplate::PSP22).is_err());
-		is_template_supported(&ContractType::Examples, &ContractTemplate::Standard)?;
-		is_template_supported(&ContractType::Examples, &ContractTemplate::CrossContract)?;
-		assert!(is_template_supported(&ContractType::Examples, &ContractTemplate::ERC20).is_err());
-		assert!(is_template_supported(&ContractType::Examples, &ContractTemplate::PSP22).is_err());
-		is_template_supported(&ContractType::Psp, &ContractTemplate::PSP22)?;
-		is_template_supported(&ContractType::Psp, &ContractTemplate::PSP34)?;
-		assert!(is_template_supported(&ContractType::Psp, &ContractTemplate::ERC20).is_err());
-		assert!(is_template_supported(&ContractType::Psp, &ContractTemplate::Standard).is_err());
-		Ok(())
 	}
 
 	#[tokio::test]

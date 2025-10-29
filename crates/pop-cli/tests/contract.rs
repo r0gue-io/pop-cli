@@ -275,21 +275,13 @@ async fn contract_lifecycle() -> Result<()> {
 fn generate_all_the_templates(temp_dir: &Path) -> Result<()> {
 	for template in Contract::VARIANTS {
 		let contract_name = format!("test_contract_{}", template).replace("-", "_");
-		let contract_type = template.template_type()?.to_lowercase();
-		// pop new chain test_parachain
-		let mut command = pop(
-			&temp_dir,
-			[
-				"new",
-				"contract",
-				&contract_name,
-				"--contract-type",
-				&contract_type,
-				"--template",
-				&template.to_string(),
-			],
-		);
-		assert!(command.spawn()?.wait()?.success());
+		// pop new contract test_contract
+        Command::cargo_bin("pop")
+            .unwrap()
+            .current_dir(&temp_dir)
+            .args(&["new", "contract", &contract_name, "--template", &template.to_string()])
+            .assert()
+            .success();
 		assert!(temp_dir.join(contract_name).exists());
 	}
 	Ok(())
