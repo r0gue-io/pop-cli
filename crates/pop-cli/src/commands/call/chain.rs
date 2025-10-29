@@ -80,8 +80,6 @@ impl CallChainCommand {
 	pub(crate) async fn execute(mut self) -> Result<()> {
 		let mut cli = cli::Cli;
 		cli.intro("Call a chain")?;
-		// Check if all fields are specified via the command line.
-		let prompt_to_repeat_call = self.requires_user_input();
 		// Configure the chain.
 		let chain = chain::configure(
 			"Which chain would you like to interact with?",
@@ -213,7 +211,7 @@ impl CallChainCommand {
 				},
 			};
 
-			if (!prompt_to_repeat_call && self.skip_confirm) ||
+			if self.skip_confirm ||
 				!cli.confirm("Do you want to perform another call?")
 					.initial_value(true)
 					.interact()?
@@ -478,11 +476,6 @@ impl CallChainCommand {
 		self.args.clear();
 		self.sudo = false;
 		self.use_wallet = false;
-	}
-
-	// Function to check if all required fields are specified.
-	fn requires_user_input(&self) -> bool {
-		self.pallet.is_none() || self.function.is_none() || self.url.is_none()
 	}
 
 	/// Replaces file arguments with their contents, leaving other arguments unchanged.
@@ -1091,25 +1084,6 @@ mod tests {
 		assert_eq!(call_config.args.len(), 0);
 		assert!(!call_config.sudo);
 		assert!(!call_config.use_wallet);
-		Ok(())
-	}
-
-	#[test]
-	fn requires_user_input_works() -> Result<()> {
-		let mut call_config = CallChainCommand {
-			pallet: Some("System".to_string()),
-			function: Some("remark".to_string()),
-			args: vec!["0x11".to_string()],
-			url: Some(Url::parse(urls::LOCAL)?),
-			suri: Some(DEFAULT_URI.to_string()),
-			use_wallet: false,
-			skip_confirm: false,
-			call_data: None,
-			sudo: false,
-		};
-		assert!(!call_config.requires_user_input());
-		call_config.pallet = None;
-		assert!(call_config.requires_user_input());
 		Ok(())
 	}
 
