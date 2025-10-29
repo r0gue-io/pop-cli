@@ -17,7 +17,7 @@ use {
 
 #[cfg(feature = "contract")]
 mod contract;
-/// Utilities for selecting a frontend template and generate it.
+/// Utilities for launching a frontend dev server.
 mod frontend;
 #[cfg(feature = "chain")]
 pub(super) mod network;

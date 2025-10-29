@@ -424,6 +424,7 @@ pub(crate) async fn spawn(
 					cli.warning(format!("🚫 Failed to remove zombienet directory: {e}"))?;
 				}
 			}
+
 			cli.outro("Done")?;
 		},
 		Err(e) => {

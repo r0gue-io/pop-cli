@@ -53,6 +53,8 @@ pub enum Dependencies {
 	ProtobufCompiler,
 	#[strum(serialize = "rustup")]
 	Rustup,
+	#[strum(serialize = "unzip")]
+	Unzip,
 }
 
 /// Arguments for installing.
@@ -63,7 +65,7 @@ pub(crate) struct InstallArgs {
 	/// Automatically install all dependencies required without prompting for confirmation.
 	#[clap(short = 'y', long)]
 	skip_confirm: bool,
-	/// Install frontend development dependencies (Node.js and Bun).
+	/// Install frontend development dependencies.
 	#[clap(short = 'f', long)]
 	frontend: bool,
 }
@@ -138,7 +140,10 @@ async fn install_arch(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> an
 	))?;
 	if !skip_confirm {
 		prompt_for_confirmation(
-			&format!("{}, {}, {}, {}, {} and {}", Curl, Git, Clang, Make, Protobuf, Rustup,),
+			&format!(
+				"{}, {}, {}, {}, {}, {} and {}",
+				Curl, Git, Clang, Make, Protobuf, Unzip, Rustup,
+			),
 			cli,
 		)?
 	}
@@ -153,6 +158,7 @@ async fn install_arch(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> an
 			&Clang.to_string(),
 			&Make.to_string(),
 			&Protobuf.to_string(),
+			&Unzip.to_string(),
 		],
 	)
 	.run()?;
@@ -167,8 +173,8 @@ async fn install_ubuntu(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> 
 	if !skip_confirm {
 		prompt_for_confirmation(
 			&format!(
-				"{}, {}, {}, {}, {} and {}",
-				Git, Clang, Curl, Libssl, ProtobufCompiler, Rustup,
+				"{}, {}, {}, {}, {}, {} and {}",
+				Git, Clang, Curl, Libssl, ProtobufCompiler, Unzip, Rustup,
 			),
 			cli,
 		)?
@@ -183,6 +189,7 @@ async fn install_ubuntu(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> 
 			&Curl.to_string(),
 			&Libssl.to_string(),
 			&ProtobufCompiler.to_string(),
+			&Unzip.to_string(),
 		],
 	)
 	.env("DEBIAN_FRONTEND", "noninteractive")
@@ -198,8 +205,8 @@ async fn install_debian(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> 
 	if !skip_confirm {
 		prompt_for_confirmation(
 			&format!(
-				"{}, {}, {}, {}, {}, {}, {}, {} and {}",
-				Git, Clang, Curl, Libssl, Llvm, LibUdevDev, Make, ProtobufCompiler, Rustup,
+				"{}, {}, {}, {}, {}, {}, {}, {}, {} and {}",
+				Git, Clang, Curl, Libssl, Llvm, LibUdevDev, Make, ProtobufCompiler, Unzip, Rustup,
 			),
 			cli,
 		)?
@@ -218,6 +225,7 @@ async fn install_debian(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> 
 			&Llvm.to_string(),
 			&LibUdevDev.to_string(),
 			&Make.to_string(),
+			&Unzip.to_string(),
 		],
 	)
 	.env("DEBIAN_FRONTEND", "noninteractive")
@@ -365,7 +373,7 @@ mod tests {
 	}
 	#[tokio::test]
 	async fn install_arch_works() -> anyhow::Result<()> {
-		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#linux").expect_confirm("📦 Do you want to proceed with the installation of the following packages: curl, git, clang, make, protobuf and rustup ?", false);
+		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#linux").expect_confirm("📦 Do you want to proceed with the installation of the following packages: curl, git, clang, make, protobuf, unzip and rustup ?", false);
 		assert!(matches!(
 			install_arch(false, &mut cli)
 				.await,
@@ -375,7 +383,7 @@ mod tests {
 	}
 	#[tokio::test]
 	async fn install_ubuntu_works() -> anyhow::Result<()> {
-		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#linux").expect_confirm("📦 Do you want to proceed with the installation of the following packages: git, clang, curl, libssl-dev, protobuf-compiler and rustup ?", false);
+		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#linux").expect_confirm("📦 Do you want to proceed with the installation of the following packages: git, clang, curl, libssl-dev, protobuf-compiler, unzip and rustup ?", false);
 		assert!(matches!(
 			install_ubuntu(false, &mut cli)
 				.await,
@@ -385,7 +393,7 @@ mod tests {
 	}
 	#[tokio::test]
 	async fn install_debian_works() -> anyhow::Result<()> {
-		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#linux").expect_confirm("📦 Do you want to proceed with the installation of the following packages: git, clang, curl, libssl-dev, llvm, libudev-dev, make, protobuf-compiler and rustup ?", false);
+		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#linux").expect_confirm("📦 Do you want to proceed with the installation of the following packages: git, clang, curl, libssl-dev, llvm, libudev-dev, make, protobuf-compiler, unzip and rustup ?", false);
 		assert!(matches!(
 			install_debian(false, &mut cli)
 				.await,

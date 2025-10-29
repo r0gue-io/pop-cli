@@ -25,8 +25,6 @@ pub async fn install_frontend_dependencies(
 
 	ensure_node_v20(skip_confirm, cli).await?;
 	ensure_bun(skip_confirm, cli).await?;
-
-	cli.info("✅ Frontend dependencies installed successfully.")?;
 	Ok(())
 }
 

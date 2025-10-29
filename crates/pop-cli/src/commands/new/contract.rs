@@ -225,7 +225,7 @@ async fn generate_contract_from_template(
 	if let Some(frontend_template) = &frontend_template {
 		create_frontend(contract_path.as_path(), frontend_template, cli).await?;
 		next_steps.push(format!(
-			"Frontend template {frontend_template} created inside {}. Go to the folder and follow the README instructions to get started.", contract_path.display()
+			"Frontend template created inside {}. Navigate to the folder to start customizing it for your contract. To run it locally, use: `pop up frontend`.", contract_path.display()
 		))
 	};
 
