@@ -23,8 +23,8 @@ pub async fn install_frontend_dependencies(
 ) -> Result<()> {
 	cli.info("Installing frontend development dependencies...")?;
 
-	ensure_node(skip_confirm, cli).await?;
-	ensure_bun(skip_confirm, cli)?;
+	ensure_node_v20(skip_confirm, cli).await?;
+	ensure_bun(skip_confirm, cli).await?;
 
 	cli.info("✅ Frontend dependencies installed successfully.")?;
 	Ok(())
@@ -35,7 +35,7 @@ pub async fn install_frontend_dependencies(
 /// # Arguments
 /// * `skip_confirm`: If true, skip user confirmation prompts.
 /// * `cli`: Command line interface (for interactive confirm).
-pub async fn ensure_node(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> Result<()> {
+pub async fn ensure_node_v20(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> Result<()> {
 	if has("node") {
 		let v = SemanticVersion::try_from("node".to_string()).map_err(|_| {
 			anyhow!("NodeJS detected but version check failed. Make sure `node --version` works.")
@@ -45,20 +45,20 @@ pub async fn ensure_node(skip_confirm: bool, cli: &mut impl cli::traits::Cli) ->
 			return Ok(());
 		}
 	}
-	if !skip_confirm {
-		if !cli
-			.confirm("📦 NodeJS v20+ is required. Install/upgrade now via nvm?")
+	if !skip_confirm &&
+		!cli.confirm("📦 NodeJS v20+ is required. Install/upgrade now via nvm?")
 			.initial_value(true)
 			.interact()?
-		{
-			return Err(anyhow!(
-				"🚫 You have cancelled the installation process. NodeJS v20+ is required. Install from https://nodejs.org and re-run."
-			));
-		}
+	{
+		return Err(anyhow!(
+			"🚫 You have cancelled the installation process. NodeJS v20+ is required. Install from https://nodejs.org and re-run."
+		));
 	}
-	install_nvm(cli).await?;
-	// Install node
-	cmd("nvm", vec!["install", "node"]).run()?;
+	let nvm_script = install_nvm(cli).await?;
+
+	// Install node via nvm (need to source nvm first)
+	let install_cmd = format!(r#"source "{}" && nvm install node"#, nvm_script);
+	cmd("bash", vec!["-c", &install_cmd]).run()?;
 	Ok(())
 }
 
@@ -67,23 +67,22 @@ pub async fn ensure_node(skip_confirm: bool, cli: &mut impl cli::traits::Cli) ->
 /// # Arguments
 /// * `skip_confirm`: If true, skip user confirmation prompts.
 /// * `cli`: Command line interface.
-pub fn ensure_bun(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> Result<PathBuf> {
+pub async fn ensure_bun(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> Result<PathBuf> {
 	if let Some(path) = which("bun") {
 		return Ok(PathBuf::from(path));
 	}
-	if !skip_confirm {
-		if !cli
-			.confirm(
-				"📦 Do you want to proceed with the installation of the following package: bun ?",
-			)
-			.initial_value(true)
-			.interact()?
-		{
-			return Err(anyhow!("🚫 You have cancelled the installation process."));
-		}
+	if !skip_confirm &&
+		!cli.confirm(
+			"📦 Do you want to proceed with the installation of the following package: bun ?",
+		)
+		.initial_value(true)
+		.interact()?
+	{
+		return Err(anyhow!("🚫 You have cancelled the installation process."));
 	}
-	// Install Bun (macOS/Linux official script)
-	cmd("bash", vec!["-lc", r#"curl -fsSL https://bun.sh/install | bash"#]).run()?;
+	// Install Bun using the official installer script
+	run_external_script("https://bun.sh/install", &[]).await?;
+
 	// Use the default install location from the official installer
 	let home = std::env::var("HOME").map_err(|_| anyhow!("HOME not set"))?;
 	let bun_abs = PathBuf::from(format!("{home}/.bun/bin/bun"));
@@ -116,16 +115,18 @@ fn which(bin: &str) -> Option<String> {
 }
 
 /// Install nvm (Node Version Manager) if not already present.
-async fn install_nvm(cli: &mut impl cli::traits::Cli) -> Result<()> {
-	let nvm_is_installed = std::env::var("HOME")
-		.map(|home| std::path::Path::new(&home).join(".nvm/nvm.sh").exists())
-		.unwrap_or(false);
+/// Returns the path to the nvm.sh script.
+async fn install_nvm(cli: &mut impl cli::traits::Cli) -> Result<String> {
+	let home = std::env::var("HOME").map_err(|_| anyhow!("HOME not set"))?;
+	let nvm_script = format!("{home}/.nvm/nvm.sh");
+
+	let nvm_is_installed = std::path::Path::new(&nvm_script).exists();
 	if nvm_is_installed {
 		cli.info("ℹ️ nvm already installed.".to_string())?;
 	} else {
 		run_external_script(NVM_INSTALL_SCRIPT, &[]).await?;
 	}
-	Ok(())
+	Ok(nvm_script)
 }
 
 #[cfg(test)]
@@ -147,13 +148,12 @@ mod tests {
 		assert!(result.is_none());
 	}
 
-	#[test]
-	fn ensure_bun_returns_path_when_bun_exists() {
-		let mut cli = MockCli::new();
-
+	#[tokio::test]
+	async fn ensure_bun_returns_path_when_bun_exists() {
 		// Only test if bun exists: check we get a path
 		if which("bun").is_some() {
-			let result = ensure_bun(true, &mut cli);
+			let mut cli = MockCli::new();
+			let result = ensure_bun(true, &mut cli).await;
 			assert!(result.is_ok());
 		}
 	}
