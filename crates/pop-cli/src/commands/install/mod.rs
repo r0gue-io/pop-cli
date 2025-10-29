@@ -329,20 +329,7 @@ async fn install_homebrew(cli: &mut impl cli::traits::Cli) -> anyhow::Result<()>
 	Ok(())
 }
 
-async fn install_nvm(cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-	let nvm_is_installed = std::env::var("HOME")
-		.map(|home| std::path::Path::new(&home).join(".nvm/nvm.sh").exists())
-		.unwrap_or(false);
-	if nvm_is_installed {
-		cli.info("ℹ️ nvm already installed.".to_string())?;
-	} else {
-		run_external_script("https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh", &[])
-			.await?;
-	}
-	Ok(())
-}
-
-async fn run_external_script(script_url: &str, args: &[&str]) -> anyhow::Result<()> {
+pub(crate) async fn run_external_script(script_url: &str, args: &[&str]) -> anyhow::Result<()> {
 	let temp = tempfile::tempdir()?;
 	let scripts_path = temp.path().join("install.sh");
 	let client = reqwest::Client::new();

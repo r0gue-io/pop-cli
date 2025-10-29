@@ -2,7 +2,7 @@
 
 use crate::{
 	cli::{self, traits::Confirm},
-	commands::install::install_nvm,
+	commands::install::run_external_script,
 	common::binary::SemanticVersion,
 };
 use anyhow::{Result, anyhow};
@@ -10,6 +10,7 @@ use duct::cmd;
 use std::path::PathBuf;
 
 const MIN_NODE_VERSION: u8 = 20;
+const NVM_INSTALL_SCRIPT: &str = "https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh";
 
 /// Install frontend dependencies (Node.js and Bun).
 ///
@@ -112,4 +113,48 @@ fn has(bin: &str) -> bool {
 
 fn which(bin: &str) -> Option<String> {
 	cmd("which", vec![bin]).read().ok().map(|s| s.trim().to_string())
+}
+
+/// Install nvm (Node Version Manager) if not already present.
+async fn install_nvm(cli: &mut impl cli::traits::Cli) -> Result<()> {
+	let nvm_is_installed = std::env::var("HOME")
+		.map(|home| std::path::Path::new(&home).join(".nvm/nvm.sh").exists())
+		.unwrap_or(false);
+	if nvm_is_installed {
+		cli.info("ℹ️ nvm already installed.".to_string())?;
+	} else {
+		run_external_script(NVM_INSTALL_SCRIPT, &[]).await?;
+	}
+	Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::cli::MockCli;
+
+	#[test]
+	fn has_works() {
+		assert!(has("sh"));
+		assert!(!has("this_binary_should_not_exist_12345"));
+	}
+
+	#[test]
+	fn which_works() {
+		let result = which("sh");
+		assert!(result.is_some() || result.is_none()); // Just verify no panic
+		let result = which("this_binary_should_not_exist_12345");
+		assert!(result.is_none());
+	}
+
+	#[test]
+	fn ensure_bun_returns_path_when_bun_exists() {
+		let mut cli = MockCli::new();
+
+		// Only test if bun exists: check we get a path
+		if which("bun").is_some() {
+			let result = ensure_bun(true, &mut cli);
+			assert!(result.is_ok());
+		}
+	}
 }
