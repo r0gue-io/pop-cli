@@ -71,9 +71,14 @@ pub struct NewChainCommand {
 	#[arg(
 		short = 'f',
 		long = "with-frontend",
-		help = "Also scaffold a frontend. If a value is provided, it will be preselected in the prompt."
+		help = "Also scaffold a frontend. Optionally specify template (create-dot-app). If not specified, prompts for selection.",
+		value_name = "TEMPLATE",
+		num_args = 0..=1,
+		default_missing_value = "",
+		value_parser = PossibleValuesParser::new(["", "create-dot-app"])
+			.map(|s| if s.is_empty() { None } else { FrontendTemplate::from_str(&s).ok() })
 	)]
-	pub(crate) with_frontend: bool,
+	pub(crate) with_frontend: Option<Option<FrontendTemplate>>,
 }
 
 impl NewChainCommand {
@@ -108,9 +113,13 @@ impl NewChainCommand {
 		let tag_version = parachain_config.release_tag.clone();
 
 		let mut frontend_template: Option<FrontendTemplate> = None;
-		if parachain_config.with_frontend {
-			frontend_template =
-				Some(prompt_frontend_template(&FrontendType::Chain, &mut cli::Cli)?);
+		if let Some(opt_template) = parachain_config.with_frontend {
+			frontend_template = match opt_template {
+				// User specified a template explicitly: use it
+				Some(template) => Some(template),
+				// User provided --with-frontend without value: prompt for selection
+				None => Some(prompt_frontend_template(&FrontendType::Chain, &mut cli::Cli)?),
+			};
 		}
 		generate_parachain_from_template(
 			name,
@@ -174,10 +183,15 @@ async fn guide_user_to_generate_parachain(
 		customizable_options = prompt_customizable_options(cli)?;
 	}
 
-	let with_frontend = cli
+	let with_frontend = if cli
 		.confirm("Would you like to scaffold a frontend template as well?".to_string())
 		.initial_value(true)
-		.interact()?;
+		.interact()?
+	{
+		Some(None)
+	} else {
+		None
+	};
 
 	Ok(NewChainCommand {
 		name: Some(name),

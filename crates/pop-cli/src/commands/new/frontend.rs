@@ -60,11 +60,11 @@ pub async fn create_frontend(
 				.unchecked()
 				.run()?;
 		},
-		// Typeink we can specify the parameters directly
 		FrontendTemplate::Typink => {
 			cmd(
 				"npx",
 				vec![
+					"-y",
 					command,
 					"--name",
 					"frontend",
@@ -78,8 +78,8 @@ pub async fn create_frontend(
 			.dir(&project_dir)
 			.run()?;
 		},
-		_ => {
-			cmd("npx", vec![command, "frontend"]).dir(&project_dir).run()?;
+		FrontendTemplate::CreateDotApp=> {
+			cmd("npx", vec!["-y", command, "frontend", "--template", "react-papi"]).dir(&project_dir).run()?;
 		},
 	}
 	Ok(())

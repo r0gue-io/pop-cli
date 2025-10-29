@@ -42,9 +42,14 @@ pub struct NewContractCommand {
 	#[arg(
 		short = 'f',
 		long = "with-frontend",
-		help = "Also scaffold a frontend. If a value is provided, it will be preselected in the prompt."
+		help = "Also scaffold a frontend. Optionally specify template (typink, inkathon). If not specified, prompts for selection.",
+		value_name = "TEMPLATE",
+		num_args = 0..=1,
+		default_missing_value = "",
+		value_parser = PossibleValuesParser::new(["", "typink", "inkathon"])
+			.map(|s| if s.is_empty() { None } else { FrontendTemplate::from_str(&s).ok() })
 	)]
-	pub(crate) with_frontend: bool,
+	pub(crate) with_frontend: Option<Option<FrontendTemplate>>,
 }
 
 impl NewContractCommand {
@@ -79,9 +84,13 @@ impl NewContractCommand {
 
 		is_template_supported(contract_type, &template)?;
 		let mut frontend_template: Option<FrontendTemplate> = None;
-		if contract_config.with_frontend {
-			frontend_template =
-				Some(prompt_frontend_template(&FrontendType::Contract, &mut cli::Cli)?);
+		if let Some(opt_template) = contract_config.with_frontend {
+			frontend_template = match opt_template {
+				// User specified a template explicitly: use it
+				Some(template) => Some(template),
+				// User provided --with-frontend without value: prompt for selection
+				None => Some(prompt_frontend_template(&FrontendType::Contract, &mut cli)?),
+			};
 		}
 		generate_contract_from_template(name, path, &template, frontend_template, &mut cli).await?;
 
@@ -143,10 +152,15 @@ async fn guide_user_to_generate_contract(
 		.default_input("./my_contract")
 		.interact()?;
 
-	let with_frontend = cli
+	let with_frontend = if cli
 		.confirm("Would you like to scaffold a frontend template as well?".to_string())
 		.initial_value(true)
-		.interact()?;
+		.interact()?
+	{
+		Some(None)
+	} else {
+		None
+	};
 
 	Ok(NewContractCommand {
 		name: Some(name),
@@ -300,7 +314,7 @@ mod tests {
 		assert_eq!(user_input.name, Some("./erc20".to_string()));
 		assert_eq!(user_input.contract_type, Some(ContractType::Erc));
 		assert_eq!(user_input.template, Some(ContractTemplate::ERC20));
-		assert!(user_input.with_frontend);
+		assert_eq!(user_input.with_frontend, Some(None));
 
 		cli.verify()
 	}
