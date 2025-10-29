@@ -16,8 +16,6 @@ use cliclack::spinner;
 #[cfg(feature = "wasm-contracts")]
 use pop_common::parse_account;
 use pop_common::{DefaultConfig, Keypair};
-#[cfg(feature = "polkavm-contracts")]
-use pop_contracts::get_call_payload_with_deposit;
 use pop_contracts::{
 	CallExec, CallOpts, DefaultEnvironment, Verbosity, Weight, build_smart_contract,
 	call_smart_contract, call_smart_contract_from_signed_payload, dry_run_call,
@@ -587,7 +585,7 @@ impl CallContractCommand {
 		#[cfg(feature = "wasm-contracts")]
 		let call_data = get_call_payload(call_exec, weight_limit)?;
 		#[cfg(feature = "polkavm-contracts")]
-		let call_data = get_call_payload_with_deposit(call_exec, weight_limit, storage_deposit_limit)?;
+		let call_data = get_call_payload(call_exec, weight_limit, storage_deposit_limit)?;
 		Ok(call_data)
 	}
 
