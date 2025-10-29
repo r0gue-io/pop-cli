@@ -107,7 +107,7 @@ mod tests {
 		);
 
 		let user_input = prompt_frontend_template(&FrontendType::Chain, &mut cli)?;
-		assert_eq!(user_input, FrontendTemplate::CreatePolkadotDapp);
+		assert_eq!(user_input, FrontendTemplate::CreateDotApp);
 
 		cli.verify()
 	}

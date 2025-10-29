@@ -22,7 +22,7 @@ impl Type<FrontendTemplate> for FrontendType {
 	fn default_template(&self) -> Option<FrontendTemplate> {
 		match &self {
 			FrontendType::Contract => Some(FrontendTemplate::Inkathon),
-			FrontendType::Chain => Some(FrontendTemplate::CreatePolkadotDapp),
+			FrontendType::Chain => Some(FrontendTemplate::CreateDotApp),
 		}
 	}
 }
@@ -61,14 +61,6 @@ pub enum FrontendTemplate {
 		props(Command = "create-inkathon-app@latest", Type = "Contract",)
 	)]
 	Inkathon,
-	/// Parity template: Create Polkadot DApp in one command.
-	#[strum(
-		serialize = "create-polkadot-dapp",
-		message = "create-polkadot-dapp",
-		detailed_message = "Create Polkadot DApp in one command (Parity).",
-		props(Command = "create-polkadot-dapp@latest", Type = "Chain",)
-	)]
-	CreatePolkadotDapp,
 	/// Create Dot App template: A command-line interface (CLI) tool designed to streamline the
 	/// development process for Polkadot-based decentralized applications (dApps).
 	#[strum(
@@ -100,7 +92,6 @@ mod tests {
 		HashMap::from([
 			("inkathon".to_string(), Inkathon),
 			("typink".to_string(), Typink),
-			("create-polkadot-dapp".to_string(), CreatePolkadotDapp),
 			("create-dot-app".to_string(), CreateDotApp),
 		])
 	}
@@ -124,7 +115,6 @@ mod tests {
 				Typink,
 				"The ultimate toolkit for dApps development on Polkadot, powered by https://dedot.dev",
 			),
-			(CreatePolkadotDapp, "Create Polkadot DApp in one command (Parity)."),
 			(
 				CreateDotApp,
 				"A command-line interface (CLI) tool designed to streamline the development process for Polkadot-based decentralized applications (dApps)",
@@ -170,6 +160,6 @@ mod tests {
 		let mut frontend_type = FrontendType::Contract;
 		assert_eq!(frontend_type.templates(), [&Typink, &Inkathon]);
 		frontend_type = FrontendType::Chain;
-		assert_eq!(frontend_type.templates(), [&CreatePolkadotDapp, &CreateDotApp]);
+		assert_eq!(frontend_type.templates(), [&CreateDotApp]);
 	}
 }
