@@ -1242,4 +1242,81 @@ mod tests {
 
 		Ok(())
 	}
+
+	#[tokio::test]
+	async fn query_storage_with_composite_key_works() -> Result<()> {
+		// Spawn a test node and prepare chain configuration via the command flow
+		let node = TestNode::spawn().await?;
+		let node_url = node.ws_url();
+
+		// Provide composite key parts separately to ensure the command converts them into a tuple
+		let mut call_config = CallChainCommand {
+			pallet: Some("Assets".to_string()),
+			function: Some("Account".to_string()),
+			args: vec![
+				"10000".to_string(), // AssetId
+				// Alice AccountId32 (hex) in dev networks
+				"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d".to_string(),
+			],
+			..Default::default()
+		};
+
+		let mut cli = MockCli::new()
+			.expect_select(
+				"Select a chain (type to filter):".to_string(),
+				Some(true),
+				true,
+				Some(vec![("Custom".to_string(), "Type the chain URL manually".to_string())]),
+				0,
+				None,
+			)
+			.expect_input("Which chain would you like to interact with?", node_url.into());
+
+		let chain = chain::configure(
+			"Which chain would you like to interact with?",
+			node_url,
+			&None,
+			|_| true,
+			&mut cli,
+		)
+		.await?;
+
+		// Configure the call; since pallet and storage name are provided and args present,
+		// this should not prompt further.
+		// For composite keys the command should convert the
+		// two args into a single tuple string argument.
+		let call = call_config.configure_call(&chain, &mut cli)?;
+		assert_eq!(call.function.pallet(), "Assets");
+		assert_eq!(call.function.name(), "Account");
+		assert_eq!(call.args.len(), 1, "Composite key should be represented as a single tuple arg");
+		assert_eq!(call.args[0], "(100000,0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d)");
+
+		// Perform the query similar to the execute() path
+		if let CallItem::Storage(storage) = &call.function {
+			let keys = if let Some(key_ty) = storage.key_id {
+				let metadata = chain.client.metadata();
+				let registry = metadata.types();
+				let type_info = registry
+					.resolve(key_ty)
+					.ok_or(anyhow::anyhow!("Failed to resolve storage key type: {key_ty}"))?;
+				let name = type_info.path.segments.last().unwrap_or(&"".to_string()).to_string();
+				let key_param = type_to_param(&name, registry, key_ty)
+					.map_err(|e| anyhow!("Failed to parse storage key type: {e}"))?;
+
+				pop_chains::parse_dispatchable_arguments(&[key_param], call.args.clone())
+					.map_err(|e| anyhow!("Failed to parse storage arguments: {e}"))?
+			} else {
+				vec![]
+			};
+
+			// Execute the storage query; result may be None if the (AssetId, AccountId)
+			// combination does not exist on the fresh test chain, but the query should succeed
+			// without errors.
+			let _maybe_value = storage.query(&chain.client, keys).await?;
+		} else {
+			panic!("Expected a storage query");
+		}
+
+		cli.verify()
+	}
 }
