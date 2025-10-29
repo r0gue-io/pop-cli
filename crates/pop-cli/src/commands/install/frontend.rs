@@ -2,26 +2,84 @@
 
 use crate::{
 	cli::{self, traits::Confirm},
+	commands::install::install_nvm,
 	common::binary::SemanticVersion,
 };
 use anyhow::{Result, anyhow};
 use duct::cmd;
 use std::path::PathBuf;
 
+const MIN_NODE_VERSION: u8 = 20;
+
+/// Install frontend dependencies (Node.js and Bun).
+///
+/// # Arguments
+/// * `skip_confirm`: If true, skip user confirmation prompts.
+/// * `cli`: Command line interface.
+pub async fn install_frontend_dependencies(
+	skip_confirm: bool,
+	cli: &mut impl cli::traits::Cli,
+) -> Result<()> {
+	cli.info("Installing frontend development dependencies...")?;
+
+	ensure_node(skip_confirm, cli).await?;
+	ensure_bun(skip_confirm, cli)?;
+
+	cli.info("✅ Frontend dependencies installed successfully.")?;
+	Ok(())
+}
+
+/// Require Node v20+ is installed, and install if not present.
+///
+/// # Arguments
+/// * `skip_confirm`: If true, skip user confirmation prompts.
+/// * `cli`: Command line interface (for interactive confirm).
+pub async fn ensure_node(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> Result<()> {
+	if has("node") {
+		let v = SemanticVersion::try_from("node".to_string()).map_err(|_| {
+			anyhow!("NodeJS detected but version check failed. Make sure `node --version` works.")
+		})?;
+
+		if v.0 >= MIN_NODE_VERSION {
+			return Ok(());
+		}
+	}
+	if !skip_confirm {
+		if !cli
+			.confirm("📦 NodeJS v20+ is required. Install/upgrade now via nvm?")
+			.initial_value(true)
+			.interact()?
+		{
+			return Err(anyhow!(
+				"🚫 You have cancelled the installation process. NodeJS v20+ is required. Install from https://nodejs.org and re-run."
+			));
+		}
+	}
+	install_nvm(cli).await?;
+	// Install node
+	cmd("nvm", vec!["install", "node"]).run()?;
+	Ok(())
+}
+
 /// Ensure Bun exists and return the absolute path to the `bun` binary.
 ///
 /// # Arguments
+/// * `skip_confirm`: If true, skip user confirmation prompts.
 /// * `cli`: Command line interface.
-pub fn ensure_bun(cli: &mut impl cli::traits::Cli) -> Result<PathBuf> {
+pub fn ensure_bun(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> Result<PathBuf> {
 	if let Some(path) = which("bun") {
 		return Ok(PathBuf::from(path));
 	}
-	if !cli
-		.confirm("📦 Do you want to proceed with the installation of the following package: bun ?")
-		.initial_value(true)
-		.interact()?
-	{
-		return Err(anyhow::anyhow!("🚫 You have cancelled the installation process."));
+	if !skip_confirm {
+		if !cli
+			.confirm(
+				"📦 Do you want to proceed with the installation of the following package: bun ?",
+			)
+			.initial_value(true)
+			.interact()?
+		{
+			return Err(anyhow!("🚫 You have cancelled the installation process."));
+		}
 	}
 	// Install Bun (macOS/Linux official script)
 	cmd("bash", vec!["-lc", r#"curl -fsSL https://bun.sh/install | bash"#]).run()?;
@@ -36,20 +94,6 @@ pub fn ensure_bun(cli: &mut impl cli::traits::Cli) -> Result<PathBuf> {
 		)));
 	}
 	Ok(bun_abs)
-}
-
-/// Require Node v20+ to be installed.
-pub fn ensure_node_v20() -> Result<()> {
-	let v = SemanticVersion::try_from("node".to_string()).map_err(|_| {
-		anyhow!("NodeJS v20+ required but not found. Install from https://nodejs.org and re-run.")
-	})?;
-	if v.0 < 20 {
-		return Err(anyhow!(format!(
-			"NodeJS v20+ required. Detected {}.{}.{}. Please upgrade Node and re-run.",
-			v.0, v.1, v.2
-		)));
-	}
-	Ok(())
 }
 
 /// Require `npx` to be available.

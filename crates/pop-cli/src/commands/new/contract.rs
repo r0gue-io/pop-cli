@@ -83,7 +83,7 @@ impl NewContractCommand {
 			frontend_template =
 				Some(prompt_frontend_template(&FrontendType::Contract, &mut cli::Cli)?);
 		}
-		generate_contract_from_template(name, path, &template, frontend_template, &mut cli)?;
+		generate_contract_from_template(name, path, &template, frontend_template, &mut cli).await?;
 
 		// If the contract is part of a workspace, add it to that workspace
 		if let Some(workspace_toml) = rustilities::manifest::find_workspace_manifest(path) {
@@ -170,7 +170,7 @@ fn display_select_options(
 	Ok(prompt.interact()?.clone())
 }
 
-fn generate_contract_from_template(
+async fn generate_contract_from_template(
 	name: &str,
 	path: &Path,
 	template: &Contract,
@@ -204,7 +204,7 @@ fn generate_contract_from_template(
 	next_steps.push("Use `pop up contract` to deploy your contract to a live network.".to_string());
 
 	if let Some(frontend_template) = &frontend_template {
-		create_frontend(contract_path.as_path(), frontend_template, cli)?;
+		create_frontend(contract_path.as_path(), frontend_template, cli).await?;
 		next_steps.push(format!(
 			"Frontend template {frontend_template} created inside {}. Go to the folder and follow the README instructions to get started.", contract_path.display()
 		))
@@ -305,8 +305,8 @@ mod tests {
 		cli.verify()
 	}
 
-	#[test]
-	fn generate_contract_from_template_works() -> anyhow::Result<()> {
+	#[tokio::test]
+	async fn generate_contract_from_template_works() -> anyhow::Result<()> {
 		let dir = tempdir()?;
 		let contract_path = dir.path().join("test_contract");
 		let next_steps: Vec<_> = [
@@ -333,7 +333,8 @@ mod tests {
 			&ContractTemplate::ERC20,
 			None,
 			&mut cli,
-		)?;
+		)
+		.await?;
 		cli.verify()
 	}
 

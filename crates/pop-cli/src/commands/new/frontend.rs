@@ -2,7 +2,7 @@
 
 use crate::{
 	cli::{self, traits::*},
-	install::frontend::{ensure_bun, ensure_node_v20, ensure_npx},
+	install::frontend::{ensure_bun, ensure_node, ensure_npx},
 };
 use anyhow::Result;
 use duct::cmd;
@@ -38,12 +38,12 @@ pub fn prompt_frontend_template(
 /// * `target` - Location where the smart contract will be created.
 /// * `template` - Frontend template to generate the contract from.
 /// * `cli`: Command line interface.
-pub fn create_frontend(
+pub async fn create_frontend(
 	target: &Path,
 	template: &FrontendTemplate,
 	cli: &mut impl cli::traits::Cli,
 ) -> Result<()> {
-	ensure_node_v20()?;
+	ensure_node(false, cli).await?;
 	ensure_npx()?;
 	let project_dir = target.canonicalize()?;
 	let command = template
@@ -52,7 +52,7 @@ pub fn create_frontend(
 	match template {
 		// Inkathon requires Bun installed.
 		FrontendTemplate::Inkathon => {
-			let bun = ensure_bun(cli)?;
+			let bun = ensure_bun(false, cli)?;
 			cmd(&bun, &["add", "polkadot-api"]).dir(&project_dir).unchecked().run()?;
 			cmd(&bun, &[command, "frontend", "--yes"])
 				.dir(&project_dir)

@@ -63,6 +63,9 @@ pub(crate) struct InstallArgs {
 	/// Automatically install all dependencies required without prompting for confirmation.
 	#[clap(short = 'y', long)]
 	skip_confirm: bool,
+	/// Install frontend development dependencies (Node.js and Bun).
+	#[clap(short = 'f', long)]
+	frontend: bool,
 }
 
 /// Setup user environment for development
@@ -102,6 +105,10 @@ impl Command {
 			return not_supported_message(&mut cli).map(|_| Unsupported);
 		};
 		install_rustup(&mut cli).await?;
+
+		if args.frontend {
+			frontend::install_frontend_dependencies(args.skip_confirm, &mut cli).await?;
+		}
 		cli.outro("✅ Installation complete.")?;
 		Ok(os)
 	}
@@ -318,6 +325,19 @@ async fn install_homebrew(cli: &mut impl cli::traits::Cli) -> anyhow::Result<()>
 				&[],
 			)
 			.await?,
+	}
+	Ok(())
+}
+
+async fn install_nvm(cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	let nvm_is_installed = std::env::var("HOME")
+		.map(|home| std::path::Path::new(&home).join(".nvm/nvm.sh").exists())
+		.unwrap_or(false);
+	if nvm_is_installed {
+		cli.info("ℹ️ nvm already installed.".to_string())?;
+	} else {
+		run_external_script("https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh", &[])
+			.await?;
 	}
 	Ok(())
 }

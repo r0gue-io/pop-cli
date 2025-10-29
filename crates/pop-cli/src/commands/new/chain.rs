@@ -266,7 +266,7 @@ async fn generate_parachain_from_template(
 		))
 	}
 	if let Some(frontend_template) = &frontend_template {
-		create_frontend(&destination_path, frontend_template, cli)?;
+		create_frontend(&destination_path, frontend_template, cli).await?;
 		next_steps.push(format!(
 			"Frontend template {frontend_template} created inside \"{name_template}\". Go to the folder and follow the README instructions to get started."
 		))
