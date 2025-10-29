@@ -207,6 +207,9 @@ pub struct BuildSpecCommand {
 	/// based on `runtime`.
 	#[clap(long, requires = "deterministic")]
 	pub package: Option<String>,
+	/// Generate a raw chain specification.
+	#[arg(long)]
+	pub(crate) raw: bool,
 }
 
 impl BuildSpecCommand {
@@ -258,6 +261,7 @@ impl BuildSpecCommand {
 			package,
 			runtime_dir,
 			is_relay,
+			raw,
 			..
 		} = self;
 
@@ -508,6 +512,7 @@ impl BuildSpecCommand {
 			package,
 			runtime_dir,
 			use_existing_plain_spec: !prompt,
+			raw,
 		})
 	}
 }
@@ -518,7 +523,7 @@ pub struct GenesisArtifacts {
 	/// Path to the plain text chain specification file.
 	pub chain_spec: PathBuf,
 	/// Path to the raw chain specification file.
-	pub raw_chain_spec: PathBuf,
+	pub raw_chain_spec: Option<PathBuf>,
 	/// Optional path to the genesis state file.
 	pub genesis_state_file: Option<CodePathBuf>,
 	/// Optional path to the genesis code file.
@@ -570,6 +575,7 @@ pub(crate) struct BuildSpec {
 	package: String,
 	runtime_dir: Option<PathBuf>,
 	use_existing_plain_spec: bool,
+	raw: bool,
 }
 
 impl BuildSpec {
@@ -652,54 +658,66 @@ impl BuildSpec {
 			));
 		}
 
-		// Generate raw spec.
-		spinner.set_message("Generating raw chain specification...");
-		let spec_name = self
-			.output_file
-			.file_name()
-			.and_then(|s| s.to_str())
-			.unwrap_or(DEFAULT_SPEC_NAME)
-			.trim_end_matches(".json");
-		let raw_spec_name = format!("{spec_name}-raw.json");
-		let raw_chain_spec = builder.generate_raw_chain_spec(&self.output_file, &raw_spec_name)?;
-		generated_files.push(format!(
-			"Raw chain specification file generated at: {}",
-			raw_chain_spec.display()
-		));
+		let (raw_chain_spec, genesis_code_file, genesis_state_file) = if self.raw ||
+			self.genesis_code ||
+			self.genesis_state
+		{
+			// Generate raw spec.
+			spinner.set_message("Generating raw chain specification...");
+			let spec_name = self
+				.output_file
+				.file_name()
+				.and_then(|s| s.to_str())
+				.unwrap_or(DEFAULT_SPEC_NAME)
+				.trim_end_matches(".json");
+			let raw_spec_name = format!("{spec_name}-raw.json");
+			let raw_chain_spec =
+				builder.generate_raw_chain_spec(&self.output_file, &raw_spec_name)?;
+			generated_files.push(format!(
+				"Raw chain specification file generated at: {}",
+				raw_chain_spec.display()
+			));
 
-		if is_runtime_build {
-			// The runtime version of the raw chain spec does not include certain parameters, like
-			// the relay chain, so we have to overwrite them again.
-			self.customize(&raw_chain_spec)?;
-		}
+			if is_runtime_build {
+				// The runtime version of the raw chain spec does not include certain parameters,
+				// like the relay chain, so we have to overwrite them again.
+				self.customize(&raw_chain_spec)?;
+			}
 
-		// Generate genesis artifacts.
-		let genesis_code_file = if self.genesis_code {
-			spinner.set_message("Generating genesis code...");
-			let wasm_file = builder.export_wasm_file(&raw_chain_spec, "genesis-code.wasm")?;
-			generated_files
-				.push(format!("WebAssembly runtime file exported at: {}", wasm_file.display()));
-			Some(wasm_file)
-		} else {
-			None
-		};
-		let genesis_state_file = if self.genesis_state {
-			spinner.set_message("Generating genesis state...");
-			let binary_path = match builder {
-				ChainSpecBuilder::Runtime { .. } =>
-					source_polkadot_omni_node_binary(cli, &spinner, &crate::cache()?, true).await?,
-				ChainSpecBuilder::Node { .. } => builder.artifact_path()?,
+			// Generate genesis artifacts.
+			let genesis_code_file = if self.genesis_code {
+				spinner.set_message("Generating genesis code...");
+				let wasm_file = builder.export_wasm_file(&raw_chain_spec, "genesis-code.wasm")?;
+				generated_files
+					.push(format!("WebAssembly runtime file exported at: {}", wasm_file.display()));
+				Some(wasm_file)
+			} else {
+				None
 			};
-			let genesis_state_file = generate_genesis_state_file_with_node(
-				&binary_path,
-				&raw_chain_spec,
-				"genesis-state",
-			)?;
-			generated_files
-				.push(format!("Genesis State file exported at: {}", genesis_state_file.display()));
-			Some(genesis_state_file)
+			let genesis_state_file = if self.genesis_state {
+				spinner.set_message("Generating genesis state...");
+				let binary_path = match builder {
+					ChainSpecBuilder::Runtime { .. } =>
+						source_polkadot_omni_node_binary(cli, &spinner, &crate::cache()?, true)
+							.await?,
+					ChainSpecBuilder::Node { .. } => builder.artifact_path()?,
+				};
+				let genesis_state_file = generate_genesis_state_file_with_node(
+					&binary_path,
+					&raw_chain_spec,
+					"genesis-state",
+				)?;
+				generated_files.push(format!(
+					"Genesis State file exported at: {}",
+					genesis_state_file.display()
+				));
+				Some(genesis_state_file)
+			} else {
+				None
+			};
+			(Some(raw_chain_spec), genesis_code_file, genesis_state_file)
 		} else {
-			None
+			(None, None, None)
 		};
 
 		spinner.stop("Chain specification built successfully.");
@@ -835,6 +853,7 @@ mod tests {
 		let runtime_dir = PathBuf::from("./new-runtime-dir");
 		let path = PathBuf::from("./");
 		let properties = "tokenSymbol=UNIT,decimals=12,isEthereum=false";
+		let raw = true;
 
 		let mut flags_used = false;
 		for (build_spec_cmd, chain) in [
@@ -863,6 +882,7 @@ mod tests {
 					deterministic: Some(deterministic),
 					package: Some(package.to_string()),
 					runtime_dir: Some(runtime_dir.clone()),
+					raw,
 				},
 				Some("local".to_string()),
 			),
@@ -889,6 +909,7 @@ mod tests {
 					deterministic: Some(deterministic),
 					package: Some(package.to_string()),
 					runtime_dir: Some(runtime_dir.clone()),
+					raw,
 				},
 				Some("local".to_string()),
 			),
@@ -1032,6 +1053,7 @@ mod tests {
 					deterministic: None,
 					package: Some(package.to_string()),
 					runtime_dir: Some(runtime_dir.clone()),
+					raw: true,
 				},
 				// All flags used. Relay
 				BuildSpecCommand {
@@ -1055,6 +1077,7 @@ mod tests {
 					deterministic: None,
 					package: Some(package.to_string()),
 					runtime_dir: Some(runtime_dir.clone()),
+					raw: true,
 				},
 			] {
 				let mut cli = MockCli::new().expect_confirm(
