@@ -73,8 +73,10 @@ impl ConfigFileCommand {
 	pub(crate) async fn execute(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		cli.intro("Launch a local network")?;
 
+		let path = self.path.canonicalize()?;
+		cd_into_chain_base_dir(&path);
 		spawn(
-			self.path.as_path().try_into()?,
+			path.as_path().try_into()?,
 			self.relay_chain.as_deref(),
 			self.relay_chain_runtime.as_deref(),
 			self.system_parachain.as_deref(),
@@ -652,6 +654,16 @@ impl Status for VerboseReporter {
 		);
 		if let Err(e) = Term::stderr().write_line(&message) {
 			println!("An error occurred logging the status message of '{status}': {e}")
+		}
+	}
+}
+
+fn cd_into_chain_base_dir(network_file: &Path) {
+	let parent = network_file;
+	while let Some(parent) = parent.parent() {
+		if pop_chains::is_supported(parent) {
+			std::env::set_current_dir(parent).unwrap();
+			break;
 		}
 	}
 }
