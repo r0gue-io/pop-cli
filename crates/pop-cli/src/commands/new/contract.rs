@@ -39,17 +39,18 @@ pub struct NewContractCommand {
 	/// The template to use.
 	#[arg(short, long, value_parser = enum_variants!(Contract))]
 	pub(crate) template: Option<Contract>,
+	/// Also scaffold a frontend. Optionally specify template, if flag provided without value,
+	/// prompts for template selection.
 	#[arg(
 		short = 'f',
 		long = "with-frontend",
-		help = "Also scaffold a frontend. Optionally specify template (typink, inkathon). If not specified, prompts for selection.",
-		value_name = "TEMPLATE",
+		value_name = "TEMPLATE_NAME",
 		num_args = 0..=1,
-		default_missing_value = "",
-		value_parser = PossibleValuesParser::new(["", "typink", "inkathon"])
-			.map(|s| if s.is_empty() { None } else { FrontendTemplate::from_str(&s).ok() })
+		default_missing_value = "prompt",
+		require_equals = true,
+		value_parser = ["prompt", "typink", "inkathon"]
 	)]
-	pub(crate) with_frontend: Option<Option<FrontendTemplate>>,
+	pub(crate) with_frontend: Option<String>,
 }
 
 impl NewContractCommand {
@@ -84,13 +85,17 @@ impl NewContractCommand {
 
 		is_template_supported(contract_type, &template)?;
 		let mut frontend_template: Option<FrontendTemplate> = None;
-		if let Some(opt_template) = contract_config.with_frontend {
-			frontend_template = match opt_template {
-				// User specified a template explicitly: use it
-				Some(template) => Some(template),
-				// User provided --with-frontend without value: prompt for selection
-				None => Some(prompt_frontend_template(&FrontendType::Contract, &mut cli)?),
-			};
+		if let Some(frontend_arg) = &contract_config.with_frontend {
+			frontend_template =
+				if frontend_arg == "prompt" {
+					// User provided --with-frontend without value: prompt for template
+					Some(prompt_frontend_template(&FrontendType::Contract, &mut cli)?)
+				} else {
+					// User specified a template explicitly: parse and use it
+					Some(FrontendTemplate::from_str(frontend_arg).map_err(|_| {
+						anyhow::anyhow!("Invalid frontend template: {}", frontend_arg)
+					})?)
+				};
 		}
 		generate_contract_from_template(name, path, &template, frontend_template, &mut cli).await?;
 
@@ -157,7 +162,7 @@ async fn guide_user_to_generate_contract(
 		.initial_value(true)
 		.interact()?
 	{
-		Some(None)
+		Some("prompt".to_string())
 	} else {
 		None
 	};
@@ -314,7 +319,7 @@ mod tests {
 		assert_eq!(user_input.name, Some("./erc20".to_string()));
 		assert_eq!(user_input.contract_type, Some(ContractType::Erc));
 		assert_eq!(user_input.template, Some(ContractTemplate::ERC20));
-		assert_eq!(user_input.with_frontend, Some(None));
+		assert_eq!(user_input.with_frontend, Some("prompt".to_string()));
 
 		cli.verify()
 	}

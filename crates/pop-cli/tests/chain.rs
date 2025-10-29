@@ -94,10 +94,12 @@ async fn parachain_lifecycle() -> Result<()> {
 				"--endowment",
 				"1u64 << 60",
 				"--verify",
+				"--with-frontend=create-dot-app ",
 			],
 		);
 		assert!(command.spawn()?.wait()?.success());
 		assert!(working_dir.exists());
+		assert!(working_dir.join("frontend").exists());
 	}
 
 	// Mock build process and fetch binary

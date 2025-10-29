@@ -68,17 +68,18 @@ pub struct NewChainCommand {
 		help = "Verifies the commit SHA when fetching the latest license and release from GitHub."
 	)]
 	pub(crate) verify: bool,
+	/// Also scaffold a frontend. Optionally specify template. If flag provided without value,
+	/// prompts for template selection.
 	#[arg(
 		short = 'f',
 		long = "with-frontend",
-		help = "Also scaffold a frontend. Optionally specify template (create-dot-app). If not specified, prompts for selection.",
-		value_name = "TEMPLATE",
+		value_name = "TEMPLATE_NAME",
 		num_args = 0..=1,
-		default_missing_value = "",
-		value_parser = PossibleValuesParser::new(["", "create-dot-app"])
-			.map(|s| if s.is_empty() { None } else { FrontendTemplate::from_str(&s).ok() })
+		default_missing_value = "prompt",
+		require_equals = true,
+		value_parser = ["prompt", "create-dot-app"]
 	)]
-	pub(crate) with_frontend: Option<Option<FrontendTemplate>>,
+	pub(crate) with_frontend: Option<String>,
 }
 
 impl NewChainCommand {
@@ -113,13 +114,17 @@ impl NewChainCommand {
 		let tag_version = parachain_config.release_tag.clone();
 
 		let mut frontend_template: Option<FrontendTemplate> = None;
-		if let Some(opt_template) = parachain_config.with_frontend {
-			frontend_template = match opt_template {
-				// User specified a template explicitly: use it
-				Some(template) => Some(template),
-				// User provided --with-frontend without value: prompt for selection
-				None => Some(prompt_frontend_template(&FrontendType::Chain, &mut cli::Cli)?),
-			};
+		if let Some(frontend_arg) = &parachain_config.with_frontend {
+			frontend_template =
+				if frontend_arg == "prompt" {
+					// User provided --with-frontend without value: prompt for template
+					Some(prompt_frontend_template(&FrontendType::Chain, &mut cli::Cli)?)
+				} else {
+					// User specified a template explicitly: parse and use it
+					Some(FrontendTemplate::from_str(frontend_arg).map_err(|_| {
+						anyhow::anyhow!("Invalid frontend template: {}", frontend_arg)
+					})?)
+				};
 		}
 		generate_parachain_from_template(
 			name,
@@ -188,7 +193,7 @@ async fn guide_user_to_generate_parachain(
 		.initial_value(true)
 		.interact()?
 	{
-		Some(None)
+		Some("prompt".to_string())
 	} else {
 		None
 	};

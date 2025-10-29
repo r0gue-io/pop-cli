@@ -78,8 +78,10 @@ pub async fn create_frontend(
 			.dir(&project_dir)
 			.run()?;
 		},
-		FrontendTemplate::CreateDotApp=> {
-			cmd("npx", vec!["-y", command, "frontend", "--template", "react-papi"]).dir(&project_dir).run()?;
+		FrontendTemplate::CreateDotApp => {
+			cmd("npx", vec!["-y", command, "frontend", "--template", "react-papi"])
+				.dir(&project_dir)
+				.run()?;
 		},
 	}
 	Ok(())
