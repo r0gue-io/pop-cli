@@ -341,8 +341,9 @@ impl CallChainCommand {
 								storage.query_all = true;
 							}
 						} else {
-							for sub_param in key_param.sub_params.iter().skip(len) {
-								let sub_key_value = prompt_for_param(cli, sub_param, false)?;
+							for (pos, sub_param) in key_param.sub_params.iter().enumerate().skip(len) {
+                                let required = is_composite && len + pos > 0;
+								let sub_key_value = prompt_for_param(cli, sub_param, required)?;
 								if !sub_key_value.is_empty() {
 									params.push(sub_key_value);
 								} else {
