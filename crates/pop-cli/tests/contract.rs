@@ -5,7 +5,7 @@
 #![cfg(all(feature = "contract", feature = "integration-tests"))]
 
 use anyhow::Result;
-use pop_common::{find_free_port, pop, set_executable_permission, templates::Template};
+use pop_common::{find_free_port, pop, set_executable_permission};
 use pop_contracts::{
 	CallOpts, Contract, UpOpts, Weight, dry_run_call, dry_run_gas_estimate_call,
 	dry_run_gas_estimate_instantiate, ink_node_generator, instantiate_smart_contract, run_ink_node,
@@ -80,7 +80,8 @@ async fn contract_lifecycle() -> Result<()> {
 	// Test that all templates are generated correctly
 	generate_all_the_templates(&temp_dir)?;
 	// pop new contract test_contract (default)
-	let mut command = pop(&temp_dir, ["new", "contract", "test_contract"]);
+	let mut command =
+		pop(&temp_dir, ["new", "contract", "test_contract", "--template", "standard"]);
 	assert!(command.spawn()?.wait()?.success());
 	assert!(temp_dir.join("test_contract").exists());
 
