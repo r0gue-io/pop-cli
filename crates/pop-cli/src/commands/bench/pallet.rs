@@ -2001,7 +2001,7 @@ mod tests {
 	#[test]
 	fn update_runtime_path_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
-		let temp_path = temp_dir.into_path();
+		let temp_path = temp_dir.keep();
 
 		// Create workspace structure
 		let workspace_toml = temp_path.join("Cargo.toml");

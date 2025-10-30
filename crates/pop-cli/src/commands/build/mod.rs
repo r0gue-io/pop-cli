@@ -9,6 +9,7 @@ use clap::{Args, Subcommand};
 use contract::BuildContract;
 use duct::cmd;
 use pop_common::Profile;
+#[cfg(feature = "contract")]
 use pop_contracts::MetadataSpec;
 use std::path::{Path, PathBuf};
 #[cfg(feature = "chain")]
@@ -111,7 +112,6 @@ fn collect_features(input: &str, benchmark: bool, try_runtime: bool) -> Vec<&str
 impl Command {
 	/// Executes the command.
 	pub(crate) fn execute(args: BuildArgs) -> anyhow::Result<Project> {
-		#[cfg(any(feature = "contract", feature = "chain"))]
 		// If only contract feature enabled, build as contract
 		let project_path =
 			crate::common::builds::ensure_project_path(args.path.clone(), args.path_pos.clone());
