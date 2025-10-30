@@ -644,9 +644,7 @@ impl BuildSpec {
 						.clone()
 						.expect("Deterministic builds always contains runtime_dir"),
 				)
-				.map_err(|e| {
-					anyhow::anyhow!("Failed to build the deterministic runtime: {}", e.to_string())
-				})?;
+				.map_err(|e| anyhow::anyhow!("Failed to build the deterministic runtime: {e}"))?;
 				generated_files
 					.push(format!("Runtime file generated at: {}", &runtime_path.display()));
 				self.update_code(&code)?;
