@@ -123,7 +123,6 @@ macro_rules! impl_binary_generator {
 /// Represents a semantic version (major.minor.patch).
 #[cfg(any(feature = "chain", test))]
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
-#[allow(dead_code)]
 pub(crate) struct SemanticVersion(pub u8, pub u8, pub u8);
 
 #[cfg(any(feature = "chain", test))]

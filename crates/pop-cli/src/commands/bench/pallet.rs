@@ -449,7 +449,7 @@ impl BenchmarkPallet {
 		weight_path: PathBuf,
 	) -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
-		let temp_dir_path = temp_dir.keep();
+		let temp_dir_path = temp_dir.into_path();
 		self.output = Some(temp_dir_path.clone());
 
 		generate_pallet_benchmarks(self.collect_run_arguments())?;
@@ -2001,7 +2001,7 @@ mod tests {
 	#[test]
 	fn update_runtime_path_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
-		let temp_path = temp_dir.keep();
+		let temp_path = temp_dir.into_path();
 
 		// Create workspace structure
 		let workspace_toml = temp_path.join("Cargo.toml");

@@ -57,9 +57,6 @@ pub enum Error {
 	/// An I/O error occurred.
 	#[error("IO error: {0}")]
 	IO(#[from] std::io::Error),
-	/// An error occurred while attempting to create a keypair from the provided URI.
-	#[error("Failed to create keypair from URI: {0}")]
-	KeyPairCreation(String),
 	/// An I/O error occurred.
 	#[error("Failed to get manifest path: {0}")]
 	ManifestPath(String),
@@ -75,9 +72,6 @@ pub enum Error {
 	/// An error occurred while parsing a URL.
 	#[error("ParseError error: {0}")]
 	ParseError(#[from] url::ParseError),
-	/// An error occurred while parsing the provided secret URI.
-	#[error("Failed to parse secret URI: {0}")]
-	ParseSecretURI(String),
 	/// The `Repository` property is missing from the template variant.
 	#[error("The `Repository` property is missing from the template variant")]
 	RepositoryMissing,

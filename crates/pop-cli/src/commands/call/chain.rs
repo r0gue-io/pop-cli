@@ -394,10 +394,10 @@ impl CallChainCommand {
 		// Perform signing steps with wallet integration and return early.
 		if use_wallet {
 			let call_data_bytes =
-				decode_call_data(call_data).map_err(|err| anyhow!("{:?}", format!("{err:?}")))?;
+				decode_call_data(call_data).map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 			wallet::submit_extrinsic(client, url, call_data_bytes, cli)
 				.await
-				.map_err(|err| anyhow!("{:?}", format!("{err:?}")))?;
+				.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 			display_message("Call complete.", true, cli)?;
 			return Ok(());
 		}
@@ -419,10 +419,10 @@ impl CallChainCommand {
 			"Signing and submitting the extrinsic and then waiting for finalization, please be patient...",
 		);
 		let call_data_bytes =
-			decode_call_data(call_data).map_err(|err| anyhow!("{:?}", format!("{err:?}")))?;
+			decode_call_data(call_data).map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 		let result = sign_and_submit_extrinsic(client, url, CallData::new(call_data_bytes), &suri)
 			.await
-			.map_err(|err| anyhow!("{:?}", format!("{err:?}")))?;
+			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 
 		spinner.stop(result);
 		display_message("Call complete.", true, cli)?;
@@ -488,7 +488,7 @@ impl CallChainCommand {
 			.map(|arg| {
 				if std::fs::metadata(arg).map(|m| m.is_file()).unwrap_or(false) {
 					std::fs::read_to_string(arg)
-						.map_err(|err| anyhow!("Failed to read file {:?}", err.to_string()))
+						.map_err(|err| anyhow!("Failed to read file {}", err.to_string()))
 				} else {
 					Ok(arg.clone())
 				}
@@ -577,7 +577,7 @@ impl Call {
 		let suri = self.suri.clone().ok_or(anyhow!("Error: The secret key URI is missing"))?;
 		let result = sign_and_submit_extrinsic(client, url, tx, &suri)
 			.await
-			.map_err(|err| anyhow!("{:?}", format!("{err:?}")))?;
+			.map_err(|err| anyhow!("{}", format!("{err:?}")))?;
 		spinner.stop(result);
 		Ok(())
 	}
@@ -684,7 +684,7 @@ fn prompt_for_sequence_param(
 		.interact()?;
 	if Path::new(&input_value).is_file() {
 		return std::fs::read_to_string(&input_value)
-			.map_err(|err| anyhow!("Failed to read file {:?}", err.to_string()));
+			.map_err(|err| anyhow!("Failed to read file {}", err.to_string()));
 	}
 	Ok(input_value)
 }
