@@ -40,6 +40,9 @@ pub(crate) struct TestArgs {
 	#[command(flatten)]
 	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	pub(crate) contract: contract::TestContractCommand,
+	/// Run with the specified test filter.
+	#[arg(short, long)]
+	pub(crate) test: Option<String>,
 }
 
 /// Test a Rust project.
@@ -81,11 +84,12 @@ impl Command {
 		if pop_contracts::is_supported(&project_path)? {
 			let mut cmd = args.contract;
 			cmd.path = project_path.clone();
+			cmd.test = args.test;
 			let feature = contract::TestContractCommand::execute(cmd, cli).await?;
 			return Ok((Contract, feature));
 		}
 
-		test_project(&project_path)?;
+		test_project(&project_path, args.test)?;
 
 		#[cfg(feature = "chain")]
 		if pop_chains::is_supported(&project_path) {
