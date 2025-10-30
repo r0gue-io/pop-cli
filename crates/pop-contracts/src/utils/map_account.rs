@@ -3,7 +3,7 @@
 use crate::{DefaultEnvironment, errors::Error};
 use contract_extrinsics::{ExtrinsicOpts, MapAccountCommandBuilder, MapAccountExec};
 use subxt::{PolkadotConfig as DefaultConfig, ext::scale_encode::EncodeAsType, utils::H160};
-use subxt_signer::{SecretUri, sr25519::Keypair};
+use subxt_signer::sr25519::Keypair;
 
 /// A helper struct for performing account mapping operations.
 pub struct AccountMapper {
@@ -52,16 +52,4 @@ impl MapAccount {
 	pub(crate) fn build(self) -> subxt::tx::DefaultPayload<Self> {
 		subxt::tx::DefaultPayload::new("Revive", "map_account", self)
 	}
-}
-
-/// TODO: Duplicated function with the one in pop-common, temporary function due to dependency
-/// issues. Create a keypair from a secret URI.
-///
-/// # Arguments
-/// `suri` - Secret URI string used to generate the `Keypair`.
-pub fn create_signer(suri: &str) -> Result<Keypair, Error> {
-	let uri = <SecretUri as std::str::FromStr>::from_str(suri)
-		.map_err(|e| Error::ParseSecretURI(format!("{}", e)))?;
-	let keypair = Keypair::from_uri(&uri).map_err(|e| Error::KeyPairCreation(format!("{}", e)))?;
-	Ok(keypair)
 }

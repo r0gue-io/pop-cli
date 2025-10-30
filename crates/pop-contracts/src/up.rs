@@ -5,7 +5,6 @@ use crate::{
 	errors::Error,
 	utils::{
 		get_manifest_path,
-		map_account::create_signer,
 		metadata::{FunctionType, extract_function, process_function_args},
 		parse_balance,
 	},
@@ -17,7 +16,7 @@ use contract_extrinsics::{
 	events::ContractInstantiated,
 	extrinsic_calls::{Instantiate, InstantiateWithCode},
 };
-use pop_common::account_id::parse_h160_account;
+use pop_common::{account_id::parse_h160_account, create_signer};
 use sp_core::bytes::{from_hex, to_hex};
 use std::path::{Path, PathBuf};
 use subxt::{

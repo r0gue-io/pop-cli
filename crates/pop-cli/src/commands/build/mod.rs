@@ -117,7 +117,7 @@ impl Command {
 			crate::common::builds::ensure_project_path(args.path.clone(), args.path_pos.clone());
 
 		#[cfg(feature = "contract")]
-		if pop_contracts::is_supported(project_path.as_deref())? {
+		if pop_contracts::is_supported(&project_path)? {
 			// All commands originating from root command are valid
 			let release = match args.profile {
 				Some(profile) => profile.into(),
@@ -425,6 +425,8 @@ mod tests {
 			deterministic: false,
 			#[cfg(feature = "chain")]
 			only_runtime: false,
+			#[cfg(feature = "contract")]
+			metadata: None,
 		})?;
 
 		assert_eq!(result, Unknown);
@@ -469,6 +471,8 @@ mod tests {
 			deterministic: false,
 			#[cfg(feature = "chain")]
 			only_runtime: false,
+			#[cfg(feature = "contract")]
+			metadata: None,
 		})?;
 		assert_eq!(result, Unknown);
 
@@ -490,6 +494,8 @@ mod tests {
 			deterministic: false,
 			#[cfg(feature = "chain")]
 			only_runtime: false,
+			#[cfg(feature = "contract")]
+			metadata: None,
 		})?;
 		assert_eq!(result, Unknown);
 
@@ -508,6 +514,8 @@ mod tests {
 				try_runtime: false,
 				deterministic: false,
 				only_runtime: false,
+				#[cfg(feature = "contract")]
+				metadata: None,
 			})?;
 			assert_eq!(result, Unknown);
 		}
@@ -530,6 +538,8 @@ mod tests {
 			deterministic: false,
 			#[cfg(feature = "chain")]
 			only_runtime: false,
+			#[cfg(feature = "contract")]
+			metadata: None,
 		})?;
 		assert_eq!(result, Unknown);
 
@@ -551,6 +561,8 @@ mod tests {
 			deterministic: false,
 			#[cfg(feature = "chain")]
 			only_runtime: false,
+			#[cfg(feature = "contract")]
+			metadata: None,
 		})?;
 		assert_eq!(result, Unknown);
 
@@ -569,6 +581,8 @@ mod tests {
 				try_runtime: true,
 				deterministic: false,
 				only_runtime: false,
+				#[cfg(feature = "contract")]
+				metadata: None,
 			})?;
 			assert_eq!(result, Unknown);
 		}

@@ -92,7 +92,7 @@ pub enum Template {
 }
 
 /// Supported operating systems.
-#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
+#[cfg(any(feature = "contract", feature = "chain"))]
 #[derive(Debug, PartialEq, Clone, VariantArray)]
 pub enum Os {
 	/// Linux.
@@ -159,7 +159,7 @@ impl Display for Template {
 	}
 }
 
-#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
+#[cfg(any(feature = "contract", feature = "chain"))]
 impl Display for Os {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		use Os::*;
@@ -271,7 +271,7 @@ mod tests {
 	}
 
 	#[test]
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
+	#[cfg(any(feature = "contract", feature = "chain"))]
 	fn os_display_works() {
 		for os in Os::VARIANTS {
 			let expected = match os {

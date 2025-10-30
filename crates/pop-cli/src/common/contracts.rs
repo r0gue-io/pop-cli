@@ -7,7 +7,7 @@ use crate::{
 	style::style,
 };
 use cliclack::ProgressBar;
-use pop_common::{manifest::from_path, sourcing::Binary};
+use pop_common::manifest::from_path;
 use pop_contracts::{
 	AccountMapper, ContractFunction, DefaultEnvironment, ExtrinsicOpts, contracts_node_generator,
 };

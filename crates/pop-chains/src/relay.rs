@@ -5,7 +5,6 @@ use scale::{Decode, Encode};
 use sp_core::twox_128;
 use subxt::{
 	OnlineClient, PolkadotConfig,
-	config::BlockHash,
 	dynamic::{self, Value},
 	events::StaticEvent,
 	ext::{scale_decode::DecodeAsType, scale_encode::EncodeAsType},

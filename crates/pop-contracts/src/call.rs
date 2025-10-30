@@ -6,7 +6,6 @@ use crate::{
 	submit_signed_payload,
 	utils::{
 		get_manifest_path,
-		map_account::create_signer,
 		metadata::{FunctionType, extract_function, process_function_args},
 		parse_balance,
 	},
@@ -21,8 +20,7 @@ use contract_extrinsics::{
 };
 use pop_common::account_id::parse_h160_account;
 use std::path::PathBuf;
-use subxt::{PolkadotConfig as DefaultConfig, SubstrateConfig, tx::Payload};
-pub use subxt_signer::sr25519::Keypair;
+use subxt::{SubstrateConfig, tx::Payload};
 use url::Url;
 
 /// Attributes for the `call` command.

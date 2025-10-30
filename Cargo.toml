@@ -50,15 +50,15 @@ url = "2.5.4"
 # contracts
 subxt-signer = { version = "0.44.0", default-features = false, features = ["subxt", "sr25519"] }
 subxt = { version = "0.44.0", default-features = false }
-ink_env = { git = "https://github.com/use-ink/ink", tag = "v6.0.0-alpha.4", version = "6.0.0-alpha.4", features = ["unstable-hostfn"] }
-sp-core= { git = "https://github.com/use-ink/polkadot-sdk.git", rev = "a71ec19a94702ea71767ba5ac97603ea6c6305c1", default-features = false }
-sp-weights = { git = "https://github.com/use-ink/polkadot-sdk.git", rev = "a71ec19a94702ea71767ba5ac97603ea6c6305c1", default-features = false }
+ink_env = { version = "6.0.0-beta", features = ["unstable-hostfn"] }
+sp-core= { version = "38.0.0", default-features = false }
+sp-weights = { version = "33.0.0", default-features = false }
 scale = { package = "parity-scale-codec", version = "3.7.5", features = ["derive"] }
 scale-info = { version = "2.11.6", default-features = false, features = ["derive"] }
 scale-value = { version = "0.18.0", default-features = false, features = ["from-string", "parser-ss58"] }
-contract-build = { git = "https://github.com/use-ink/cargo-contract", tag = "v6.0.0-alpha.4", version = "6.0.0-alpha.4", default-features = false }
-contract-extrinsics = { git = "https://github.com/use-ink/cargo-contract", tag = "v6.0.0-alpha.4", version = "6.0.0-alpha.4", default-features = false }
-contract-transcode = { git = "https://github.com/use-ink/cargo-contract", tag = "v6.0.0-alpha.4", version = "6.0.0-alpha.4", default-features = false }
+contract-build = { git = "https://github.com/use-ink/cargo-contract", branch = "refactor/dependencies", default-features = false }
+contract-extrinsics = { git = "https://github.com/use-ink/cargo-contract", branch = "refactor/dependencies", default-features = false }
+contract-transcode = { git = "https://github.com/use-ink/cargo-contract", branch = "refactor/dependencies", default-features = false }
 heck = { version = "0.5.0", default-features = false }
 
 # parachains
@@ -74,19 +74,20 @@ srtool-lib = { version = "0.13.2", default-features = false }
 zombienet-configuration = { version = "0.3.1", default-features = false }
 zombienet-sdk = { version = "0.3.1", default-features = false }
 git2_credentials = "0.13.0"
-cumulus-client-cli = { version = "0.22.0", default-features = false }
+cumulus-client-cli = { version = "0.26.0", default-features = false }
 
 # benchmarking
-cumulus-primitives-proof-size-hostfunction = "0.14.0"
-frame-benchmarking-cli = { version = "50.0.0", default-features = false }
-sc-chain-spec = { version = "45.0.0", default-features = false }
-sp-runtime = { version = "43.0.0", default-features = false }
-sp-statement-store = "22.0.0"
+cumulus-primitives-proof-size-hostfunction = "0.15.0"
+frame-benchmarking-cli = { version = "51.0.0", default-features = false }
+frame-storage-access-test-runtime = { version = "0.4.0", default-features = false }
+sc-chain-spec = { version = "46.0.0", default-features = false }
+sp-runtime = { version = "44.0.0", default-features = false }
+sp-statement-store = "23.0.0"
 
 # try-runtime
-frame-try-runtime = "0.48.0"
-sc-cli = { version = "0.54.0", default-features = false }
-sp-version = { version = "41.0.0", default-features = false }
+frame-try-runtime = "0.49.0"
+sc-cli = { version = "0.55.0", default-features = false }
+sp-version = { version = "42.0.0", default-features = false }
 
 # pop-cli
 clap = { version = "4.5", default-features = false, features = ["derive", "string"] }

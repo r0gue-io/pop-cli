@@ -42,4 +42,4 @@ pub use ink_env::{DefaultEnvironment, Environment};
 pub use sp_core::Bytes;
 pub use sp_weights::Weight;
 pub use up::{get_instantiate_payload, get_upload_payload};
-pub use utils::map_account::{AccountMapper, create_signer};
+pub use utils::map_account::AccountMapper;

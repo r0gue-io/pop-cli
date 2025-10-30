@@ -60,7 +60,7 @@ mod tests {
 		// Contract
 		let name = "flipper";
 		new_contract_project(name, Some(&path), None)?;
-		assert!(is_supported(Some(&path.join(name)))?);
+		assert!(is_supported(&path.join(name))?);
 		Ok(())
 	}
 }
