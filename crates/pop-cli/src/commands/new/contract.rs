@@ -69,7 +69,7 @@ impl NewContractCommand {
 			}
 		}
 
-		let path_project = &self.name.clone().expect("name can not be none; qed");
+		let path_project = self.name.as_ref().expect("name can not be none; qed");
 		let path = Path::new(path_project);
 		let name = get_project_name_from_path(path, "my_contract");
 
@@ -79,7 +79,7 @@ impl NewContractCommand {
 			return Ok(Contract::Standard);
 		}
 
-		let template = self.template.clone().unwrap_or_default();
+		let template = self.template.unwrap_or_default();
 
 		let contract_path = generate_contract_from_template(name, path, &template, &mut cli)?;
 
