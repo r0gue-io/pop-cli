@@ -35,41 +35,17 @@ pub struct NewContractCommand {
 
 impl NewContractCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(mut self) -> Result<Contract> {
+	pub(crate) async fn execute(self) -> Result<Contract> {
 		let mut cli = Cli;
 
+		let mut command = self;
+
 		// Prompt for missing fields interactively
-		if self.name.is_none() || self.template.is_none() {
-			cli.intro("Generate a contract")?;
-
-			// Prompt for template if not provided
-			if self.template.is_none() {
-				let template = {
-					let mut template_prompt = cli.select("Select a template:".to_string());
-					for (i, template) in Contract::templates().iter().enumerate() {
-						if i == 0 {
-							template_prompt = template_prompt.initial_value(template);
-						}
-						template_prompt =
-							template_prompt.item(template, template.name(), template.description());
-					}
-					template_prompt.interact()?.clone()
-				};
-				self.template = Some(template);
-			}
-
-			// Prompt for name if not provided
-			if self.name.is_none() {
-				let name: String = cli
-					.input("Where should your project be created?")
-					.placeholder("./my_contract")
-					.default_input("./my_contract")
-					.interact()?;
-				self.name = Some(name);
-			}
+		if command.name.is_none() || command.template.is_none() {
+			command = guide_user_to_generate_contract(&mut cli, command).await?;
 		}
 
-		let path_project = self.name.as_ref().expect("name can not be none; qed");
+		let path_project = command.name.as_ref().expect("name can not be none; qed");
 		let path = Path::new(path_project);
 		let name = get_project_name_from_path(path, "my_contract");
 
@@ -79,8 +55,7 @@ impl NewContractCommand {
 			return Ok(Contract::Standard);
 		}
 
-		let template = self.template.unwrap_or_default();
-
+		let template = command.template.unwrap_or_default();
 		let contract_path = generate_contract_from_template(name, path, &template, &mut cli)?;
 
 		// If the contract is part of a workspace, add it to that workspace
@@ -95,6 +70,41 @@ impl NewContractCommand {
 
 		Ok(template)
 	}
+}
+
+/// Guide the user to provide any missing fields for contract generation.
+async fn guide_user_to_generate_contract(
+	cli: &mut impl cli::traits::Cli,
+	mut command: NewContractCommand,
+) -> Result<NewContractCommand> {
+	cli.intro("Generate a contract")?;
+
+	if command.template.is_none() {
+		let template = display_select_options(cli)?;
+		command.template = Some(template);
+	}
+
+	if command.name.is_none() {
+		let name: String = cli
+			.input("Where should your project be created?")
+			.placeholder("./my_contract")
+			.default_input("./my_contract")
+			.interact()?;
+		command.name = Some(name);
+	}
+
+	Ok(command)
+}
+
+fn display_select_options(cli: &mut impl cli::traits::Cli) -> Result<Contract> {
+	let mut prompt = cli.select("Select a template:".to_string());
+	for (i, template) in Contract::templates().iter().enumerate() {
+		if i == 0 {
+			prompt = prompt.initial_value(template);
+		}
+		prompt = prompt.item(template, template.name(), template.description());
+	}
+	Ok(prompt.interact()?.clone())
 }
 
 fn generate_contract_from_template(
@@ -155,6 +165,7 @@ mod tests {
 	use console::style;
 	use pop_common::templates::Template;
 	use pop_contracts::Contract as ContractTemplate;
+	use strum::VariantArray;
 	use tempfile::tempdir;
 
 	#[tokio::test]
@@ -169,6 +180,34 @@ mod tests {
 		// Execute
 		command.execute().await?;
 		Ok(())
+	}
+
+	#[tokio::test]
+	async fn guide_user_to_generate_contract_works() -> anyhow::Result<()> {
+		let mut items_select_contract: Vec<(String, String)> = Vec::new();
+		for contract_template in ContractTemplate::VARIANTS {
+			items_select_contract.push((
+				contract_template.name().to_string(),
+				contract_template.description().to_string(),
+			));
+		}
+		let mut cli = MockCli::new()
+			.expect_intro("Generate a contract")
+			.expect_select(
+				"Select a template:",
+				Some(false),
+				true,
+				Some(items_select_contract),
+				1, // "erc20"
+				None,
+			)
+			.expect_input("Where should your project be created?", "./erc20".into());
+
+		let user_input = guide_user_to_generate_contract(&mut cli, Default::default()).await?;
+		assert_eq!(user_input.name, Some("./erc20".to_string()));
+		assert_eq!(user_input.template, Some(ContractTemplate::ERC20));
+
+		cli.verify()
 	}
 
 	#[test]
