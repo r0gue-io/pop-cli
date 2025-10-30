@@ -4,7 +4,7 @@ use crate::{DynamicPayload, Error, call};
 use scale::{Decode, Encode};
 use sp_core::twox_128;
 use subxt::{
-	OnlineClient, PolkadotConfig,
+	OnlineClient,
 	config::BlockHash,
 	dynamic::{self, Value},
 	events::StaticEvent,
@@ -16,10 +16,10 @@ use subxt::{
 /// # Arguments
 /// * `client` - Client for the network which state is to be modified.
 /// * `para_ids` - List of ids to build the keys that will be mutated.
-pub async fn clear_dmpq(
-	client: OnlineClient<PolkadotConfig>,
-	para_ids: &[u32],
-) -> Result<impl BlockHash, Error> {
+pub async fn clear_dmpq(endpoint: &str, para_ids: &[u32]) -> Result<impl BlockHash, Error> {
+	let client = OnlineClient::<subxt::PolkadotConfig>::from_url(endpoint)
+		.await
+		.map_err(|e| Error::SubXtError(e.into()))?;
 	// Wait for blocks to be produced.
 	let mut sub = client
 		.blocks()
