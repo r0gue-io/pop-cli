@@ -672,10 +672,10 @@ fn cd_into_chain_base_dir(network_file: &Path) {
 	}
 }
 
-// Write a test for run_custom_command
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use std::{env, fs};
 
 	#[tokio::test]
 	async fn test_run_custom_command() -> Result<(), anyhow::Error> {
@@ -688,5 +688,83 @@ mod tests {
 		run_custom_command(&spinner, command).await?;
 
 		Ok(())
+	}
+
+	#[test]
+	fn test_cd_into_chain_base_dir_changes_to_supported_parent() {
+		// Save original working directory
+		let original_cwd = env::current_dir().expect("cwd");
+
+		// Create a unique temporary directory structure
+		let mut base = env::temp_dir();
+		base.push(format!(
+			"pop_cli_test_{}",
+			std::time::SystemTime::now()
+				.duration_since(std::time::UNIX_EPOCH)
+				.unwrap()
+				.as_millis()
+		));
+		let project_dir = base.join("project");
+		let nested_dir = project_dir.join("nested/a/b");
+		fs::create_dir_all(&nested_dir).expect("create nested dirs");
+
+		// Write a minimal Cargo.toml that qualifies as a supported chain project
+		let cargo_toml = r#"[package]
+name = "dummy-chain"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cumulus-client-collator = "0.14"
+"#;
+		fs::write(project_dir.join("Cargo.toml"), cargo_toml).expect("write Cargo.toml");
+
+		// Provide a path to a pretend network file deep inside the project
+		let network_file = nested_dir.join("network.toml");
+
+		// Execute
+		cd_into_chain_base_dir(&network_file);
+
+		// Assert we changed into the project_dir
+		let cwd = env::current_dir().expect("cwd after cd");
+		assert_eq!(
+			cwd.canonicalize().expect("canon cwd"),
+			project_dir.canonicalize().expect("canon project_dir")
+		);
+
+		// Restore cwd and cleanup
+		env::set_current_dir(&original_cwd).expect("restore cwd");
+		fs::remove_dir_all(&base).ok();
+	}
+
+	#[test]
+	fn test_cd_into_chain_base_dir_noop_when_unsupported() {
+		// Save original working directory
+		let original_cwd = env::current_dir().expect("cwd");
+
+		// Create a unique temporary directory structure without a Cargo.toml
+		let mut base = env::temp_dir();
+		base.push(format!(
+			"pop_cli_test_{}_unsupported",
+			std::time::SystemTime::now()
+				.duration_since(std::time::UNIX_EPOCH)
+				.unwrap()
+				.as_millis()
+		));
+		let nested_dir = base.join("nested/a/b");
+		fs::create_dir_all(&nested_dir).expect("create nested dirs");
+
+		// Provide a path to a pretend network file
+		let network_file = nested_dir.join("network.toml");
+
+		// Execute
+		cd_into_chain_base_dir(&network_file);
+
+		// Assert cwd has not changed (no supported project found up the tree)
+		let cwd = env::current_dir().expect("cwd after cd");
+		assert_eq!(cwd, original_cwd);
+
+		// Cleanup
+		fs::remove_dir_all(&base).ok();
 	}
 }
