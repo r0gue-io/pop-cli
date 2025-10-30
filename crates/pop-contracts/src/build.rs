@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{errors::Error, utils::get_manifest_path};
-use contract_build::{execute, BuildMode, BuildResult, ExecuteArgs};
+use contract_build::{BuildMode, BuildResult, ExecuteArgs, execute};
 pub use contract_build::{MetadataSpec, Verbosity};
 use std::path::Path;
 
@@ -14,7 +14,7 @@ use std::path::Path;
 /// * `verbosity` - The build output verbosity.
 /// * `metadata_spec` - Optionally specify the contract metadata format/version.
 pub fn build_smart_contract(
-	path: Option<&Path>,
+	path: &Path,
 	release: bool,
 	verbosity: Verbosity,
 	metadata_spec: Option<MetadataSpec>,
@@ -37,7 +37,7 @@ pub fn build_smart_contract(
 /// # Arguments
 /// * `path` - The optional path to the manifest, defaulting to the current directory if not
 ///   specified.
-pub fn is_supported(path: Option<&Path>) -> Result<bool, Error> {
+pub fn is_supported(path: &Path) -> Result<bool, Error> {
 	Ok(pop_common::manifest::from_path(path)?.dependencies.contains_key("ink"))
 }
 
@@ -55,7 +55,7 @@ mod tests {
 		// Standard rust project
 		let name = "hello_world";
 		cmd("cargo", ["new", name]).dir(path).run()?;
-		assert!(!is_supported(Some(&path.join(name)))?);
+		assert!(!is_supported(&path.join(name))?);
 
 		// Contract
 		let name = "flipper";

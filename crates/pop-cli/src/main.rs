@@ -2,11 +2,11 @@
 
 #![doc = include_str!("../README.md")]
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use clap::Parser;
 use commands::*;
 #[cfg(feature = "telemetry")]
-use pop_telemetry::{config_file_path, record_cli_command, record_cli_used, Telemetry};
+use pop_telemetry::{Telemetry, config_file_path, record_cli_command, record_cli_used};
 use std::{
 	fmt::{self, Display, Formatter},
 	fs::create_dir_all,

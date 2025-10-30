@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
+	SortedSlice, Status,
 	sourcing::{
-		from_local_package, Error,
+		Error,
 		GitHub::{ReleaseArchive, SourceCodeArchive},
 		Source::{self, Archive, Git, GitHub},
+		from_local_package,
 	},
-	SortedSlice, Status,
 };
 use std::path::{Path, PathBuf};
 
@@ -188,12 +189,12 @@ mod tests {
 	use super::*;
 	use crate::{
 		polkadot_sdk::{sort_by_latest_semantic_version, sort_by_latest_version},
-		sourcing::{tests::Output, ArchiveFileSpec},
+		sourcing::{ArchiveFileSpec, tests::Output},
 		target,
 	};
 	use anyhow::Result;
 	use duct::cmd;
-	use std::fs::{create_dir_all, File};
+	use std::fs::{File, create_dir_all};
 	use tempfile::tempdir;
 	use url::Url;
 

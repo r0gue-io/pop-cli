@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use super::binary::{SemanticVersion, which_version};
 use crate::{
 	cli::traits::*,
-	common::binary::{check_and_prompt, BinaryGenerator},
+	common::binary::{BinaryGenerator, check_and_prompt},
 	impl_binary_generator,
 };
+use cliclack::ProgressBar;
 use pop_chains::omni_bencher_generator;
-use pop_common::sourcing::Binary;
 use std::{
 	self,
 	cmp::Ordering,
 	fs,
 	path::{Path, PathBuf},
 };
-
-use super::binary::{which_version, SemanticVersion};
 
 pub(crate) const EXECUTED_COMMAND_COMMENT: &str = "// Executed Command:";
 const TARGET_BINARY_VERSION: SemanticVersion = SemanticVersion(0, 11, 1);
@@ -31,12 +30,13 @@ impl_binary_generator!(OmniBencherGenerator, omni_bencher_generator);
 /// * `skip_confirm`: A boolean indicating whether to skip confirmation prompts.
 pub async fn check_omni_bencher_and_prompt(
 	cli: &mut impl Cli,
+	spinner: &ProgressBar,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
 	Ok(if let Ok(path) = which_version(BINARY_NAME, &TARGET_BINARY_VERSION, &Ordering::Greater) {
 		path
 	} else {
-		source_omni_bencher_binary(cli, &crate::cache()?, skip_confirm).await?
+		source_omni_bencher_binary(cli, spinner, &crate::cache()?, skip_confirm).await?
 	})
 }
 
@@ -48,10 +48,12 @@ pub async fn check_omni_bencher_and_prompt(
 /// * `skip_confirm`: A boolean indicating whether to skip confirmation prompts.
 pub async fn source_omni_bencher_binary(
 	cli: &mut impl Cli,
+	spinner: &ProgressBar,
 	cache_path: &Path,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
-	check_and_prompt::<OmniBencherGenerator>(cli, BINARY_NAME, cache_path, skip_confirm).await
+	check_and_prompt::<OmniBencherGenerator>(cli, spinner, BINARY_NAME, cache_path, skip_confirm)
+		.await
 }
 
 /// Overwrite the generated weight files' executed command in the destination directory.
@@ -133,6 +135,7 @@ pub(crate) fn overwrite_weight_file_command(
 mod tests {
 	use super::*;
 	use crate::{cli::MockCli, common::binary::SemanticVersion};
+	use cliclack::spinner;
 	use fs::File;
 	use tempfile::tempdir;
 
@@ -144,22 +147,26 @@ mod tests {
 			.expect_confirm("📦 Would you like to source it automatically now?", true)
 			.expect_warning(format!("⚠️ The {} binary is not found.", BINARY_NAME));
 
-		let path = source_omni_bencher_binary(&mut cli, cache_path.path(), false).await?;
+		let path =
+			source_omni_bencher_binary(&mut cli, &spinner(), cache_path.path(), false).await?;
 		// Binary path is at least equal to the cache path + "frame-omni-bencher".
-		assert!(path
-			.to_str()
-			.unwrap()
-			.starts_with(cache_path.path().join(BINARY_NAME).to_str().unwrap()));
+		assert!(
+			path.to_str()
+				.unwrap()
+				.starts_with(cache_path.path().join(BINARY_NAME).to_str().unwrap())
+		);
 		cli.verify()?;
 
 		// Test binary sourcing with skip_confirm = true (no user interaction)
 		cli = MockCli::new();
 
-		let path = source_omni_bencher_binary(&mut cli, cache_path.path(), true).await?;
-		assert!(path
-			.to_str()
-			.unwrap()
-			.starts_with(cache_path.path().join(BINARY_NAME).to_str().unwrap()));
+		let path =
+			source_omni_bencher_binary(&mut cli, &spinner(), cache_path.path(), true).await?;
+		assert!(
+			path.to_str()
+				.unwrap()
+				.starts_with(cache_path.path().join(BINARY_NAME).to_str().unwrap())
+		);
 
 		// Verify the downloaded binary version meets the target version requirement
 		assert!(
@@ -177,7 +184,10 @@ mod tests {
 
 		for file in files {
 			let temp_file = temp_dir.path().join(file);
-			fs::write(temp_file.clone(), "// Executed Command:\n// command\n// should\n// be\n// replaced\n\nThis line should not be replaced.")?;
+			fs::write(
+				temp_file.clone(),
+				"// Executed Command:\n// command\n// should\n// be\n// replaced\n\nThis line should not be replaced.",
+			)?;
 		}
 
 		overwrite_weight_dir_command(
@@ -188,7 +198,10 @@ mod tests {
 
 		for file in files {
 			let dest_file = dest_dir.path().join(file);
-			assert_eq!(fs::read_to_string(dest_file)?, "// Executed Command:\n//  new\n//  command\n//  replaced\n\nThis line should not be replaced.");
+			assert_eq!(
+				fs::read_to_string(dest_file)?,
+				"// Executed Command:\n//  new\n//  command\n//  replaced\n\nThis line should not be replaced."
+			);
 		}
 
 		Ok(())
@@ -199,7 +212,7 @@ mod tests {
 		for (original, expected) in [
 			(
 				"// Executed Command:\n// command\n// should\n// be\n// replaced\n\nThis line should not be replaced.",
-				"// Executed Command:\n//  new\n//  command\n//  replaced\n\nThis line should not be replaced."
+				"// Executed Command:\n//  new\n//  command\n//  replaced\n\nThis line should not be replaced.",
 			),
 			// Not replace because not "Executed Commnad" comment block found.
 			(
@@ -208,17 +221,14 @@ mod tests {
 			),
 			// Not replacing contents before the "Executed Command" comment block.
 			(
-    			"Before line should not be replaced\n\n// Executed Command:\n// command\n// should\n// be\n// replaced\n\nAfter line should not be replaced.",
-    			"Before line should not be replaced\n\n// Executed Command:\n//  new\n//  command\n//  replaced\n\nAfter line should not be replaced.",
+				"Before line should not be replaced\n\n// Executed Command:\n// command\n// should\n// be\n// replaced\n\nAfter line should not be replaced.",
+				"Before line should not be replaced\n\n// Executed Command:\n//  new\n//  command\n//  replaced\n\nAfter line should not be replaced.",
 			),
 		] {
 			let temp_dir = tempdir()?;
 			let dest_dir = tempdir()?;
 			let temp_file = temp_dir.path().join("weights.rs");
-			fs::write(
-    			temp_file.clone(),
-    			original
-    		)?;
+			fs::write(temp_file.clone(), original)?;
 			let dest_file = dest_dir.path().join("dest_weights.rs");
 			File::create(dest_file.clone())?;
 
@@ -229,10 +239,7 @@ mod tests {
 			)?;
 
 			let content = fs::read_to_string(dest_file)?;
-			assert_eq!(
-    			content,
-    			expected
-    		);
+			assert_eq!(content, expected);
 		}
 		Ok(())
 	}

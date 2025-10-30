@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use super::{find_dispatchable_by_name, Pallet};
+use super::{Pallet, find_callable_by_name};
 use strum::{EnumMessage as _, EnumProperty as _, VariantArray as _};
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
 
@@ -133,8 +133,7 @@ impl Action {
 pub fn supported_actions(pallets: &[Pallet]) -> Vec<Action> {
 	let mut actions = Vec::new();
 	for action in Action::VARIANTS.iter() {
-		if find_dispatchable_by_name(pallets, action.pallet_name(), action.function_name()).is_ok()
-		{
+		if find_callable_by_name(pallets, action.pallet_name(), action.function_name()).is_ok() {
 			actions.push(action.clone());
 		}
 	}

@@ -1,15 +1,15 @@
 use axum::{
+	Router,
 	extract::DefaultBodyLimit,
 	http::HeaderValue,
 	response::Html,
 	routing::{get, post},
-	Router,
 };
 use pop_common::find_free_port;
 use serde::Serialize;
 use std::{path::PathBuf, sync::Arc};
 use tokio::{
-	sync::{oneshot, Mutex},
+	sync::{Mutex, oneshot},
 	task::JoinHandle,
 };
 use tower_http::{cors::Any, services::ServeDir};
@@ -173,13 +173,13 @@ impl WalletIntegrationManager {
 }
 
 mod routes {
-	use super::{terminate_helper, Arc, Mutex, StateHandler, SubmitRequest, TransactionData};
+	use super::{Arc, Mutex, StateHandler, SubmitRequest, TransactionData, terminate_helper};
 	use anyhow::Error;
 	use axum::{
+		Json,
 		extract::State,
 		http::StatusCode,
 		response::{IntoResponse, Response},
-		Json,
 	};
 	use serde_json::json;
 
@@ -622,9 +622,10 @@ mod tests {
 		assert!(!wim_conflict.is_running());
 		let task_result = wim_conflict.task_handle.await.unwrap();
 		match task_result {
-			Err(e) => assert!(e
-				.to_string()
-				.starts_with(&format!("Failed to bind to {}: Address already in use", addr))),
+			Err(e) => assert!(
+				e.to_string()
+					.starts_with(&format!("Failed to bind to {}: Address already in use", addr))
+			),
 			Ok(_) => panic!("Expected error, but task succeeded"),
 		}
 	}

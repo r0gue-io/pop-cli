@@ -2,13 +2,14 @@
 
 use crate::{
 	cli::traits::*,
-	common::binary::{check_and_prompt, BinaryGenerator},
+	common::binary::{BinaryGenerator, check_and_prompt},
 	impl_binary_generator,
 	style::style,
 };
+use cliclack::ProgressBar;
 use pop_common::{manifest::from_path, sourcing::Binary};
 use pop_contracts::{
-	contracts_node_generator, AccountMapper, ContractFunction, DefaultEnvironment, ExtrinsicOpts,
+	AccountMapper, ContractFunction, DefaultEnvironment, ExtrinsicOpts, contracts_node_generator,
 };
 use std::{
 	path::{Path, PathBuf},
@@ -31,11 +32,18 @@ const CONTRACTS_NODE_BINARY: &str = "ink-node";
 /// * `skip_confirm`: A boolean indicating whether to skip confirmation prompts.
 pub async fn check_contracts_node_and_prompt(
 	cli: &mut impl Cli,
+	spinner: &ProgressBar,
 	cache_path: &Path,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
-	check_and_prompt::<ContractsNodeGenerator>(cli, CONTRACTS_NODE_BINARY, cache_path, skip_confirm)
-		.await
+	check_and_prompt::<ContractsNodeGenerator>(
+		cli,
+		spinner,
+		CONTRACTS_NODE_BINARY,
+		cache_path,
+		skip_confirm,
+	)
+	.await
 }
 
 /// Handles the optional termination of a local running node.
@@ -72,14 +80,13 @@ pub async fn terminate_node(
 /// # Arguments
 /// * `path` - An optional path to the project directory. If no path is provided, the current
 ///   directory is used.
-pub fn has_contract_been_built(path: Option<&Path>) -> bool {
-	let project_path = path.unwrap_or_else(|| Path::new("./"));
-	let Ok(manifest) = from_path(Some(project_path)) else {
+pub fn has_contract_been_built(path: &Path) -> bool {
+	let Ok(manifest) = from_path(path) else {
 		return false;
 	};
 	manifest
 		.package
-		.map(|p| project_path.join(format!("target/ink/{}.contract", p.name())).exists())
+		.map(|p| path.join(format!("target/ink/{}.contract", p.name())).exists())
 		.unwrap_or_default()
 }
 
@@ -161,10 +168,11 @@ pub(crate) async fn map_account(
 mod tests {
 	use super::*;
 	use crate::cli::MockCli;
+	use cliclack::spinner;
 	use duct::cmd;
 	use pop_common::{find_free_port, set_executable_permission};
 	use pop_contracts::{
-		extract_function, is_chain_alive, run_contracts_node, FunctionType, Param,
+		FunctionType, Param, extract_function, is_chain_alive, run_contracts_node,
 	};
 	use std::{
 		env,
@@ -181,15 +189,15 @@ mod tests {
 		let name = "hello_world";
 		cmd("cargo", ["new", name]).dir(path).run()?;
 		let contract_path = path.join(name);
-		assert!(!has_contract_been_built(Some(&contract_path)));
+		assert!(!has_contract_been_built(&contract_path));
 
 		cmd("cargo", ["build"]).dir(&contract_path).run()?;
 		// Mock build directory
 		fs::create_dir(contract_path.join("target/ink"))?;
-		assert!(!has_contract_been_built(Some(&path.join(name))));
+		assert!(!has_contract_been_built(&path.join(name)));
 		// Create a mocked .contract file inside the target directory
 		File::create(contract_path.join(format!("target/ink/{}.contract", name)))?;
-		assert!(has_contract_been_built(Some(&path.join(name))));
+		assert!(has_contract_been_built(&path.join(name)));
 		Ok(())
 	}
 
@@ -216,12 +224,15 @@ mod tests {
 			.expect_confirm("📦 Would you like to source it automatically now?", true)
 			.expect_warning(format!("⚠️ The {CONTRACTS_NODE_BINARY} binary is not found."));
 
-		let node_path = check_contracts_node_and_prompt(&mut cli, cache_path.path(), false).await?;
+		let node_path =
+			check_contracts_node_and_prompt(&mut cli, &spinner(), cache_path.path(), false).await?;
 		// Binary path is at least equal to the cache path + the contracts node binary.
-		assert!(node_path
-			.to_str()
-			.unwrap()
-			.starts_with(cache_path.path().join(CONTRACTS_NODE_BINARY).to_str().unwrap()));
+		assert!(
+			node_path
+				.to_str()
+				.unwrap()
+				.starts_with(cache_path.path().join(CONTRACTS_NODE_BINARY).to_str().unwrap())
+		);
 		cli.verify()
 	}
 
@@ -231,12 +242,15 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_warning(format!("⚠️ The {CONTRACTS_NODE_BINARY} binary is not found."));
 
-		let node_path = check_contracts_node_and_prompt(&mut cli, cache_path.path(), true).await?;
+		let node_path =
+			check_contracts_node_and_prompt(&mut cli, &spinner(), cache_path.path(), true).await?;
 		// Binary path is at least equal to the cache path + the contracts node binary.
-		assert!(node_path
-			.to_str()
-			.unwrap()
-			.starts_with(cache_path.path().join(CONTRACTS_NODE_BINARY).to_str().unwrap()));
+		assert!(
+			node_path
+				.to_str()
+				.unwrap()
+				.starts_with(cache_path.path().join(CONTRACTS_NODE_BINARY).to_str().unwrap())
+		);
 		cli.verify()
 	}
 

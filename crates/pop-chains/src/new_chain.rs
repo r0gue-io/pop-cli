@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
+	ChainTemplate, Config, Provider,
 	generator::chain::{ChainSpec, Network},
 	utils::helpers::{sanitize, write_to_file},
-	ChainTemplate, Config, Provider,
 };
 use anyhow::Result;
 use pop_common::{
 	git::Git,
-	templates::{extractor::extract_template_files, Template, Type},
+	templates::{Template, Type, extractor::extract_template_files},
 };
 use std::{fs, path::Path};
 use walkdir::WalkDir;
@@ -119,10 +119,14 @@ mod tests {
 		let generated_file_content =
 			fs::read_to_string(temp_dir.path().join("node/src/chain_spec.rs"))
 				.expect("Failed to read file");
-		assert!(generated_file_content
-			.contains("properties.insert(\"tokenSymbol\".into(), \"DOT\".into());"));
-		assert!(generated_file_content
-			.contains("properties.insert(\"tokenDecimals\".into(), 18.into());"));
+		assert!(
+			generated_file_content
+				.contains("properties.insert(\"tokenSymbol\".into(), \"DOT\".into());")
+		);
+		assert!(
+			generated_file_content
+				.contains("properties.insert(\"tokenDecimals\".into(), 18.into());")
+		);
 		assert!(generated_file_content.contains("1000000"));
 
 		// Verify network.toml contains expected content
@@ -145,12 +149,12 @@ mod tests {
 		instantiate_openzeppelin_template(&ChainTemplate::OpenZeppelinEVM, temp_dir.path(), None)?;
 
 		let node_manifest =
-			pop_common::manifest::from_path(Some(&temp_dir.path().join("node/Cargo.toml")))
+			pop_common::manifest::from_path(&temp_dir.path().join("node/Cargo.toml"))
 				.expect("Failed to read file");
 		assert_eq!("evm-template-node", node_manifest.package().name());
 
 		let runtime_manifest =
-			pop_common::manifest::from_path(Some(&temp_dir.path().join("runtime/Cargo.toml")))
+			pop_common::manifest::from_path(&temp_dir.path().join("runtime/Cargo.toml"))
 				.expect("Failed to read file");
 		assert_eq!("evm-runtime-template", runtime_manifest.package().name());
 

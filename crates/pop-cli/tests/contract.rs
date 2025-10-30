@@ -8,16 +8,16 @@ use anyhow::Result;
 use assert_cmd::Command;
 use pop_common::{find_free_port, pop, set_executable_permission, templates::Template};
 use pop_contracts::{
-	contracts_node_generator, dry_run_call, dry_run_gas_estimate_call,
-	dry_run_gas_estimate_instantiate, instantiate_smart_contract, run_contracts_node, set_up_call,
-	set_up_deployment, CallOpts, Contract, UpOpts, Weight,
+	CallOpts, Contract, UpOpts, Weight, contracts_node_generator, dry_run_call,
+	dry_run_gas_estimate_call, dry_run_gas_estimate_instantiate, instantiate_smart_contract,
+	run_contracts_node, set_up_call, set_up_deployment,
 };
 use serde::{Deserialize, Serialize};
 use std::{path::Path, process::Command as Cmd, time::Duration};
 use strum::VariantArray;
 use subxt::{
-	backend::rpc::RpcClient, config::DefaultExtrinsicParamsBuilder as Params, ext::subxt_core,
-	tx::Payload, utils::to_hex, Metadata, OnlineClient, SubstrateConfig,
+	Metadata, OnlineClient, SubstrateConfig, backend::rpc::RpcClient,
+	config::DefaultExtrinsicParamsBuilder as Params, ext::subxt_core, tx::Payload, utils::to_hex,
 };
 use subxt_signer::sr25519::dev;
 use tokio::time::sleep;
@@ -133,7 +133,7 @@ async fn contract_lifecycle() -> Result<()> {
 	// Using methods from the pop_contracts crate to instantiate it to get the Contract Address for
 	// the call
 	let instantiate_exec = set_up_deployment(UpOpts {
-		path: Some(temp_dir.join("test_contract")),
+		path: temp_dir.join("test_contract"),
 		constructor: "new".to_string(),
 		args: ["false".to_string()].to_vec(),
 		value: "0".to_string(),
@@ -149,7 +149,7 @@ async fn contract_lifecycle() -> Result<()> {
 
 	// Dry runs
 	let call_opts = CallOpts {
-		path: Some(temp_dir.join("test_contract")),
+		path: temp_dir.join("test_contract"),
 		contract: contract_info.address.clone(),
 		message: "get".to_string(),
 		args: vec![],

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, DefaultEnvironment};
+use crate::{DefaultEnvironment, errors::Error};
 use contract_extrinsics::{ExtrinsicOpts, MapAccountCommandBuilder, MapAccountExec};
-use subxt::{ext::scale_encode::EncodeAsType, utils::H160, PolkadotConfig as DefaultConfig};
-use subxt_signer::{sr25519::Keypair, SecretUri};
+use subxt::{PolkadotConfig as DefaultConfig, ext::scale_encode::EncodeAsType, utils::H160};
+use subxt_signer::{SecretUri, sr25519::Keypair};
 
 /// A helper struct for performing account mapping operations.
 pub struct AccountMapper {

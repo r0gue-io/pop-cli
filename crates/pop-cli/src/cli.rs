@@ -662,6 +662,7 @@ pub(crate) mod tests {
 	}
 
 	/// Mock multi-select prompt
+	#[allow(dead_code)]
 	pub(crate) struct MockMultiSelect<T> {
 		required_expectation: Option<bool>,
 		items_expectation: Option<Vec<(String, String)>>,
@@ -720,6 +721,7 @@ pub(crate) mod tests {
 	}
 
 	/// Mock password prompt
+	#[allow(dead_code)]
 	#[derive(Default)]
 	struct MockPassword {
 		prompt: String,
@@ -732,6 +734,7 @@ pub(crate) mod tests {
 	}
 
 	/// Mock select prompt
+	#[allow(dead_code)]
 	pub(crate) struct MockSelect<T> {
 		items_expectation: Option<Vec<(String, String)>>,
 		collect: bool,
@@ -775,7 +778,10 @@ pub(crate) mod tests {
 			// Check expectations
 			if let Some(items) = self.items_expectation.as_mut() {
 				let item = (label.to_string(), hint.to_string());
-				assert!(items.contains(&item), "`{item:?}` item does not satisfy any expectations.\nAvailable expectations:\n{items:#?}");
+				assert!(
+					items.contains(&item),
+					"`{item:?}` item does not satisfy any expectations.\nAvailable expectations:\n{items:#?}"
+				);
 				items.retain(|x| *x != item);
 			}
 			// Collect if specified

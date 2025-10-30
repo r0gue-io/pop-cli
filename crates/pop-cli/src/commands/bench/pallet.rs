@@ -10,16 +10,16 @@ use crate::{
 		builds::guide_user_to_select_profile,
 		prompt::display_message,
 		runtime::{
-			ensure_runtime_binary_exists, guide_user_to_select_genesis_policy,
-			guide_user_to_select_genesis_preset, Feature,
+			Feature, ensure_runtime_binary_exists, guide_user_to_select_genesis_policy,
+			guide_user_to_select_genesis_preset,
 		},
 	},
 };
 use clap::Args;
 use cliclack::spinner;
 use pop_chains::{
-	generate_pallet_benchmarks, get_preset_names, load_pallet_extrinsics, GenesisBuilderPolicy,
-	PalletExtrinsicsRegistry, GENESIS_BUILDER_DEV_PRESET,
+	GENESIS_BUILDER_DEV_PRESET, GenesisBuilderPolicy, PalletExtrinsicsRegistry,
+	generate_pallet_benchmarks, load_pallet_extrinsics, utils::helpers::get_preset_names,
 };
 use pop_common::get_relative_or_absolute_path;
 use serde::{Deserialize, Serialize};
@@ -309,10 +309,8 @@ impl BenchmarkPallet {
 			},
 			None => true,
 		};
-		if invalid_runtime {
-			if let Err(e) = self.update_runtime_path(cli) {
-				return display_message(&e.to_string(), false, cli);
-			}
+		if invalid_runtime && let Err(e) = self.update_runtime_path(cli) {
+			return display_message(&e.to_string(), false, cli);
 		}
 
 		if self.list {
@@ -348,11 +346,11 @@ impl BenchmarkPallet {
 		}
 
 		// No pallet provided, prompts user to select the pallet fetched from runtime.
-		if self.pallets.is_empty() {
-			if let Err(e) = self.update_pallets(cli, &mut registry).await {
-				return display_message(&e.to_string(), false, cli);
-			};
-		}
+		if self.pallets.is_empty() &&
+			let Err(e) = self.update_pallets(cli, &mut registry).await
+		{
+			return display_message(&e.to_string(), false, cli);
+		};
 		// No extrinsic provided, prompts user to select the extrinsics fetched from runtime.
 		if self.extrinsic.is_none() {
 			self.update_extrinsics(cli, &mut registry).await?;
@@ -594,15 +592,15 @@ impl BenchmarkPallet {
 		if let Some(ref template) = self.template {
 			args.push(format!("--template={}", template.display()));
 		}
-		if self.output_analysis != default_values.output_analysis {
-			if let Some(ref output_analysis) = self.output_analysis {
-				args.push(format!("--output-analysis={}", output_analysis));
-			}
+		if self.output_analysis != default_values.output_analysis &&
+			let Some(ref output_analysis) = self.output_analysis
+		{
+			args.push(format!("--output-analysis={}", output_analysis));
 		}
-		if self.output_pov_analysis != default_values.output_pov_analysis {
-			if let Some(ref output_pov_analysis) = self.output_pov_analysis {
-				args.push(format!("--output-pov-analysis={}", output_pov_analysis));
-			}
+		if self.output_pov_analysis != default_values.output_pov_analysis &&
+			let Some(ref output_pov_analysis) = self.output_pov_analysis
+		{
+			args.push(format!("--output-pov-analysis={}", output_pov_analysis));
 		}
 		if let Some(ref heap_pages) = self.heap_pages {
 			args.push(format!("--heap-pages={}", heap_pages));
@@ -619,14 +617,14 @@ impl BenchmarkPallet {
 		{
 			args.push("--allow-missing-host-functions".to_string());
 		}
-		if self.genesis_builder != default_values.genesis_builder {
-			if let Some(ref genesis_builder) = self.genesis_builder {
-				args.push(format!("--genesis-builder={}", genesis_builder));
-				if genesis_builder == &GenesisBuilderPolicy::Runtime &&
-					self.genesis_builder_preset != default_values.genesis_builder_preset
-				{
-					args.push(format!("--genesis-builder-preset={}", self.genesis_builder_preset));
-				}
+		if self.genesis_builder != default_values.genesis_builder &&
+			let Some(ref genesis_builder) = self.genesis_builder
+		{
+			args.push(format!("--genesis-builder={}", genesis_builder));
+			if genesis_builder == &GenesisBuilderPolicy::Runtime &&
+				self.genesis_builder_preset != default_values.genesis_builder_preset
+			{
+				args.push(format!("--genesis-builder-preset={}", self.genesis_builder_preset));
 			}
 		}
 		args
@@ -640,9 +638,10 @@ impl BenchmarkPallet {
 	) -> anyhow::Result<()> {
 		if registry.is_empty() {
 			let runtime_path = self.runtime_binary()?;
-			let binary_path = check_omni_bencher_and_prompt(cli, self.skip_confirm).await?;
-
 			let spinner = spinner();
+			let binary_path =
+				check_omni_bencher_and_prompt(cli, &spinner, self.skip_confirm).await?;
+
 			spinner.start("Loading pallets and extrinsics from your runtime...");
 			let loaded_registry =
 				load_pallet_extrinsics(runtime_path, binary_path.as_path()).await?;
@@ -756,7 +755,10 @@ impl BenchmarkPallet {
 		for e in &self.exclude_extrinsics {
 			let splits = e.split("::").collect::<Vec<_>>();
 			if splits.len() != 2 {
-				return Err(anyhow::anyhow!("Invalid argument for '--exclude-extrinsics'. Expected format: 'pallet::extrinsic' but got '{}'", e));
+				return Err(anyhow::anyhow!(
+					"Invalid argument for '--exclude-extrinsics'. Expected format: 'pallet::extrinsic' but got '{}'",
+					e
+				));
 			}
 		}
 		Ok(())
@@ -1318,7 +1320,8 @@ mod tests {
 		cli::MockCli,
 		common::{
 			bench::source_omni_bencher_binary,
-			runtime::{get_mock_runtime, Feature::Benchmark},
+			helpers::with_current_dir,
+			runtime::{Feature::Benchmark, get_mock_runtime},
 		},
 	};
 	use anyhow::Ok;
@@ -1712,7 +1715,7 @@ mod tests {
 	async fn ensure_pallet_registry_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
 		let runtime_path = get_mock_runtime(Some(Benchmark));
-		check_omni_bencher_and_prompt(&mut cli, true).await?;
+		check_omni_bencher_and_prompt(&mut cli, &spinner(), true).await?;
 		let cmd = BenchmarkPallet { runtime_binary: Some(runtime_path), ..Default::default() };
 		let mut registry = PalletExtrinsicsRegistry::default();
 
@@ -1846,7 +1849,7 @@ mod tests {
 		// Load pallet registry if the registry is empty.
 		let mut cli =
 			MockCli::new().expect_confirm("Would you like to benchmark all pallets?", true);
-		check_omni_bencher_and_prompt(&mut cli, true).await?;
+		check_omni_bencher_and_prompt(&mut cli, &spinner(), true).await?;
 		let mut registry = PalletExtrinsicsRegistry::default();
 		BenchmarkPallet {
 			runtime_binary: Some(get_mock_runtime(Some(Benchmark))),
@@ -1897,7 +1900,7 @@ mod tests {
 	#[tokio::test]
 	async fn update_extrinsic_works() -> anyhow::Result<()> {
 		let pallet = "pallet_timestamp";
-		check_omni_bencher_and_prompt(&mut MockCli::new(), true).await?;
+		check_omni_bencher_and_prompt(&mut MockCli::new(), &spinner(), true).await?;
 		// Load pallet registry if the registry is empty.
 		let mut registry = PalletExtrinsicsRegistry::default();
 		BenchmarkPallet {
@@ -1947,7 +1950,7 @@ mod tests {
 			runtime_binary: Some(get_mock_runtime(Some(Benchmark))),
 			..Default::default()
 		};
-		check_omni_bencher_and_prompt(&mut cli, true).await?;
+		check_omni_bencher_and_prompt(&mut cli, &spinner(), true).await?;
 		let mut registry = PalletExtrinsicsRegistry::default();
 		cmd.update_excluded_pallets(&mut cli, &mut registry).await?;
 		assert!(!registry.is_empty());
@@ -1980,7 +1983,7 @@ mod tests {
 			runtime_binary: Some(get_mock_runtime(Some(Benchmark))),
 			..Default::default()
 		};
-		check_omni_bencher_and_prompt(&mut cli, true).await?;
+		check_omni_bencher_and_prompt(&mut cli, &spinner(), true).await?;
 		let mut registry = PalletExtrinsicsRegistry::default();
 		cmd.update_excluded_extrinsics(&mut cli, &mut registry).await?;
 		assert!(!registry.is_empty());
@@ -1998,15 +2001,50 @@ mod tests {
 	#[test]
 	fn update_runtime_path_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
-		let temp_path = temp_dir.keep();
+		let temp_path = temp_dir.into_path();
+
+		// Create workspace structure
+		let workspace_toml = temp_path.join("Cargo.toml");
+		fs::write(
+			&workspace_toml,
+			r#"[workspace]
+members = ["runtime"]
+resolver = "2"
+
+[workspace.package]
+name = "test-workspace"
+"#,
+		)?;
+
+		// Create runtime directory with Cargo.toml
+		let runtime_dir = temp_path.join("runtime");
+		fs::create_dir_all(runtime_dir.join("src"))?;
+		fs::write(
+			runtime_dir.join("Cargo.toml"),
+			r#"[package]
+name = "runtime"
+version = "0.1.0"
+
+[dependencies]
+
+[features]
+runtime-benchmarks = []
+"#,
+		)?;
+		fs::write(runtime_dir.join("src").join("lib.rs"), "fn main() {}")?;
+
+		// Create target directory structure with wasm binary
 		fs::create_dir(temp_path.join("target"))?;
-
 		let target_path = Profile::Debug.target_directory(temp_path.as_path());
-		fs::create_dir(target_path.clone())?;
+		fs::create_dir(&target_path)?;
+		let wbuild_path = target_path.join("wbuild").join("runtime");
+		fs::create_dir_all(&wbuild_path)?;
+		let binary_path = wbuild_path.join("runtime.wasm");
+		File::create(&binary_path)?;
 
-		// Input path to binary file.
-		let binary_path = target_path.join("runtime.wasm");
-		File::create(binary_path.as_path())?;
+		// Canonicalize the runtime path before setting up expectations
+		let canonicalized_runtime = runtime_dir.canonicalize()?;
+
 		let mut cli = MockCli::new()
 			.expect_select(
 				"Choose the build profile of the binary that should be used: ".to_string(),
@@ -2016,18 +2054,12 @@ mod tests {
 				0,
 				None,
 			)
-			.expect_warning(format!(
-				"No runtime folder found at {}. Please input the runtime path manually.",
-				get_current_directory().display()
-			))
-			.expect_input(
-				"Please specify the path to the runtime project or the runtime binary.",
-				binary_path.to_str().unwrap().to_string(),
-			);
+			.expect_info(format!("Using runtime at {}", canonicalized_runtime.display()));
+		let mut cmd = BenchmarkPallet { no_build: true, ..Default::default() };
+		let result = with_current_dir(&temp_path, || cmd.update_runtime_path(&mut cli));
 
-		let mut cmd = BenchmarkPallet::default();
-		assert!(cmd.update_runtime_path(&mut cli).is_ok());
-		assert_eq!(cmd.runtime, Some(binary_path.canonicalize()?));
+		assert!(result.is_ok(), "Failed to update runtime path: {:?}", result);
+		assert_eq!(cmd.runtime, Some(PathBuf::from("runtime")));
 		cli.verify()?;
 		Ok(())
 	}
@@ -2106,7 +2138,8 @@ mod tests {
 
 	async fn get_registry(cache_dir: &Path) -> anyhow::Result<PalletExtrinsicsRegistry> {
 		let runtime_path = get_mock_runtime(Some(Benchmark));
-		let binary_path = source_omni_bencher_binary(&mut MockCli::new(), cache_dir, true).await?;
+		let binary_path =
+			source_omni_bencher_binary(&mut MockCli::new(), &spinner(), cache_dir, true).await?;
 		Ok(load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?)
 	}
 

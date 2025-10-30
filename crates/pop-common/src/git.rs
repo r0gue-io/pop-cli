@@ -3,8 +3,8 @@
 use crate::{api::ApiClient, errors::Error, polkadot_sdk::parse_latest_tag};
 use anyhow::Result;
 use git2::{
-	build::RepoBuilder, FetchOptions, IndexAddOption, RemoteCallbacks, Repository as GitRepository,
-	ResetType,
+	FetchOptions, IndexAddOption, RemoteCallbacks, Repository as GitRepository, ResetType,
+	build::RepoBuilder,
 };
 use git2_credentials::CredentialHandler;
 use std::{fs, path::Path, sync::LazyLock};
@@ -192,11 +192,18 @@ impl GitHub {
 		Self { org: org.into(), name: name.into(), api: "https://api.github.com".into() }
 	}
 
-	// Overrides the api base url for testing
-	#[cfg(test)]
-	fn with_api(mut self, api: impl Into<String>) -> Self {
+	/// Overrides the api base URL.
+	pub fn with_api(mut self, api: impl Into<String>) -> Self {
 		self.api = api.into();
 		self
+	}
+
+	/// Fetches the latest release of the GitHub repository.
+	pub async fn latest_release(&self) -> Result<Release> {
+		let url = self.api_latest_release_url();
+		let response = GITHUB_API_CLIENT.get(url).await?;
+		let release = response.json().await?;
+		Ok(release)
 	}
 
 	/// Fetch the latest releases of the GitHub repository.
@@ -238,6 +245,10 @@ impl GitHub {
 			.map(|v| v.to_owned())
 			.ok_or(Error::Git("Unable to find license for GitHub repo".to_string()))?;
 		Ok(license)
+	}
+
+	fn api_latest_release_url(&self) -> String {
+		format!("{}/repos/{}/{}/releases/latest", self.api, self.org, self.name)
 	}
 
 	fn api_releases_url(&self) -> String {
@@ -344,6 +355,16 @@ mod tests {
 	const BASE_PARACHAIN: &str = "https://github.com/r0gue-io/base-parachain";
 	const POLKADOT_SDK: &str = "https://github.com/paritytech/polkadot-sdk";
 
+	async fn latest_release_mock(mock_server: &mut Server, repo: &GitHub, payload: &str) -> Mock {
+		mock_server
+			.mock("GET", format!("/repos/{}/{}/releases/latest", repo.org, repo.name).as_str())
+			.with_status(200)
+			.with_header("content-type", "application/json")
+			.with_body(payload)
+			.create_async()
+			.await
+	}
+
 	async fn releases_mock(mock_server: &mut Server, repo: &GitHub, payload: &str) -> Mock {
 		mock_server
 			.mock("GET", format!("/repos/{}/{}/releases", repo.org, repo.name).as_str())
@@ -431,6 +452,33 @@ mod tests {
 	}
 
 	#[tokio::test]
+	async fn test_get_latest_release() -> Result<(), Box<dyn std::error::Error>> {
+		let mut mock_server = Server::new_async().await;
+
+		let expected_payload = r#"{
+			"tag_name": "polkadot-v1.12.0",
+			"name": "Polkadot v1.12.0",
+			"prerelease": false,
+			"published_at": "2025-01-01T00:00:00Z"
+		  }"#;
+		let repo = GitHub::parse(BASE_PARACHAIN)?.with_api(mock_server.url());
+		let mock = latest_release_mock(&mut mock_server, &repo, expected_payload).await;
+		let latest_release = repo.latest_release().await?;
+		assert_eq!(
+			latest_release,
+			Release {
+				tag_name: "polkadot-v1.12.0".to_string(),
+				name: "Polkadot v1.12.0".into(),
+				prerelease: false,
+				commit: None,
+				published_at: "2025-01-01T00:00:00Z".to_string()
+			}
+		);
+		mock.assert_async().await;
+		Ok(())
+	}
+
+	#[tokio::test]
 	async fn get_releases_with_commit_sha() -> Result<(), Box<dyn std::error::Error>> {
 		let mut mock_server = Server::new_async().await;
 
@@ -478,6 +526,15 @@ mod tests {
 		assert_eq!(
 			GitHub::parse(POLKADOT_SDK)?.api_releases_url(),
 			"https://api.github.com/repos/paritytech/polkadot-sdk/releases"
+		);
+		Ok(())
+	}
+
+	#[test]
+	fn test_get_latest_release_api_url() -> Result<(), Box<dyn std::error::Error>> {
+		assert_eq!(
+			GitHub::parse(POLKADOT_SDK)?.api_latest_release_url(),
+			"https://api.github.com/repos/paritytech/polkadot-sdk/releases/latest"
 		);
 		Ok(())
 	}

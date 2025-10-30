@@ -25,6 +25,7 @@ url.workspace = true
 
 askama.workspace = true
 indexmap.workspace = true
+rustilities = { workspace = true, features = ["manifest"] }
 scale.workspace = true
 scale-info.workspace = true
 scale-value.workspace = true
@@ -33,6 +34,8 @@ srtool-lib.workspace = true
 symlink.workspace = true
 toml_edit.workspace = true
 walkdir.workspace = true
+cumulus-client-cli.workspace = true
+
 # Zombienet
 zombienet-configuration.workspace = true
 zombienet-sdk.workspace = true

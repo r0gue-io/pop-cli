@@ -2,8 +2,8 @@
 
 use crate::{
 	cli::{
-		traits::{Cli as _, Confirm},
 		Cli,
+		traits::{Cli as _, Confirm},
 	},
 	commands::call::contract::CallContractCommand,
 	common::{
@@ -17,17 +17,17 @@ use crate::{
 	style::style,
 };
 use clap::Args;
-use cliclack::{spinner, ProgressBar};
+use cliclack::{ProgressBar, spinner};
 use console::{Emoji, Style};
 #[cfg(feature = "contract")]
 use pop_contracts::{
-	build_smart_contract, dry_run_gas_estimate_instantiate, dry_run_upload, get_contract_code,
-	get_instantiate_payload, get_upload_payload, instantiate_contract_signed,
-	instantiate_smart_contract, is_chain_alive, parse_hex_bytes, run_contracts_node,
-	set_up_deployment, set_up_upload, upload_contract_signed, upload_smart_contract, Bytes, UpOpts,
-	Verbosity, Weight,
+	Bytes, UpOpts, Verbosity, Weight, build_smart_contract, dry_run_gas_estimate_instantiate,
+	dry_run_upload, get_contract_code, get_instantiate_payload, get_upload_payload,
+	instantiate_contract_signed, instantiate_smart_contract, is_chain_alive, parse_hex_bytes,
+	run_contracts_node, set_up_deployment, set_up_upload, upload_contract_signed,
+	upload_smart_contract,
 };
-use pop_contracts::{extract_function, FunctionType};
+use pop_contracts::{FunctionType, extract_function};
 use sp_core::bytes::to_hex;
 use std::path::PathBuf;
 use tempfile::NamedTempFile;
@@ -43,7 +43,7 @@ const HELP_HEADER: &str = "Smart contract deployment options";
 pub struct UpContractCommand {
 	/// Path to the contract build directory.
 	#[clap(skip)]
-	pub(crate) path: Option<PathBuf>,
+	pub(crate) path: PathBuf,
 	/// The name of the contract constructor to call.
 	#[clap(short, long, default_value = "new")]
 	pub(crate) constructor: String,
@@ -95,6 +95,10 @@ pub struct UpContractCommand {
 	/// confirmation.
 	#[clap(short = 'y', long)]
 	pub(crate) skip_confirm: bool,
+	/// Skip building the contract before deployment.
+	/// If the contract is not built, it will be built regardless.
+	#[clap(long)]
+	pub(crate) skip_build: bool,
 }
 
 impl UpContractCommand {
@@ -102,17 +106,15 @@ impl UpContractCommand {
 	pub(crate) async fn execute(mut self) -> anyhow::Result<()> {
 		Cli.intro("Deploy a smart contract")?;
 		// Check if build exists in the specified "Contract build directory"
-		if !has_contract_been_built(self.path.as_deref()) {
+		let contract_already_built = has_contract_been_built(&self.path);
+		if !self.skip_build || !contract_already_built {
 			// Build the contract in release mode
-			Cli.warning("NOTE: contract has not yet been built.")?;
+			if !contract_already_built {
+				Cli.warning("NOTE: contract has not yet been built.")?;
+			}
 			let spinner = spinner();
 			spinner.start("Building contract in RELEASE mode...");
-			let result = match build_smart_contract(
-				self.path.as_deref(),
-				true,
-				Verbosity::Quiet,
-				None,
-			) {
+			let result = match build_smart_contract(&self.path, true, Verbosity::Quiet, None) {
 				Ok(result) => result,
 				Err(e) => {
 					Cli.outro_cancel(format!("🚫 An error occurred building your contract: {e}\nUse `pop build` to retry with build output."))?;
@@ -136,8 +138,8 @@ impl UpContractCommand {
 
 				if !Cli
 					.confirm(format!(
-					"{chain} Would you like to start a local node in the background for testing?",
-				))
+						"{chain} Would you like to start a local node in the background for testing?",
+					))
 					.initial_value(true)
 					.interact()?
 				{
@@ -152,10 +154,12 @@ impl UpContractCommand {
 			self.url = Url::parse(urls::LOCAL).expect("default url is valid");
 
 			let log = NamedTempFile::new()?;
+			let spinner = spinner();
 
 			// uses the cache location
 			let binary_path = match check_contracts_node_and_prompt(
 				&mut Cli,
+				&spinner,
 				&crate::cache()?,
 				self.skip_confirm,
 			)
@@ -170,7 +174,6 @@ impl UpContractCommand {
 				},
 			};
 
-			let spinner = spinner();
 			spinner.start("Starting local node...");
 
 			let process =
@@ -304,11 +307,8 @@ impl UpContractCommand {
 			return Ok(());
 		}
 
-		let function = extract_function(
-			self.path.clone().unwrap_or_else(|| PathBuf::from("./")),
-			&self.constructor,
-			FunctionType::Constructor,
-		)?;
+		let function =
+			extract_function(self.path.clone(), &self.constructor, FunctionType::Constructor)?;
 		if self.args.is_empty() && !function.args.is_empty() {
 			self.args = request_contract_function_args(&function, &mut Cli)?;
 		}
@@ -372,7 +372,7 @@ impl UpContractCommand {
 			.interact()?
 		{
 			let mut cmd = CallContractCommand::default();
-			cmd.path_pos = self.path.clone();
+			cmd.path_pos = Some(self.path.clone());
 			cmd.contract = Some(address);
 			cmd.url = self.url;
 			cmd.deployed = true;
@@ -418,7 +418,7 @@ impl UpContractCommand {
 
 	// get the call data and contract code hash
 	async fn get_contract_data(&self) -> anyhow::Result<(Vec<u8>, [u8; 32])> {
-		let contract_code = get_contract_code(self.path.as_ref())?;
+		let contract_code = get_contract_code(&self.path)?;
 		let hash = contract_code.code_hash();
 		if self.upload_only {
 			let upload_exec = set_up_upload(self.clone().into()).await?;
@@ -480,7 +480,7 @@ fn display_contract_info(spinner: &ProgressBar, address: String, code_hash: Opti
 impl Default for UpContractCommand {
 	fn default() -> Self {
 		Self {
-			path: None,
+			path: PathBuf::from("./"),
 			constructor: "new".to_string(),
 			args: vec![],
 			value: "0".to_string(),
@@ -493,6 +493,7 @@ impl Default for UpContractCommand {
 			dry_run: false,
 			upload_only: false,
 			skip_confirm: false,
+			skip_build: false,
 		}
 	}
 }
@@ -509,7 +510,7 @@ mod tests {
 		assert_eq!(
 			opts,
 			UpOpts {
-				path: None,
+				path: PathBuf::from("./"),
 				constructor: "new".to_string(),
 				args: vec![],
 				value: "0".to_string(),

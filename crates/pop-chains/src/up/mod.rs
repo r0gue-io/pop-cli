@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, registry::traits::Rollup, up::chain_specs::Runtime};
+use crate::{
+	errors::Error, omni_node::PolkadotOmniNodeCli::PolkadotOmniNode, registry::traits::Rollup,
+	up::chain_specs::Runtime,
+};
 pub use chain_specs::Runtime as Relay;
 use glob::glob;
 use indexmap::IndexMap;
+use pop_common::sourcing::traits::{Source as _, enums::Source as _};
 pub use pop_common::{
+	Profile,
 	git::{GitHub, Repository},
 	sourcing::{Binary, GitHub::*, Source, Source::*},
-	Profile,
 };
 use std::{
 	collections::BTreeSet,
@@ -19,8 +23,8 @@ use strum::VariantArray;
 use symlink::{remove_symlink_file, symlink_file};
 use toml_edit::DocumentMut;
 use zombienet_configuration::{
-	shared::node::{Buildable, Initial, NodeConfigBuilder},
 	NodeConfig,
+	shared::node::{Buildable, Initial, NodeConfigBuilder},
 };
 pub use zombienet_sdk::NetworkConfigBuilder;
 use zombienet_sdk::{LocalFileSystem, Network, NetworkConfig, NetworkConfigExt};
@@ -184,11 +188,11 @@ impl Zombienet {
 			}
 
 			// Check if parachain binary source specified as an argument
-			if let Some(parachains) = parachains.as_ref() {
-				if let Some(repo) = parachains.iter().find(|r| command == r.package) {
-					paras.insert(id, Chain::from_repository(id, repo, chain, cache)?);
-					continue 'outer;
-				}
+			if let Some(parachains) = parachains.as_ref() &&
+				let Some(repo) = parachains.iter().find(|r| command == r.package)
+			{
+				paras.insert(id, Chain::from_repository(id, repo, chain, cache)?);
+				continue 'outer;
 			}
 
 			// Check if command references a local binary
@@ -209,6 +213,12 @@ impl Zombienet {
 				}
 				return Err(Error::MissingBinary(command));
 			}
+
+			if command.starts_with(PolkadotOmniNode.binary()) {
+				paras.insert(id, Chain::from_omni_node(id, cache)?);
+				continue 'outer;
+			}
+
 			return Err(Error::MissingBinary(command));
 		}
 		Ok(paras)
@@ -237,12 +247,12 @@ impl Zombienet {
 				relay::from(default_command, version, runtime_version, chain, cache).await?;
 			// Validate any node config is supported
 			for node in relay_chain.nodes() {
-				if let Some(command) = node.command().map(|c| c.as_str()) {
-					if command.to_lowercase() != relay.binary.name() {
-						return Err(Error::UnsupportedCommand(format!(
-							"the relay chain command is unsupported: {command}",
-						)));
-					}
+				if let Some(command) = node.command().map(|c| c.as_str()) &&
+					command.to_lowercase() != relay.binary.name()
+				{
+					return Err(Error::UnsupportedCommand(format!(
+						"the relay chain command is unsupported: {command}",
+					)));
 				}
 			}
 			return Ok(relay);
@@ -779,6 +789,19 @@ impl Chain {
 			})
 		}
 	}
+
+	fn from_omni_node(id: u32, cache: &Path) -> Result<Chain, Error> {
+		Ok(Chain {
+			id,
+			binary: Binary::Source {
+				name: PolkadotOmniNode.binary().to_string(),
+				source: Box::new(PolkadotOmniNode.source()?),
+				cache: cache.to_path_buf(),
+			},
+			chain: None,
+			chain_spec_generator: None,
+		})
+	}
 }
 
 /// Attempts to resolve the package manifest from the specified path.
@@ -848,10 +871,10 @@ mod tests {
 	use anyhow::Result;
 	use std::{
 		env::current_dir,
-		fs::{create_dir_all, remove_dir, remove_file, File},
+		fs::{File, create_dir_all, remove_dir, remove_file},
 		io::Write,
 	};
-	use tempfile::{tempdir, Builder};
+	use tempfile::{Builder, tempdir};
 
 	pub(crate) const FALLBACK: &str = "stable2412";
 	pub(crate) const RELAY_BINARY_VERSION: &str = "stable2412-4";
@@ -1803,11 +1826,11 @@ validator = true
 		use super::{Relay::*, *};
 		use crate::registry::rollups;
 		use std::{
-			fs::{create_dir_all, File},
+			fs::{File, create_dir_all},
 			io::Write,
 			path::PathBuf,
 		};
-		use tempfile::{tempdir, Builder};
+		use tempfile::{Builder, tempdir};
 
 		#[test]
 		fn initializing_from_file_fails_when_missing() {
@@ -1969,17 +1992,23 @@ chain = "paseo-local"
 				assert_eq!(channels.len(), rollups.len() * (rollups.len() - 1));
 				for rollup in rollups.iter() {
 					for other in rollups.iter().filter(|r| r.id() != rollup.id()) {
-						assert!(channels
-							.iter()
-							.any(|c| c.sender() == rollup.id() && c.recipient() == other.id()));
-						assert!(channels
-							.iter()
-							.any(|c| c.sender() == other.id() && c.recipient() == rollup.id()));
+						assert!(
+							channels
+								.iter()
+								.any(|c| c.sender() == rollup.id() && c.recipient() == other.id())
+						);
+						assert!(
+							channels
+								.iter()
+								.any(|c| c.sender() == other.id() && c.recipient() == rollup.id())
+						);
 					}
 				}
-				assert!(channels
-					.iter()
-					.all(|c| c.max_capacity() == 1000 && c.max_message_size() == 8000));
+				assert!(
+					channels
+						.iter()
+						.all(|c| c.max_capacity() == 1000 && c.max_message_size() == 8000)
+				);
 			}
 			Ok(())
 		}

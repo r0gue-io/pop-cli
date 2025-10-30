@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use super::{chain_specs::chain_spec_generator, Binary, Relay};
-use crate::{registry, registry::System, traits::Binary as BinaryT, Error};
+use super::{Binary, Relay, chain_specs::chain_spec_generator};
+use crate::{Error, registry, registry::System, traits::Binary as BinaryT};
 use pop_common::sourcing::{filters::prefix, traits::*};
 use std::path::Path;
 
@@ -88,17 +88,19 @@ mod tests {
 
 	#[tokio::test]
 	async fn system_matches_command() -> anyhow::Result<()> {
-		assert!(system(
-			1000,
-			"polkadot",
-			None,
-			None,
-			RELAY_BINARY_VERSION,
-			Some("asset-hub-paseo-local"),
-			tempdir()?.path()
-		)
-		.await?
-		.is_none());
+		assert!(
+			system(
+				1000,
+				"polkadot",
+				None,
+				None,
+				RELAY_BINARY_VERSION,
+				Some("asset-hub-paseo-local"),
+				tempdir()?.path()
+			)
+			.await?
+			.is_none()
+		);
 		Ok(())
 	}
 
@@ -241,9 +243,11 @@ mod tests {
 
 	#[tokio::test]
 	async fn from_handles_unsupported_command() -> anyhow::Result<()> {
-		assert!(from(&Relay::Paseo, 2000, "none", None, None, &PathBuf::default())
-			.await?
-			.is_none());
+		assert!(
+			from(&Relay::Paseo, 2000, "none", None, None, &PathBuf::default())
+				.await?
+				.is_none()
+		);
 		Ok(())
 	}
 }

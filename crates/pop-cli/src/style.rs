@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use cliclack::ThemeState;
-pub(crate) use console::style;
 use console::Style;
+pub(crate) use console::style;
 
 pub(crate) fn get_styles() -> clap::builder::Styles {
 	use clap::builder::styling::{AnsiColor, Color, Style};
@@ -50,11 +50,7 @@ pub(crate) fn format_url(url: &str) -> String {
 /// Formats the step label if steps should be shown.
 #[cfg(feature = "chain")]
 pub(crate) fn format_step_prefix(current: usize, total: usize, show: bool) -> String {
-	if show {
-		format!("[{}/{}]: ", current, total)
-	} else {
-		Default::default()
-	}
+	if show { format!("[{}/{}]: ", current, total) } else { Default::default() }
 }
 
 #[cfg(test)]

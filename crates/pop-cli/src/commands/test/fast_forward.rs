@@ -8,10 +8,10 @@ use crate::{
 	common::{
 		prompt::display_message,
 		try_runtime::{
+			ArgumentConstructor, BuildRuntimeParams, DEFAULT_BLOCK_TIME,
 			check_try_runtime_and_prompt, collect_args, collect_shared_arguments,
 			collect_state_arguments, guide_user_to_select_try_state, partition_arguments,
-			update_runtime_source, update_state_source, ArgumentConstructor, BuildRuntimeParams,
-			DEFAULT_BLOCK_TIME,
+			update_runtime_source, update_state_source,
 		},
 	},
 };
@@ -19,10 +19,9 @@ use clap::Args;
 use cliclack::spinner;
 use console::style;
 use pop_chains::{
-	parse_try_state_string, run_try_runtime,
+	SharedParams, TryRuntimeCliCommand, parse_try_state_string, run_try_runtime,
 	state::{LiveState, State, StateCommand},
 	try_runtime::TryStateSelect,
-	SharedParams, TryRuntimeCliCommand,
 };
 
 // Custom arguments which are not in `try-runtime fast-forward`.
@@ -148,7 +147,8 @@ impl TestFastForwardCommand {
 		cli: &mut impl cli::traits::Cli,
 		user_provided_args: &[String],
 	) -> anyhow::Result<()> {
-		let binary_path = check_try_runtime_and_prompt(cli, self.build_params.skip_confirm).await?;
+		let binary_path =
+			check_try_runtime_and_prompt(cli, &spinner(), self.build_params.skip_confirm).await?;
 		cli.warning("NOTE: this may take some time...")?;
 		let spinner = spinner();
 		match self.state {
@@ -189,7 +189,7 @@ impl TestFastForwardCommand {
 			args,
 			&CUSTOM_ARGS,
 		)?;
-		spinner.stop("");
+		spinner.clear();
 		Ok(())
 	}
 
@@ -241,15 +241,15 @@ mod tests {
 	use crate::{
 		cli::MockCli,
 		common::{
-			runtime::{get_mock_runtime, Feature},
+			runtime::{Feature, get_mock_runtime},
 			try_runtime::{
-				get_mock_snapshot, get_subcommands, get_try_state_items, source_try_runtime_binary,
-				DEFAULT_BLOCK_TIME,
+				DEFAULT_BLOCK_TIME, get_mock_snapshot, get_subcommands, get_try_state_items,
+				source_try_runtime_binary,
 			},
 			urls,
 		},
 	};
-	use pop_chains::{state::LiveState, Runtime};
+	use pop_chains::{Runtime, state::LiveState};
 	use pop_common::Profile;
 
 	#[tokio::test]
@@ -273,21 +273,26 @@ mod tests {
 				0,
 				None,
 			)
-			.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
-			.expect_input(
-				"Please specify the path to the runtime project or the runtime binary.",
-				get_mock_runtime(Some(Feature::TryRuntime)).to_str().unwrap().to_string(),
-			)
-			.expect_input("How many empty blocks should be processed?", "10".to_string())
-			.expect_confirm("Do you want to run pending migrations before fast-forwarding?", true)
-			.expect_select(
-				"Select source of runtime state:",
-				Some(true),
-				true,
-				Some(get_subcommands()),
-				0, // live
-				None,
-			)
+ 		.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
+ 		.expect_warning(format!(
+ 			"No runtime folder found at {}. Please input the runtime path manually.",
+ 			std::env::current_dir()?.display()
+ 		))
+ 		.expect_input(
+ 			"Please, specify the path to the runtime project or the runtime binary.",
+ 			get_mock_runtime(Some(Feature::TryRuntime)).to_str().unwrap().to_string(),
+ 		)
+ 		.expect_info(format!("Using runtime at {}", get_mock_runtime(Some(Feature::TryRuntime)).display()))
+ 		.expect_input("How many empty blocks should be processed?", "10".to_string())
+ 		.expect_confirm("Do you want to run pending migrations before fast-forwarding?", true)
+ 		.expect_select(
+ 			"Select source of runtime state:",
+ 			Some(true),
+ 			true,
+ 			Some(get_subcommands()),
+ 			0, // live
+ 			None,
+ 		)
 			.expect_input("Enter the live chain of your node:", urls::LOCAL.to_string())
 			.expect_input("Enter the block hash (optional):", String::default())
 			.expect_select(
@@ -312,7 +317,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn fast_forward_snapshot_works() -> anyhow::Result<()> {
-		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
+		source_try_runtime_binary(&mut MockCli::new(), &spinner(), &crate::cache()?, true).await?;
 		let mut cmd = TestFastForwardCommand::default();
 		cmd.build_params.no_build = true;
 		let mut cli = MockCli::new()
@@ -332,21 +337,26 @@ mod tests {
 				0,
 				None,
 			)
-			.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
-			.expect_input(
-				"Please specify the path to the runtime project or the runtime binary.",
-				get_mock_runtime(Some(Feature::TryRuntime)).to_str().unwrap().to_string(),
-			)
-			.expect_input("How many empty blocks should be processed?", "10".to_string())
-			.expect_confirm("Do you want to run pending migrations before fast-forwarding?", true)
-			.expect_select(
-				"Select source of runtime state:",
-				Some(true),
-				true,
-				Some(get_subcommands()),
-				1, // snap
-				None,
-			)
+ 		.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
+ 		.expect_warning(format!(
+ 			"No runtime folder found at {}. Please input the runtime path manually.",
+ 			std::env::current_dir()?.display()
+ 		))
+ 		.expect_input(
+ 			"Please, specify the path to the runtime project or the runtime binary.",
+ 			get_mock_runtime(Some(Feature::TryRuntime)).to_str().unwrap().to_string(),
+ 		)
+ 		.expect_info(format!("Using runtime at {}", get_mock_runtime(Some(Feature::TryRuntime)).display()))
+ 		.expect_input("How many empty blocks should be processed?", "10".to_string())
+ 		.expect_confirm("Do you want to run pending migrations before fast-forwarding?", true)
+ 		.expect_select(
+ 			"Select source of runtime state:",
+ 			Some(true),
+ 			true,
+ 			Some(get_subcommands()),
+ 			1, // snap
+ 			None,
+ 		)
 			.expect_input(
 				format!(
 					"Enter path to your snapshot file?\n{}.",
@@ -380,7 +390,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn fast_forward_invalid_live_uri() -> anyhow::Result<()> {
-		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
+		source_try_runtime_binary(&mut MockCli::new(), &spinner(), &crate::cache()?, true).await?;
 		let mut cmd = TestFastForwardCommand {
 			state: Some(State::Live(LiveState {
 				uri: Some("https://example.com".to_string()),

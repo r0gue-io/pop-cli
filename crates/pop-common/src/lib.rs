@@ -8,11 +8,7 @@ use assert_cmd::cargo::cargo_bin;
 pub use build::Profile;
 pub use errors::Error;
 pub use git::{Git, GitHub, Release};
-pub use helpers::{
-	get_project_name_from_path, get_relative_or_absolute_path, prefix_with_current_dir_if_needed,
-	replace_in_file,
-};
-pub use manifest::{add_crate_to_workspace, find_workspace_toml};
+pub use helpers::{get_project_name_from_path, get_relative_or_absolute_path, replace_in_file};
 pub use metadata::format_type;
 pub use signer::create_signer;
 pub use sourcing::set_executable_permission;
@@ -75,22 +71,34 @@ pub fn target() -> Result<&'static str, Error> {
 	}
 
 	match ARCH {
-		"aarch64" =>
+		"aarch64" => {
 			return match OS {
 				"macos" => Ok("aarch64-apple-darwin"),
 				_ => Ok("aarch64-unknown-linux-gnu"),
-			},
-		"x86_64" | "x86" =>
+			};
+		},
+		"x86_64" | "x86" => {
 			return match OS {
 				"macos" => Ok("x86_64-apple-darwin"),
 				_ => Ok("x86_64-unknown-linux-gnu"),
-			},
+			};
+		},
 		&_ => {},
 	}
 	Err(Error::UnsupportedPlatform { arch: ARCH, os: OS })
 }
 
 #[cfg(feature = "integration-tests")]
+/// Creates a new Command instance for running the `pop` binary in integration tests.
+///
+/// # Arguments
+///
+/// * `dir` - The working directory where the command will be executed.
+/// * `args` - An iterator of arguments to pass to the command.
+///
+/// # Returns
+///
+/// A new Command instance configured to run the pop binary with the specified arguments
 pub fn pop(dir: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Command {
 	let mut command = Command::new(cargo_bin("pop"));
 	command.current_dir(dir).args(args);
@@ -101,10 +109,10 @@ pub fn pop(dir: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Com
 /// Checks if preferred port is available, otherwise returns a random available port.
 pub fn find_free_port(preferred_port: Option<u16>) -> u16 {
 	// Try to bind to preferred port if provided.
-	if let Some(port) = preferred_port {
-		if TcpListener::bind(format!("127.0.0.1:{}", port)).is_ok() {
-			return port;
-		}
+	if let Some(port) = preferred_port &&
+		TcpListener::bind(format!("127.0.0.1:{}", port)).is_ok()
+	{
+		return port;
 	}
 
 	// Else, fallback to a random available port

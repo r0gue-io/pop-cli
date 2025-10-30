@@ -6,9 +6,9 @@
 
 use anyhow::Result;
 use pop_chains::{
-	construct_extrinsic, construct_proxy_extrinsic, decode_call_data, encode_call_data,
-	field_to_param, find_dispatchable_by_name, find_pallet_by_name, parse_chain_metadata,
-	set_up_client, sign_and_submit_extrinsic, Error, Function, Payload,
+	Error, Function, Payload, construct_extrinsic, construct_proxy_extrinsic, decode_call_data,
+	encode_call_data, field_to_param, find_callable_by_name, find_pallet_by_name,
+	parse_chain_metadata, set_up_client, sign_and_submit_extrinsic,
 };
 use pop_common::test_env::TestNode;
 use url::Url;
@@ -20,7 +20,8 @@ const POLKADOT_NETWORK_URL: &str = "wss://polkadot-rpc.publicnode.com";
 async fn construct_proxy_extrinsic_work() -> Result<()> {
 	let client = set_up_client(POLKADOT_NETWORK_URL).await?;
 	let pallets = parse_chain_metadata(&client)?;
-	let remark_dispatchable = find_dispatchable_by_name(&pallets, "System", "remark")?;
+	let call_item = find_callable_by_name(&pallets, "System", "remark")?;
+	let remark_dispatchable = call_item.as_function().unwrap();
 	let remark = construct_extrinsic(remark_dispatchable, ["0x11".to_string()].to_vec())?;
 	let xt = construct_proxy_extrinsic(
 		&pallets,
@@ -41,7 +42,8 @@ async fn encode_and_decode_call_data_works() -> Result<()> {
 	let node = TestNode::spawn().await?;
 	let client = set_up_client(node.ws_url()).await?;
 	let pallets = parse_chain_metadata(&client)?;
-	let remark = find_dispatchable_by_name(&pallets, "System", "remark")?;
+	let call_item = find_callable_by_name(&pallets, "System", "remark")?;
+	let remark = call_item.as_function().unwrap();
 	let xt = construct_extrinsic(remark, vec!["0x11".to_string()])?;
 	assert_eq!(encode_call_data(&client, &xt)?, "0x00000411");
 	assert_eq!(decode_call_data("0x00000411")?, xt.encode_call_data(&client.metadata())?);
@@ -123,15 +125,19 @@ async fn find_dispatchable_by_name_works() -> Result<()> {
 	let client = set_up_client(node.ws_url()).await?;
 	let pallets = parse_chain_metadata(&client)?;
 	assert!(matches!(
-        find_dispatchable_by_name(&pallets, "WrongName", "wrong_name"),
+        find_callable_by_name(&pallets, "WrongName", "wrong_name"),
         Err(Error::PalletNotFound(pallet)) if pallet == *"WrongName"));
 	assert!(matches!(
-		find_dispatchable_by_name(&pallets, "Balances", "wrong_name"),
-		Err(Error::FunctionNotSupported)
+		find_callable_by_name(&pallets, "Balances", "wrong_name"),
+		Err(Error::FunctionNotFound(_))
 	));
-	let function = find_dispatchable_by_name(&pallets, "Balances", "force_transfer")?;
+	let call_item = find_callable_by_name(&pallets, "Balances", "force_transfer")?;
+	let function = call_item.as_function().unwrap();
 	assert_eq!(function.name, "force_transfer");
-	assert_eq!(function.docs, "Exactly as `transfer_allow_death`, except the origin must be root and the source account may be specified.");
+	assert_eq!(
+		function.docs,
+		"Exactly as `transfer_allow_death`, except the origin must be root and the source account may be specified."
+	);
 	assert!(function.is_supported);
 	assert_eq!(function.params.len(), 3);
 	Ok(())
@@ -154,7 +160,10 @@ async fn field_to_param_works() -> Result<()> {
 	}
 	assert_eq!(params.len(), 3);
 	assert_eq!(params.first().unwrap().name, "source");
-	assert_eq!(params.first().unwrap().type_name, "MultiAddress<AccountId32 ([u8;32]),()>: Id(AccountId32 ([u8;32])), Index(Compact<()>), Raw([u8]), Address32([u8;32]), Address20([u8;20])");
+	assert_eq!(
+		params.first().unwrap().type_name,
+		"MultiAddress<AccountId32 ([u8;32]),()>: Id(AccountId32 ([u8;32])), Index(Compact<()>), Raw([u8]), Address32([u8;32]), Address20([u8;20])"
+	);
 	assert_eq!(params.first().unwrap().sub_params.len(), 5);
 	assert_eq!(params.first().unwrap().sub_params.first().unwrap().name, "Id");
 	assert_eq!(params.first().unwrap().sub_params.first().unwrap().type_name, "");
@@ -188,7 +197,7 @@ async fn field_to_param_works() -> Result<()> {
 	let function = metadata.pallet_by_name("Sudo").unwrap().call_variant_by_name("sudo").unwrap();
 	assert!(matches!(
 		field_to_param(&metadata, function.fields.first().unwrap()),
-		Err(Error::FunctionNotSupported)
+		Err(Error::CallableNotSupported)
 	));
 	let function = metadata
 		.pallet_by_name("Utility")
@@ -197,7 +206,7 @@ async fn field_to_param_works() -> Result<()> {
 		.unwrap();
 	assert!(matches!(
 		field_to_param(&metadata, function.fields.first().unwrap()),
-		Err(Error::FunctionNotSupported)
+		Err(Error::CallableNotSupported)
 	));
 
 	Ok(())

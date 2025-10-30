@@ -1,19 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use pop_common::{
+	Error,
 	git::GitHub,
 	polkadot_sdk::sort_by_latest_semantic_version,
 	sourcing::{
-		filters::prefix,
-		traits::{
-			enums::{Source as _, *},
-			Source as SourceT,
-		},
 		ArchiveFileSpec, Binary,
 		GitHub::*,
 		Source,
+		filters::prefix,
+		traits::{
+			Source as SourceT,
+			enums::{Source as _, *},
+		},
 	},
-	target, Error,
+	target,
 };
 use std::path::PathBuf;
 use strum_macros::EnumProperty;

@@ -4,7 +4,7 @@ use crate::errors::Error;
 use contract_extrinsics::ContractArtifacts;
 use contract_transcode::ink_metadata::MessageParamSpec;
 use pop_common::format_type;
-use scale_info::{form::PortableForm, PortableRegistry};
+use scale_info::{PortableRegistry, form::PortableForm};
 use std::path::Path;
 
 /// Describes a parameter.
@@ -64,6 +64,15 @@ where
 	get_contract_functions(path.as_ref(), FunctionType::Constructor)
 }
 
+fn collapse_docs(docs: &[String]) -> String {
+	docs.iter()
+		.map(|s| if s.is_empty() { " " } else { s })
+		.collect::<Vec<_>>()
+		.join("")
+		.trim()
+		.to_string()
+}
+
 /// Extracts a list of smart contract functions (messages or constructors) parsing the contract
 /// artifact.
 ///
@@ -94,7 +103,7 @@ fn get_contract_functions(
 				mutates: message.mutates(),
 				payable: message.payable(),
 				args: process_args(message.args(), metadata.registry()),
-				docs: message.docs().join(" "),
+				docs: collapse_docs(message.docs()),
 				default: message.default(),
 			})
 			.collect(),
@@ -106,7 +115,7 @@ fn get_contract_functions(
 				label: constructor.label().to_string(),
 				payable: constructor.payable(),
 				args: process_args(constructor.args(), metadata.registry()),
-				docs: constructor.docs().join(" "),
+				docs: collapse_docs(constructor.docs()),
 				default: constructor.default(),
 				mutates: true,
 			})
@@ -229,11 +238,17 @@ mod tests {
 		fn assert_contract_metadata_parsed(message: Vec<ContractFunction>) -> Result<()> {
 			assert_eq!(message.len(), 3);
 			assert_eq!(message[0].label, "flip");
-			assert_eq!(message[0].docs, " A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.");
+			assert_eq!(
+				message[0].docs,
+				"A message that can be called on instantiated contracts. This one flips the value of the stored `bool` from `true` to `false` and vice versa."
+			);
 			assert_eq!(message[1].label, "get");
-			assert_eq!(message[1].docs, " Simply returns the current value of our `bool`.");
+			assert_eq!(message[1].docs, "Simply returns the current value of our `bool`.");
 			assert_eq!(message[2].label, "specific_flip");
-			assert_eq!(message[2].docs, " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable");
+			assert_eq!(
+				message[2].docs,
+				"A message for testing, flips the value of the stored `bool` with `new_value` and is payable"
+			);
 			// assert parsed arguments
 			assert_eq!(message[2].args.len(), 2);
 			assert_eq!(message[2].args[0].label, "new_value".to_string());
@@ -274,7 +289,10 @@ mod tests {
 			Err(Error::InvalidMessageName(name)) if name == *"wrong_flip"));
 		let message = get_message(temp_dir.path().join("testing"), "specific_flip")?;
 		assert_eq!(message.label, "specific_flip");
-		assert_eq!(message.docs, " A message for testing, flips the value of the stored `bool` with `new_value`  and is payable");
+		assert_eq!(
+			message.docs,
+			"A message for testing, flips the value of the stored `bool` with `new_value` and is payable"
+		);
 		// assert parsed arguments
 		assert_eq!(message.args.len(), 2);
 		assert_eq!(message.args[0].label, "new_value".to_string());
@@ -303,7 +321,7 @@ mod tests {
 		assert_eq!(constructor[1].label, "default");
 		assert_eq!(
 			constructor[1].docs,
-			"Constructor that initializes the `bool` value to `false`.  Constructors can delegate to other constructors."
+			"Constructor that initializes the `bool` value to `false`. Constructors can delegate to other constructors."
 		);
 		// assert parsed arguments
 		assert_eq!(constructor[0].args.len(), 1);
@@ -333,7 +351,7 @@ mod tests {
 		assert_eq!(constructor.label, "default");
 		assert_eq!(
 			constructor.docs,
-			"Constructor that initializes the `bool` value to `false`.  Constructors can delegate to other constructors."
+			"Constructor that initializes the `bool` value to `false`. Constructors can delegate to other constructors."
 		);
 		// assert parsed arguments
 		assert_eq!(constructor.args.len(), 2);

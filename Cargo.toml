@@ -13,11 +13,11 @@ resolver = "2"
 members = ["crates/*"]
 
 [workspace.package]
-edition = "2021"
+edition = "2024"
 documentation = "https://learn.onpop.io/"
 license = "GPL-3.0"
 repository = "https://github.com/r0gue-io/pop-cli"
-rust-version = "1.89.0"
+rust-version = "1.90"
 version = "0.10.0"
 
 [workspace.dependencies]
@@ -25,6 +25,7 @@ anyhow = { version = "1.0", default-features = false }
 assert_cmd = { version = "2.0.14", default-features = false }
 bytes = { version = "1.10.1", default-features = false }
 cargo_toml = { version = "0.20.3", default-features = false }
+derivative = { version = "2.2.0", default-features = false }
 dirs = { version = "5.0", default-features = false }
 duct = { version = "0.13", default-features = false }
 env_logger = { version = "0.11.7", default-features = false }
@@ -33,6 +34,7 @@ git2 = { version = "0.18", default-features = true, features = ["vendored-openss
 glob = { version = "0.3.1", default-features = false }
 log = { version = "0.4.20", default-features = false }
 mockito = { version = "1.4.0", default-features = false }
+rustilities = "3.0.0"
 tar = { version = "0.4.40", default-features = false }
 tempfile = { version = "3.10", default-features = false }
 thiserror = { version = "1.0.58", default-features = false }
@@ -72,6 +74,7 @@ srtool-lib = { version = "0.13.2", default-features = false }
 zombienet-configuration = { version = "0.3.1", default-features = false }
 zombienet-sdk = { version = "0.3.1", default-features = false }
 git2_credentials = "0.13.0"
+cumulus-client-cli = { version = "0.22.0", default-features = false }
 
 # benchmarking
 cumulus-primitives-proof-size-hostfunction = "0.14.0"

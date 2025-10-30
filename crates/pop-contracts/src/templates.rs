@@ -142,9 +142,9 @@ impl Template for Contract {}
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use Contract::*;
 	use std::{collections::HashMap, str::FromStr};
 	use strum::VariantArray;
-	use Contract::*;
 
 	fn templates_names() -> HashMap<String, Contract> {
 		HashMap::from([

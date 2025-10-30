@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, find_dispatchable_by_name, Function, Pallet, Param};
+use crate::{Function, Pallet, Param, errors::Error, find_callable_by_name};
 use pop_common::{
 	call::{DefaultEnvironment, DisplayEvents, TokenMetadata, Verbosity},
 	create_signer,
 };
 use sp_core::bytes::{from_hex, to_hex};
 use subxt::{
+	OnlineClient, SubstrateConfig,
 	blocks::ExtrinsicEvents,
 	dynamic::Value,
 	tx::{DynamicPayload, Payload, SubmittableTransaction},
-	OnlineClient, SubstrateConfig,
 };
 pub mod metadata;
 
@@ -58,12 +58,16 @@ pub fn construct_proxy_extrinsic(
 	proxied_account: String,
 	xt: DynamicPayload,
 ) -> Result<DynamicPayload, Error> {
-	let proxy_function = find_dispatchable_by_name(pallets, "Proxy", "proxy")?;
+	let proxy_function = find_callable_by_name(pallets, "Proxy", "proxy")?;
 	// `find_dispatchable_by_name` doesn't support parsing parameters that are calls.
 	// Therefore, we only parse the first two parameters for the proxy call
 	// using `parse_dispatchable_arguments`, while the last parameter (which is the call)
 	// must be manually added.
-	let required_params: Vec<Param> = proxy_function.params.iter().take(2).cloned().collect();
+	let required_params: Vec<Param> = match proxy_function {
+		metadata::CallItem::Function(ref function) =>
+			function.params.iter().take(2).cloned().collect(),
+		_ => return Err(Error::CallableNotSupported),
+	};
 	let mut parsed_args: Vec<Value> = metadata::parse_dispatchable_arguments(
 		&required_params,
 		vec![proxied_account, "None()".to_string()],

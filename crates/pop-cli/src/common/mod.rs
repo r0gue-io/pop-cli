@@ -12,6 +12,9 @@ pub mod chain;
 pub mod contracts;
 #[cfg(any(feature = "chain", feature = "contract"))]
 pub mod helpers;
+/// Contains omni-node utilities.
+#[cfg(feature = "chain")]
+pub mod omni_node;
 /// Contains utilities for interacting with the CLI prompt.
 pub mod prompt;
 /// Contains runtime utilities.
@@ -89,6 +92,7 @@ pub enum Template {
 }
 
 /// Supported operating systems.
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
 #[derive(Debug, PartialEq, Clone, VariantArray)]
 pub enum Os {
 	/// Linux.
@@ -105,7 +109,7 @@ impl Display for Data {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		use Data::*;
 		#[cfg(any(feature = "contract", feature = "chain"))]
-		use {strum::EnumMessage, Template::*};
+		use {Template::*, strum::EnumMessage};
 
 		match self {
 			Null => write!(f, ""),
@@ -155,6 +159,7 @@ impl Display for Template {
 	}
 }
 
+#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
 impl Display for Os {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		use Os::*;
@@ -266,6 +271,7 @@ mod tests {
 	}
 
 	#[test]
+	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
 	fn os_display_works() {
 		for os in Os::VARIANTS {
 			let expected = match os {

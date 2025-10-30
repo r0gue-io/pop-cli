@@ -2,22 +2,21 @@
 
 use crate::{
 	cli::{self, traits::Confirm},
-	style::{style, Theme},
+	style::{Theme, style},
 };
 use clap::{
+	Arg, Args, Command,
 	builder::{PossibleValue, PossibleValuesParser, StringValueParser, TypedValueParser},
 	error::ErrorKind,
-	Arg, Args, Command,
 };
-use cliclack::{multi_progress, spinner, ProgressBar};
+use cliclack::{ProgressBar, multi_progress, spinner};
 use console::{Emoji, Style, Term};
 use duct::cmd;
 pub(crate) use pop_chains::up::Relay;
 use pop_chains::{
-	clear_dmpq,
+	Error, IndexSet, NetworkNode, RelayChain, clear_dmpq,
 	registry::{self, traits::Rollup},
 	up::{NetworkConfiguration, Zombienet},
-	Error, IndexSet, NetworkNode, RelayChain,
 };
 use pop_common::Status;
 use std::{
@@ -95,7 +94,7 @@ impl ConfigFileCommand {
 			None => match self.file.as_deref() {
 				None => {
 					cli.outro_cancel("🚫 A network configuration file must be specified. See `pop up network --help` for usage.".to_string())?;
-					return Ok(())
+					return Ok(());
 				},
 				Some(path) => path,
 			},
@@ -312,7 +311,7 @@ pub(crate) async fn spawn(
 	.await
 	{
 		Ok(n) => n,
-		Err(e) =>
+		Err(e) => {
 			return match e {
 				Error::Config(message) => {
 					cli.outro_cancel(format!("🚫 A configuration error occurred: `{message}`"))?;
@@ -323,7 +322,8 @@ pub(crate) async fn spawn(
 					Ok(())
 				},
 				_ => Err(e.into()),
-			},
+			};
+		},
 	};
 
 	// Source any missing/stale binaries
@@ -495,7 +495,9 @@ async fn source_binaries(
 		))
 		.dim()
 		.to_string();
-		cli.warning(format!("⚠️ The following binaries required to launch the network cannot be found locally:\n   {list}"))?;
+		cli.warning(format!(
+			"⚠️ The following binaries required to launch the network cannot be found locally:\n   {list}"
+		))?;
 
 		// Prompt for automatic sourcing of binaries
 		let list = style(format!(
@@ -516,9 +518,10 @@ async fn source_binaries(
 		.to_string();
 		if !skip_confirm &&
 			!cli.confirm(format!(
-				"📦 Would you like to source them automatically now? It may take some time...\n   {list}"))
-				.initial_value(true)
-				.interact()?
+				"📦 Would you like to source them automatically now? It may take some time...\n   {list}"
+			))
+			.initial_value(true)
+			.interact()?
 		{
 			cli.outro_cancel(
 				"🚫 Cannot launch the specified network until all required binaries are available.",

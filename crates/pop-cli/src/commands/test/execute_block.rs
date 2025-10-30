@@ -5,19 +5,18 @@ use crate::{
 	common::{
 		prompt::display_message,
 		try_runtime::{
-			check_try_runtime_and_prompt, collect_args, collect_shared_arguments,
-			collect_state_arguments, guide_user_to_select_try_state, update_live_state,
-			update_runtime_source, ArgumentConstructor, BuildRuntimeParams,
+			ArgumentConstructor, BuildRuntimeParams, check_try_runtime_and_prompt, collect_args,
+			collect_shared_arguments, collect_state_arguments, guide_user_to_select_try_state,
+			update_live_state, update_runtime_source,
 		},
 	},
 };
 use clap::Args;
 use cliclack::spinner;
 use pop_chains::{
-	parse_try_state_string, run_try_runtime,
+	SharedParams, TryRuntimeCliCommand, parse_try_state_string, run_try_runtime,
 	state::{LiveState, State, StateCommand},
 	try_runtime::TryStateSelect,
-	SharedParams, TryRuntimeCliCommand,
 };
 
 // Custom arguments which are not in `try-runtime execute-block`.
@@ -103,7 +102,8 @@ impl TestExecuteBlockCommand {
 		cli: &mut impl cli::traits::Cli,
 		user_provided_args: Vec<String>,
 	) -> anyhow::Result<()> {
-		let binary_path = check_try_runtime_and_prompt(cli, self.build_params.skip_confirm).await?;
+		let binary_path =
+			check_try_runtime_and_prompt(cli, &spinner(), self.build_params.skip_confirm).await?;
 		cli.warning("NOTE: this may take some time...")?;
 
 		let spinner = spinner();
@@ -117,7 +117,7 @@ impl TestExecuteBlockCommand {
 			[before_subcommand, vec![StateCommand::Live.to_string()], after_subcommand].concat(),
 			&CUSTOM_ARGS,
 		)?;
-		spinner.stop("");
+		spinner.clear();
 		Ok(())
 	}
 
@@ -185,7 +185,7 @@ mod tests {
 	use crate::{
 		cli::MockCli,
 		common::{
-			runtime::{get_mock_runtime, Feature},
+			runtime::{Feature, get_mock_runtime},
 			try_runtime::{get_try_state_items, source_try_runtime_binary},
 			urls,
 		},
@@ -195,7 +195,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn execute_block_works() -> anyhow::Result<()> {
-		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
+		source_try_runtime_binary(&mut MockCli::new(), &spinner(), &crate::cache()?, true).await?;
 
 		let mut cli = MockCli::new()
 			.expect_intro("Testing block execution")
@@ -215,10 +215,18 @@ mod tests {
 				None,
 			)
 			.expect_warning("NOTE: Make sure your runtime is built with `try-runtime` feature.")
+			.expect_warning(format!(
+				"No runtime folder found at {}. Please input the runtime path manually.",
+				std::env::current_dir()?.display()
+			))
 			.expect_input(
-				"Please specify the path to the runtime project or the runtime binary.",
+				"Please, specify the path to the runtime project or the runtime binary.",
 				get_mock_runtime(Some(Feature::TryRuntime)).to_str().unwrap().to_string(),
 			)
+			.expect_info(format!(
+				"Using runtime at {}",
+				get_mock_runtime(Some(Feature::TryRuntime)).display()
+			))
 			.expect_input("Enter the live chain of your node:", urls::LOCAL.to_string())
 			.expect_input("Enter the block hash (optional):", String::default())
 			.expect_select(
@@ -237,7 +245,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn execute_block_invalid_uri() -> anyhow::Result<()> {
-		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
+		source_try_runtime_binary(&mut MockCli::new(), &spinner(), &crate::cache()?, true).await?;
 		let mut cmd = TestExecuteBlockCommand::default();
 		cmd.state.uri = Some("ws://127.0.0.1:9999".to_string());
 		let error = cmd.run(&mut MockCli::new(), vec![]).await.unwrap_err();

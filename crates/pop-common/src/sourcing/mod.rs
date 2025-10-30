@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{api, git::GITHUB_API_CLIENT, Git, Release, SortedSlice, Status};
+use crate::{Git, Release, SortedSlice, Status, api, git::GITHUB_API_CLIENT};
 pub use binary::*;
+use derivative::Derivative;
 use duct::cmd;
 use flate2::read::GzDecoder;
 use regex::Regex;
@@ -9,7 +10,7 @@ use reqwest::StatusCode;
 use std::{
 	collections::HashMap,
 	error::Error as _,
-	fs::{copy, metadata, read_dir, rename, File},
+	fs::{File, copy, metadata, read_dir, rename},
 	io::{BufRead, Seek, SeekFrom, Write},
 	os::unix::fs::PermissionsExt,
 	path::{Path, PathBuf},
@@ -160,8 +161,8 @@ impl Source {
 }
 
 /// A binary sourced from GitHub.
-#[allow(unpredictable_function_pointer_comparisons)]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Derivative)]
+#[derivative(PartialEq)]
 pub enum GitHub {
 	/// An archive for download from a GitHub release.
 	ReleaseArchive {
@@ -177,6 +178,7 @@ pub enum GitHub {
 		/// Whether pre-releases are to be used.
 		prerelease: bool,
 		/// A function that orders candidates for selection when multiple versions are available.
+		#[derivative(PartialEq = "ignore")]
 		version_comparator: for<'a> fn(&'a mut [String]) -> SortedSlice<'a, String>,
 		/// The version to use if an appropriate version cannot be resolved.
 		fallback: String,
@@ -425,11 +427,11 @@ impl GitHub {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ArchiveFileSpec {
 	/// The name of the file within the archive.
-	name: String,
+	pub name: String,
 	/// An optional file name to be used for the file once extracted.
-	target: Option<PathBuf>,
+	pub target: Option<PathBuf>,
 	/// Whether the file is required.
-	required: bool,
+	pub required: bool,
 }
 
 impl ArchiveFileSpec {
@@ -529,13 +531,13 @@ async fn from_archive(
 		let src = working_dir.join(name);
 		if src.exists() {
 			set_executable_permission(&src)?;
-			if let Some(target) = target {
-				if let Err(_e) = rename(&src, target) {
-					// If rename fails (e.g., due to cross-device linking), fallback to copy and
-					// remove
-					copy(&src, target)?;
-					std::fs::remove_file(&src)?;
-				}
+			if let Some(target) = target &&
+				let Err(_e) = rename(&src, target)
+			{
+				// If rename fails (e.g., due to cross-device linking), fallback to copy and
+				// remove
+				copy(&src, target)?;
+				std::fs::remove_file(&src)?;
 			}
 		} else if *required {
 			return Err(Error::ArchiveError(format!(
@@ -610,35 +612,38 @@ async fn from_github_archive(
 	verbose: bool,
 ) -> Result<(), Error> {
 	// User agent required when using GitHub API
-	let response =
-		match reference {
-			Some(reference) => {
-				// Various potential urls to try based on not knowing the type of ref
-				let urls = [
-					format!("https://github.com/{owner}/{repository}/archive/refs/heads/{reference}.tar.gz"),
-					format!("https://github.com/{owner}/{repository}/archive/refs/tags/{reference}.tar.gz"),
-					format!("https://github.com/{owner}/{repository}/archive/{reference}.tar.gz"),
-				];
-				let mut response = None;
-				for url in urls {
-					status.update(&format!("Downloading from {url}..."));
-					response = Some(GITHUB_API_CLIENT.get(url).await);
-					if let Some(Err(api::Error::HttpError(e))) = &response {
-						if e.status() == Some(StatusCode::NOT_FOUND) {
-							tokio::time::sleep(Duration::from_secs(1)).await;
-							continue;
-						}
-					}
-					break;
-				}
-				response.expect("value set above")?
-			},
-			None => {
-				let url = format!("https://api.github.com/repos/{owner}/{repository}/tarball");
+	let response = match reference {
+		Some(reference) => {
+			// Various potential urls to try based on not knowing the type of ref
+			let urls = [
+				format!(
+					"https://github.com/{owner}/{repository}/archive/refs/heads/{reference}.tar.gz"
+				),
+				format!(
+					"https://github.com/{owner}/{repository}/archive/refs/tags/{reference}.tar.gz"
+				),
+				format!("https://github.com/{owner}/{repository}/archive/{reference}.tar.gz"),
+			];
+			let mut response = None;
+			for url in urls {
 				status.update(&format!("Downloading from {url}..."));
-				GITHUB_API_CLIENT.get(url).await?
-			},
-		};
+				response = Some(GITHUB_API_CLIENT.get(url).await);
+				if let Some(Err(api::Error::HttpError(e))) = &response &&
+					e.status() == Some(StatusCode::NOT_FOUND)
+				{
+					tokio::time::sleep(Duration::from_secs(1)).await;
+					continue;
+				}
+				break;
+			}
+			response.expect("value set above")?
+		},
+		None => {
+			let url = format!("https://api.github.com/repos/{owner}/{repository}/tarball");
+			status.update(&format!("Downloading from {url}..."));
+			GITHUB_API_CLIENT.get(url).await?
+		},
+	};
 	let mut file = tempfile()?;
 	file.write_all(&response)?;
 	file.seek(SeekFrom::Start(0))?;
@@ -652,10 +657,11 @@ async fn from_github_archive(
 	// Prepare archive contents for build
 	let entries: Vec<_> = read_dir(&working_dir)?.take(2).filter_map(|x| x.ok()).collect();
 	match entries.len() {
-		0 =>
+		0 => {
 			return Err(Error::ArchiveError(
 				"The downloaded archive does not contain any entries.".into(),
-			)),
+			));
+		},
 		1 => working_dir = entries[0].path(), // Automatically switch to top level directory
 		_ => {},                              /* Assume that downloaded archive does not have a
 		                                        * top level directory */
@@ -1279,8 +1285,7 @@ pub(super) mod tests {
 		assert_eq!(pattern.version("polkadot-stable2503"), Some("stable2503"));
 	}
 
-	#[allow(mismatched_lifetime_syntaxes)]
-	fn version_comparator<T: AsRef<str> + Ord>(versions: &mut [T]) -> SortedSlice<T> {
+	fn version_comparator<T: AsRef<str> + Ord>(versions: &'_ mut [T]) -> SortedSlice<'_, T> {
 		SortedSlice::by(versions, |a, b| parse_version(b.as_ref()).cmp(&parse_version(a.as_ref())))
 	}
 
@@ -1372,10 +1377,7 @@ pub mod traits {
 				TagPattern = "polkadot-{version}"
 			))]
 			Polkadot,
-			#[strum(props(
-				Repository = "https://github.com/r0gue-io/fallback",
-				Fallback = "v1.0"
-			))]
+			#[strum(props(Repository = "https://github.com/r0gue-io/fallback", Fallback = "v1.0"))]
 			Fallback,
 		}
 

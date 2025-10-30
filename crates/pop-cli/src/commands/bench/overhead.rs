@@ -6,12 +6,12 @@ use crate::{
 		bench::{check_omni_bencher_and_prompt, overwrite_weight_dir_command},
 		builds::guide_user_to_select_profile,
 		prompt::display_message,
-		runtime::{ensure_runtime_binary_exists, guide_user_to_select_genesis_preset, Feature},
+		runtime::{Feature, ensure_runtime_binary_exists, guide_user_to_select_genesis_preset},
 	},
 };
 use clap::{Args, Parser};
 use cliclack::spinner;
-use pop_chains::{bench::OverheadCmd, generate_omni_bencher_benchmarks, BenchmarkingCliCommand};
+use pop_chains::{BenchmarkingCliCommand, bench::OverheadCmd, generate_omni_bencher_benchmarks};
 use pop_common::Profile;
 use std::{env::current_dir, path::PathBuf};
 use tempfile::tempdir;
@@ -132,7 +132,9 @@ impl BenchmarkOverhead {
 		}
 		self.command.params.weight.weight_path = Some(temp_dir.path().to_path_buf());
 
-		let binary_path = check_omni_bencher_and_prompt(cli, self.skip_confirm).await?;
+		let spinner = spinner();
+		let binary_path = check_omni_bencher_and_prompt(cli, &spinner, self.skip_confirm).await?;
+		spinner.clear();
 		let output = generate_omni_bencher_benchmarks(
 			binary_path.as_path(),
 			BenchmarkingCliCommand::Overhead,
@@ -197,10 +199,8 @@ impl BenchmarkOverhead {
 			print_weight_path = print_weight_path && !argument.starts_with("--weight-path");
 		}
 
-		if print_runtime {
-			if let Some(ref runtime) = self.command.params.runtime {
-				arguments.push(format!("--runtime={}", runtime.display()));
-			}
+		if print_runtime && let Some(ref runtime) = self.command.params.runtime {
+			arguments.push(format!("--runtime={}", runtime.display()));
 		}
 		if print_genesis_builder {
 			arguments.push("--genesis-builder=runtime".to_string());
@@ -211,10 +211,8 @@ impl BenchmarkOverhead {
 				self.command.params.genesis_builder_preset
 			));
 		}
-		if print_weight_path {
-			if let Some(ref weight_path) = self.command.params.weight.weight_path {
-				arguments.push(format!("--weight-path={}", weight_path.display()));
-			}
+		if print_weight_path && let Some(ref weight_path) = self.command.params.weight.weight_path {
+			arguments.push(format!("--weight-path={}", weight_path.display()));
 		}
 		arguments
 	}

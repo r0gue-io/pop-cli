@@ -6,8 +6,8 @@
 
 use anyhow::Result;
 use pop_chains::{
-	up::{Binary, Source::GitHub},
 	ChainTemplate,
+	up::{Binary, Source::GitHub},
 };
 use pop_common::{
 	find_free_port,
@@ -21,11 +21,22 @@ use std::{
 	fs,
 	fs::write,
 	path::{Path, PathBuf},
-	process::Command,
+	process::Child,
 	time::Duration,
 };
 use strum::VariantArray;
 use tempfile::tempdir;
+
+/// Utility child process wrapper to kill the child process on drop.
+///
+/// To be used exclusively for tests.
+struct TestChildProcess(pub(crate) Child);
+
+impl Drop for TestChildProcess {
+	fn drop(&mut self) {
+		self.0.kill().expect("Child process failed to kill");
+	}
+}
 
 // Test that all templates are generated correctly
 #[test]
@@ -96,7 +107,7 @@ async fn parachain_lifecycle() -> Result<()> {
 	let binary_path = replace_mock_with_binary(&working_dir, binary_name)?;
 	assert!(binary_path.exists());
 
-	// pop build spec --output ./target/pop/test-spec.json --id 2222 --type development --relay
+	// pop build spec --output ./target/pop/test-spec.json --para-id 2222 --type development --relay
 	// paseo-local --protocol-id pop-protocol --chain local --deterministic=true
 	let mut command = pop(
 		&working_dir,
@@ -105,7 +116,7 @@ async fn parachain_lifecycle() -> Result<()> {
 			"spec",
 			"--output",
 			"./target/pop/test-spec.json",
-			"--id",
+			"--para-id",
 			"2222",
 			"--type",
 			"development",
@@ -121,6 +132,7 @@ async fn parachain_lifecycle() -> Result<()> {
 			"pop-protocol",
 			"--deterministic=false",
 			"--default-bootnode=false",
+			"--skip-build",
 		],
 	);
 	assert!(command.spawn()?.wait()?.success());
@@ -129,8 +141,8 @@ async fn parachain_lifecycle() -> Result<()> {
 	assert!(working_dir.join("target").exists());
 	assert!(working_dir.join("target/pop/test-spec.json").exists());
 	assert!(working_dir.join("target/pop/test-spec-raw.json").exists());
-	assert!(working_dir.join("target/pop/para-2222.wasm").exists());
-	assert!(working_dir.join("target/pop/para-2222-genesis-state").exists());
+	assert!(working_dir.join("target/pop/genesis-code.wasm").exists());
+	assert!(working_dir.join("target/pop/genesis-state").exists());
 
 	let content = fs::read_to_string(working_dir.join("target/pop/test-spec-raw.json"))
 		.expect("Could not read file");
@@ -180,7 +192,7 @@ rpc_port = {random_port}
 		&working_dir,
 		["up", "network", "./network.toml", "-r", "stable2412", "--verbose", "--skip-confirm"],
 	);
-	let mut up = command.spawn()?;
+	let mut up = TestChildProcess(command.spawn()?);
 
 	// Wait for the networks to initialize. Increased timeout to accommodate CI environment delays.
 	let wait = Duration::from_secs(50);
@@ -209,6 +221,45 @@ rpc_port = {random_port}
 	);
 	assert!(command.spawn()?.wait()?.success());
 
+	// `pop call chain --pallet System --function Account --args
+	// "15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5" --url ws://127.0.0.1:random_port
+	// --skip-confirm`
+	let mut command = pop(
+		&working_dir,
+		[
+			"call",
+			"chain",
+			"--pallet",
+			"System",
+			"--function",
+			"Account",
+			"--args",
+			"15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5",
+			"--url",
+			&localhost_url,
+			"--skip-confirm",
+		],
+	);
+	assert!(command.spawn()?.wait()?.success());
+
+	// `pop call chain --pallet System --function Account --args
+	// "15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5" --url ws://127.0.0.1:random_port`
+	let mut command = pop(
+		&working_dir,
+		[
+			"call",
+			"chain",
+			"--pallet",
+			"System",
+			"--function",
+			"Ss58Prefix",
+			"--url",
+			&localhost_url,
+			"--skip-confirm",
+		],
+	);
+	assert!(command.spawn()?.wait()?.success());
+
 	// pop call chain --call 0x00000411 --url ws://127.0.0.1:random_port --suri //Alice
 	// --skip-confirm
 	let mut command = pop(
@@ -227,11 +278,10 @@ rpc_port = {random_port}
 	);
 	assert!(command.spawn()?.wait()?.success());
 
-	assert!(up.try_wait()?.is_none(), "the process should still be running");
+	assert!(up.0.try_wait()?.is_none(), "the process should still be running");
 	// Stop the process
-	up.kill()?;
-	up.wait()?;
-	Command::new("kill").args(["-s", "SIGINT", &up.id().to_string()]).spawn()?;
+	up.0.kill()?;
+	up.0.wait()?;
 
 	Ok(())
 }

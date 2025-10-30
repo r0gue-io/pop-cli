@@ -39,14 +39,14 @@ impl CallArgs {
 		let current_dir = std::env::current_dir()?;
 
 		#[cfg(feature = "contract")]
-		if pop_contracts::is_supported(Some(&current_dir))? {
+		if pop_contracts::is_supported(&current_dir)? {
 			let mut cmd = contract::CallContractCommand::default();
 			cmd.path_pos = Some(current_dir);
 			return Ok(Command::Contract(cmd));
 		}
 
 		#[cfg(feature = "chain")]
-		if pop_chains::is_supported(Some(&current_dir))? {
+		if pop_chains::is_supported(&current_dir) {
 			return Ok(Command::Chain(Default::default()));
 		}
 
@@ -71,23 +71,9 @@ impl Display for Command {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::{
-		env::{current_dir, set_current_dir},
-		fs,
-		path::Path,
-	};
+	use crate::common::helpers::with_current_dir;
+	use std::{env::set_current_dir, fs};
 	use tempfile::tempdir;
-
-	fn with_current_dir<F, R>(dir: &Path, f: F) -> anyhow::Result<R>
-	where
-		F: FnOnce() -> anyhow::Result<R>,
-	{
-		let original_dir = current_dir()?;
-		set_current_dir(dir)?;
-		let result = f();
-		set_current_dir(original_dir)?;
-		result
-	}
 
 	#[test]
 	fn command_display_works() {

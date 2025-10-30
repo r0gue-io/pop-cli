@@ -13,16 +13,16 @@ pub enum Error {
 	#[error("Anyhow error: {0}")]
 	AnyhowError(#[from] anyhow::Error),
 	/// An error occurred while generating the chain specification.
-	#[error("Failed to build the chain spec. {0}")]
+	#[error("Failed to build the chain spec: {0}")]
 	BuildSpecError(String),
 	/// An error occurred while running benchmarking.
 	#[error("Failed to run benchmarking: {0}")]
 	BenchmarkingError(String),
 	/// An error occurred while decoding the call data.
-	#[error("Failed to decode call data. {0}")]
+	#[error("Failed to decode call data: {0}")]
 	CallDataDecodingError(String),
 	/// An error occurred while encoding the call data.
-	#[error("Failed to encode call data. {0}")]
+	#[error("Failed to encode call data: {0}")]
 	CallDataEncodingError(String),
 	/// An error occurred.
 	#[error("{0}")]
@@ -45,9 +45,12 @@ pub enum Error {
 	/// An error occurred during the submission of an extrinsic.
 	#[error("Extrinsic submission error: {0}")]
 	ExtrinsicSubmissionError(String),
-	/// The dispatchable function is not supported.
-	#[error("The dispatchable function is not supported")]
-	FunctionNotSupported,
+	/// The callable item is not supported.
+	#[error("The callable item is not supported")]
+	CallableNotSupported,
+	/// Function not found.
+	#[error("Function not found: {0}")]
+	FunctionNotFound(String),
 	/// An error occurred while working with the genesis builder.
 	#[error("Genesis builder error: {0}")]
 	GenesisBuilderError(String),
@@ -61,7 +64,7 @@ pub enum Error {
 	#[error("JSON error: {0}")]
 	JsonError(#[from] serde_json::Error),
 	/// An error occurred while parsing metadata of a parameter.
-	#[error("Error parsing metadata for parameter {0}")]
+	#[error("Error parsing metadata for parameter: {0}")]
 	MetadataParsingError(String),
 	/// A binary is missing.
 	#[error("Missing binary: {0}")]
@@ -87,7 +90,7 @@ pub enum Error {
 	#[error("Failed to create pallet directory")]
 	PalletDirCreation,
 	/// The specified pallet could not be found.
-	#[error("Failed to find the pallet {0}")]
+	#[error("Failed to find the pallet: {0}")]
 	PalletNotFound(String),
 	/// An error occurred while processing the arguments provided by the user.
 	#[error("Failed to process the arguments provided by the user.")]

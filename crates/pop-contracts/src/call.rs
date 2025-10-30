@@ -1,26 +1,27 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
+	CallExec, DefaultEnvironment, Environment, Verbosity,
 	errors::Error,
 	submit_signed_payload,
 	utils::{
 		get_manifest_path,
 		map_account::create_signer,
-		metadata::{extract_function, process_function_args, FunctionType},
+		metadata::{FunctionType, extract_function, process_function_args},
 		parse_balance,
 	},
-	CallExec, DefaultEnvironment, Environment, Verbosity,
 };
 use anyhow::Context;
+use pop_common::{DefaultConfig, Keypair, create_signer};
 use sp_weights::Weight;
 
 use contract_extrinsics::{
-	extrinsic_calls::Call, BalanceVariant, CallCommandBuilder, ContractArtifacts, DisplayEvents,
-	ErrorVariant, ExtrinsicOptsBuilder, TokenMetadata,
+	BalanceVariant, CallCommandBuilder, ContractArtifacts, DisplayEvents, ErrorVariant,
+	ExtrinsicOptsBuilder, TokenMetadata, extrinsic_calls::Call,
 };
 use pop_common::account_id::parse_h160_account;
 use std::path::PathBuf;
-use subxt::{tx::Payload, PolkadotConfig as DefaultConfig, SubstrateConfig};
+use subxt::{PolkadotConfig as DefaultConfig, SubstrateConfig, tx::Payload};
 pub use subxt_signer::sr25519::Keypair;
 use url::Url;
 
@@ -28,7 +29,7 @@ use url::Url;
 #[derive(Clone, Debug, PartialEq)]
 pub struct CallOpts {
 	/// Path to the contract build directory.
-	pub path: Option<PathBuf>,
+	pub path: PathBuf,
 	/// The address of the contract to call.
 	pub contract: String,
 	/// The name of the contract message to call.
@@ -60,22 +61,19 @@ pub async fn set_up_call(
 	let token_metadata = TokenMetadata::query::<DefaultConfig>(&call_opts.url).await?;
 	let signer = create_signer(&call_opts.suri)?;
 
-	let extrinsic_opts = match &call_opts.path {
+	let extrinsic_opts = if call_opts.path.is_file() {
 		// If path is a file construct the ExtrinsicOptsBuilder from the file.
-		Some(path) if path.is_file() => {
-			let artifacts = ContractArtifacts::from_manifest_or_file(None, Some(path))?;
-			ExtrinsicOptsBuilder::new(signer)
-				.file(Some(artifacts.artifact_path()))
-				.url(call_opts.url.clone())
-				.done()
-		},
-		_ => {
-			let manifest_path = get_manifest_path(call_opts.path.as_deref())?;
-			ExtrinsicOptsBuilder::new(signer)
-				.manifest_path(Some(manifest_path))
-				.url(call_opts.url.clone())
-				.done()
-		},
+		let artifacts = ContractArtifacts::from_manifest_or_file(None, Some(&call_opts.path))?;
+		ExtrinsicOptsBuilder::new(signer)
+			.file(Some(artifacts.artifact_path()))
+			.url(call_opts.url.clone())
+			.done()
+	} else {
+		let manifest_path = get_manifest_path(&call_opts.path)?;
+		ExtrinsicOptsBuilder::new(signer)
+			.manifest_path(Some(manifest_path))
+			.url(call_opts.url.clone())
+			.done()
 	};
 
 	let value: BalanceVariant<<DefaultEnvironment as Environment>::Balance> =
@@ -83,11 +81,7 @@ pub async fn set_up_call(
 
 	let contract = parse_h160_account(&call_opts.contract)?;
 	// Process the provided argument values.
-	let function = extract_function(
-		call_opts.path.unwrap_or_else(|| PathBuf::from("./")),
-		&call_opts.message,
-		FunctionType::Message,
-	)?;
+	let function = extract_function(call_opts.path, &call_opts.message, FunctionType::Message)?;
 	let args = process_function_args(&function, call_opts.args)?;
 
 	let call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair> =

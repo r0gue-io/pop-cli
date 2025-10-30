@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::errors::Error;
+use sc_chain_spec::GenesisConfigBuilderRuntimeCaller;
 use std::{
 	fs::{self, OpenOptions},
-	io::{self, stdin, stdout, Write},
-	path::Path,
+	io::{self, Write, stdin, stdout},
+	path::{Path, PathBuf},
 };
+
+pub(crate) type HostFunctions = (
+	sp_statement_store::runtime_api::HostFunctions,
+	cumulus_primitives_proof_size_hostfunction::storage_proof_size::HostFunctions,
+);
 
 pub(crate) fn sanitize(target: &Path) -> Result<(), Error> {
 	if target.exists() {
@@ -82,10 +88,22 @@ pub(crate) fn write_to_file(path: &Path, contents: &str) -> Result<(), Error> {
 	Ok(())
 }
 
+/// Get genesis builder preset names of the runtime.
+///
+/// # Arguments
+/// * `binary_path` - Path to the runtime binary.
+pub fn get_preset_names(binary_path: &PathBuf) -> Result<Vec<String>, Error> {
+	let binary = fs::read(binary_path)?;
+	let genesis_config_builder = GenesisConfigBuilderRuntimeCaller::<HostFunctions>::new(&binary);
+	genesis_config_builder
+		.preset_names()
+		.map_err(|e| Error::GenesisBuilderError(e.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{generator::chain::ChainSpec, ChainTemplate};
+	use crate::{ChainTemplate, generator::chain::ChainSpec};
 	use askama::Template;
 	use tempfile::tempdir;
 
@@ -103,10 +121,14 @@ mod tests {
 		write_to_file(&file_path, chainspec.render().expect("infallible").as_ref())?;
 		let generated_file_content =
 			fs::read_to_string(temp_dir.path().join("file.rs")).expect("Failed to read file");
-		assert!(generated_file_content
-			.contains("properties.insert(\"tokenSymbol\".into(), \"DOT\".into());"));
-		assert!(generated_file_content
-			.contains("properties.insert(\"tokenDecimals\".into(), 6.into());"));
+		assert!(
+			generated_file_content
+				.contains("properties.insert(\"tokenSymbol\".into(), \"DOT\".into());")
+		);
+		assert!(
+			generated_file_content
+				.contains("properties.insert(\"tokenDecimals\".into(), 6.into());")
+		);
 		assert!(generated_file_content.contains("1000000"));
 		assert!(generated_file_content.contains(
 			"properties.insert(\"basedOn\".into(), \"r0gue-io/base-parachain\".into());"
@@ -129,5 +151,14 @@ mod tests {
 		assert_eq!(is_valid_bitwise_left_shift("1 << 60").unwrap(), 1152921504606846976);
 		let result = is_valid_bitwise_left_shift("wrong");
 		assert!(result.is_err());
+	}
+
+	#[test]
+	fn test_get_preset_names() -> Result<(), Box<dyn std::error::Error>> {
+		let path = PathBuf::from("../../tests/runtimes/base_parachain_benchmark.wasm");
+		assert!(path.is_file());
+		let presets = get_preset_names(&path)?;
+		assert_eq!(presets, vec!["development", "local_testnet"]);
+		Ok(())
 	}
 }

@@ -4,14 +4,14 @@ use crate::{
 	cli::{self, traits::Input},
 	common::{
 		prompt::display_message,
-		try_runtime::{check_try_runtime_and_prompt, collect_args, ArgumentConstructor},
+		try_runtime::{ArgumentConstructor, check_try_runtime_and_prompt, collect_args},
 		urls,
 	},
 };
 use clap::Args;
 use cliclack::spinner;
 use console::style;
-use pop_chains::{parse::url, run_try_runtime, state::LiveState, TryRuntimeCliCommand};
+use pop_chains::{TryRuntimeCliCommand, parse::url, run_try_runtime, state::LiveState};
 
 // Custom arguments which are not in `try-runtime create-snapshot`.
 const CUSTOM_ARGS: [&str; 2] = ["--skip-confirm", "-y"];
@@ -53,10 +53,14 @@ impl TestCreateSnapshotCommand {
 		if self.snapshot_path.is_none() {
 			let input = cli
 				.input(format!(
-         			"Enter the path to write the snapshot to (optional):\n{}",
-         			style("If not provided `<spec-name>-<spec-version>@<block-hash>.snap` will be used.").dim()
-          		))
-				.required(false).placeholder(DEFAULT_SNAPSHOT_PATH)
+					"Enter the path to write the snapshot to (optional):\n{}",
+					style(
+						"If not provided `<spec-name>-<spec-version>@<block-hash>.snap` will be used."
+					)
+					.dim()
+				))
+				.required(false)
+				.placeholder(DEFAULT_SNAPSHOT_PATH)
 				.interact()?;
 			if !input.is_empty() {
 				self.snapshot_path = Some(input);
@@ -91,7 +95,7 @@ impl TestCreateSnapshotCommand {
 	async fn run(&self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		let spinner = spinner();
 		let user_provided_args: Vec<String> = std::env::args().skip(3).collect();
-		let binary_path = check_try_runtime_and_prompt(cli, self.skip_confirm).await?;
+		let binary_path = check_try_runtime_and_prompt(cli, &spinner, self.skip_confirm).await?;
 		if let Some(ref uri) = self.from.uri {
 			spinner.start(format!(
 				"Creating a snapshot of a remote node at {}...\n{}",
@@ -126,10 +130,11 @@ impl TestCreateSnapshotCommand {
 				!matches!(arg.as_str(), "--show-output" | "--nocapture" | "--ignored")
 			});
 		}
-		if let Some(arg) = user_provided_args.last() {
-			if !arg.starts_with("--") && arg.ends_with(".snap") {
-				provided_path = user_provided_args.pop();
-			}
+		if let Some(arg) = user_provided_args.last() &&
+			!arg.starts_with("--") &&
+			arg.ends_with(".snap")
+		{
+			provided_path = user_provided_args.pop();
 		}
 		let collected_args = collect_args(user_provided_args.into_iter());
 		let mut args = vec![];
@@ -158,7 +163,7 @@ mod tests {
 	async fn create_snapshot_invalid_uri() -> anyhow::Result<()> {
 		let mut command = TestCreateSnapshotCommand::default();
 		command.from.uri = Some("ws://127.0.0.1:9999".to_string());
-		source_try_runtime_binary(&mut MockCli::new(), &crate::cache()?, true).await?;
+		source_try_runtime_binary(&mut MockCli::new(), &spinner(), &crate::cache()?, true).await?;
 
 		let error = command.run(&mut MockCli::new()).await.unwrap_err().to_string();
 		assert!(error.contains("Connection refused"));

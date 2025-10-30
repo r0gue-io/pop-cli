@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{call, DynamicPayload, Error};
+use crate::{DynamicPayload, Error, call};
 use scale::{Decode, Encode};
 use sp_core::twox_128;
 use subxt::{
+	OnlineClient, PolkadotConfig,
+	config::BlockHash,
 	dynamic::{self, Value},
 	events::StaticEvent,
 	ext::{scale_decode::DecodeAsType, scale_encode::EncodeAsType},
 	utils::H256,
-	OnlineClient, PolkadotConfig,
 };
 
 /// Clears the DMPQ state for the given parachain IDs.
@@ -119,8 +120,8 @@ impl StaticEvent for Reserved {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use sp_core::twox_64;
 	use RelayChain::*;
+	use sp_core::twox_64;
 
 	#[test]
 	fn construct_kill_storage_call_works() {

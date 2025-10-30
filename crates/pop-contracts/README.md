@@ -24,8 +24,7 @@ pub use contract_build::{Verbosity, MetadataSpec};
 
 let contract_path = Path::new("./");
 let build_release = true; // `true` for release mode, `false` for debug mode.
-let result = build_smart_contract(Some(&contract_path), build_release, Verbosity::Default, Some(MetadataSpec::Ink)); // You can build your contract with Solidity metadata using `Some(Metadata::Ink)`
-
+let result = build_smart_contract(&contract_path, build_release, Verbosity::Default, Some(MetadataSpec::Ink)); // You can build your contract with Solidity metadata using `Some(Metadata::Ink)`
 ```
 
 
@@ -40,9 +39,9 @@ let contract_path = Path::new("./");
 let contracts_node_path = Path::new("./path-to-contracts-node-binary");
 
 //unit testing
-test_project(Some(contract_path));
+test_project(&contract_path);
 //e2e testing
-test_e2e_smart_contract(Some(contract_path), Some(contracts_node_path));
+test_e2e_smart_contract(&contract_path, Some(contracts_node_path));
 ```
 
 Deploy and instantiate an existing Smart Contract:
@@ -57,7 +56,7 @@ tokio_test::block_on(async {
     let contract_path = PathBuf::from("./");
     // prepare extrinsic for deployment
     let up_opts = UpOpts {
-            path: Some(contract_path),
+            path: contract_path,
             constructor: "new".to_string(),
             args: ["false".to_string()].to_vec(),
             value: "1000".to_string(),
@@ -88,7 +87,7 @@ tokio_test::block_on(async {
     // prepare extrinsic for deployment
     let contract_path = PathBuf::from("./");
     let up_opts = UpOpts {
-            path: Some(contract_path),
+            path: contract_path,
             constructor: "new".to_string(),
             args: ["false".to_string()].to_vec(),
             value: "1000".to_string(),
@@ -118,7 +117,7 @@ tokio_test::block_on(async {
     // prepare extrinsic for call
     let contract_path = PathBuf::from("./");
     let get_call_opts = CallOpts {
-        path: Some(contract_path.clone()),
+        path: contract_path.clone(),
         contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
         message: "get".to_string(),
         args: [].to_vec(),
@@ -135,7 +134,7 @@ tokio_test::block_on(async {
 
     // For operations that change a storage value, thus altering the blockchain state, requires to submit an extrinsic.
     let flip_call_opts = CallOpts {
-        path: Some(contract_path),
+        path: contract_path,
         contract: "5CLPm1CeUvJhZ8GCDZCR7nWZ2m3XXe4X5MtAQK69zEjut36A".to_string(),
         message: "flip".to_string(),
         args: [].to_vec(),

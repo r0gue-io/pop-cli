@@ -2,16 +2,15 @@
 
 use super::{traits::Requires, *};
 use crate::{
-	accounts,
+	Error, accounts,
 	traits::{Args, Binary},
-	Error,
 };
 use pop_common::{
 	polkadot_sdk::sort_by_latest_semantic_version,
-	sourcing::{traits::Source as SourceT, ArchiveFileSpec, GitHub::ReleaseArchive, Source},
+	sourcing::{ArchiveFileSpec, GitHub::ReleaseArchive, Source, traits::Source as SourceT},
 	target,
 };
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use sp_core::crypto::Ss58Codec;
 use std::collections::HashMap;
 

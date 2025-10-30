@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{errors::Error, utils::canonicalized_path, Contract};
+use crate::{Contract, errors::Error, utils::canonicalized_path};
 use anyhow::Result;
 use contract_build::new_contract_project;
 use heck::ToUpperCamelCase;
-use pop_common::{extract_template_files, replace_in_file, templates::Template, Git};
+use pop_common::{Git, extract_template_files, replace_in_file, templates::Template};
 use std::{
 	collections::HashMap,
 	path::{Path, PathBuf},
@@ -162,8 +162,10 @@ mod tests {
 		assert!(generated_cargo.contains("name = \"test_contract\""));
 		// TODO: v6 still not published.
 		// assert!(generated_cargo.contains("ink = { version = \"6."));
-		assert!(generated_cargo
-			.contains("ink = { git = \"https://github.com/use-ink/ink\", tag = \"v6."));
+		assert!(
+			generated_cargo
+				.contains("ink = { git = \"https://github.com/use-ink/ink\", tag = \"v6.")
+		);
 		Ok(())
 	}
 
@@ -188,7 +190,6 @@ mod tests {
 				name = "erc20"
 				version = "5.0.0"
 				authors = ["R0GUE"]
-				edition = "2021"
 				publish = false
 			"#
 		)?;
@@ -230,8 +231,10 @@ mod tests {
 		assert!(generated_code.contains("mod my_contract"));
 		let generated_e2e_code =
 			fs::read_to_string(temp_dir.path().join("e2e_tests.rs")).expect("Could not read file");
-		assert!(generated_e2e_code
-			.contains(".instantiate(\"my_contract\", &ink_e2e::alice(), &mut constructor)"));
+		assert!(
+			generated_e2e_code
+				.contains(".instantiate(\"my_contract\", &ink_e2e::alice(), &mut constructor)")
+		);
 
 		Ok(())
 	}

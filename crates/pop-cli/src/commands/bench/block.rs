@@ -9,7 +9,7 @@ use crate::{
 	},
 };
 use clap::Args;
-use pop_chains::{bench::BlockCmd, generate_binary_benchmarks, BenchmarkingCliCommand};
+use pop_chains::{BenchmarkingCliCommand, bench::BlockCmd, generate_binary_benchmarks};
 use pop_common::Profile;
 use std::{
 	env::current_dir,
@@ -47,7 +47,7 @@ impl BenchmarkBlock {
 			cli,
 			target_path,
 			self.profile.as_ref().ok_or_else(|| anyhow::anyhow!("No profile provided"))?,
-			vec![Feature::Benchmark.as_ref()],
+			&[Feature::Benchmark.as_ref().to_string()],
 		)?;
 
 		cli.warning("NOTE: this may take some time...")?;
@@ -78,10 +78,10 @@ impl BenchmarkBlock {
 				!matches!(arg.as_str(), "--show-output" | "--nocapture" | "--ignored")
 			});
 		}
-		if !argument_exists(&arguments, "--profile") {
-			if let Some(ref profile) = self.profile {
-				arguments.push(format!("--profile={}", profile));
-			}
+		if !argument_exists(&arguments, "--profile") &&
+			let Some(ref profile) = self.profile
+		{
+			arguments.push(format!("--profile={}", profile));
 		}
 		args.extend(arguments);
 		args.join(" ")

@@ -2,8 +2,8 @@
 
 use crate::Error;
 use duct::cmd;
-use pop_common::{manifest::from_path, Profile};
-pub use srtool_lib::{get_image_digest, get_image_tag, ContainerEngine};
+use pop_common::{Profile, manifest::from_path};
+pub use srtool_lib::{ContainerEngine, get_image_digest, get_image_tag};
 use std::{
 	env, fs,
 	path::{Path, PathBuf},
@@ -127,8 +127,11 @@ impl DeterministicBuilder {
 /// # Arguments
 /// * `path` - The optional path to the manifest, defaulting to the current directory if not
 ///   specified.
-pub fn is_supported(path: Option<&Path>) -> Result<bool, Error> {
-	let manifest = from_path(path)?;
+pub fn is_supported(path: &Path) -> bool {
+	let manifest = match from_path(path) {
+		Ok(m) => m,
+		Err(_) => return false,
+	};
 	// Simply check for a parachain dependency
 	const DEPENDENCIES: [&str; 3] = ["frame-system", "frame-support", "substrate-wasm-builder"];
 	let has_dependencies = DEPENDENCIES.into_iter().any(|d| {
@@ -137,7 +140,7 @@ pub fn is_supported(path: Option<&Path>) -> Result<bool, Error> {
 	});
 	let has_features = manifest.features.contains_key("runtime-benchmarks") ||
 		manifest.features.contains_key("try-runtime");
-	Ok(has_dependencies && has_features)
+	has_dependencies && has_features
 }
 
 #[cfg(test)]
@@ -222,7 +225,10 @@ mod tests {
 			Profile::Debug,
 			PathBuf::from("./runtime-folder"),
 		)?;
-		assert_eq!(srtool_builder.get_output_path().display().to_string(), "./runtime-folder/target/srtool/debug/wbuild/template-runtime/template_runtime.compact.compressed.wasm");
+		assert_eq!(
+			srtool_builder.get_output_path().display().to_string(),
+			"./runtime-folder/target/srtool/debug/wbuild/template-runtime/template_runtime.compact.compressed.wasm"
+		);
 		Ok(())
 	}
 
@@ -234,17 +240,17 @@ mod tests {
 		// Standard rust project
 		let name = "hello_world";
 		cmd("cargo", ["new", name]).dir(path).run()?;
-		assert!(!is_supported(Some(&path.join(name)))?);
+		assert!(!is_supported(&path.join(name)));
 
 		// Parachain runtime with dependency
-		let mut manifest = from_path(Some(&path.join(name)))?;
+		let mut manifest = from_path(&path.join(name))?;
 		manifest
 			.dependencies
 			.insert("substrate-wasm-builder".into(), Dependency::Simple("^0.14.0".into()));
 		manifest.features.insert("try-runtime".into(), vec![]);
 		let manifest = toml_edit::ser::to_string_pretty(&manifest)?;
 		write(path.join(name).join("Cargo.toml"), manifest)?;
-		assert!(is_supported(Some(&path.join(name)))?);
+		assert!(is_supported(&path.join(name)));
 		Ok(())
 	}
 }

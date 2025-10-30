@@ -2,12 +2,12 @@
 
 use super::{traits::Requires, *};
 use crate::{
-	traits::{Args, Binary},
 	Error,
+	traits::{Args, Binary},
 };
 use pop_common::{
 	polkadot_sdk::sort_by_latest_stable_version,
-	sourcing::{traits::Source as SourceT, ArchiveFileSpec, GitHub::ReleaseArchive, Source},
+	sourcing::{ArchiveFileSpec, GitHub::ReleaseArchive, Source, traits::Source as SourceT},
 	target,
 };
 

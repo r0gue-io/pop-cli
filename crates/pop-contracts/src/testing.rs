@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{create_smart_contract, Contract};
+use crate::{Contract, create_smart_contract};
 use anyhow::Result;
 use std::{
 	fs::{copy, create_dir},

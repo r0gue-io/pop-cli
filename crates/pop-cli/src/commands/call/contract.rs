@@ -3,7 +3,7 @@
 use crate::{
 	cli::{self, traits::*},
 	common::{
-		builds::get_project_path,
+		builds::{ensure_project_path, get_project_path},
 		contracts::{
 			has_contract_been_built, map_account, normalize_call_args,
 			request_contract_function_args,
@@ -13,15 +13,15 @@ use crate::{
 		wallet::{prompt_to_use_wallet, request_signature},
 	},
 };
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use clap::Args;
 use cliclack::spinner;
 use pop_common::parse_h160_account;
 #[cfg(feature = "contract")]
 use pop_contracts::{
-	build_smart_contract, call_smart_contract, call_smart_contract_from_signed_payload,
-	dry_run_call, dry_run_gas_estimate_call, get_call_payload, get_message, get_messages,
-	set_up_call, CallExec, CallOpts, DefaultEnvironment, Verbosity, Weight,
+	CallExec, CallOpts, DefaultEnvironment, Verbosity, Weight, build_smart_contract,
+	call_smart_contract, call_smart_contract_from_signed_payload, dry_run_call,
+	dry_run_gas_estimate_call, get_call_payload, get_message, get_messages, set_up_call,
 };
 use std::path::PathBuf;
 
@@ -189,23 +189,18 @@ impl CallContractCommand {
 
 	/// If the contract has not been built, build it in release mode.
 	async fn ensure_contract_built(&self, cli: &mut impl Cli) -> Result<()> {
-		let project_path = get_project_path(self.path.clone(), self.path_pos.clone());
+		let project_path = ensure_project_path(self.path.clone(), self.path_pos.clone());
 		// Build the contract in release mode
 		cli.warning("NOTE: contract has not yet been built.")?;
 		let spinner = spinner();
 		spinner.start("Building contract in RELEASE mode...");
-		let result = match build_smart_contract(
-			project_path.as_deref(),
-			true,
-			Verbosity::Quiet,
-			None,
-		) {
+		let result = match build_smart_contract(&project_path, true, Verbosity::Quiet, None) {
 			Ok(result) => result,
 			Err(e) => {
 				return Err(anyhow!(format!(
-                        "🚫 An error occurred building your contract: {:?}\nUse `pop build` to retry with build output.",
-                        e.to_string()
-                    )));
+					"🚫 An error occurred building your contract: {}\nUse `pop build` to retry with build output.",
+					e.to_string()
+				)));
 			},
 		};
 		spinner.stop(format!(
@@ -233,7 +228,7 @@ impl CallContractCommand {
 
 		project_path
 			.as_ref()
-			.map(|p| p.is_dir() && !has_contract_been_built(Some(p)))
+			.map(|p| p.is_dir() && !has_contract_been_built(p))
 			.unwrap_or_default()
 	}
 
@@ -312,17 +307,17 @@ impl CallContractCommand {
 
 		// Resolve message.
 		let message = {
-			let mut prompt = cli.select("Select the message to call:");
+			let mut prompt = cli.select("Select the message to call (type to filter):");
 			for select_message in &messages {
 				let (icon, clarification) =
-					if select_message.mutates { ("📝 ", "[MUTATES]") } else { ("", "") };
+					if select_message.mutates { ("📝 ", "[MUTATES] ") } else { ("", "") };
 				prompt = prompt.item(
 					select_message,
 					format!("{}{}\n", icon, &select_message.label),
 					format!("{}{}", clarification, &select_message.docs),
 				);
 			}
-			let message = prompt.interact()?;
+			let message = prompt.filter_mode().interact()?;
 			self.message = Some(message.label.clone());
 			message
 		};
@@ -401,7 +396,7 @@ impl CallContractCommand {
 		cli: &mut impl Cli,
 		prompt_to_repeat_call: bool,
 	) -> Result<()> {
-		let project_path = get_project_path(self.path.clone(), self.path_pos.clone());
+		let project_path = ensure_project_path(self.path.clone(), self.path_pos.clone());
 
 		let message = match &self.message {
 			Some(message) => message.to_string(),
@@ -410,9 +405,7 @@ impl CallContractCommand {
 			},
 		};
 		// Disable wallet signing and display warning if the call is read-only.
-		let path = PathBuf::from("./");
-		let message_metadata =
-			get_message(project_path.as_deref().unwrap_or_else(|| &path), &message)?;
+		let message_metadata = get_message(project_path.clone(), &message)?;
 		if !message_metadata.mutates && self.use_wallet {
 			cli.warning("NOTE: Signing is not required for this read-only call. The '--use-wallet' flag will be ignored.")?;
 			self.use_wallet = false;
@@ -474,7 +467,7 @@ impl CallContractCommand {
 			let spinner = spinner();
 			spinner.start("Calling the contract...");
 			let call_dry_run_result = dry_run_call(&call_exec).await?;
-			spinner.stop("");
+			spinner.clear();
 			cli.info(format!("Result: {}", call_dry_run_result))?;
 			cli.warning("Your call has not been executed.")?;
 		} else {
@@ -619,32 +612,27 @@ mod tests {
 		)?;
 
 		let items = vec![
-            ("📝 flip\n".into(), "[MUTATES] A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
-            ("get\n".into(), " Simply returns the current value of our `bool`.".into()),
-            ("📝 specific_flip\n".into(), "[MUTATES] A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
+            ("📝 flip\n".into(), "[MUTATES] A message that can be called on instantiated contracts. This one flips the value of the stored `bool` from `true` to `false` and vice versa.".into()),
+            ("get\n".into(), "Simply returns the current value of our `bool`.".into()),
+            ("📝 specific_flip\n".into(), "[MUTATES] A message for testing, flips the value of the stored `bool` with `new_value` and is payable".into())
         ];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
-            .expect_select(
-                "Select the message to call:",
-                Some(false),
-                true,
-                Some(items),
-                1, // "get" message
-                None,
-            )
-            .expect_input(
-                "Where is your contract deployed?",
-                urls::LOCAL.into(),
-            )
-            .expect_input(
-                "Provide the on-chain contract address:",
-                "CONTRACT_ADDRESS".into(),
-            )
-            .expect_info(format!(
-                "pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {} --suri //Alice",
-                temp_dir.path().join("testing").display(), urls::LOCAL
-            ));
+			.expect_select(
+				"Select the message to call (type to filter):",
+				Some(false),
+				true,
+				Some(items),
+				1, // "get" message
+				None,
+			)
+			.expect_input("Where is your contract deployed?", urls::LOCAL.into())
+			.expect_input("Provide the on-chain contract address:", "CONTRACT_ADDRESS".into())
+			.expect_info(format!(
+				"pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {} --suri //Alice",
+				temp_dir.path().join("testing").display(),
+				urls::LOCAL
+			));
 
 		let mut call_config = CallContractCommand {
 			path: None,
@@ -675,12 +663,13 @@ mod tests {
 		assert!(!call_config.execute);
 		assert!(!call_config.dry_run);
 		assert_eq!(
-            call_config.display(),
-            format!(
-                "pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {} --suri //Alice",
-                temp_dir.path().join("testing").display(), urls::LOCAL
-            )
-        );
+			call_config.display(),
+			format!(
+				"pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {} --suri //Alice",
+				temp_dir.path().join("testing").display(),
+				urls::LOCAL
+			)
+		);
 
 		cli.verify()
 	}
@@ -699,9 +688,9 @@ mod tests {
 		)?;
 
 		let items = vec![
-            ("📝 flip\n".into(), "[MUTATES] A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
-            ("get\n".into(), " Simply returns the current value of our `bool`.".into()),
-            ("📝 specific_flip\n".into(), "[MUTATES] A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
+            ("📝 flip\n".into(), "[MUTATES] A message that can be called on instantiated contracts. This one flips the value of the stored `bool` from `true` to `false` and vice versa.".into()),
+            ("get\n".into(), "Simply returns the current value of our `bool`.".into()),
+            ("📝 specific_flip\n".into(), "[MUTATES] A message for testing, flips the value of the stored `bool` with `new_value` and is payable".into())
         ];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
@@ -714,7 +703,7 @@ mod tests {
                 "CONTRACT_ADDRESS".into(),
             )
             .expect_select(
-                "Select the message to call:",
+                "Select the message to call (type to filter):",
                 Some(false),
                 true,
                 Some(items),
@@ -763,10 +752,14 @@ mod tests {
 		assert!(call_config.use_wallet);
 		assert!(call_config.execute);
 		assert!(!call_config.dry_run);
-		assert_eq!(call_config.display(), format!(
-            "pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {} --use-wallet --execute",
-            temp_dir.path().join("testing").display(), urls::LOCAL
-        ));
+		assert_eq!(
+			call_config.display(),
+			format!(
+				"pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {} --use-wallet --execute",
+				temp_dir.path().join("testing").display(),
+				urls::LOCAL
+			)
+		);
 
 		cli.verify()
 	}
@@ -785,14 +778,14 @@ mod tests {
 		)?;
 
 		let items = vec![
-            ("📝 flip\n".into(), "[MUTATES] A message that can be called on instantiated contracts.  This one flips the value of the stored `bool` from `true`  to `false` and vice versa.".into()),
-            ("get\n".into(), " Simply returns the current value of our `bool`.".into()),
-            ("📝 specific_flip\n".into(), "[MUTATES] A message for testing, flips the value of the stored `bool` with `new_value`  and is payable".into())
+            ("📝 flip\n".into(), "[MUTATES] A message that can be called on instantiated contracts. This one flips the value of the stored `bool` from `true` to `false` and vice versa.".into()),
+            ("get\n".into(), "Simply returns the current value of our `bool`.".into()),
+            ("📝 specific_flip\n".into(), "[MUTATES] A message for testing, flips the value of the stored `bool` with `new_value` and is payable".into())
         ];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
             .expect_select(
-                "Select the message to call:",
+                "Select the message to call (type to filter):",
                 Some(false),
                 true,
                 Some(items),
@@ -847,10 +840,14 @@ mod tests {
 		assert!(call_config.execute);
 		assert!(!call_config.dry_run);
 		assert!(call_config.dev_mode);
-		assert_eq!(call_config.display(), format!(
-            "pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {} --suri //Alice --execute",
-            temp_dir.path().join("testing").display(), urls::LOCAL
-        ));
+		assert_eq!(
+			call_config.display(),
+			format!(
+				"pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {} --suri //Alice --execute",
+				temp_dir.path().join("testing").display(),
+				urls::LOCAL
+			)
+		);
 
 		cli.verify()
 	}

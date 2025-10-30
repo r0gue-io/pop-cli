@@ -4,8 +4,8 @@ use crate::build::spec::GenesisArtifacts;
 use anyhow::Result;
 use pop_chains::{ChainSpec, ChainTemplate, DeploymentProvider};
 use reqwest::{
-	multipart::{Form, Part},
 	Client,
+	multipart::{Form, Part},
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;

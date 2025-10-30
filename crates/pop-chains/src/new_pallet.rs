@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use std::{
-	fs::{create_dir, create_dir_all, File},
+	fs::{File, create_dir, create_dir_all},
 	path::{Path, PathBuf},
 };
 
 pub mod new_pallet_options;
 
 use crate::{
+	TemplatePalletConfigCommonTypes, TemplatePalletStorageTypes,
 	errors::Error,
 	generator::pallet::{
 		PalletAdvancedBenchmarking, PalletAdvancedLib, PalletAdvancedMock, PalletAdvancedTests,
@@ -16,7 +17,6 @@ use crate::{
 		PalletTestsUtils, PalletTryState, PalletTypes, PalletWeights,
 	},
 	utils::helpers::sanitize,
-	TemplatePalletConfigCommonTypes, TemplatePalletStorageTypes,
 };
 
 /// Metadata for the Template Pallet.
