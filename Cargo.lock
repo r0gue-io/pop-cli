@@ -2105,8 +2105,9 @@ checksum = "7c74b8349d32d297c9134b8c88677813a227df8f779daa29bfc29c183fe3dca6"
 
 [[package]]
 name = "contract-build"
-version = "6.0.0-alpha.4"
-source = "git+https://github.com/use-ink/cargo-contract?branch=refactor%2Fdependencies#6b25fb5b825e7845d5d6db2db64194cf01c50feb"
+version = "6.0.0-beta"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87fa86f2beac2032fc847c12790be1b8174c75221b76302ccb80f2f8220f2991"
 dependencies = [
  "alloy-json-abi",
  "anyhow",
@@ -2148,8 +2149,9 @@ dependencies = [
 
 [[package]]
 name = "contract-extrinsics"
-version = "6.0.0-alpha.4"
-source = "git+https://github.com/use-ink/cargo-contract?branch=refactor%2Fdependencies#6b25fb5b825e7845d5d6db2db64194cf01c50feb"
+version = "6.0.0-beta"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c707b257807b006be095bb90e19abc52e79a43c49e8a7412778778e622528f2"
 dependencies = [
  "anyhow",
  "colored",
@@ -2178,8 +2180,9 @@ dependencies = [
 
 [[package]]
 name = "contract-metadata"
-version = "6.0.0-alpha.4"
-source = "git+https://github.com/use-ink/cargo-contract?branch=refactor%2Fdependencies#6b25fb5b825e7845d5d6db2db64194cf01c50feb"
+version = "6.0.0-beta"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c02a2b14a48c5fe96994ce5c7f7c113763b7ae9ecc5997e77a99fa7b1f9d52e"
 dependencies = [
  "anyhow",
  "impl-serde",
@@ -2191,8 +2194,9 @@ dependencies = [
 
 [[package]]
 name = "contract-transcode"
-version = "6.0.0-alpha.4"
-source = "git+https://github.com/use-ink/cargo-contract?branch=refactor%2Fdependencies#6b25fb5b825e7845d5d6db2db64194cf01c50feb"
+version = "6.0.0-beta"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f79aec800c4fc45b87d23d7d16e65e72dd2c9828b11364eff396f557788a487"
 dependencies = [
  "anyhow",
  "base58",
