@@ -16,17 +16,13 @@ use crate::{
 use anyhow::{Result, anyhow};
 use clap::Args;
 use cliclack::spinner;
-use pop_common::parse_h160_account;
-#[cfg(feature = "contract")]
+use pop_common::{DefaultConfig, Keypair, parse_h160_account};
 use pop_contracts::{
 	CallExec, CallOpts, DefaultEnvironment, Verbosity, Weight, build_smart_contract,
 	call_smart_contract, call_smart_contract_from_signed_payload, dry_run_call,
 	dry_run_gas_estimate_call, get_call_payload, get_message, get_messages, set_up_call,
 };
 use std::path::PathBuf;
-
-use subxt::PolkadotConfig as DefaultConfig;
-pub use subxt_signer::sr25519::Keypair;
 
 const DEFAULT_URI: &str = "//Alice";
 const DEFAULT_PAYABLE_VALUE: &str = "0";

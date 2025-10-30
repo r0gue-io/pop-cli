@@ -11,14 +11,13 @@ use crate::{
 	},
 };
 use anyhow::Context;
-use pop_common::{DefaultConfig, Keypair, create_signer};
+use pop_common::{DefaultConfig, Keypair, account_id::parse_h160_account, create_signer};
 use sp_weights::Weight;
 
 use contract_extrinsics::{
 	BalanceVariant, CallCommandBuilder, ContractArtifacts, DisplayEvents, ErrorVariant,
 	ExtrinsicOptsBuilder, TokenMetadata, extrinsic_calls::Call,
 };
-use pop_common::account_id::parse_h160_account;
 use std::path::PathBuf;
 use subxt::{SubstrateConfig, tx::Payload};
 use url::Url;

@@ -2,8 +2,8 @@
 
 use crate::{DefaultEnvironment, errors::Error};
 use contract_extrinsics::{ExtrinsicOpts, MapAccountCommandBuilder, MapAccountExec};
-use subxt::{PolkadotConfig as DefaultConfig, ext::scale_encode::EncodeAsType, utils::H160};
-use subxt_signer::sr25519::Keypair;
+use pop_common::{DefaultConfig, Keypair};
+use subxt::{ext::scale_encode::EncodeAsType, utils::H160};
 
 /// A helper struct for performing account mapping operations.
 pub struct AccountMapper {

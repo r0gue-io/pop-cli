@@ -19,15 +19,13 @@ use crate::{
 use clap::Args;
 use cliclack::{ProgressBar, spinner};
 use console::{Emoji, Style};
-#[cfg(feature = "contract")]
 use pop_contracts::{
-	Bytes, UpOpts, Verbosity, Weight, build_smart_contract, dry_run_gas_estimate_instantiate,
-	dry_run_upload, get_contract_code, get_instantiate_payload, get_upload_payload,
-	instantiate_contract_signed, instantiate_smart_contract, is_chain_alive, parse_hex_bytes,
-	run_contracts_node, set_up_deployment, set_up_upload, upload_contract_signed,
-	upload_smart_contract,
+	Bytes, FunctionType, UpOpts, Verbosity, Weight, build_smart_contract,
+	dry_run_gas_estimate_instantiate, dry_run_upload, extract_function, get_contract_code,
+	get_instantiate_payload, get_upload_payload, instantiate_contract_signed,
+	instantiate_smart_contract, is_chain_alive, parse_hex_bytes, run_contracts_node,
+	set_up_deployment, set_up_upload, upload_contract_signed, upload_smart_contract,
 };
-use pop_contracts::{FunctionType, extract_function};
 use sp_core::bytes::to_hex;
 use std::path::PathBuf;
 use tempfile::NamedTempFile;

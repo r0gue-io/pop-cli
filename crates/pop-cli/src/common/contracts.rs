@@ -7,7 +7,7 @@ use crate::{
 	style::style,
 };
 use cliclack::ProgressBar;
-use pop_common::manifest::from_path;
+use pop_common::{DefaultConfig, Keypair, manifest::from_path};
 use pop_contracts::{
 	AccountMapper, ContractFunction, DefaultEnvironment, ExtrinsicOpts, contracts_node_generator,
 };
@@ -15,8 +15,6 @@ use std::{
 	path::{Path, PathBuf},
 	process::{Child, Command},
 };
-use subxt::PolkadotConfig as DefaultConfig;
-use subxt_signer::sr25519::Keypair;
 use tempfile::NamedTempFile;
 
 impl_binary_generator!(ContractsNodeGenerator, contracts_node_generator);

@@ -16,15 +16,14 @@ use contract_extrinsics::{
 	events::ContractInstantiated,
 	extrinsic_calls::{Instantiate, InstantiateWithCode},
 };
-use pop_common::{account_id::parse_h160_account, create_signer};
+use pop_common::{DefaultConfig, Keypair, account_id::parse_h160_account, create_signer};
 use sp_core::bytes::{from_hex, to_hex};
 use std::path::{Path, PathBuf};
 use subxt::{
-	OnlineClient, PolkadotConfig as DefaultConfig, SubstrateConfig, backend,
+	OnlineClient, SubstrateConfig, backend,
 	blocks::ExtrinsicEvents,
 	tx::{Payload, SubmittableTransaction},
 };
-pub use subxt_signer::sr25519::Keypair;
 
 /// Attributes for the `up` command
 #[derive(Clone, Debug, PartialEq)]
