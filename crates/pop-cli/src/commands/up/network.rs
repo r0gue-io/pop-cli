@@ -659,11 +659,15 @@ impl Status for VerboseReporter {
 }
 
 fn cd_into_chain_base_dir(network_file: &Path) {
-	let parent = network_file;
-	while let Some(parent) = parent.parent() {
+	let mut parent = network_file;
+	loop {
 		if pop_chains::is_supported(parent) {
 			std::env::set_current_dir(parent).unwrap();
 			break;
+		}
+		match parent.parent() {
+			Some(p) => parent = p,
+			None => break,
 		}
 	}
 }
