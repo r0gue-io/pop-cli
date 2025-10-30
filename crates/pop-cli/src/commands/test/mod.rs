@@ -41,7 +41,7 @@ pub(crate) struct TestArgs {
 	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 	pub(crate) contract: contract::TestContractCommand,
 	/// Run with the specified test filter.
-	#[arg(short, long)]
+	#[arg(value_name = "FILTER", index = 2)]
 	pub(crate) test: Option<String>,
 }
 
@@ -74,10 +74,22 @@ impl Command {
 	}
 
 	async fn test(
-		args: TestArgs,
+		mut args: TestArgs,
 		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<(Project, TestFeature)> {
+		// If user gave only one positional and it doesn’t resolve to a directory,
+		// treat it as the test filter and default the project path to CWD.
+		if args.test.is_none() &&
+			args.path.is_none() &&
+			let Some(ref pb) = args.path_pos &&
+			!pb.is_dir()
+		{
+			// Reinterpret the first positional as the test filter
+			args.test = Some(pb.to_string_lossy().into_owned());
+			args.path_pos = None; // no positional path; will default to CWD
+		}
+
 		let project_path = ensure_project_path(args.path.clone(), args.path_pos.clone());
 
 		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
