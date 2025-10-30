@@ -31,14 +31,8 @@ use tokio::time::sleep;
 #[derive(Args, Clone, Default)]
 pub(crate) struct ConfigFileCommand {
 	/// The Zombienet network configuration file to be used.
-	#[arg(value_name = "FILE", conflicts_with = "file")]
-	pub path: Option<PathBuf>,
-	/// [DEPRECATED] The Zombienet network configuration file to be used (will be removed in
-	/// v0.10.0).
-	#[arg(short = 'f', long = "file")]
-	#[deprecated(since = "0.9.0", note = "will be removed in v0.10.0")]
-	#[allow(rustdoc::broken_intra_doc_links)]
-	pub(crate) file: Option<PathBuf>,
+	#[arg(value_name = "FILE")]
+	pub path: PathBuf,
 	/// The version of the binary to be used for the relay chain, as per the release tag (e.g.
 	/// "stable2503"). See <https://github.com/paritytech/polkadot-sdk/releases> for more details.
 	#[arg(short, long)]
@@ -79,29 +73,10 @@ impl ConfigFileCommand {
 	pub(crate) async fn execute(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		cli.intro("Launch a local network")?;
 
-		// Show warning if file argument provided.
-		#[allow(deprecated)]
-		if self.file.is_some() {
-			cli.warning(
-				"DEPRECATION: Please use `pop up network [PATH]` (or simply `pop u n [PATH]`) in the future...",
-			)?;
-		}
-
-		// Determine network config from args.
-		let network_config = match self.path.as_ref() {
-			Some(path) => path,
-			#[allow(deprecated)]
-			None => match self.file.as_deref() {
-				None => {
-					cli.outro_cancel("🚫 A network configuration file must be specified. See `pop up network --help` for usage.".to_string())?;
-					return Ok(());
-				},
-				Some(path) => path,
-			},
-		};
-
+		let path = self.path.canonicalize()?;
+		cd_into_chain_base_dir(&path);
 		spawn(
-			network_config.try_into()?,
+			path.as_path().try_into()?,
 			self.relay_chain.as_deref(),
 			self.relay_chain_runtime.as_deref(),
 			self.system_parachain.as_deref(),
@@ -426,8 +401,6 @@ pub(crate) async fn spawn(
 						// Allow relay node time to start
 						sleep(Duration::from_secs(10)).await;
 						progress.set_message("Preparing channels...");
-						// TODO: Different sunxt versions. let relay_endpoint =
-						// network.relaychain().nodes()[0].wait_client().await?;
 						let relay_endpoint = network.relaychain().nodes()[0].ws_uri().to_string();
 						let ids: Vec<_> =
 							network.parachains().iter().map(|p| p.para_id()).collect();
@@ -685,10 +658,24 @@ impl Status for VerboseReporter {
 	}
 }
 
-// Write a test for run_custom_command
+fn cd_into_chain_base_dir(network_file: &Path) {
+	let mut parent = network_file;
+	loop {
+		if pop_chains::is_supported(parent) {
+			std::env::set_current_dir(parent).unwrap();
+			break;
+		}
+		match parent.parent() {
+			Some(p) => parent = p,
+			None => break,
+		}
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use std::{env, fs};
 
 	#[tokio::test]
 	async fn test_run_custom_command() -> Result<(), anyhow::Error> {
@@ -701,5 +688,83 @@ mod tests {
 		run_custom_command(&spinner, command).await?;
 
 		Ok(())
+	}
+
+	#[test]
+	fn test_cd_into_chain_base_dir_changes_to_supported_parent() {
+		// Save original working directory
+		let original_cwd = env::current_dir().expect("cwd");
+
+		// Create a unique temporary directory structure
+		let mut base = env::temp_dir();
+		base.push(format!(
+			"pop_cli_test_{}",
+			std::time::SystemTime::now()
+				.duration_since(std::time::UNIX_EPOCH)
+				.unwrap()
+				.as_millis()
+		));
+		let project_dir = base.join("project");
+		let nested_dir = project_dir.join("nested/a/b");
+		fs::create_dir_all(&nested_dir).expect("create nested dirs");
+
+		// Write a minimal Cargo.toml that qualifies as a supported chain project
+		let cargo_toml = r#"[package]
+name = "dummy-chain"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cumulus-client-collator = "0.14"
+"#;
+		fs::write(project_dir.join("Cargo.toml"), cargo_toml).expect("write Cargo.toml");
+
+		// Provide a path to a pretend network file deep inside the project
+		let network_file = nested_dir.join("network.toml");
+
+		// Execute
+		cd_into_chain_base_dir(&network_file);
+
+		// Assert we changed into the project_dir
+		let cwd = env::current_dir().expect("cwd after cd");
+		assert_eq!(
+			cwd.canonicalize().expect("canon cwd"),
+			project_dir.canonicalize().expect("canon project_dir")
+		);
+
+		// Restore cwd and cleanup
+		env::set_current_dir(&original_cwd).expect("restore cwd");
+		fs::remove_dir_all(&base).ok();
+	}
+
+	#[test]
+	fn test_cd_into_chain_base_dir_noop_when_unsupported() {
+		// Save original working directory
+		let original_cwd = env::current_dir().expect("cwd");
+
+		// Create a unique temporary directory structure without a Cargo.toml
+		let mut base = env::temp_dir();
+		base.push(format!(
+			"pop_cli_test_{}_unsupported",
+			std::time::SystemTime::now()
+				.duration_since(std::time::UNIX_EPOCH)
+				.unwrap()
+				.as_millis()
+		));
+		let nested_dir = base.join("nested/a/b");
+		fs::create_dir_all(&nested_dir).expect("create nested dirs");
+
+		// Provide a path to a pretend network file
+		let network_file = nested_dir.join("network.toml");
+
+		// Execute
+		cd_into_chain_base_dir(&network_file);
+
+		// Assert cwd has not changed (no supported project found up the tree)
+		let cwd = env::current_dir().expect("cwd after cd");
+		assert_eq!(cwd, original_cwd);
+
+		// Cleanup
+		fs::remove_dir_all(&base).ok();
 	}
 }
