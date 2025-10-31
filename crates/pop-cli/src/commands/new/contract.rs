@@ -75,7 +75,12 @@ impl NewContractCommand {
 
 		// If the contract is part of a workspace, add it to that workspace
 		if let Some(workspace_toml) = rustilities::manifest::find_workspace_manifest(path) {
-			rustilities::manifest::add_crate_to_workspace(&workspace_toml, path)?;
+			// Canonicalize paths before passing to rustilities to avoid strip_prefix errors
+			// This ensures paths are absolute and consistent, especially when using simple names
+			rustilities::manifest::add_crate_to_workspace(
+				&workspace_toml.canonicalize()?,
+				&path.canonicalize()?,
+			)?;
 		}
 
 		Ok(template)
@@ -318,6 +323,52 @@ mod tests {
 		is_template_supported(&ContractType::Psp, &ContractTemplate::PSP34)?;
 		assert!(is_template_supported(&ContractType::Psp, &ContractTemplate::ERC20).is_err());
 		assert!(is_template_supported(&ContractType::Psp, &ContractTemplate::Standard).is_err());
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_contract_in_workspace_with_simple_name() -> Result<()> {
+		// The bug occurs when you pass a simple name like "flipper" instead of "./flipper"
+		// and the contract is created inside a workspace.
+		let temp_dir = tempdir()?;
+		let workspace_path = temp_dir.path();
+		// Create a workspace Cargo.toml
+		fs::write(
+			workspace_path.join("Cargo.toml"),
+			r#"[workspace]
+resolver = "2"
+members = []
+
+[workspace.package]
+edition = "2024"
+"#,
+		)?;
+		// Change to the workspace directory to simulate real usage
+		let original_dir = std::env::current_dir()?;
+		std::env::set_current_dir(workspace_path)?;
+		// User runs: pop new contract flipper -t standard
+		// They pass just "flipper", not "./flipper"
+		let cli = Cli::parse_from([
+			"pop", "new", "contract", "flipper", // Just the name, not a path like "./flipper"
+		]);
+		let New(NewArgs { command: Some(Contract(command)) }) = cli.command else {
+			panic!("unable to parse command")
+		};
+		let result = command.execute().await;
+		// Restore original directory
+		std::env::set_current_dir(original_dir)?;
+		result?;
+		// Verify the contract was created
+		assert!(workspace_path.join("flipper").exists());
+		assert!(workspace_path.join("flipper/Cargo.toml").exists());
+		assert!(workspace_path.join("flipper/lib.rs").exists());
+		// Verify it was added to the workspace
+		let workspace_toml = fs::read_to_string(workspace_path.join("Cargo.toml"))?;
+		assert!(
+			workspace_toml.contains("flipper"),
+			"Contract should be added to workspace members"
+		);
+
 		Ok(())
 	}
 }
