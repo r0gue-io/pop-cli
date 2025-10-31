@@ -1,41 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
 // pub to ease downstream imports
-pub use pop_common::templates::{Template, Type};
+pub use pop_common::templates::Template;
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
-
-/// Supported contract template providers.
-#[derive(
-	AsRefStr, Clone, Default, Debug, Display, EnumMessage, EnumString, Eq, PartialEq, VariantArray,
-)]
-pub enum ContractType {
-	/// Contract examples for ink!.
-	#[default]
-	#[strum(
-		ascii_case_insensitive,
-		serialize = "examples",
-		message = "Examples",
-		detailed_message = "Contract examples for ink!."
-	)]
-	Examples,
-	/// ERC-based contracts in ink!.
-	#[strum(
-		ascii_case_insensitive,
-		serialize = "erc",
-		message = "ERC",
-		detailed_message = "ERC-based contracts in ink!."
-	)]
-	Erc,
-}
-
-impl Type<Contract> for ContractType {
-	fn default_template(&self) -> Option<Contract> {
-		match &self {
-			ContractType::Examples => Some(Contract::Standard),
-			ContractType::Erc => Some(Contract::ERC20),
-		}
-	}
-}
 
 /// A smart contract template.
 #[derive(
@@ -157,20 +124,6 @@ mod tests {
 	}
 
 	#[test]
-	fn test_is_template_correct() {
-		for template in Contract::VARIANTS {
-			if matches!(template, Standard | DNS | CrossContract | Multisig) {
-				assert!(ContractType::Examples.provides(template));
-				assert!(!ContractType::Erc.provides(template));
-			}
-			if matches!(template, ERC20 | ERC721 | ERC1155) {
-				assert!(!ContractType::Examples.provides(template));
-				assert!(ContractType::Erc.provides(template));
-			}
-		}
-	}
-
-	#[test]
 	fn test_convert_string_to_template() {
 		let template_names = templates_names();
 		// Test the default
@@ -205,27 +158,5 @@ mod tests {
 		for template in Contract::VARIANTS {
 			assert_eq!(template.description(), templates_description[template]);
 		}
-	}
-
-	#[test]
-	fn test_default_template_of_type() {
-		let mut contract_type = ContractType::Examples;
-		assert_eq!(contract_type.default_template(), Some(Standard));
-		contract_type = ContractType::Erc;
-		assert_eq!(contract_type.default_template(), Some(ERC20));
-	}
-
-	#[test]
-	fn test_templates_of_type() {
-		let mut contract_type = ContractType::Examples;
-		assert_eq!(contract_type.templates(), [&Standard, &DNS, &CrossContract, &Multisig]);
-		contract_type = ContractType::Erc;
-		assert_eq!(contract_type.templates(), [&ERC20, &ERC721, &ERC1155]);
-	}
-
-	#[test]
-	fn test_convert_string_to_type() {
-		assert_eq!(ContractType::from_str("examples").unwrap(), ContractType::Examples);
-		assert_eq!(ContractType::from_str("erc").unwrap_or_default(), ContractType::Erc);
 	}
 }
