@@ -31,7 +31,8 @@ pub use up::{
 };
 pub use utils::{
 	metadata::{
-		ContractFunction, FunctionType, Param, extract_function, get_message, get_messages,
+		ContractCallable, ContractFunction, ContractStorage, FunctionType, Param, extract_function,
+		fetch_contract_storage, get_contract_storage_info, get_message, get_messages,
 	},
 	parse_hex_bytes,
 };
