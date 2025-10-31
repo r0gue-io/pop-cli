@@ -287,7 +287,7 @@ async fn generate_parachain_from_template(
 	if let Some(frontend_template) = &frontend_template {
 		create_frontend(&destination_path, frontend_template, cli).await?;
 		next_steps.push(format!(
-			"Frontend template created inside \"{name_template}\". Navigate to the folder to start customizing it for your chain. To run it locally, use: `pop up frontend`."
+			"Frontend template created inside \"{name_template}\". To run it locally, use: `pop up frontend`. Navigate to the `frontend` folder to start customizing it for your chain."
 		))
 	};
 

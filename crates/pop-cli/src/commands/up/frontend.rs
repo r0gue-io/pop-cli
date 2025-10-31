@@ -55,6 +55,14 @@ pub fn resolve_frontend_dir(
 	if frontend_folder.is_dir() {
 		return Ok(Some(frontend_folder));
 	}
+	let is_frontend_folder = ["package.json", "bun.lockb", "node_modules"]
+		.iter()
+		.any(|f| base_dir.join(f).exists());
+	if is_frontend_folder {
+		cli.info("Detected frontend project in current directory.")?;
+		return Ok(Some(base_dir.to_path_buf()));
+	}
+
 	let pick = cli
 		.input(
 			"Frontend directory not found at ./frontend. Provide a path to the frontend directory:",
@@ -78,10 +86,12 @@ pub fn resolve_frontend_dir(
 /// * `target` - Location where the smart contract will be created.
 pub fn run_frontend(target: &Path) -> Result<()> {
 	if is_cmd_available("bun") {
+		cmd("bun", &["install"]).dir(target).run()?;
 		cmd("bun", &["run", "dev"]).dir(target).run()?;
 		return Ok(());
 	}
 	if is_cmd_available("npm") {
+		cmd("npm", &["install"]).dir(target).run()?;
 		cmd("npm", &["run", "dev"]).dir(target).run()?;
 		return Ok(());
 	}
@@ -131,6 +141,20 @@ mod tests {
 
 		let result = resolve_frontend_dir(temp.path(), &mut cli)?;
 		assert_eq!(result, Some(custom_dir));
+		cli.verify()
+	}
+
+	#[test]
+	fn resolve_frontend_dir_detects_current_dir_is_frontend_works() -> anyhow::Result<()> {
+		let temp = tempdir()?;
+		let package_json = temp.path().join("package.json");
+		fs::write(&package_json, "{}")?;
+
+		let mut cli = MockCli::new().expect_info("Detected frontend project in current directory.");
+
+		let result = resolve_frontend_dir(temp.path(), &mut cli)?;
+		assert_eq!(result.unwrap().canonicalize()?, temp.path().canonicalize()?);
+
 		cli.verify()
 	}
 
