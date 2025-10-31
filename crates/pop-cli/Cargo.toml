@@ -39,8 +39,6 @@ url.workspace = true
 # contracts
 pop-contracts = { path = "../pop-contracts", version = "0.10.0", default-features = false, optional = true }
 sp-core = { workspace = true }
-subxt-signer = { workspace = true}
-subxt = { workspace = true }
 
 # parachains
 pop-chains = { path = "../pop-chains", version = "0.10.0", optional = true }
@@ -61,8 +59,9 @@ open = { workspace = true, optional = true }
 tower-http = { workspace = true, features = ["fs", "cors"], optional = true }
 
 [dev-dependencies]
-assert_cmd.workspace = true
 mockito.workspace = true
+subxt-signer = { workspace = true}
+subxt = { workspace = true }
 
 [features]
 default = ["chain", "telemetry", "contract"]

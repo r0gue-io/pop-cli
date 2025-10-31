@@ -5,7 +5,6 @@
 #![cfg(all(feature = "contract", feature = "integration-tests"))]
 
 use anyhow::Result;
-use assert_cmd::Command;
 use pop_common::{find_free_port, pop, set_executable_permission, templates::Template};
 use pop_contracts::{
 	CallOpts, Contract, UpOpts, Weight, contracts_node_generator, dry_run_call,
@@ -280,11 +279,9 @@ fn generate_all_the_templates(temp_dir: &Path) -> Result<()> {
 		let contract_name = format!("test_contract_{}", template).replace("-", "_");
 		let contract_type = template.template_type()?.to_lowercase();
 		// pop new chain test_parachain
-		#[allow(deprecated)]
-		Command::cargo_bin("pop")
-			.unwrap()
-			.current_dir(&temp_dir)
-			.args(&[
+		let mut command = pop(
+			&temp_dir,
+			[
 				"new",
 				"contract",
 				&contract_name,
@@ -292,9 +289,9 @@ fn generate_all_the_templates(temp_dir: &Path) -> Result<()> {
 				&contract_type,
 				"--template",
 				&template.to_string(),
-			])
-			.assert()
-			.success();
+			],
+		);
+		assert!(command.spawn()?.wait()?.success());
 		assert!(temp_dir.join(contract_name).exists());
 	}
 	Ok(())
