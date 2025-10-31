@@ -21,7 +21,7 @@ use pop_common::sourcing::{ArchiveFileSpec, filters::prefix};
 use std::{
 	env::consts::{ARCH, OS},
 	fs::File,
-	path::PathBuf,
+	path::{Path, PathBuf},
 	process::{Child, Command, Stdio},
 	time::Duration,
 };
@@ -54,11 +54,18 @@ pub async fn is_chain_alive(url: url::Url) -> Result<bool, Error> {
 /// A supported chain.
 #[derive(Debug, EnumProperty, PartialEq, VariantArray)]
 pub(super) enum Chain {
+	/// RPC module for Ethereum compatibility.
+	#[strum(props(
+		Repository = "https://github.com/use-ink/ink-node",
+		Binary = "eth-rpc",
+		Fallback = "v0.46.0"
+	))]
+	EthRpc,
 	/// Minimal ink node configured for smart contracts via pallet-revive.
 	#[strum(props(
 		Repository = "https://github.com/use-ink/ink-node",
 		Binary = "ink-node",
-		Fallback = "v0.45.1"
+		Fallback = "v0.46.0"
 	))]
 	ContractsNode,
 }
@@ -67,24 +74,20 @@ impl SourceT for Chain {
 	type Error = Error;
 	/// Defines the source of a binary for the chain.
 	fn source(&self) -> Result<Source, Error> {
-		Ok(match self {
-			&Chain::ContractsNode => {
-				// Source from GitHub release asset
-				let repo = GitHub::parse(self.repository())?;
-				Source::GitHub(ReleaseArchive {
-					owner: repo.org,
-					repository: repo.name,
-					tag: None,
-					tag_pattern: self.tag_pattern().map(|t| t.into()),
-					prerelease: false,
-					version_comparator: sort_by_latest_semantic_version,
-					fallback: self.fallback().into(),
-					archive: archive_name_by_target()?,
-					contents: release_directory_by_target(self.binary())?,
-					latest: None,
-				})
-			},
-		})
+		// Source from GitHub release asset
+		let repo = GitHub::parse(self.repository())?;
+		Ok(Source::GitHub(ReleaseArchive {
+			owner: repo.org,
+			repository: repo.name,
+			tag: None,
+			tag_pattern: self.tag_pattern().map(|t| t.into()),
+			prerelease: false,
+			version_comparator: sort_by_latest_semantic_version,
+			fallback: self.fallback().into(),
+			archive: archive_name_by_target()?,
+			contents: release_directory_by_target()?,
+			latest: None,
+		}))
 	}
 }
 
@@ -95,11 +98,26 @@ impl SourceT for Chain {
 /// * `cache` - The cache directory path.
 /// * `version` - The specific version used for the substrate-contracts-node (`None` will use the
 ///   latest available version).
-pub async fn contracts_node_generator(
+pub async fn ink_node_generator(cache: PathBuf, version: Option<&str>) -> Result<Binary, Error> {
+	node_generator_inner(&Chain::ContractsNode, cache, version).await
+}
+
+/// Retrieves the latest release of the Ethereum RPC binary, resolves its version, and constructs
+/// a `Binary::Source` with the specified cache path.
+///
+/// # Arguments
+/// * `cache` - The cache directory path.
+/// * `version` - The specific version used for the substrate-contracts-node (`None` will use the
+///   latest available version).
+pub async fn eth_rpc_generator(cache: PathBuf, version: Option<&str>) -> Result<Binary, Error> {
+	node_generator_inner(&Chain::EthRpc, cache, version).await
+}
+
+async fn node_generator_inner(
+	chain: &Chain,
 	cache: PathBuf,
 	version: Option<&str>,
 ) -> Result<Binary, Error> {
-	let chain = &Chain::ContractsNode;
 	let name = chain.binary().to_string();
 	let source = chain
 		.source()?
@@ -109,15 +127,15 @@ pub async fn contracts_node_generator(
 	Ok(Binary::Source { name, source, cache })
 }
 
-/// Runs the latest version of the `substrate-contracts-node` in the background.
+/// Runs the latest version of the `ink-node` in the background.
 ///
 /// # Arguments
 ///
 /// * `binary_path` - The path where the binary is stored. Can be the binary name itself if in PATH.
 /// * `output` - The optional log file for node output.
 /// * `port` - The WebSocket port on which the node will listen for connections.
-pub async fn run_contracts_node(
-	binary_path: PathBuf,
+pub async fn run_ink_node(
+	binary_path: &Path,
 	output: Option<&File>,
 	port: u16,
 ) -> Result<Child, Error> {
@@ -149,6 +167,29 @@ pub async fn run_contracts_node(
 	Ok(process)
 }
 
+/// Runs the latest version of the `eth_rpc` in the background.
+///
+/// # Arguments
+///
+/// * `binary_path` - The path where the binary is stored. Can be the binary name itself if in PATH.
+/// * `output` - The optional log file for node output.
+/// * `port` - The WebSocket port on which the node will listen for connections.
+pub async fn run_eth_rpc_node(
+	binary_path: &Path,
+	output: Option<&File>,
+	node_url: &str,
+	port: u16,
+) -> Result<Child, Error> {
+	let mut command = Command::new(binary_path);
+	command.arg(format!("--node-rpc-url={}", node_url));
+	command.arg(format!("--rpc-port={}", port));
+	if let Some(output) = output {
+		command.stdout(Stdio::from(output.try_clone()?));
+		command.stderr(Stdio::from(output.try_clone()?));
+	}
+	Ok(command.spawn()?)
+}
+
 fn archive_name_by_target() -> Result<String, Error> {
 	match OS {
 		"macos" => Ok(format!("{}-mac-universal.tar.gz", BIN_NAME)),
@@ -156,13 +197,24 @@ fn archive_name_by_target() -> Result<String, Error> {
 		_ => Err(Error::UnsupportedPlatform { arch: ARCH, os: OS }),
 	}
 }
-fn release_directory_by_target(binary: &str) -> Result<Vec<ArchiveFileSpec>, Error> {
+fn release_directory_by_target() -> Result<Vec<ArchiveFileSpec>, Error> {
 	match OS {
-		"macos" => Ok("ink-node-mac/ink-node"),
-		"linux" => Ok("ink-node-linux/ink-node"),
+		"macos" => Ok(vec!["ink-node-mac/ink-node", "ink-node-mac/eth-rpc"]),
+		"linux" => Ok(vec!["ink-node-linux/ink-node", "ink-node-linux/eth-rpc"]),
 		_ => Err(Error::UnsupportedPlatform { arch: ARCH, os: OS }),
 	}
-	.map(|name| vec![ArchiveFileSpec::new(name.into(), Some(binary.into()), true)])
+	.map(|files| {
+		files
+			.into_iter()
+			.map(|name| {
+				ArchiveFileSpec::new(
+					name.into(),
+					Some(name.split("/").last().unwrap().into()),
+					true,
+				)
+			})
+			.collect()
+	})
 }
 
 #[cfg(test)]
@@ -198,13 +250,13 @@ mod tests {
 	async fn contracts_node_generator_works() -> anyhow::Result<()> {
 		let expected = Chain::ContractsNode;
 		let archive = archive_name_by_target()?;
-		let contents = release_directory_by_target(BIN_NAME)?;
+		let contents = release_directory_by_target()?;
 		let owner = "use-ink";
 		let versions = ["v0.43.0"];
 		for version in versions {
 			let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
 			let cache = temp_dir.path().join("cache");
-			let binary = contracts_node_generator(cache.clone(), Some(version)).await?;
+			let binary = ink_node_generator(cache.clone(), Some(version)).await?;
 
 			assert!(matches!(binary, Binary::Source { name, source, cache}
 				if name == expected.binary() &&
