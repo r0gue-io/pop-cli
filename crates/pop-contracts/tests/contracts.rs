@@ -5,13 +5,13 @@
 #![cfg(feature = "integration-tests")]
 
 use anyhow::Result;
-use pop_common::{DefaultConfig, Keypair, find_free_port, parse_h160_account};
+use pop_common::{DefaultConfig, Keypair, parse_h160_account, test_env::TestNode};
 use pop_contracts::{
 	AccountMapper, Bytes, CallOpts, DefaultEnvironment, Error, UpOpts, call_smart_contract,
-	contracts_node_generator, dry_run_call, dry_run_gas_estimate_call,
-	dry_run_gas_estimate_instantiate, dry_run_upload, get_contract_code, get_upload_payload,
-	instantiate_smart_contract, is_chain_alive, mock_build_process, new_environment,
-	run_contracts_node, set_up_call, set_up_deployment, set_up_upload, upload_smart_contract,
+	dry_run_call, dry_run_gas_estimate_call, dry_run_gas_estimate_instantiate, dry_run_upload,
+	get_contract_code, get_upload_payload, instantiate_smart_contract, is_chain_alive,
+	mock_build_process, new_environment, set_up_call, set_up_deployment, set_up_upload,
+	upload_smart_contract,
 };
 use sp_core::bytes::from_hex;
 use std::{env, path::PathBuf};
@@ -30,24 +30,12 @@ const CONTRACT_FILE: &str = "./tests/files/testing.contract";
 //full_contract_lifecycle_on_local_node
 #[tokio::test]
 async fn run_contracts_node_works() -> Result<()> {
-	// TODO: Once remove the v5, replace the way to initialize the node with:
-	// let node = TestNode::spawn().await?;
-	let random_port = find_free_port(None);
-	let localhost_url = format!("ws://127.0.0.1:{}", random_port);
+	let node = TestNode::spawn().await?;
+	let localhost_url = node.ws_url();
 	let local_url = url::Url::parse(&localhost_url)?;
-
-	let temp_dir = tempfile::tempdir().expect("Could not create temp dir");
-	let cache = temp_dir.path().join("");
-
-	let version = "v0.43.0";
-	let binary = contracts_node_generator(cache.clone(), Some(version)).await?;
-	binary.source(false, &(), true).await?;
-	let mut process = run_contracts_node(binary.path(), None, random_port).await?;
 
 	// Check if the node is alive
 	assert!(is_chain_alive(local_url).await?);
-	assert!(cache.join("ink-node-v0.43.0").exists());
-	assert!(!cache.join("artifacts").exists());
 
 	map_account_works(&localhost_url).await?;
 
@@ -63,6 +51,7 @@ async fn run_contracts_node_works() -> Result<()> {
 	set_up_upload_works(&temp_dir, &localhost_url).await?;
 	get_payload_works(&temp_dir, &localhost_url).await?;
 	dry_run_gas_estimate_instantiate_works(&temp_dir, &localhost_url).await?;
+	dry_run_gas_estimate_instantiate_throw_custom_error(&temp_dir, &localhost_url).await?;
 	dry_run_upload_throw_custom_error(&temp_dir, &localhost_url).await?;
 	let contract_address = instantiate_and_upload(&temp_dir, &localhost_url).await?;
 
@@ -71,6 +60,8 @@ async fn run_contracts_node_works() -> Result<()> {
 	test_set_up_call_from_artifact_file(&localhost_url, &contract_address).await?;
 	test_set_up_call_error_contract_not_build(&localhost_url, &contract_address).await?;
 	test_set_up_call_fails_no_smart_contract_directory(&localhost_url, &contract_address).await?;
+	test_dry_run_call_error_contract_not_deployed(&temp_dir, &localhost_url, &contract_address)
+		.await?;
 	test_dry_run_estimate_call_error_contract_not_deployed(
 		&temp_dir,
 		&localhost_url,
@@ -79,17 +70,12 @@ async fn run_contracts_node_works() -> Result<()> {
 	.await?;
 	call_works(&temp_dir, &localhost_url, &contract_address).await?;
 
-	// Stop the process contracts-node
-	process.kill()?;
-	process.wait()?;
-
 	Ok(())
 }
 
 async fn map_account_works(localhost_url: &str) -> Result<()> {
 	let current_dir = env::current_dir().expect("Failed to get current directory");
-	// Alice is mapped when running the contracts-node.
-	let signer = dev::bob();
+	let signer = dev::alice();
 	let extrinsic_opts: ExtrinsicOpts<DefaultConfig, DefaultEnvironment, Keypair> =
 		ExtrinsicOptsBuilder::new(signer)
 			.file(Some(current_dir.join(CONTRACT_FILE)))
@@ -99,7 +85,7 @@ async fn map_account_works(localhost_url: &str) -> Result<()> {
 	assert!(map.needs_mapping().await?);
 
 	let address = map.map_account().await?;
-	assert_eq!(address, parse_h160_account("0x41dccbd49b26c50d34355ed86ff0fa9e489d1e01")?);
+	assert_eq!(address, parse_h160_account("0x9621dde636de098b43efb0fa9b61facfe328f99d")?);
 
 	assert!(!map.needs_mapping().await?);
 	Ok(())
@@ -156,8 +142,8 @@ async fn get_payload_works(temp_dir: &TempDir, localhost_url: &str) -> Result<()
 	};
 	let payload_hash = BlakeTwo256::hash(&BlakeTwo256, &call_data);
 	// We know that for the above opts the payload hash should be:
-	// 0xbe0018c8a775f24602466cdc532b2565a140eeca9f2ff6352aa581ff0ee687a6
-	let hex_bytes = from_hex("be0018c8a775f24602466cdc532b2565a140eeca9f2ff6352aa581ff0ee687a6")
+	// 0x5e8744d9d1863f89e9e77e360e89a208584e398a35f7a4be6a42a8fbdcfbef62
+	let hex_bytes = from_hex("5e8744d9d1863f89e9e77e360e89a208584e398a35f7a4be6a42a8fbdcfbef62")
 		.expect("Invalid hex string");
 
 	let hex_array: [u8; 32] = hex_bytes.try_into().expect("Expected 32-byte array");
@@ -187,6 +173,29 @@ async fn dry_run_gas_estimate_instantiate_works(
 	let weight = dry_run_gas_estimate_instantiate(&instantiate_exec).await?;
 	assert!(weight.ref_time() > 0);
 	assert!(weight.proof_size() > 0);
+	Ok(())
+}
+
+async fn dry_run_gas_estimate_instantiate_throw_custom_error(
+	temp_dir: &TempDir,
+	localhost_url: &str,
+) -> Result<()> {
+	let up_opts = UpOpts {
+		path: temp_dir.path().join("testing"),
+		constructor: "new".to_string(),
+		args: ["false".to_string()].to_vec(),
+		value: "10000".to_string(),
+		gas_limit: None,
+		proof_size: None,
+		salt: None,
+		url: Url::parse(localhost_url)?,
+		suri: "//Alice".to_string(),
+	};
+	let instantiate_exec = set_up_deployment(up_opts).await?;
+	assert!(matches!(
+		dry_run_gas_estimate_instantiate(&instantiate_exec).await,
+		Err(Error::DryRunUploadContractError(..))
+	));
 	Ok(())
 }
 
@@ -338,6 +347,28 @@ async fn test_set_up_call_fails_no_smart_contract_directory(
 	assert!(
 		matches!(set_up_call(call_opts).await, Err(Error::AnyhowError(message)) if message.root_cause().to_string() == "No 'ink' dependency found")
 	);
+	Ok(())
+}
+
+async fn test_dry_run_call_error_contract_not_deployed(
+	temp_dir: &TempDir,
+	localhost_url: &str,
+	contract_address: &str,
+) -> Result<()> {
+	let call_opts = CallOpts {
+		path: temp_dir.path().join("testing"),
+		contract: contract_address.to_string(),
+		message: "get".to_string(),
+		args: [].to_vec(),
+		value: "1000".to_string(),
+		gas_limit: None,
+		proof_size: None,
+		url: Url::parse(localhost_url)?,
+		suri: "//Alice".to_string(),
+		execute: false,
+	};
+	let call = set_up_call(call_opts).await?;
+	assert!(matches!(dry_run_call(&call).await, Err(Error::DryRunCallContractError(..))));
 	Ok(())
 }
 

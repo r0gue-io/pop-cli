@@ -159,12 +159,7 @@ mod tests {
 		let generated_cargo = fs::read_to_string(temp_dir.path().join("test_contract/Cargo.toml"))
 			.expect("Could not read file");
 		assert!(generated_cargo.contains("name = \"test_contract\""));
-		// TODO: v6 still not published.
-		//assert!(generated_cargo.contains("ink = { version = \"6."));
-		assert!(
-			generated_cargo
-				.contains("ink = { git = \"https://github.com/use-ink/ink\", tag = \"v6.")
-		);
+		assert!(generated_cargo.contains("ink = { version = \"6."));
 		Ok(())
 	}
 

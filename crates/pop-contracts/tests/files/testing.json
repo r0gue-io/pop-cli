@@ -1,11 +1,11 @@
 {
   "source": {
     "hash": "0xaf8e21b9f596f7fae98086e7867d50ae047d2a45f147e96dd8e004ba507ef73a",
-    "language": "ink! 6.0.0-alpha.1",
+    "language": "ink! 6.0.0-beta",
     "compiler": "rustc 1.89.0",
     "build_info": {
       "rust_toolchain": "stable-aarch64-apple-darwin",
-      "cargo_contract_version": "6.0.0-alpha.1",
+      "cargo_contract_version": "6.0.0-beta",
       "build_mode": "Release"
     }
   },
