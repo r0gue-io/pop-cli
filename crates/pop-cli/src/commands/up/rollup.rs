@@ -181,6 +181,7 @@ impl UpCommand {
 		cli: &mut impl Cli,
 	) -> Result<Registration> {
 		let chain = configure(
+			"Select a chain (type to filter)",
 			"Enter the relay chain node URL",
 			urls::LOCAL,
 			&self.relay_chain_url,
@@ -695,7 +696,7 @@ mod tests {
 		let node_url = node.ws_url();
 		let mut cli = MockCli::new()
 			.expect_select(
-				"Select a chain (type to filter):".to_string(),
+				"Select a chain (type to filter)".to_string(),
 				Some(true),
 				true,
 				Some(vec![("Custom".to_string(), "Type the chain URL manually".to_string())]),
@@ -834,6 +835,7 @@ mod tests {
 	async fn prepare_register_call_data_works() -> Result<()> {
 		let mut cli = MockCli::new();
 		let chain = configure(
+			"Select a relay chain",
 			"Enter the relay chain node URL",
 			urls::LOCAL,
 			&Some(Url::parse(urls::POLKADOT)?),
@@ -921,6 +923,7 @@ mod tests {
 	async fn prepare_reserve_call_data_works() -> Result<()> {
 		let mut cli = MockCli::new();
 		let chain = configure(
+			"Select a relay chain",
 			"Enter the relay chain node URL",
 			urls::LOCAL,
 			&Some(Url::parse(urls::POLKADOT)?),
