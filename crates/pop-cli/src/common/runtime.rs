@@ -283,7 +283,7 @@ mod tests {
 	#[test]
 	fn ensure_runtime_binary_exists_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
-		let temp_path = temp_dir.keep();
+		let temp_path = temp_dir.path().to_path_buf();
 		fs::create_dir(temp_path.join("target"))?;
 
 		for profile in Profile::VARIANTS {

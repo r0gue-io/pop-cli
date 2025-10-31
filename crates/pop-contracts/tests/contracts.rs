@@ -140,7 +140,7 @@ async fn get_payload_works(temp_dir: &TempDir, localhost_url: &str) -> Result<()
 		let upload_exec = set_up_upload(up_opts).await?;
 		get_upload_payload(upload_exec, contract_code, localhost_url).await?
 	};
-	let payload_hash = BlakeTwo256::hash(&BlakeTwo256, &call_data);
+	let payload_hash = BlakeTwo256::hash(&call_data);
 	// We know that for the above opts the payload hash should be:
 	// 0x5e8744d9d1863f89e9e77e360e89a208584e398a35f7a4be6a42a8fbdcfbef62
 	let hex_bytes = from_hex("5e8744d9d1863f89e9e77e360e89a208584e398a35f7a4be6a42a8fbdcfbef62")

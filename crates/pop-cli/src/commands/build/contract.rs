@@ -10,7 +10,7 @@ pub struct BuildContract {
 	pub(crate) path: PathBuf,
 	/// Build profile: `true` for release mode, `false` for debug mode.
 	pub(crate) release: bool,
-	/// Which specification specification to use for contract metadata.
+	/// Which specification to use for contract metadata.
 	pub(crate) metadata: Option<MetadataSpec>,
 }
 
