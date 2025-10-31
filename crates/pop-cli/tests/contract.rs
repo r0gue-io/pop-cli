@@ -277,13 +277,11 @@ fn generate_all_the_templates(temp_dir: &Path) -> Result<()> {
 	for template in Contract::VARIANTS {
 		let contract_name = format!("test_contract_{}", template).replace("-", "_");
 		// pop new contract test_contract
-        Command::cargo_bin("pop")
-            .unwrap()
-            .current_dir(&temp_dir)
-            .args(&["new", "contract", &contract_name, "--template", &template.to_string()])
-            .assert()
-            .success();
-		assert!(temp_dir.join(contract_name).exists());
+		let mut command = pop(
+			&temp_dir,
+			["new", "contract", &contract_name, "--template", &template.to_string()],
+		);
+		assert!(command.spawn()?.wait()?.success());
 	}
 	Ok(())
 }

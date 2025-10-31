@@ -114,10 +114,7 @@ pub fn guide_user_to_select_command(cli: &mut impl cli::traits::Cli) -> AnyhowRe
 			mode: None,
 		})),
 		#[cfg(feature = "contract")]
-		"contract" => Ok(Command::Contract(contract::NewContractCommand {
-			name: None,
-			template: None,
-		})),
+		"contract" => Ok(Command::Contract(contract::NewContractCommand { name: None, template: None })),
 		_ => Err(anyhow::anyhow!("Invalid selection")),
 	}
 }
