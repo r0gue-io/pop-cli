@@ -80,7 +80,7 @@ mod tests {
 	#[tokio::test]
 	async fn omni_bencher_generator_works() -> Result<(), Error> {
 		let temp_dir = tempdir()?;
-		let temp_dir_path = temp_dir.into_path();
+		let temp_dir_path = temp_dir.path().to_path_buf();
 		let version = "polkadot-stable2412-4";
 		let binary = omni_bencher_generator(temp_dir_path.clone(), Some(version)).await?;
 		assert!(matches!(binary, Binary::Source { name: _, source, cache }

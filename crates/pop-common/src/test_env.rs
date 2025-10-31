@@ -75,7 +75,7 @@ impl TestNode {
 				tag_pattern: Some("v{version}".into()),
 				prerelease: false,
 				version_comparator: sort_by_latest_semantic_version,
-				fallback: "v0.43.0".to_string(),
+				fallback: "v0.46.0".to_string(),
 				archive: archive_name_by_target()?,
 				contents: release_directory_by_target("ink-node")?,
 				latest: None,

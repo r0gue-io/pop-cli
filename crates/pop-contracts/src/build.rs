@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{errors::Error, utils::get_manifest_path};
-pub use contract_build::Verbosity;
 use contract_build::{BuildMode, BuildResult, ExecuteArgs, execute};
-#[cfg(feature = "v6")]
-use contract_build_inkv6 as contract_build;
+pub use contract_build::{MetadataSpec, Verbosity};
 use std::path::Path;
 
 /// Build the smart contract located at the specified `path` in `build_release` mode.
@@ -14,10 +12,12 @@ use std::path::Path;
 ///   if not specified.
 /// * `release` - Whether the smart contract should be built without any debugging functionality.
 /// * `verbosity` - The build output verbosity.
+/// * `metadata_spec` - Optionally specify the contract metadata format/version.
 pub fn build_smart_contract(
 	path: &Path,
 	release: bool,
 	verbosity: Verbosity,
+	metadata_spec: Option<MetadataSpec>,
 ) -> anyhow::Result<BuildResult> {
 	let manifest_path = get_manifest_path(path)?;
 
@@ -26,9 +26,8 @@ pub fn build_smart_contract(
 		false => BuildMode::Debug,
 	};
 
-	// Default values
-	let args = ExecuteArgs { manifest_path, build_mode, verbosity, ..Default::default() };
-
+	let args =
+		ExecuteArgs { manifest_path, build_mode, verbosity, metadata_spec, ..Default::default() };
 	// Execute the build and log the output of the build
 	execute(args)
 }
@@ -60,7 +59,7 @@ mod tests {
 
 		// Contract
 		let name = "flipper";
-		new_contract_project(name, Some(&path))?;
+		new_contract_project(name, Some(&path), None)?;
 		assert!(is_supported(&path.join(name))?);
 		Ok(())
 	}

@@ -4,14 +4,9 @@
 use duct::cmd;
 #[cfg(any(feature = "chain", test))]
 use std::cmp::Ordering;
-#[cfg(any(
-	feature = "polkavm-contracts",
-	feature = "wasm-contracts",
-	feature = "chain",
-	test
-))]
+#[cfg(any(feature = "contract", feature = "chain", test))]
 use std::path::PathBuf;
-#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
+#[cfg(any(feature = "contract", feature = "chain"))]
 use {
 	crate::cli::traits::*,
 	pop_common::sourcing::{Binary, set_executable_permission},
@@ -19,7 +14,7 @@ use {
 };
 
 /// A trait for binary generator.
-#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
+#[cfg(any(feature = "contract", feature = "chain"))]
 pub(crate) trait BinaryGenerator {
 	/// Generates a binary.
 	///
@@ -41,7 +36,7 @@ pub(crate) trait BinaryGenerator {
 /// * `cache_path` - The cache directory path where the binary is stored.
 /// * `skip_confirm` - If `true`, skips confirmation prompts and automatically sources the binary if
 ///   needed.
-#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
+#[cfg(any(feature = "contract", feature = "chain"))]
 pub async fn check_and_prompt<Generator: BinaryGenerator>(
 	cli: &mut impl Cli,
 	spinner: &cliclack::ProgressBar,

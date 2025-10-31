@@ -4,7 +4,10 @@ use crate::{
 	cli::{self, traits::*},
 	common::{
 		builds::{ensure_project_path, get_project_path},
-		contracts::{has_contract_been_built, normalize_call_args, request_contract_function_args},
+		contracts::{
+			has_contract_been_built, map_account, normalize_call_args,
+			request_contract_function_args,
+		},
 		prompt::display_message,
 		urls,
 		wallet::{prompt_to_use_wallet, request_signature},
@@ -13,17 +16,13 @@ use crate::{
 use anyhow::{Result, anyhow};
 use clap::Args;
 use cliclack::spinner;
-#[cfg(feature = "wasm-contracts")]
-use pop_common::parse_account;
-use pop_common::{DefaultConfig, Keypair};
+use pop_common::{DefaultConfig, Keypair, parse_h160_account};
 use pop_contracts::{
 	CallExec, CallOpts, DefaultEnvironment, Verbosity, Weight, build_smart_contract,
 	call_smart_contract, call_smart_contract_from_signed_payload, dry_run_call,
 	dry_run_gas_estimate_call, get_call_payload, get_message, get_messages, set_up_call,
 };
 use std::path::PathBuf;
-#[cfg(feature = "polkavm-contracts")]
-use {crate::common::contracts::map_account, pop_common::parse_h160_account};
 
 const DEFAULT_URI: &str = "//Alice";
 const DEFAULT_PAYABLE_VALUE: &str = "0";
@@ -191,12 +190,11 @@ impl CallContractCommand {
 		cli.warning("NOTE: contract has not yet been built.")?;
 		let spinner = spinner();
 		spinner.start("Building contract in RELEASE mode...");
-		let result = match build_smart_contract(&project_path, true, Verbosity::Quiet) {
+		let result = match build_smart_contract(&project_path, true, Verbosity::Quiet, None) {
 			Ok(result) => result,
 			Err(e) => {
 				return Err(anyhow!(format!(
-					"🚫 An error occurred building your contract: {}\nUse `pop build` to retry with build output.",
-					e.to_string()
+					"🚫 An error occurred building your contract: {e}\nUse `pop build` to retry with build output.",
 				)));
 			},
 		};
@@ -290,16 +288,8 @@ impl CallContractCommand {
 			// Prompt for contract address.
 			let contract_address: String = cli
 				.input("Provide the on-chain contract address:")
-				.placeholder(
-					#[cfg(feature = "wasm-contracts")]
-					"e.g. 5DYs7UGBm2LuX4ryvyqfksozNAW5V47tPbGiVgnjYWCZ29bt",
-					#[cfg(feature = "polkavm-contracts")]
-					"e.g. 0x48550a4bb374727186c55365b7c9c0a1a31bdafe",
-				)
+				.placeholder("e.g. 0x48550a4bb374727186c55365b7c9c0a1a31bdafe")
 				.validate(|input: &String| {
-					#[cfg(feature = "wasm-contracts")]
-					let account = parse_account(input);
-					#[cfg(feature = "polkavm-contracts")]
 					let account = parse_h160_account(input);
 					match account {
 						Ok(_) => Ok(()),
@@ -439,12 +429,11 @@ impl CallContractCommand {
 		{
 			Ok(call_exec) => call_exec,
 			Err(e) => {
-				return Err(anyhow!(format!("{}", e.to_string())));
+				return Err(anyhow!(format!("{e}")));
 			},
 		};
 		// Check if the account is already mapped, and prompt the user to perform the mapping if
 		// it's required.
-		#[cfg(feature = "polkavm-contracts")]
 		map_account(call_exec.opts(), cli).await?;
 
 		// Perform signing steps with wallet integration, skipping secure signing for query-only
@@ -498,7 +487,7 @@ impl CallContractCommand {
 
 			let call_result = call_smart_contract(call_exec, weight_limit, &self.url)
 				.await
-				.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
+				.map_err(|err| anyhow!("ERROR: {err:?}"))?;
 
 			cli.info(call_result)?;
 		}
@@ -537,19 +526,13 @@ impl CallContractCommand {
 		call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 		cli: &mut impl Cli,
 	) -> Result<()> {
-		#[cfg(feature = "polkavm-contracts")]
 		let storage_deposit_limit = match call_exec.opts().storage_deposit_limit() {
 			Some(deposit_limit) => deposit_limit,
 			None => call_exec.estimate_gas().await?.1,
 		};
-		#[cfg(feature = "polkavm-contracts")]
-		let call_data = self.get_contract_data(&call_exec, storage_deposit_limit).map_err(|err| {
-			anyhow!("An error occurred getting the call data: {}", err.to_string())
-		})?;
-		#[cfg(feature = "wasm-contracts")]
-		let call_data = self.get_contract_data(&call_exec).map_err(|err| {
-			anyhow!("An error occurred getting the call data: {}", err.to_string())
-		})?;
+		let call_data = self
+			.get_contract_data(&call_exec, storage_deposit_limit)
+			.map_err(|err| anyhow!("An error occurred getting the call data: {err}"))?;
 
 		let maybe_payload =
 			request_signature(call_data, self.url.to_string()).await?.signed_payload;
@@ -562,7 +545,7 @@ impl CallContractCommand {
 			let call_result =
 				call_smart_contract_from_signed_payload(call_exec, payload, &self.url)
 					.await
-					.map_err(|err| anyhow!("{} {}", "ERROR:", format!("{err:?}")))?;
+					.map_err(|err| anyhow!("ERROR: {err:?}"))?;
 
 			cli.info(call_result)?;
 		} else {
@@ -575,16 +558,13 @@ impl CallContractCommand {
 	fn get_contract_data(
 		&self,
 		call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
-		#[cfg(feature = "polkavm-contracts")] storage_deposit_limit: u128,
+		storage_deposit_limit: u128,
 	) -> anyhow::Result<Vec<u8>> {
 		let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
 			Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
 		} else {
 			Weight::zero()
 		};
-		#[cfg(feature = "wasm-contracts")]
-		let call_data = get_call_payload(call_exec, weight_limit)?;
-		#[cfg(feature = "polkavm-contracts")]
 		let call_data = get_call_payload(call_exec, weight_limit, storage_deposit_limit)?;
 		Ok(call_data)
 	}
@@ -610,6 +590,8 @@ mod tests {
 	use std::{env, fs::write};
 	use url::Url;
 
+	const CONTRACT_FILE: &str = "pop-contracts/tests/files/testing.contract";
+
 	// This test only covers the interactive portion of the call contract command, without actually
 	// calling the contract.
 	#[tokio::test]
@@ -619,7 +601,7 @@ mod tests {
 		current_dir.pop();
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("pop-contracts/tests/files/testing.json"),
 		)?;
 
@@ -695,7 +677,7 @@ mod tests {
 		current_dir.pop();
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("pop-contracts/tests/files/testing.json"),
 		)?;
 
@@ -785,7 +767,7 @@ mod tests {
 		current_dir.pop();
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("pop-contracts/tests/files/testing.json"),
 		)?;
 
@@ -872,9 +854,6 @@ mod tests {
 		// Create invalid `.json`, `.contract` and binary files for testing
 		let invalid_contract_path = temp_dir.path().join("testing.contract");
 		let invalid_json_path = temp_dir.path().join("testing.json");
-		#[cfg(feature = "wasm-contracts")]
-		let invalid_binary_path = temp_dir.path().join("testing.wasm");
-		#[cfg(feature = "polkavm-contracts")]
 		let invalid_binary_path = temp_dir.path().join("testing.polkavm");
 		write(&invalid_contract_path, b"This is an invalid contract file")?;
 		write(&invalid_json_path, b"This is an invalid JSON file")?;
@@ -932,7 +911,7 @@ mod tests {
 		current_dir.pop();
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("pop-contracts/tests/files/testing.json"),
 		)?;
 
@@ -1042,7 +1021,7 @@ mod tests {
 		current_dir.pop();
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("pop-contracts/tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("pop-contracts/tests/files/testing.json"),
 		)?;
 		assert!(!call_config.is_contract_build_required());

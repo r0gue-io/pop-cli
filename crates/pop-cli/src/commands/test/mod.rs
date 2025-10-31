@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+#[cfg(feature = "contract")]
 use crate::cli;
 use crate::common::{
 	Project::{self, *},
@@ -13,7 +13,7 @@ use pop_common::test_project;
 use std::fmt::{Display, Formatter, Result};
 use std::path::PathBuf;
 
-#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+#[cfg(feature = "contract")]
 pub mod contract;
 #[cfg(feature = "chain")]
 pub mod create_snapshot;
@@ -28,7 +28,7 @@ pub mod on_runtime_upgrade;
 #[derive(Args, Default)]
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct TestArgs {
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts", feature = "chain"))]
+	#[cfg(any(feature = "contract", feature = "chain"))]
 	#[command(subcommand)]
 	pub(crate) command: Option<Command>,
 	/// Directory path for your project [default: current directory]
@@ -38,7 +38,7 @@ pub(crate) struct TestArgs {
 	#[arg(value_name = "PATH", index = 1, conflicts_with = "path")]
 	pub(crate) path_pos: Option<PathBuf>,
 	#[command(flatten)]
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+	#[cfg(feature = "contract")]
 	pub(crate) contract: contract::TestContractCommand,
 	/// Run with the specified test filter.
 	#[arg(value_name = "FILTER", index = 2)]
@@ -67,7 +67,7 @@ impl Command {
 	pub(crate) async fn execute(args: TestArgs) -> anyhow::Result<(Project, TestFeature)> {
 		Self::test(
 			args,
-			#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+			#[cfg(feature = "contract")]
 			&mut cli::Cli,
 		)
 		.await
@@ -75,8 +75,7 @@ impl Command {
 
 	async fn test(
 		mut args: TestArgs,
-		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
-		cli: &mut impl cli::traits::Cli,
+		#[cfg(feature = "contract")] cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<(Project, TestFeature)> {
 		// If user gave only one positional and it doesn’t resolve to a directory,
 		// treat it as the test filter and default the project path to CWD.
@@ -92,7 +91,7 @@ impl Command {
 
 		let project_path = ensure_project_path(args.path.clone(), args.path_pos.clone());
 
-		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(&project_path)? {
 			let mut cmd = args.contract;
 			cmd.path = project_path.clone();
@@ -147,7 +146,7 @@ mod tests {
 		assert_eq!(
 			Command::test(
 				args,
-				#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+				#[cfg(feature = "contract")]
 				&mut cli
 			)
 			.await?,

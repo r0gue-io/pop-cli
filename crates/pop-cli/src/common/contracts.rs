@@ -4,27 +4,21 @@ use crate::{
 	cli::traits::*,
 	common::binary::{BinaryGenerator, check_and_prompt},
 	impl_binary_generator,
+	style::style,
 };
 use cliclack::ProgressBar;
-use pop_common::manifest::from_path;
-use pop_contracts::{ContractFunction, contracts_node_generator};
+use pop_common::{DefaultConfig, Keypair, manifest::from_path};
+use pop_contracts::{
+	AccountMapper, ContractFunction, DefaultEnvironment, ExtrinsicOpts, contracts_node_generator,
+};
 use std::{
 	path::{Path, PathBuf},
 	process::{Child, Command},
 };
 use tempfile::NamedTempFile;
-#[cfg(feature = "polkavm-contracts")]
-use {
-	crate::style::style,
-	pop_common::{DefaultConfig, Keypair},
-	pop_contracts::{AccountMapper, DefaultEnvironment, ExtrinsicOpts},
-};
 
 impl_binary_generator!(ContractsNodeGenerator, contracts_node_generator);
 
-#[cfg(feature = "wasm-contracts")]
-const CONTRACTS_NODE_BINARY: &str = "substrate-contracts-node";
-#[cfg(feature = "polkavm-contracts")]
 const CONTRACTS_NODE_BINARY: &str = "ink-node";
 
 ///  Checks the status of the contracts node binary, sources it if necessary, and
@@ -149,7 +143,6 @@ fn ensure_double_quoted(s: &str) -> String {
 	}
 }
 
-#[cfg(feature = "polkavm-contracts")]
 pub(crate) async fn map_account(
 	extrinsic_opts: &ExtrinsicOpts<DefaultConfig, DefaultEnvironment, Keypair>,
 	cli: &mut impl Cli,
