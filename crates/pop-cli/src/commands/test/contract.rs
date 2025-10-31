@@ -51,7 +51,7 @@ impl TestContractCommand {
 					Ok((binary_path, _)) => Some(binary_path),
 					Err(_) => {
 						cli.warning(
-							"🚫 substrate-contracts-node is necessary to run e2e tests. Will try to run tests anyway...",
+							"🚫 ink-node is necessary to run e2e tests. Will try to run tests anyway...",
 						)?;
 						Some(PathBuf::new())
 					},

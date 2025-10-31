@@ -8,8 +8,8 @@ use crate::{
 	commands::call::contract::CallContractCommand,
 	common::{
 		contracts::{
-			check_contracts_node_and_prompt, has_contract_been_built, map_account,
-			normalize_call_args, request_contract_function_args, terminate_node,
+			check_ink_node_and_prompt, has_contract_been_built, map_account, normalize_call_args,
+			request_contract_function_args, terminate_nodes,
 		},
 		rpc::prompt_to_select_chain_rpc,
 		urls,
@@ -24,7 +24,7 @@ use pop_contracts::{
 	Bytes, FunctionType, UpOpts, Verbosity, Weight, build_smart_contract,
 	dry_run_gas_estimate_instantiate, dry_run_upload, extract_function, get_contract_code,
 	get_instantiate_payload, get_upload_payload, instantiate_contract_signed,
-	instantiate_smart_contract, is_chain_alive, parse_hex_bytes, run_contracts_node,
+	instantiate_smart_contract, is_chain_alive, parse_hex_bytes, run_eth_rpc_node, run_ink_node,
 	set_up_deployment, set_up_upload, upload_contract_signed, upload_smart_contract,
 };
 use sp_core::bytes::to_hex;
@@ -34,6 +34,8 @@ use url::Url;
 
 const COMPLETE: &str = "🚀 Deployment complete";
 const DEFAULT_PORT: u16 = 9944;
+const DEFAULT_ETH_RPC_PORT: u16 = 8545;
+const DEFAULT_INK_NODE_URL: &str = "ws://127.0.0.1:9944";
 const FAILED: &str = "🚫 Deployment failed.";
 const HELP_HEADER: &str = "Smart contract deployment options";
 
@@ -127,7 +129,7 @@ impl UpContractCommand {
 		}
 
 		// Check if specified chain is accessible
-		let process = if !is_chain_alive(self.url.clone()).await? {
+		let processes = if !is_chain_alive(self.url.clone()).await? {
 			let local_url = Url::parse(urls::LOCAL).expect("default url is valid");
 			let start_local_node = if !self.skip_confirm {
 				let msg = if self.url.as_str() == urls::LOCAL {
@@ -166,11 +168,12 @@ impl UpContractCommand {
 				// Update url to that of the launched node
 				self.url = local_url;
 
-				let log = NamedTempFile::new()?;
+				let log_ink_node = NamedTempFile::new()?;
+				let eth_rpc_node = NamedTempFile::new()?;
 				let spinner = spinner();
 
 				// uses the cache location
-				let binary_path = match check_contracts_node_and_prompt(
+				let (ink_node_binary_path, eth_rpc_binary_path) = match check_ink_node_and_prompt(
 					&mut Cli,
 					&spinner,
 					&crate::cache()?,
@@ -189,8 +192,16 @@ impl UpContractCommand {
 
 				spinner.start("Starting local node...");
 
-				let process =
-					run_contracts_node(binary_path, Some(log.as_file()), DEFAULT_PORT).await?;
+				let ink_node_process =
+					run_ink_node(&ink_node_binary_path, Some(log_ink_node.as_file()), DEFAULT_PORT)
+						.await?;
+				let eth_rpc_node_process = run_eth_rpc_node(
+					&eth_rpc_binary_path,
+					Some(log_ink_node.as_file()),
+					DEFAULT_INK_NODE_URL,
+					DEFAULT_ETH_RPC_PORT,
+				)
+				.await?;
 				let bar = Style::new().magenta().dim().apply_to(Emoji("│", "|"));
 				spinner.stop(format!(
 					"Local node started successfully:{}",
@@ -203,11 +214,11 @@ impl UpContractCommand {
 							self.url
 						))
 						.dim(),
-						style(format!("logs: tail -f {}", log.path().display())).dim(),
+						style(format!("logs: tail -f {}", log_ink_node.path().display())).dim(),
 					))
 					.dim()
 				));
-				Some((process, log))
+				Some(((ink_node_process, log_ink_node), (eth_rpc_node_process, eth_rpc_node)))
 			} else {
 				None
 			}
@@ -221,7 +232,7 @@ impl UpContractCommand {
 				Ok(data) => data,
 				Err(e) => {
 					Cli.error(format!("An error occurred getting the call data: {e}"))?;
-					terminate_node(&mut Cli, process).await?;
+					terminate_nodes(&mut Cli, processes).await?;
 					Cli.outro_cancel(FAILED)?;
 					return Ok(());
 				},
@@ -242,7 +253,7 @@ impl UpContractCommand {
 						Err(e) => {
 							spinner
 								.error(format!("An error occurred uploading your contract: {e}"));
-							terminate_node(&mut Cli, process).await?;
+							terminate_nodes(&mut Cli, processes).await?;
 							Cli.outro_cancel(FAILED)?;
 							return Ok(());
 						},
@@ -261,7 +272,7 @@ impl UpContractCommand {
 							Cli.error(format!(
 								"An error occurred instantiating the contract: {e}"
 							))?;
-							terminate_node(&mut Cli, process).await?;
+							terminate_nodes(&mut Cli, processes).await?;
 							Cli.outro_cancel(FAILED)?;
 							return Ok(());
 						},
@@ -279,7 +290,7 @@ impl UpContractCommand {
 						Err(e) => {
 							spinner
 								.error(format!("An error occurred uploading your contract: {e}"));
-							terminate_node(&mut Cli, process).await?;
+							terminate_nodes(&mut Cli, processes).await?;
 							Cli.outro_cancel(FAILED)?;
 							return Ok(());
 						},
@@ -299,19 +310,19 @@ impl UpContractCommand {
 				}
 			} else {
 				Cli.outro_cancel("Signed payload doesn't exist.")?;
-				terminate_node(&mut Cli, process).await?;
+				terminate_nodes(&mut Cli, processes).await?;
 				return Ok(());
 			}
 
 			Cli.outro(COMPLETE)?;
-			terminate_node(&mut Cli, process).await?;
+			terminate_nodes(&mut Cli, processes).await?;
 			return Ok(());
 		}
 
 		// Check for upload only.
 		if self.upload_only {
 			let result = self.upload_contract().await;
-			terminate_node(&mut Cli, process).await?;
+			terminate_nodes(&mut Cli, processes).await?;
 			match result {
 				Ok(_) => {
 					Cli.outro(COMPLETE)?;
@@ -334,7 +345,7 @@ impl UpContractCommand {
 			Ok(i) => i,
 			Err(e) => {
 				Cli.error(format!("An error occurred instantiating the contract: {e}"))?;
-				terminate_node(&mut Cli, process).await?;
+				terminate_nodes(&mut Cli, processes).await?;
 				Cli.outro_cancel(FAILED)?;
 				return Ok(());
 			},
@@ -354,7 +365,7 @@ impl UpContractCommand {
 				},
 				Err(e) => {
 					spinner.error(format!("{e}"));
-					terminate_node(&mut Cli, process).await?;
+					terminate_nodes(&mut Cli, processes).await?;
 					Cli.outro_cancel(FAILED)?;
 					return Ok(());
 				},
@@ -371,7 +382,7 @@ impl UpContractCommand {
 
 			Cli.success(COMPLETE)?;
 			self.keep_interacting_with_node(&mut Cli, contract_address).await?;
-			terminate_node(&mut Cli, process).await?;
+			terminate_nodes(&mut Cli, processes).await?;
 		}
 
 		Ok(())

@@ -96,8 +96,8 @@ impl SourceT for Chain {
 ///
 /// # Arguments
 /// * `cache` - The cache directory path.
-/// * `version` - The specific version used for the substrate-contracts-node (`None` will use the
-///   latest available version).
+/// * `version` - The specific version used for the ink-node (`None` will use the latest available
+///   version).
 pub async fn ink_node_generator(cache: PathBuf, version: Option<&str>) -> Result<Binary, Error> {
 	node_generator_inner(&Chain::ContractsNode, cache, version).await
 }
@@ -107,8 +107,8 @@ pub async fn ink_node_generator(cache: PathBuf, version: Option<&str>) -> Result
 ///
 /// # Arguments
 /// * `cache` - The cache directory path.
-/// * `version` - The specific version used for the substrate-contracts-node (`None` will use the
-///   latest available version).
+/// * `version` - The specific version used for the eth-rpc (`None` will use the latest available
+///   version).
 pub async fn eth_rpc_generator(cache: PathBuf, version: Option<&str>) -> Result<Binary, Error> {
 	node_generator_inner(&Chain::EthRpc, cache, version).await
 }
