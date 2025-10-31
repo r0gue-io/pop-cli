@@ -20,12 +20,13 @@ Build an existing Smart Contract:
 ```rust,no_run
 use pop_contracts::build_smart_contract;
 use std::path::Path;
-pub use contract_build::Verbosity;
+pub use contract_build::{Verbosity, MetadataSpec};
 
 let contract_path = Path::new("./");
 let build_release = true; // `true` for release mode, `false` for debug mode.
-let result = build_smart_contract(&contract_path, build_release, Verbosity::Default);
+let result = build_smart_contract(&contract_path, build_release, Verbosity::Default, Some(MetadataSpec::Ink)); // You can build your contract with Solidity metadata using `Some(Metadata::Ink)`
 ```
+
 
 Test an existing Smart Contract:
 

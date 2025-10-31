@@ -59,20 +59,14 @@ open = { workspace = true, optional = true }
 tower-http = { workspace = true, features = ["fs", "cors"], optional = true }
 
 [dev-dependencies]
-assert_cmd.workspace = true
 mockito.workspace = true
-subxt.workspace = true
-subxt-signer.workspace = true
+subxt-signer = { workspace = true}
+subxt = { workspace = true }
 
 [features]
-default = ["chain", "telemetry", "wasm-contracts"]
-contract = ["wasm-contracts"]
-contracts = ["polkavm-contracts"]
+default = ["chain", "telemetry", "contract"]
 chain = ["dep:pop-chains", "dep:git2", "dep:tracing-subscriber", "dep:scale-value", "wallet-integration"]
-v6 = []
-polkavm-contracts = ["pop-contracts/v6", "dep:pop-contracts", "wallet-integration"]
+contract = ["dep:pop-contracts", "wallet-integration"]
 telemetry = ["dep:pop-telemetry"]
-v5 = []
-wasm-contracts = ["pop-contracts/v5", "dep:pop-contracts", "wallet-integration", "v5"]
 wallet-integration = ["dep:axum", "dep:open", "dep:tower-http"]
 integration-tests = []

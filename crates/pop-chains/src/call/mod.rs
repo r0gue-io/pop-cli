@@ -10,7 +10,7 @@ use subxt::{
 	OnlineClient, SubstrateConfig,
 	blocks::ExtrinsicEvents,
 	dynamic::Value,
-	tx::{DynamicPayload, Payload, SubmittableExtrinsic},
+	tx::{DynamicPayload, Payload, SubmittableTransaction},
 };
 pub mod metadata;
 
@@ -140,7 +140,7 @@ pub async fn submit_signed_extrinsic(
 ) -> Result<ExtrinsicEvents<SubstrateConfig>, Error> {
 	let hex_encoded =
 		from_hex(&payload).map_err(|e| Error::CallDataDecodingError(e.to_string()))?;
-	let extrinsic = SubmittableExtrinsic::from_bytes(client, hex_encoded);
+	let extrinsic = SubmittableTransaction::from_bytes(client, hex_encoded);
 	extrinsic
 		.submit_and_watch()
 		.await

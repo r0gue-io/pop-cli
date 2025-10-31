@@ -2,31 +2,18 @@
 
 //! Functionality for processing and extracting metadata from ink! smart contracts.
 
-use crate::errors::Error;
-use pop_common::{DefaultConfig, format_type};
+use crate::{DefaultEnvironment, errors::Error};
+use contract_extrinsics::{ContractArtifacts, ContractStorageRpc};
+use contract_transcode::{
+	ContractMessageTranscoder,
+	ink_metadata::{MessageParamSpec, layout::Layout},
+};
+use ink_env::call::utils::EncodeArgsWith;
+use pop_common::{DefaultConfig, format_type, parse_h160_account};
 use scale_info::{PortableRegistry, form::PortableForm};
+use sp_core::blake2_128;
 use std::path::Path;
 use url::Url;
-#[cfg(feature = "v5")]
-use {
-	contract_extrinsics::ContractArtifacts,
-	contract_extrinsics::ContractStorageRpc,
-	contract_transcode::ContractMessageTranscoder,
-	contract_transcode::ink_metadata::{MessageParamSpec, layout::Layout},
-	ink_env::DefaultEnvironment,
-	pop_common::parse_account,
-	sp_core::{Encode, blake2_128},
-};
-#[cfg(feature = "v6")]
-use {
-	contract_extrinsics_inkv6::ContractArtifacts,
-	contract_extrinsics_inkv6::ContractStorageRpc,
-	contract_transcode_inkv6::ContractMessageTranscoder,
-	contract_transcode_inkv6::ink_metadata::{MessageParamSpec, layout::Layout},
-	ink_env_v6::DefaultEnvironment,
-	pop_common::account_id::parse_h160_account as parse_account,
-	sp_core_inkv6::{Encode, blake2_128},
-};
 
 /// Represents a callable entity within a smart contract, either a function or storage item.
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -188,7 +175,7 @@ pub async fn fetch_contract_storage(
 	let rpc = ContractStorageRpc::<DefaultConfig>::new(rpc_url).await?;
 
 	// Parse account address to AccountId
-	let account_id = parse_account(account)?;
+	let account_id = parse_h160_account(account)?;
 
 	// Fetch contract info to get the trie_id
 	let contract_info = rpc.fetch_contract_info::<DefaultEnvironment>(&account_id).await?;
@@ -359,9 +346,6 @@ fn get_contract_functions(
 				payable: message.payable(),
 				args: process_args(message.args(), metadata.registry()),
 				docs: collapse_docs(message.docs()),
-				#[cfg(feature = "v5")]
-				default: *message.default(),
-				#[cfg(feature = "v6")]
 				default: message.default(),
 			})
 			.collect(),
@@ -371,15 +355,9 @@ fn get_contract_functions(
 			.iter()
 			.map(|constructor| ContractFunction {
 				label: constructor.label().to_string(),
-				#[cfg(feature = "v5")]
-				payable: *constructor.payable(),
-				#[cfg(feature = "v6")]
 				payable: constructor.payable(),
 				args: process_args(constructor.args(), metadata.registry()),
 				docs: collapse_docs(constructor.docs()),
-				#[cfg(feature = "v5")]
-				default: *constructor.default(),
-				#[cfg(feature = "v6")]
 				default: constructor.default(),
 				mutates: true,
 			})
@@ -491,6 +469,8 @@ mod tests {
 	use crate::{mock_build_process, new_environment};
 	use anyhow::Result;
 
+	const CONTRACT_FILE: &str = "./tests/files/testing.contract";
+
 	#[test]
 	fn get_messages_work() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
@@ -522,7 +502,7 @@ mod tests {
 
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("./tests/files/testing.json"),
 		)?;
 
@@ -531,7 +511,7 @@ mod tests {
 		assert_contract_metadata_parsed(message)?;
 
 		// Test with a metadata file path
-		let message = get_messages(current_dir.join("./tests/files/testing.contract"))?;
+		let message = get_messages(current_dir.join(CONTRACT_FILE))?;
 		assert_contract_metadata_parsed(message)?;
 
 		Ok(())
@@ -543,7 +523,7 @@ mod tests {
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("./tests/files/testing.json"),
 		)?;
 		assert!(matches!(
@@ -570,7 +550,7 @@ mod tests {
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("./tests/files/testing.json"),
 		)?;
 		let constructor = get_constructors(temp_dir.path().join("testing"))?;
@@ -603,7 +583,7 @@ mod tests {
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("./tests/files/testing.json"),
 		)?;
 		assert!(matches!(
@@ -630,7 +610,7 @@ mod tests {
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		mock_build_process(
 			temp_dir.path().join("testing"),
-			current_dir.join("./tests/files/testing.contract"),
+			current_dir.join(CONTRACT_FILE),
 			current_dir.join("./tests/files/testing.json"),
 		)?;
 

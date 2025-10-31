@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::cli;
-use pop_contracts::{Verbosity, build_smart_contract};
+use pop_contracts::{MetadataSpec, Verbosity, build_smart_contract};
 use std::path::PathBuf;
 
 /// Configuration for building a smart contract.
@@ -10,6 +10,8 @@ pub struct BuildContract {
 	pub(crate) path: PathBuf,
 	/// Build profile: `true` for release mode, `false` for debug mode.
 	pub(crate) release: bool,
+	/// Which specification to use for contract metadata.
+	pub(crate) metadata: Option<MetadataSpec>,
 }
 
 impl BuildContract {
@@ -25,7 +27,8 @@ impl BuildContract {
 	fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
 		cli.intro("Building your contract")?;
 		// Build contract.
-		let build_result = build_smart_contract(&self.path, self.release, Verbosity::Default)?;
+		let build_result =
+			build_smart_contract(&self.path, self.release, Verbosity::Default, self.metadata)?;
 		cli.success(build_result.display())?;
 		cli.outro("Build completed successfully!")?;
 		Ok("contract")

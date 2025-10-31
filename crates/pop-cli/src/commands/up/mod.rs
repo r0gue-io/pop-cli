@@ -15,7 +15,7 @@ use {
 	std::fmt::{Display, Formatter, Result},
 };
 
-#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+#[cfg(feature = "contract")]
 mod contract;
 #[cfg(feature = "chain")]
 pub(super) mod network;
@@ -49,7 +49,7 @@ pub(crate) struct UpArgs {
 	pub(crate) rollup: rollup::UpCommand,
 
 	#[command(flatten)]
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+	#[cfg(feature = "contract")]
 	pub(crate) contract: contract::UpContractCommand,
 
 	#[command(subcommand)]
@@ -102,7 +102,7 @@ impl Command {
 		}
 
 		// If only contract feature enabled, deploy a contract
-		#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(&project_path)? {
 			let mut cmd = args.contract;
 			cmd.path = project_path.clone();
@@ -138,12 +138,13 @@ impl Display for Command {
 
 #[cfg(test)]
 mod tests {
+	#[cfg(feature = "contract")]
+	use super::contract::UpContractCommand;
 	use super::*;
 	use crate::common::urls;
 	use cli::MockCli;
 	use duct::cmd;
-	#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
-	use {super::contract::UpContractCommand, url::Url};
+	use url::Url;
 	#[cfg(feature = "chain")]
 	use {
 		crate::style::format_url,
@@ -155,7 +156,7 @@ mod tests {
 		Ok(UpArgs {
 			path: Some(project_path.clone()),
 			path_pos: None,
-			#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+			#[cfg(feature = "contract")]
 			contract: UpContractCommand {
 				path: project_path,
 				constructor: "new".to_string(),

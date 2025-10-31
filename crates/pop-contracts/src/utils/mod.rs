@@ -1,23 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{Bytes, DefaultEnvironment, Environment, errors::Error};
+use contract_build::{ManifestPath, util::decode_hex};
+use contract_extrinsics::BalanceVariant;
 use std::{
 	path::{Path, PathBuf},
 	str::FromStr,
 };
-#[cfg(feature = "v5")]
-use {
-	contract_build::{ManifestPath, util::decode_hex},
-	contract_extrinsics::BalanceVariant,
-};
-#[cfg(feature = "v6")]
-use {
-	contract_build_inkv6::{ManifestPath, util::decode_hex},
-	contract_extrinsics_inkv6::BalanceVariant,
-};
 
 /// Module for account mapping functionality.
-#[cfg(feature = "v6")]
 pub mod map_account;
 pub mod metadata;
 

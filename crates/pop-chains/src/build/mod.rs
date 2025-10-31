@@ -418,8 +418,7 @@ pub fn generate_plain_chain_spec_with_node(
 	// Atomically replace the chain spec file with the temporary file.
 	temp_file.persist(plain_chain_spec).map_err(|e| {
 		Error::AnyhowError(anyhow!(
-			"Failed to replace the chain spec file with the temporary file: {}",
-			e.to_string()
+			"Failed to replace the chain spec file with the temporary file: {e}"
 		))
 	})?;
 	Ok(())

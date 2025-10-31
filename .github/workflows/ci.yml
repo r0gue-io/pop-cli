@@ -95,11 +95,8 @@ jobs:
       - name: Check no default features
         run: cargo check --no-default-features
 
-      - name: Check contracts feature
+      - name: Check contract feature
         run: cargo check --no-default-features --features contract
-
-      - name: Check polkavm-contracts feature
-        run: cargo check --no-default-features --features "polkavm-contracts, v6" -p pop-cli -p pop-contracts
 
       - name: Check chain feature
         run: cargo check --no-default-features --features chain
@@ -163,27 +160,6 @@ jobs:
 
       - name: Check no default features
         run: cargo doc --no-deps
-
-  polkavm-unit-tests:
-    needs:
-      - setup
-      - build
-    runs-on: ubuntu-latest
-    container:
-      image: ${{ needs.setup.outputs.image }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          save-if: false
-          shared-key: shared-${{ github.head_ref || github.ref_name }}
-
-      - name: Run unit tests for polkavm-contracts
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: cargo nextest run --lib --bins --no-default-features --features "polkavm-contracts, v6" -p pop-cli -p pop-contracts --nocapture --status-level all
 
   documentation-tests:
     needs:

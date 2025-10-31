@@ -5,10 +5,10 @@ use scale::{Decode, Encode};
 use sp_core::twox_128;
 use subxt::{
 	OnlineClient,
-	config::BlockHash,
 	dynamic::{self, Value},
 	events::StaticEvent,
 	ext::{scale_decode::DecodeAsType, scale_encode::EncodeAsType},
+	utils::H256,
 };
 
 /// Clears the DMPQ state for the given parachain IDs.
@@ -16,7 +16,7 @@ use subxt::{
 /// # Arguments
 /// * `client` - Client for the network which state is to be modified.
 /// * `para_ids` - List of ids to build the keys that will be mutated.
-pub async fn clear_dmpq(endpoint: &str, para_ids: &[u32]) -> Result<impl BlockHash, Error> {
+pub async fn clear_dmpq(endpoint: &str, para_ids: &[u32]) -> Result<H256, Error> {
 	let client = OnlineClient::<subxt::PolkadotConfig>::from_url(endpoint)
 		.await
 		.map_err(|e| Error::SubXtError(e.into()))?;

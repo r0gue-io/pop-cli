@@ -4,6 +4,7 @@
 
 pub use account_id::{parse_account, parse_h160_account};
 #[cfg(feature = "integration-tests")]
+#[allow(deprecated)]
 use assert_cmd::cargo::cargo_bin;
 pub use build::Profile;
 pub use errors::Error;
@@ -100,6 +101,7 @@ pub fn target() -> Result<&'static str, Error> {
 /// A new Command instance configured to run the pop binary with the specified arguments
 #[cfg(feature = "integration-tests")]
 pub fn pop(dir: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Command {
+	#[allow(deprecated)]
 	let mut command = Command::new(cargo_bin("pop"));
 	command.current_dir(dir).args(args);
 	println!("{command:?}");
