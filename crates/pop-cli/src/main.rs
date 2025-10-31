@@ -135,6 +135,7 @@ mod tests {
 						path_pos: None,
 						#[cfg(any(feature = "contract"))]
 						contract: Default::default(),
+						test: None,
 					})
 				}
 				.to_string(),

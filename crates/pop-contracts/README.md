@@ -39,9 +39,9 @@ let contract_path = Path::new("./");
 let contracts_node_path = Path::new("./path-to-contracts-node-binary");
 
 //unit testing
-test_project(&contract_path);
+test_project(&contract_path, None);
 //e2e testing
-test_e2e_smart_contract(&contract_path, Some(contracts_node_path));
+test_e2e_smart_contract(&contract_path, Some(contracts_node_path), None);
 ```
 
 Deploy and instantiate an existing Smart Contract:
