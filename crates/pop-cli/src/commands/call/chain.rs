@@ -82,6 +82,7 @@ impl CallChainCommand {
 		cli.intro("Call a chain")?;
 		// Configure the chain.
 		let chain = chain::configure(
+			"Select a chain (type to filter)",
 			"Which chain would you like to interact with?",
 			urls::LOCAL,
 			&self.url,
@@ -236,7 +237,7 @@ impl CallChainCommand {
 						self.function = Some(action.function_name().to_string());
 						find_pallet_by_name(&chain.pallets, action.pallet_name())?
 					} else {
-						let mut prompt = cli.select("Select the pallet to call (type to filter):");
+						let mut prompt = cli.select("Select the pallet to call (type to filter)");
 						for pallet_item in &chain.pallets {
 							prompt = prompt.item(pallet_item, &pallet_item.name, &pallet_item.docs);
 						}
@@ -249,7 +250,7 @@ impl CallChainCommand {
 			let mut call_item = match self.function {
 				Some(ref name) => find_callable_by_name(&chain.pallets, &pallet.name, name)?,
 				None => {
-					let mut prompt = cli.select("Select the function to call (type to filter):");
+					let mut prompt = cli.select("Select the function to call (type to filter)");
 					for callable in pallet.get_all_callables() {
 						let name = format!("{} {}", callable.hint(), callable);
 						let docs = callable.docs();
@@ -811,7 +812,7 @@ mod tests {
 
 		let mut cli = MockCli::new()
             .expect_select(
-                "Select a chain (type to filter):".to_string(),
+                "Select a chain (type to filter)".to_string(),
                 Some(true),
                 true,
                 Some(vec![("Custom".to_string(), "Type the chain URL manually".to_string())]),
@@ -820,7 +821,7 @@ mod tests {
             )
             .expect_input("Which chain would you like to interact with?", node_url.into())
             .expect_select(
-                "Select the function to call (type to filter):",
+                "Select the function to call (type to filter)",
                 Some(true),
                 true,
                 Some(
@@ -871,6 +872,7 @@ mod tests {
             .expect_confirm(USE_WALLET_PROMPT, true);
 
 		let chain = chain::configure(
+			"Select a chain (type to filter)",
 			"Which chain would you like to interact with?",
 			node_url,
 			&None,
@@ -903,7 +905,7 @@ mod tests {
 		let mut call_config = CallChainCommand::default();
 		let mut cli = MockCli::new()
 			.expect_select(
-				"Select a chain (type to filter):".to_string(),
+				"Select a chain (type to filter)".to_string(),
 				Some(true),
 				true,
 				Some(vec![("Custom".to_string(), "Type the chain URL manually".to_string())]),
@@ -912,6 +914,7 @@ mod tests {
 			)
 			.expect_input("Which chain would you like to interact with?", node_url.into());
 		let chain = chain::configure(
+			"Select a chain (type to filter)",
 			"Which chain would you like to interact with?",
 			node_url,
 			&None,

@@ -138,7 +138,7 @@ impl Command {
 					#[cfg(feature = "chain")]
 					call::Command::Chain(cmd) => cmd.execute().await.map(|_| Null),
 					#[cfg(feature = "contract")]
-					call::Command::Contract(cmd) => cmd.execute().await.map(|_| Null),
+					call::Command::Contract(cmd) => cmd.execute(&mut Cli).await.map(|_| Null),
 				}
 			},
 			#[cfg(any(feature = "chain", feature = "contract"))]

@@ -499,6 +499,7 @@ pub(crate) mod tests {
 					input,
 					placeholder: "".to_string(),
 					required: false,
+					validate_fn: None,
 				};
 			}
 			MockInput::default()
@@ -632,10 +633,14 @@ pub(crate) mod tests {
 		input: String,
 		placeholder: String,
 		required: bool,
+		validate_fn: Option<Box<dyn Fn(&String) -> std::result::Result<(), &'static str>>>,
 	}
 
 	impl Input for MockInput {
 		fn interact(&mut self) -> Result<String> {
+			if let Some(validator) = &self.validate_fn {
+				validator(&self.prompt).map_err(std::io::Error::other)?;
+			}
 			Ok(self.prompt.clone())
 		}
 		fn default_input(mut self, value: &str) -> Self {
@@ -654,9 +659,10 @@ pub(crate) mod tests {
 		}
 
 		fn validate(
-			self,
-			_validator: impl Fn(&String) -> std::result::Result<(), &'static str> + 'static,
+			mut self,
+			validator: impl Fn(&String) -> std::result::Result<(), &'static str> + 'static,
 		) -> Self {
+			self.validate_fn = Some(Box::new(validator));
 			self
 		}
 	}

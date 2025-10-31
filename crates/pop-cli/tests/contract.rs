@@ -7,12 +7,12 @@
 use anyhow::Result;
 use pop_common::{find_free_port, pop, set_executable_permission, templates::Template};
 use pop_contracts::{
-	CallOpts, Contract, UpOpts, Weight, dry_run_call, dry_run_gas_estimate_call,
-	dry_run_gas_estimate_instantiate, ink_node_generator, instantiate_smart_contract, run_ink_node,
-	set_up_call, set_up_deployment,
+	CallOpts, Contract, UpOpts, Weight, contracts_node_generator, dry_run_call,
+	dry_run_gas_estimate_call, dry_run_gas_estimate_instantiate, instantiate_smart_contract,
+	run_contracts_node, set_up_call, set_up_deployment,
 };
 use serde::{Deserialize, Serialize};
-use std::{path::Path, process::Command as Cmd, time::Duration};
+use std::{path::Path, time::Duration};
 use strum::VariantArray;
 use subxt::{
 	Metadata, OnlineClient, SubstrateConfig, backend::rpc::RpcClient,
@@ -95,10 +95,10 @@ async fn contract_lifecycle() -> Result<()> {
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.polkavm").exists());
 	assert!(temp_dir.join("test_contract/target/ink/test_contract.json").exists());
 
-	let binary = ink_node_generator(temp_dir.to_path_buf().clone(), None).await?;
+	let binary = contracts_node_generator(temp_dir.to_path_buf().clone(), None).await?;
 	binary.source(false, &(), true).await?;
 	set_executable_permission(binary.path())?;
-	let process = run_ink_node(binary.path(), None, endpoint_port).await?;
+	let mut process = run_contracts_node(binary.path(), None, endpoint_port).await?;
 	sleep(Duration::from_secs(5)).await;
 
 	// pop test --path ./test_contract
@@ -190,6 +190,7 @@ async fn contract_lifecycle() -> Result<()> {
 		[
 			"call",
 			"contract",
+			"--dev", // do not ask for weight
 			"--contract",
 			&contract_info.address,
 			"--message",
@@ -266,10 +267,7 @@ async fn contract_lifecycle() -> Result<()> {
 	assert!(response.is_err());
 
 	// Stop the process contracts-node
-	Cmd::new("kill")
-		.args(["-s", "TERM", &process.id().to_string()])
-		.spawn()?
-		.wait()?;
+	process.kill()?;
 
 	Ok(())
 }

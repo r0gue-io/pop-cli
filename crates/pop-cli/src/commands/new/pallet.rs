@@ -176,7 +176,12 @@ impl NewPalletCommand {
 
 		// If the pallet has been created inside a workspace, add it to that workspace
 		if let Some(workspace_toml) = workspace_toml {
-			rustilities::manifest::add_crate_to_workspace(&workspace_toml, &pallet_path)?;
+			// Canonicalize paths before passing to rustilities to avoid strip_prefix errors
+			// This ensures paths are absolute and consistent, especially when using simple names
+			rustilities::manifest::add_crate_to_workspace(
+				&workspace_toml.canonicalize()?,
+				&pallet_path.canonicalize()?,
+			)?;
 		}
 
 		// Format the dir. If this fails we do nothing, it's not a major failure
@@ -201,6 +206,7 @@ impl NewPalletCommand {
 mod tests {
 	use super::*;
 	use crate::cli::MockCli;
+	use std::fs;
 	use tempfile::tempdir;
 
 	#[tokio::test]
@@ -225,6 +231,7 @@ mod tests {
 		.await?;
 		cli.verify()
 	}
+
 	#[tokio::test]
 	async fn generate_advanced_pallet_works() -> anyhow::Result<()> {
 		let dir = tempdir()?;
@@ -272,5 +279,48 @@ mod tests {
 		.generate_pallet(&mut cli)
 		.await, anyhow::Result::Err(message) if message.to_string() == "Specify at least a config common type to use default config."));
 		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn test_pallet_in_workspace_with_simple_name() -> anyhow::Result<()> {
+		// The bug occurs when you pass a simple name like "my_pallet" instead of "./my_pallet"
+		// and the pallet is created inside a workspace.
+		let temp_dir = tempdir()?;
+		let workspace_path = temp_dir.path();
+		// Create a workspace Cargo.toml
+		fs::write(
+			workspace_path.join("Cargo.toml"),
+			r#"[workspace]
+resolver = "2"
+members = []
+
+[workspace.package]
+edition = "2024"
+"#,
+		)?;
+		// Change to the workspace directory to simulate real usage
+		let original_dir = std::env::current_dir()?;
+		std::env::set_current_dir(workspace_path)?;
+		let result = NewPalletCommand {
+			name: Some("my_pallet".to_string()),
+			authors: Some("Test Author".to_string()),
+			description: Some("Test pallet".to_string()),
+			mode: None,
+		}
+		.generate_pallet(&mut MockCli::new())
+		.await;
+		std::env::set_current_dir(original_dir)?;
+		result?;
+		// Verify the pallet was created
+		assert!(workspace_path.join("my_pallet").exists());
+		assert!(workspace_path.join("my_pallet/Cargo.toml").exists());
+		assert!(workspace_path.join("my_pallet/src/lib.rs").exists());
+		// Verify it was added to the workspace
+		let workspace_toml = fs::read_to_string(workspace_path.join("Cargo.toml"))?;
+		assert!(
+			workspace_toml.contains("my_pallet"),
+			"Pallet should be added to workspace members"
+		);
+		Ok(())
 	}
 }
