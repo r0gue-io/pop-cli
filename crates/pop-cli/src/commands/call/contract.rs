@@ -387,8 +387,10 @@ impl CallContractCommand {
 			let contract_address: String = cli
 				.input("Provide the on-chain contract address:")
 				.placeholder("e.g. 0x48550a4bb374727186c55365b7c9c0a1a31bdafe")
-				.validate(|input: &String| {
-					parse_h160_account(input).map(|_| ()).map_err(|_| "Invalid address.")
+				.required(true)
+				.validate(|input: &String| match parse_h160_account(input) {
+					Ok(_) => Ok(()),
+					Err(_) => Err("Invalid address."),
 				})
 				.interact()?;
 			self.contract = Some(contract_address);
@@ -673,7 +675,7 @@ mod tests {
         ];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
-			.expect_input("Provide the on-chain contract address:", "CONTRACT_ADDRESS".into())
+			.expect_input("Provide the on-chain contract address:", "0x48550a4bb374727186c55365b7c9c0a1a31bdafe".into())
 			.expect_select(
 				"Select the message to call (type to filter)",
 				Some(false),
@@ -683,7 +685,7 @@ mod tests {
 				None,
 			)
 			.expect_info(format!(
-				"pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {}",
+				"pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message get --url {}",
 				temp_dir.path().join("testing").display(),
 				urls::LOCAL
 			));
@@ -706,7 +708,10 @@ mod tests {
 			deployed: false,
 		};
 		call_config.configure(&mut cli, false).await?;
-		assert_eq!(call_config.contract, Some("CONTRACT_ADDRESS".to_string()));
+		assert_eq!(
+			call_config.contract,
+			Some("0x48550a4bb374727186c55365b7c9c0a1a31bdafe".to_string())
+		);
 		assert_eq!(call_config.message, Some("get".to_string()));
 		assert_eq!(call_config.args.len(), 0);
 		assert_eq!(call_config.value, "0".to_string());
@@ -719,7 +724,7 @@ mod tests {
 		assert_eq!(
 			call_config.display(),
 			format!(
-				"pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {}",
+				"pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message get --url {}",
 				temp_dir.path().join("testing").display(),
 				urls::LOCAL
 			)
@@ -752,7 +757,7 @@ mod tests {
 		let mut cli = MockCli::new()
             .expect_input(
                 "Provide the on-chain contract address:",
-                "CONTRACT_ADDRESS".into(),
+                "0x48550a4bb374727186c55365b7c9c0a1a31bdafe".into(),
             )
             .expect_select(
                 "Select the message to call (type to filter)",
@@ -769,7 +774,7 @@ mod tests {
             .expect_input("Enter the proof size limit:", "".into()) // Only if call
             .expect_confirm(USE_WALLET_PROMPT, true)
             .expect_info(format!(
-                "pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {} --use-wallet --execute",
+                "pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\", \"2\" --value 50 --url {} --use-wallet --execute",
                 temp_dir.path().join("testing").display(), urls::LOCAL
             ));
 
@@ -791,7 +796,10 @@ mod tests {
 			deployed: false,
 		};
 		call_config.configure(&mut cli, false).await?;
-		assert_eq!(call_config.contract, Some("CONTRACT_ADDRESS".to_string()));
+		assert_eq!(
+			call_config.contract,
+			Some("0x48550a4bb374727186c55365b7c9c0a1a31bdafe".to_string())
+		);
 		assert_eq!(call_config.message, Some("specific_flip".to_string()));
 		assert_eq!(call_config.args.len(), 2);
 		assert_eq!(call_config.args[0], "true".to_string());
@@ -807,7 +815,7 @@ mod tests {
 		assert_eq!(
 			call_config.display(),
 			format!(
-				"pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {} --use-wallet --execute",
+				"pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\", \"2\" --value 50 --url {} --use-wallet --execute",
 				temp_dir.path().join("testing").display(),
 				urls::LOCAL
 			)
@@ -840,7 +848,7 @@ mod tests {
 		let mut cli = MockCli::new()
             .expect_input(
                 "Provide the on-chain contract address:",
-                "CONTRACT_ADDRESS".into(),
+                "0x48550a4bb374727186c55365b7c9c0a1a31bdafe".into(),
             )
             .expect_select(
                 "Select the message to call (type to filter)",
@@ -855,7 +863,7 @@ mod tests {
             .expect_input("Value to transfer to the call:", "50".into()) // Only if payable
             .expect_input("Signer calling the contract:", "//Alice".into())
             .expect_info(format!(
-                "pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {} --suri //Alice --execute",
+                "pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\", \"2\" --value 50 --url {} --suri //Alice --execute",
                 temp_dir.path().join("testing").display(), urls::LOCAL
             ));
 
@@ -877,7 +885,10 @@ mod tests {
 			deployed: false,
 		};
 		call_config.configure(&mut cli, false).await?;
-		assert_eq!(call_config.contract, Some("CONTRACT_ADDRESS".to_string()));
+		assert_eq!(
+			call_config.contract,
+			Some("0x48550a4bb374727186c55365b7c9c0a1a31bdafe".to_string())
+		);
 		assert_eq!(call_config.message, Some("specific_flip".to_string()));
 		assert_eq!(call_config.args.len(), 2);
 		assert_eq!(call_config.args[0], "true".to_string());
@@ -893,7 +904,7 @@ mod tests {
 		assert_eq!(
 			call_config.display(),
 			format!(
-				"pop call contract --path {} --contract CONTRACT_ADDRESS --message specific_flip --args \"true\", \"2\" --value 50 --url {} --suri //Alice --execute",
+				"pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\", \"2\" --value 50 --url {} --suri //Alice --execute",
 				temp_dir.path().join("testing").display(),
 				urls::LOCAL
 			)
@@ -977,10 +988,8 @@ mod tests {
 		// contract address."
 		let mut cli = MockCli::new()
 			.expect_intro("Call a contract")
-			.expect_input("Provide the on-chain contract address:", "".into())
-			.expect_outro_cancel(
-				"Failed to parse account address: H160 must be 20 bytes in length, got 0",
-			);
+			.expect_input("Provide the on-chain contract address:", "invalid".into())
+			.expect_outro_cancel("Invalid address.");
 
 		let result = CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
@@ -1155,9 +1164,7 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_intro("Call a contract")
 			.expect_input("Provide the on-chain contract address:", "".into())
-			.expect_outro_cancel(
-				"Failed to parse account address: H160 must be 20 bytes in length, got 0",
-			);
+			.expect_outro_cancel("Invalid address.");
 
 		// Execute should handle the execute_call error gracefully and return Ok
 		let result = command.execute(&mut cli).await;
@@ -1205,7 +1212,7 @@ mod tests {
 
 		let mut cli = MockCli::new()
 			.expect_intro("Call a contract")
-			.expect_input("Provide the on-chain contract address:", "CONTRACT_ADDRESS".into())
+			.expect_input("Provide the on-chain contract address:", "0x48550a4bb374727186c55365b7c9c0a1a31bdafe".into())
 			.expect_select(
 				"Select the message to call (type to filter)",
 				Some(false),
@@ -1215,7 +1222,7 @@ mod tests {
 				None,
 			)
 			.expect_info(format!(
-				"pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {} --suri //Alice",
+				"pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message get --url {} --suri //Alice",
 				temp_dir.path().join("testing").display(),
 				urls::LOCAL
 			));
@@ -1241,7 +1248,7 @@ mod tests {
 		let command = CallContractCommand {
 			path: Some(temp_dir.path().join("testing")),
 			path_pos: None,
-			contract: Some("CONTRACT_ADDRESS".to_string()),
+			contract: Some("0x48550a4bb374727186c55365b7c9c0a1a31bdafe".to_string()),
 			message: Some("get".to_string()), /* This is Some, so prompt_to_repeat_call will be
 			                                   * false */
 			args: vec![],
@@ -1258,7 +1265,7 @@ mod tests {
 		};
 
 		let mut cli = MockCli::new().expect_intro("Call a contract").expect_info(format!(
-			"pop call contract --path {} --contract CONTRACT_ADDRESS --message get --url {} --suri //Alice",
+			"pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message get --url {} --suri //Alice",
 			temp_dir.path().join("testing").display(),
 			urls::LOCAL
 		));
