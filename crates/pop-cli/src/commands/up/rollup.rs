@@ -420,7 +420,7 @@ async fn generate_spec_files(
 	path: &Path,
 	profile: Option<Profile>,
 	cli: &mut impl Cli,
-) -> anyhow::Result<GenesisArtifacts> {
+) -> Result<GenesisArtifacts> {
 	let chain_spec_path = chain_spec
 		.map(|p| p.canonicalize().unwrap_or_else(|_| p.to_path_buf()).display().to_string());
 	// Changes the working directory if a path is provided to ensure the build spec process runs in
@@ -846,9 +846,9 @@ mod tests {
 		// Create a temporary files to act as genesis_state and genesis_code files.
 		let temp_dir = tempdir()?;
 		let genesis_state_path = temp_dir.path().join("genesis_state");
-		std::fs::write(&genesis_state_path, "0x1234")?;
+		fs::write(&genesis_state_path, "0x1234")?;
 		let genesis_code_path = temp_dir.path().join("genesis_code.wasm");
-		std::fs::write(&genesis_code_path, "0x1234")?;
+		fs::write(&genesis_code_path, "0x1234")?;
 		let mut up_chain = Registration {
 			id: 2000,
 			genesis_artifacts: GenesisArtifacts {

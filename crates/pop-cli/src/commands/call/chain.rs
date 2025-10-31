@@ -24,6 +24,13 @@ use url::Url;
 const DEFAULT_URI: &str = "//Alice";
 const ENCODED_CALL_DATA_MAX_LEN: usize = 500; // Maximum length of encoded call data to display.
 
+fn to_tuple(args: &[String]) -> String {
+	if args.len() < 2 {
+		panic!("Cannot convert to tuple: too few arguments");
+	}
+	format!("({})", args.join(","))
+}
+
 /// Command to construct and execute extrinsics with configurable pallets, functions, arguments, and
 /// signing options.
 #[derive(Args, Clone, Default)]
@@ -73,8 +80,6 @@ impl CallChainCommand {
 	pub(crate) async fn execute(mut self) -> Result<()> {
 		let mut cli = cli::Cli;
 		cli.intro("Call a chain")?;
-		// Check if all fields are specified via the command line.
-		let prompt_to_repeat_call = self.requires_user_input();
 		// Configure the chain.
 		let chain = chain::configure(
 			"Select a chain (type to filter)",
@@ -139,7 +144,7 @@ impl CallChainCommand {
 				},
 				CallItem::Constant(constant) => {
 					// We already have the value of a constant, so we don't need to query it
-					cli.success(&raw_value_to_string(&constant.value)?)?;
+					cli.success(&raw_value_to_string(&constant.value, "")?)?;
 				},
 				CallItem::Storage(ref storage) => {
 					// Parse string arguments to Value types for storage query
@@ -207,7 +212,7 @@ impl CallChainCommand {
 				},
 			};
 
-			if (!prompt_to_repeat_call && self.skip_confirm) ||
+			if self.skip_confirm ||
 				!cli.confirm("Do you want to perform another call?")
 					.initial_value(true)
 					.interact()?
@@ -306,7 +311,28 @@ impl CallChainCommand {
 						let key_param = type_to_param(&name.to_string(), registry, key_ty)
 							.map_err(|e| anyhow!("Failed to parse storage key type: {e}"))?;
 
-						let mut params = self.args.clone();
+						let is_composite = key_param.sub_params.len() > 1;
+						let (mut params, len) =
+							if self.args.len() == key_param.sub_params.len() && is_composite {
+								(vec![to_tuple(self.args.as_slice())], self.args.len())
+							} else if self.args.len() == 1 && is_composite {
+								// Handle composite tuple string like "(A, B, C)"
+								let arg = self.args[0]
+									.trim()
+									.trim_start_matches("(")
+									.trim_start_matches("[")
+									.trim_end_matches(")")
+									.trim_end_matches("]")
+									.to_string();
+								let len = arg
+									.split(',')
+									.map(|s| s.trim().to_string())
+									.collect::<Vec<_>>()
+									.len();
+								(self.args.clone(), len)
+							} else {
+								(self.args.clone(), self.args.len())
+							};
 						if key_param.sub_params.is_empty() && params.is_empty() {
 							// Prompt user for the storage key
 							let key_value = prompt_for_param(cli, &key_param, false)?;
@@ -316,14 +342,20 @@ impl CallChainCommand {
 								storage.query_all = true;
 							}
 						} else {
-							for sub_param in key_param.sub_params.iter().skip(self.args.len()) {
-								let sub_key_value = prompt_for_param(cli, sub_param, false)?;
+							for (pos, sub_param) in
+								key_param.sub_params.iter().enumerate().skip(len)
+							{
+								let required = is_composite && len + pos > 0;
+								let sub_key_value = prompt_for_param(cli, sub_param, required)?;
 								if !sub_key_value.is_empty() {
 									params.push(sub_key_value);
 								} else {
 									storage.query_all = true;
 									break;
 								}
+							}
+							if is_composite && params.len() > 1 {
+								params = vec![to_tuple(params.as_slice())];
 							}
 						}
 						params
@@ -448,11 +480,6 @@ impl CallChainCommand {
 		self.args.clear();
 		self.sudo = false;
 		self.use_wallet = false;
-	}
-
-	// Function to check if all required fields are specified.
-	fn requires_user_input(&self) -> bool {
-		self.pallet.is_none() || self.function.is_none() || self.url.is_none()
 	}
 
 	/// Replaces file arguments with their contents, leaving other arguments unchanged.
@@ -583,6 +610,9 @@ impl Call {
 		}
 		if self.sudo {
 			full_message.push_str(" --sudo");
+		}
+		if self.skip_confirm {
+			full_message.push_str(" --skip-confirm");
 		}
 		full_message
 	}
@@ -1064,25 +1094,6 @@ mod tests {
 	}
 
 	#[test]
-	fn requires_user_input_works() -> Result<()> {
-		let mut call_config = CallChainCommand {
-			pallet: Some("System".to_string()),
-			function: Some("remark".to_string()),
-			args: vec!["0x11".to_string()],
-			url: Some(Url::parse(urls::LOCAL)?),
-			suri: Some(DEFAULT_URI.to_string()),
-			use_wallet: false,
-			skip_confirm: false,
-			call_data: None,
-			sudo: false,
-		};
-		assert!(!call_config.requires_user_input());
-		call_config.pallet = None;
-		assert!(call_config.requires_user_input());
-		Ok(())
-	}
-
-	#[test]
 	fn expand_file_arguments_works() -> Result<()> {
 		let mut call_config = CallChainCommand {
 			pallet: Some("Registrar".to_string()),
@@ -1155,7 +1166,7 @@ mod tests {
 		let value = result.unwrap();
 		// The value should be a primitive (block number)
 		assert!(matches!(value.value, ValueDef::Primitive(_)));
-		let formatted_value = raw_value_to_string(&value)?;
+		let formatted_value = raw_value_to_string(&value, "")?;
 		assert!(!formatted_value.is_empty(), "Formatted value should not be empty");
 
 		// Test querying a map storage item (System::Account with Alice's account)
@@ -1176,7 +1187,7 @@ mod tests {
 		let account_result = account_storage.query(&client, vec![account_key]).await?;
 		assert!(account_result.is_some(), "Alice's account should exist in test chain");
 		let account_value = account_result.unwrap();
-		let formatted_account = raw_value_to_string(&account_value)?;
+		let formatted_account = raw_value_to_string(&account_value, "")?;
 		assert!(!formatted_account.is_empty(), "Account data should not be empty");
 
 		Ok(())
@@ -1205,7 +1216,7 @@ mod tests {
 
 		// Constants have their values already decoded
 		let constant_value = &version_constant.value;
-		let formatted_value = raw_value_to_string(constant_value)?;
+		let formatted_value = raw_value_to_string(constant_value, "")?;
 		assert!(!formatted_value.is_empty(), "Constant value should not be empty");
 		// Version should be a composite value with spec_name, spec_version, etc.
 		assert!(matches!(constant_value.value, ValueDef::Composite(_)));
@@ -1218,7 +1229,7 @@ mod tests {
 			.expect("System::BlockHashCount constant should exist");
 
 		let block_hash_count_value = &block_hash_count_constant.value;
-		let formatted_block_hash_count = raw_value_to_string(block_hash_count_value)?;
+		let formatted_block_hash_count = raw_value_to_string(block_hash_count_value, "")?;
 		assert!(!formatted_block_hash_count.is_empty(), "BlockHashCount value should not be empty");
 		// BlockHashCount should be a primitive value (u32)
 		assert!(matches!(block_hash_count_value.value, ValueDef::Primitive(_)));
@@ -1231,10 +1242,35 @@ mod tests {
 			.expect("System::SS58Prefix constant should exist");
 
 		let ss58_prefix_value = &ss58_prefix_constant.value;
-		let formatted_ss58_prefix = raw_value_to_string(ss58_prefix_value)?;
+		let formatted_ss58_prefix = raw_value_to_string(ss58_prefix_value, "")?;
 		assert!(!formatted_ss58_prefix.is_empty(), "SS58Prefix value should not be empty");
 		assert!(matches!(ss58_prefix_value.value, ValueDef::Primitive(_)));
 
 		Ok(())
+	}
+
+	#[tokio::test]
+	async fn query_storage_with_composite_key_works() -> Result<()> {
+		// Spawn a test node
+		let node = TestNode::spawn().await?;
+		let node_url = node.ws_url();
+
+		// Build the command to directly execute a storage query using a composite key
+		let cmd = CallChainCommand {
+			pallet: Some("Assets".to_string()),
+			function: Some("Account".to_string()),
+			args: vec![
+				"10000".to_string(), // AssetId
+				// Alice AccountId32 (hex) in dev networks
+				"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d".to_string(),
+			],
+			url: Some(Url::parse(node_url)?),
+			skip_confirm: true, // Avoid interactive confirmation at the end of execute loop
+			..Default::default()
+		};
+
+		// Execute the command end-to-end; it should parse the composite key and perform the storage
+		// query
+		cmd.execute().await
 	}
 }

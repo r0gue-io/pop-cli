@@ -344,6 +344,7 @@ mod tests {
 			(
 				Command::Test(test::TestArgs {
 					command: Some(test::Command::OnRuntimeUpgrade(Default::default())),
+					test: None,
 					..Default::default()
 				}),
 				"test on runtime upgrade",

@@ -154,7 +154,7 @@ impl DeployRequest {
 		collator_file_id: String,
 		genesis_artifacts: &GenesisArtifacts,
 		proxy_address: Option<&str>,
-	) -> anyhow::Result<Self> {
+	) -> Result<Self> {
 		let chain_spec = ChainSpec::from(&genesis_artifacts.chain_spec)?;
 		let chain_name = chain_spec
 			.get_name()
@@ -175,7 +175,7 @@ impl DeployRequest {
 			runtime_template: template,
 			sudo_key: sudo_address.to_string(),
 			collator_file_id,
-			chainspec: genesis_artifacts.raw_chain_spec.clone(),
+			chainspec: genesis_artifacts.raw_chain_spec.clone().expect("Missing raw chain spec"),
 		})
 	}
 }
@@ -302,7 +302,11 @@ mod tests {
 		)?;
 		let raw_chain_spec = temp_dir.path().join("raw_chain_spec.json");
 		std::fs::write(&raw_chain_spec, "0x00")?;
-		Ok(GenesisArtifacts { chain_spec, raw_chain_spec, ..Default::default() })
+		Ok(GenesisArtifacts {
+			chain_spec,
+			raw_chain_spec: Some(raw_chain_spec),
+			..Default::default()
+		})
 	}
 
 	#[test]
@@ -323,7 +327,7 @@ mod tests {
 		assert_eq!(request.runtime_template, Some("POP_STANDARD".to_string()));
 		assert_eq!(request.sudo_key, "sudo");
 		assert_eq!(request.collator_file_id, "1");
-		assert_eq!(request.chainspec, genesis_artifacts.raw_chain_spec);
+		assert_eq!(request.chainspec, genesis_artifacts.raw_chain_spec.unwrap());
 		Ok(())
 	}
 

@@ -138,6 +138,7 @@ mod tests {
 						path_pos: None,
 						#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
 						contract: Default::default(),
+						test: None,
 					})
 				}
 				.to_string(),
