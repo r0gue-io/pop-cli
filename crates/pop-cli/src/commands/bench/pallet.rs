@@ -1320,12 +1320,11 @@ mod tests {
 		cli::MockCli,
 		common::{
 			bench::source_omni_bencher_binary,
-			helpers::with_current_dir,
 			runtime::{Feature::Benchmark, get_mock_runtime},
 		},
 	};
 	use anyhow::Ok;
-	use pop_common::Profile;
+	use pop_common::{Profile, helpers::with_current_dir};
 	use std::fs::{self, File};
 	use strum::EnumMessage;
 	use tempfile::tempdir;

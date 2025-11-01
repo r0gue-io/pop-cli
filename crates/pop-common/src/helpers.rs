@@ -54,11 +54,46 @@ pub fn get_relative_or_absolute_path(base: &Path, full: &Path) -> PathBuf {
 	}
 }
 
+/// Temporarily changes the current working directory while executing a closure.
+pub fn with_current_dir<F, R>(dir: &Path, f: F) -> anyhow::Result<R>
+where
+	F: FnOnce() -> anyhow::Result<R>,
+{
+	let original_dir = std::env::current_dir()?;
+	std::env::set_current_dir(dir)?;
+	let result = f();
+	std::env::set_current_dir(original_dir)?;
+	result
+}
+
+/// Temporarily changes the current working directory while executing an asynchronous closure.
+pub async fn with_current_dir_async<F, R>(dir: &Path, f: F) -> anyhow::Result<R>
+where
+	F: AsyncFnOnce() -> anyhow::Result<R>,
+{
+	let original_dir = std::env::current_dir()?;
+	std::env::set_current_dir(dir)?;
+	let result = f().await;
+	std::env::set_current_dir(original_dir)?;
+	result
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use anyhow::Result;
-	use std::fs;
+	use std::{
+		fs,
+		sync::{Mutex, OnceLock},
+	};
+
+	// Changing the current working directory is a global, process-wide side effect.
+	// Serialize such tests to avoid flakiness when tests run in parallel.
+	static CWD_TEST_MUTEX: OnceLock<Mutex<()>> = OnceLock::new();
+
+	fn cwd_lock() -> std::sync::MutexGuard<'static, ()> {
+		CWD_TEST_MUTEX.get_or_init(|| Mutex::new(())).lock().unwrap()
+	}
 
 	#[test]
 	fn test_replace_in_file() -> Result<(), Error> {
@@ -105,5 +140,60 @@ mod tests {
 				Path::new(expected)
 			);
 		});
+	}
+
+	#[test]
+	fn with_current_dir_changes_and_restores_cwd() -> anyhow::Result<()> {
+		let _guard = cwd_lock();
+		let original = std::env::current_dir()?;
+		let temp_dir = tempfile::tempdir()?;
+		let tmp_path = temp_dir.path().to_path_buf();
+
+		let res: &str = with_current_dir(&tmp_path, || {
+			// Inside the closure, the cwd should be the temp dir (canonicalized for macOS /private
+			// symlink).
+			let cwd = std::env::current_dir().unwrap();
+			assert_eq!(cwd.canonicalize().unwrap(), tmp_path.canonicalize().unwrap());
+			// Create a file relative to the new cwd to verify it's applied.
+			fs::write("hello.txt", b"world").unwrap();
+			Ok("done")
+		})?;
+		assert_eq!(res, "done");
+
+		// After the closure, cwd should be restored.
+		assert_eq!(std::env::current_dir()?, original);
+		// The file should exist inside the temp dir.
+		assert!(tmp_path.join("hello.txt").exists());
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn with_current_dir_async_changes_and_restores_cwd() -> anyhow::Result<()> {
+		// Acquire and drop the mutex guard before async operations
+		{
+			let _guard = cwd_lock();
+		}
+
+		let original = std::env::current_dir()?;
+		let temp_dir = tempfile::tempdir()?;
+		let tmp_path = temp_dir.path().to_path_buf();
+
+		let res: &str = with_current_dir_async(&tmp_path, || async {
+			// Inside the async closure, the cwd should be the temp dir (canonicalized for macOS
+			// /private symlink).
+			let cwd = std::env::current_dir().unwrap();
+			assert_eq!(cwd.canonicalize().unwrap(), tmp_path.canonicalize().unwrap());
+			// Create a file relative to the new cwd to verify it's applied.
+			fs::write("async.txt", b"ok").unwrap();
+			Ok("async-done")
+		})
+		.await?;
+		assert_eq!(res, "async-done");
+
+		// After the closure, cwd should be restored.
+		assert_eq!(std::env::current_dir()?, original);
+		// The file should exist inside the temp dir.
+		assert!(tmp_path.join("async.txt").exists());
+		Ok(())
 	}
 }
