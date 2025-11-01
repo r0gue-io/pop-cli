@@ -3,6 +3,7 @@
 use crate::{
 	cli::{self, traits::*},
 	common::helpers::check_destination_path,
+	new::frontend::{create_frontend, prompt_frontend_template},
 };
 use anyhow::Result;
 use clap::{
@@ -14,7 +15,8 @@ use pop_chains::{
 	ChainTemplate, Config, Provider, instantiate_template_dir, is_initial_endowment_valid,
 };
 use pop_common::{
-	Git, GitHub, Release, enum_variants, enum_variants_without_deprecated,
+	FrontendTemplate, FrontendType, Git, GitHub, Release, enum_variants,
+	enum_variants_without_deprecated,
 	templates::{Template, Type},
 };
 use std::{path::Path, str::FromStr, thread::sleep, time::Duration};
@@ -66,6 +68,18 @@ pub struct NewChainCommand {
 		help = "Verifies the commit SHA when fetching the latest license and release from GitHub."
 	)]
 	pub(crate) verify: bool,
+	/// Also scaffold a frontend. Optionally specify template. If flag provided without value,
+	/// prompts for template selection.
+	#[arg(
+		short = 'f',
+		long = "with-frontend",
+		value_name = "TEMPLATE_NAME",
+		num_args = 0..=1,
+		default_missing_value = "prompt",
+		require_equals = true,
+		value_parser = ["prompt", "create-dot-app"]
+	)]
+	pub(crate) with_frontend: Option<String>,
 }
 
 impl NewChainCommand {
@@ -99,6 +113,19 @@ impl NewChainCommand {
 
 		let tag_version = parachain_config.release_tag.clone();
 
+		let mut frontend_template: Option<FrontendTemplate> = None;
+		if let Some(frontend_arg) = &parachain_config.with_frontend {
+			frontend_template =
+				if frontend_arg == "prompt" {
+					// User provided --with-frontend without value: prompt for template
+					Some(prompt_frontend_template(&FrontendType::Chain, &mut cli::Cli)?)
+				} else {
+					// User specified a template explicitly: parse and use it
+					Some(FrontendTemplate::from_str(frontend_arg).map_err(|_| {
+						anyhow::anyhow!("Invalid frontend template: {}", frontend_arg)
+					})?)
+				};
+		}
 		generate_parachain_from_template(
 			name,
 			provider,
@@ -106,9 +133,11 @@ impl NewChainCommand {
 			tag_version,
 			config,
 			self.verify,
+			frontend_template,
 			&mut cli::Cli,
 		)
 		.await?;
+
 		Ok(template)
 	}
 }
@@ -159,6 +188,16 @@ async fn guide_user_to_generate_parachain(
 		customizable_options = prompt_customizable_options(cli)?;
 	}
 
+	let with_frontend = if cli
+		.confirm("Would you like to scaffold a frontend template as well?".to_string())
+		.initial_value(true)
+		.interact()?
+	{
+		Some("prompt".to_string())
+	} else {
+		None
+	};
+
 	Ok(NewChainCommand {
 		name: Some(name),
 		provider: Some(provider.clone()),
@@ -168,6 +207,7 @@ async fn guide_user_to_generate_parachain(
 		decimals: Some(customizable_options.decimals),
 		initial_endowment: Some(customizable_options.initial_endowment),
 		verify,
+		with_frontend,
 	})
 }
 
@@ -178,6 +218,7 @@ async fn generate_parachain_from_template(
 	tag_version: Option<String>,
 	config: Config,
 	verify: bool,
+	frontend_template: Option<FrontendTemplate>,
 	cli: &mut impl Cli,
 ) -> Result<()> {
 	cli.intro(format!(
@@ -243,6 +284,13 @@ async fn generate_parachain_from_template(
 			"Use `pop up chain -f {network_config}` to launch your parachain on a local network."
 		))
 	}
+	if let Some(frontend_template) = &frontend_template {
+		create_frontend(&destination_path, frontend_template, cli).await?;
+		next_steps.push(format!(
+			"Frontend template created inside \"{name_template}\". To run it locally, use: `pop up frontend`. Navigate to the `frontend` folder to start customizing it for your chain."
+		))
+	};
+
 	let next_steps: Vec<_> = next_steps
 		.iter()
 		.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())

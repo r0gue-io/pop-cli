@@ -39,7 +39,7 @@ jobs:
           rustup self uninstall -y
       - name: Run Pop install
         run: |
-          pop install -y
+          pop install -y --frontend
   debian:
     runs-on: ubuntu-latest
     container: debian
@@ -57,7 +57,7 @@ jobs:
           rustup self uninstall -y
       - name: Run Pop Install
         run: |
-          pop install -y
+          pop install -y --frontend
   macos:
     runs-on: macos-latest
     steps:
@@ -74,14 +74,20 @@ jobs:
           brew uninstall rustup
       - name: Run Pop Install
         run: |
-          pop install -y
+          pop install -y --frontend
   redhat:
     runs-on: ubuntu-latest
     container: redhat/ubi8
     steps:
       - uses: actions/checkout@v4
       - name: Install prerequisites
-        run: yum update -y && yum install -y perl-IPC-Cmd clang curl git make cmake protobuf-compiler gcc pkg-config openssl-devel
+        run: |
+          yum -y update
+          yum -y module enable perl || true
+          yum -y install \
+            clang curl git make cmake gcc \
+            protobuf-compiler openssl-devel \
+            pkgconf-pkg-config perl perl-IPC-Cmd perl-Time-Piece
       - name: Install Rust
         run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       - name: Install Pop
@@ -92,7 +98,7 @@ jobs:
           rustup self uninstall -y
       - name: Run Pop install
         run: |
-          pop install -y
+          pop install -y --frontend
   ubuntu:
     runs-on: ubuntu-latest
     container: ubuntu
@@ -110,4 +116,4 @@ jobs:
           rustup self uninstall -y
       - name: Run Pop install
         run: |
-          pop install -y
+          pop install -y --frontend

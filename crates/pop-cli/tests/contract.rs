@@ -80,9 +80,11 @@ async fn contract_lifecycle() -> Result<()> {
 	// Test that all templates are generated correctly
 	generate_all_the_templates(&temp_dir)?;
 	// pop new contract test_contract (default)
-	let mut command = pop(&temp_dir, ["new", "contract", "test_contract"]);
+	let mut command =
+		pop(&temp_dir, ["new", "contract", "test_contract", "--with-frontend=typink"]);
 	assert!(command.spawn()?.wait()?.success());
 	assert!(temp_dir.join("test_contract").exists());
+	assert!(temp_dir.join("test_contract").join("frontend").exists());
 
 	// pop build --path ./test_contract --release
 	command = pop(&temp_dir, ["build", "--path", "./test_contract", "--release"]);
