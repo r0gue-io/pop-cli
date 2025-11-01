@@ -67,17 +67,12 @@ fn create_template_contract(
 	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
 	Git::clone(&Url::parse(template_repository)?, temp_dir.path(), None)?;
 	// Retrieve only the template contract files.
-	if template == &Contract::PSP22 || template == &Contract::PSP34 {
-		// Different template structure requires extracting different path
-		extract_template_files("", temp_dir.path(), canonicalized_path.as_path(), None)?;
-	} else {
-		extract_template_files(
-			template.as_ref(),
-			temp_dir.path(),
-			canonicalized_path.as_path(),
-			Some(vec!["frontend".to_string()]),
-		)?;
-	}
+	extract_template_files(
+		template.as_ref(),
+		temp_dir.path(),
+		canonicalized_path.as_path(),
+		Some(vec!["frontend".to_string()]),
+	)?;
 
 	// Replace name of the contract.
 	rename_contract(name, canonicalized_path, template)?;
