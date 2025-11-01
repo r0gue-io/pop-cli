@@ -19,7 +19,7 @@ use crate::{
 };
 use clap::Args;
 use cliclack::{ProgressBar, spinner};
-use console::{Emoji, Style};
+use console::Emoji;
 use pop_contracts::{
 	Bytes, FunctionType, UpOpts, Verbosity, Weight, build_smart_contract,
 	dry_run_gas_estimate_instantiate, dry_run_upload, extract_function, get_contract_code,
@@ -169,7 +169,7 @@ impl UpContractCommand {
 				self.url = local_url;
 
 				let log_ink_node = NamedTempFile::new()?;
-				let eth_rpc_node = NamedTempFile::new()?;
+				let log_eth_rpc = NamedTempFile::new()?;
 				let spinner = spinner();
 
 				// uses the cache location
@@ -197,18 +197,16 @@ impl UpContractCommand {
 						.await?;
 				let eth_rpc_node_process = run_eth_rpc_node(
 					&eth_rpc_binary_path,
-					Some(log_ink_node.as_file()),
+					Some(log_eth_rpc.as_file()),
 					DEFAULT_INK_NODE_URL,
 					DEFAULT_ETH_RPC_PORT,
 				)
 				.await?;
-				let bar = Style::new().magenta().dim().apply_to(Emoji("│", "|"));
-				spinner.stop(format!(
+				spinner.clear();
+				Cli.info(format!(
 					"Local node started successfully:{}",
 					style(format!(
-						"
-{bar}  {}
-{bar}  {}",
+						"\n{}\n{}",
 						style(format!(
 							"portal: https://polkadot.js.org/apps/?rpc={}#/explorer",
 							self.url
@@ -217,8 +215,17 @@ impl UpContractCommand {
 						style(format!("logs: tail -f {}", log_ink_node.path().display())).dim(),
 					))
 					.dim()
-				));
-				Some(((ink_node_process, log_ink_node), (eth_rpc_node_process, eth_rpc_node)))
+				))?;
+				Cli.info(format!(
+					"Ethereum RPC node started successfully:{}",
+					style(format!(
+						"\n{}\n{}",
+						style(format!("url: ws://localhost:{}", DEFAULT_ETH_RPC_PORT)).dim(),
+						style(format!("logs: tail -f {}", log_eth_rpc.path().display())).dim(),
+					))
+					.dim()
+				))?;
+				Some(((ink_node_process, log_ink_node), (eth_rpc_node_process, log_eth_rpc)))
 			} else {
 				None
 			}
