@@ -264,7 +264,12 @@ edition = "2024"
 		// User runs: pop new contract flipper -t standard
 		// They pass just "flipper", not "./flipper"
 		let cli = Cli::parse_from([
-			"pop", "new", "contract", "flipper", // Just the name, not a path like "./flipper"
+			"pop",
+			"new",
+			"contract",
+			"flipper",
+			"--template",
+			"standard", // Just the name, not a path like "./flipper"
 		]);
 		let New(NewArgs { command: Some(Contract(command)) }) = cli.command else {
 			panic!("unable to parse command")
