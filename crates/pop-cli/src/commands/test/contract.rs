@@ -4,7 +4,7 @@ use crate::{
 	cli,
 	common::{
 		TestFeature::{self, *},
-		contracts::check_contracts_node_and_prompt,
+		contracts::check_ink_node_and_prompt,
 	},
 };
 use clap::Args;
@@ -44,22 +44,18 @@ impl TestContractCommand {
 		if self.e2e {
 			cli.intro("Starting end-to-end tests")?;
 			let spinner = spinner();
-			self.node = match check_contracts_node_and_prompt(
-				cli,
-				&spinner,
-				&crate::cache()?,
-				self.skip_confirm,
-			)
-			.await
-			{
-				Ok(binary_path) => Some(binary_path),
-				Err(_) => {
-					cli.warning(
-						"🚫 substrate-contracts-node is necessary to run e2e tests. Will try to run tests anyway...",
-					)?;
-					Some(PathBuf::new())
-				},
-			};
+			self.node =
+				match check_ink_node_and_prompt(cli, &spinner, &crate::cache()?, self.skip_confirm)
+					.await
+				{
+					Ok((binary_path, _)) => Some(binary_path),
+					Err(_) => {
+						cli.warning(
+							"🚫 ink-node is necessary to run e2e tests. Will try to run tests anyway...",
+						)?;
+						Some(PathBuf::new())
+					},
+				};
 
 			spinner.clear();
 			test_e2e_smart_contract(&self.path, self.node.as_deref(), self.test)?;

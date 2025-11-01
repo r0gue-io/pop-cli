@@ -71,7 +71,7 @@ impl Display for Command {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::common::helpers::with_current_dir;
+	use pop_common::helpers::with_current_dir;
 	use std::{env::set_current_dir, fs};
 	use tempfile::tempdir;
 

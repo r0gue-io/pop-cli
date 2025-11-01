@@ -895,7 +895,7 @@ mod tests {
 
 	mod zombienet {
 		use super::*;
-		use pop_common::Status;
+		use pop_common::{Status, helpers::with_current_dir_async};
 
 		pub(crate) struct Output;
 		impl Status for Output {
@@ -1478,48 +1478,52 @@ name = "collator"
 command = "substrate-contracts-node"
 "#
 			)?;
-			// Expecting failure since no custom path is provided and binaries don't exist in the
-			// default build directory.
-			assert!(matches!(
-				Zombienet::new(&cache, config.path().try_into()?, None, None, None, None, None).await,
-				Err(Error::MissingBinary(command))
-				if command == "parachain-template-node"
-			));
-			// Create the binaries in the default build directory.
-			let parachain_template = PathBuf::from("target/release/parachain-template-node");
-			create_dir_all(parachain_template.parent().unwrap())?;
-			File::create(&parachain_template)?;
-			// Ensure the the binary is detected in the debug profile too.
-			let parachain_contracts_template =
-				PathBuf::from("target/debug/substrate-contracts-node");
-			create_dir_all(parachain_contracts_template.parent().unwrap())?;
-			File::create(&parachain_contracts_template)?;
+			let temp_workspace = tempdir()?;
+			with_current_dir_async(temp_workspace.path(), async || {
+				// Expecting failure since no custom path is provided and binaries don't exist in
+				// the default build directory.
+				assert!(matches!(
+					Zombienet::new(&cache, config.path().try_into()?, None, None, None, None, None).await,
+					Err(Error::MissingBinary(command))
+					if command == "parachain-template-node"
+				));
+				// Create the binaries in the default build directory.
+				let parachain_template = PathBuf::from("target/release/parachain-template-node");
+				create_dir_all(parachain_template.parent().unwrap())?;
+				File::create(&parachain_template)?;
+				// Ensure the the binary is detected in the debug profile too.
+				let parachain_contracts_template =
+					PathBuf::from("target/debug/substrate-contracts-node");
+				create_dir_all(parachain_contracts_template.parent().unwrap())?;
+				File::create(&parachain_contracts_template)?;
 
-			let zombienet =
-				Zombienet::new(&cache, config.path().try_into()?, None, None, None, None, None)
-					.await?;
-			// Remove the binaries created above after Zombienet initialization, as they are no
-			// longer needed.
-			remove_file(&parachain_template)?;
-			remove_file(&parachain_contracts_template)?;
-			remove_dir(parachain_template.parent().unwrap())?;
-			remove_dir(parachain_contracts_template.parent().unwrap())?;
+				let zombienet =
+					Zombienet::new(&cache, config.path().try_into()?, None, None, None, None, None)
+						.await?;
+				// Remove the binaries created above after Zombienet initialization, as they are no
+				// longer needed.
+				remove_file(&parachain_template)?;
+				remove_file(&parachain_contracts_template)?;
+				remove_dir(parachain_template.parent().unwrap())?;
+				remove_dir(parachain_contracts_template.parent().unwrap())?;
 
-			assert_eq!(zombienet.parachains.len(), 2);
-			let parachain = &zombienet.parachains.get(&1000).unwrap().binary;
-			assert_eq!(parachain.name(), "parachain-template-node");
-			assert_eq!(parachain.path(), Path::new("./target/release/parachain-template-node"));
-			assert_eq!(parachain.version(), None);
-			assert!(matches!(parachain, Binary::Local { .. }));
-			let contract_parachain = &zombienet.parachains.get(&2000).unwrap().binary;
-			assert_eq!(contract_parachain.name(), "substrate-contracts-node");
-			assert_eq!(
-				contract_parachain.path(),
-				Path::new("./target/debug/substrate-contracts-node")
-			);
-			assert_eq!(contract_parachain.version(), None);
-			assert!(matches!(contract_parachain, Binary::Local { .. }));
-			Ok(())
+				assert_eq!(zombienet.parachains.len(), 2);
+				let parachain = &zombienet.parachains.get(&1000).unwrap().binary;
+				assert_eq!(parachain.name(), "parachain-template-node");
+				assert_eq!(parachain.path(), Path::new("./target/release/parachain-template-node"));
+				assert_eq!(parachain.version(), None);
+				assert!(matches!(parachain, Binary::Local { .. }));
+				let contract_parachain = &zombienet.parachains.get(&2000).unwrap().binary;
+				assert_eq!(contract_parachain.name(), "substrate-contracts-node");
+				assert_eq!(
+					contract_parachain.path(),
+					Path::new("./target/debug/substrate-contracts-node")
+				);
+				assert_eq!(contract_parachain.version(), None);
+				assert!(matches!(contract_parachain, Binary::Local { .. }));
+				Ok(())
+			})
+			.await
 		}
 
 		#[tokio::test]

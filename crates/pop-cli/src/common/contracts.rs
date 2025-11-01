@@ -9,7 +9,8 @@ use crate::{
 use cliclack::ProgressBar;
 use pop_common::{DefaultConfig, Keypair, manifest::from_path};
 use pop_contracts::{
-	AccountMapper, ContractFunction, DefaultEnvironment, ExtrinsicOpts, contracts_node_generator,
+	AccountMapper, ContractFunction, DefaultEnvironment, ExtrinsicOpts, eth_rpc_generator,
+	ink_node_generator,
 };
 use std::{
 	path::{Path, PathBuf},
@@ -17,9 +18,11 @@ use std::{
 };
 use tempfile::NamedTempFile;
 
-impl_binary_generator!(ContractsNodeGenerator, contracts_node_generator);
+impl_binary_generator!(InkNodeGenerator, ink_node_generator);
+impl_binary_generator!(EthRpcGenerator, eth_rpc_generator);
 
 const CONTRACTS_NODE_BINARY: &str = "ink-node";
+const ETH_RPC_BINARY: &str = "eth-rpc";
 
 ///  Checks the status of the contracts node binary, sources it if necessary, and
 /// prompts the user to update it if the existing binary is not the latest version.
@@ -28,42 +31,54 @@ const CONTRACTS_NODE_BINARY: &str = "ink-node";
 /// * `cli`: Command line interface.
 /// * `cache_path`: The cache directory path.
 /// * `skip_confirm`: A boolean indicating whether to skip confirmation prompts.
-pub async fn check_contracts_node_and_prompt(
+pub async fn check_ink_node_and_prompt(
 	cli: &mut impl Cli,
 	spinner: &ProgressBar,
 	cache_path: &Path,
 	skip_confirm: bool,
-) -> anyhow::Result<PathBuf> {
-	check_and_prompt::<ContractsNodeGenerator>(
+) -> anyhow::Result<(PathBuf, PathBuf)> {
+	let ink_node = check_and_prompt::<InkNodeGenerator>(
 		cli,
 		spinner,
 		CONTRACTS_NODE_BINARY,
 		cache_path,
 		skip_confirm,
 	)
-	.await
+	.await?;
+	// This should have already been downloaded by the previous step.
+	let eth_rpc =
+		check_and_prompt::<EthRpcGenerator>(cli, spinner, ETH_RPC_BINARY, cache_path, skip_confirm)
+			.await?;
+	Ok((ink_node, eth_rpc))
 }
 
 /// Handles the optional termination of a local running node.
 /// # Arguments
 /// * `cli`: Command line interface.
 /// * `process`: Tuple identifying the child process to terminate and its log file.
-pub async fn terminate_node(
+pub async fn terminate_nodes(
 	cli: &mut impl Cli,
-	process: Option<(Child, NamedTempFile)>,
+	processes: Option<((Child, NamedTempFile), (Child, NamedTempFile))>,
 ) -> anyhow::Result<()> {
 	// Prompt to close any launched node
-	if let Some((mut process, log)) = process {
+	if let Some(mut processes) = processes {
 		if cli
 			.confirm("Would you like to terminate the local node?")
 			.initial_value(true)
 			.interact()?
 		{
-			process.kill()?;
-			process.wait()?;
+			processes.0.0.kill()?;
+			processes.0.0.wait()?;
+			processes.1.0.kill()?;
+			processes.1.0.wait()?;
 		} else {
 			cli.warning("You can terminate the process by pressing Ctrl+C.")?;
-			Command::new("tail").args(["-F", &log.path().to_string_lossy()]).spawn()?;
+			Command::new("tail")
+				.args(["-F", &processes.0.1.path().to_string_lossy()])
+				.spawn()?;
+			Command::new("tail")
+				.args(["-F", &processes.1.1.path().to_string_lossy()])
+				.spawn()?;
 			tokio::signal::ctrl_c().await?;
 			cli.plain("\n")?;
 		}
@@ -170,7 +185,7 @@ mod tests {
 	use duct::cmd;
 	use pop_common::{find_free_port, set_executable_permission};
 	use pop_contracts::{
-		FunctionType, Param, extract_function, is_chain_alive, run_contracts_node,
+		FunctionType, Param, extract_function, is_chain_alive, run_eth_rpc_node, run_ink_node,
 	};
 	use std::{
 		env,
@@ -223,10 +238,11 @@ mod tests {
 			.expect_warning(format!("⚠️ The {CONTRACTS_NODE_BINARY} binary is not found."));
 
 		let node_path =
-			check_contracts_node_and_prompt(&mut cli, &spinner(), cache_path.path(), false).await?;
+			check_ink_node_and_prompt(&mut cli, &spinner(), cache_path.path(), false).await?;
 		// Binary path is at least equal to the cache path + the contracts node binary.
 		assert!(
 			node_path
+				.0
 				.to_str()
 				.unwrap()
 				.starts_with(cache_path.path().join(CONTRACTS_NODE_BINARY).to_str().unwrap())
@@ -241,10 +257,11 @@ mod tests {
 			.expect_warning(format!("⚠️ The {CONTRACTS_NODE_BINARY} binary is not found."));
 
 		let node_path =
-			check_contracts_node_and_prompt(&mut cli, &spinner(), cache_path.path(), true).await?;
+			check_ink_node_and_prompt(&mut cli, &spinner(), cache_path.path(), true).await?;
 		// Binary path is at least equal to the cache path + the contracts node binary.
 		assert!(
 			node_path
+				.0
 				.to_str()
 				.unwrap()
 				.starts_with(cache_path.path().join(CONTRACTS_NODE_BINARY).to_str().unwrap())
@@ -255,17 +272,29 @@ mod tests {
 	#[tokio::test]
 	async fn node_is_terminated() -> anyhow::Result<()> {
 		let cache = tempfile::tempdir().expect("Could not create temp dir");
-		let binary = contracts_node_generator(PathBuf::from(cache.path()), None).await?;
-		binary.source(false, &(), true).await?;
-		set_executable_permission(binary.path())?;
-		let port = find_free_port(None);
-		let process = run_contracts_node(binary.path(), None, port).await?;
-		let log = NamedTempFile::new()?;
+		let binary_1 = ink_node_generator(PathBuf::from(cache.path()), None).await?;
+		binary_1.source(false, &(), true).await?;
+		set_executable_permission(binary_1.path())?;
+		let binary_2 = eth_rpc_generator(PathBuf::from(cache.path()), None).await?;
+		binary_2.source(false, &(), true).await?;
+		set_executable_permission(binary_2.path())?;
+		let process_1_port = find_free_port(None);
+		let process_1 = run_ink_node(&binary_1.path(), None, process_1_port).await?;
+		let process_2_port = find_free_port(None);
+		let chain_url = format!("ws://127.0.0.1:{}", process_1_port);
+		let process_2 =
+			run_eth_rpc_node(&binary_2.path(), None, &chain_url, process_2_port).await?;
+		let log_1 = NamedTempFile::new()?;
+		let log_2 = NamedTempFile::new()?;
 		// Terminate the process.
 		let mut cli =
 			MockCli::new().expect_confirm("Would you like to terminate the local node?", true);
-		assert!(terminate_node(&mut cli, Some((process, log))).await.is_ok());
-		assert!(!is_chain_alive(Url::parse(&format!("ws://localhost:{port}"))?).await?);
+		assert!(
+			terminate_nodes(&mut cli, Some(((process_1, log_1), (process_2, log_2))))
+				.await
+				.is_ok()
+		);
+		assert!(!is_chain_alive(Url::parse(&chain_url)?).await?);
 		cli.verify()
 	}
 

@@ -127,19 +127,6 @@ pub fn check_destination_path(destination_path: &Path, cli: &mut impl Cli) -> Re
 	Ok(destination_path.to_path_buf())
 }
 
-/// Temporarily changes the current working directory while executing a closure.
-#[cfg(test)]
-pub fn with_current_dir<F, R>(dir: &Path, f: F) -> Result<R>
-where
-	F: FnOnce() -> Result<R>,
-{
-	let original_dir = std::env::current_dir()?;
-	std::env::set_current_dir(dir)?;
-	let result = f();
-	std::env::set_current_dir(original_dir)?;
-	result
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
