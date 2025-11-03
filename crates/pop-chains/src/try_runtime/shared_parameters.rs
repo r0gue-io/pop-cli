@@ -74,11 +74,6 @@ pub struct SharedParams {
 	)]
 	pub wasmtime_instantiation_strategy: WasmtimeInstantiationStrategy,
 
-	/// The number of 64KB pages to allocate for Wasm execution. Defaults to
-	/// [`sc_service::Configuration.default_heap_pages`].
-	#[arg(long)]
-	pub heap_pages: Option<u64>,
-
 	/// Path to a file to export the storage proof into (as a JSON).
 	/// If several blocks are executed, the path is interpreted as a folder
 	/// where one file per block will be written (named `{block_number}-{block_hash}`).
@@ -99,7 +94,6 @@ impl Default for SharedParams {
 			disable_spec_name_check: false,
 			wasm_method: DEFAULT_WASM_EXECUTION_METHOD,
 			wasmtime_instantiation_strategy: DEFAULT_WASMTIME_INSTANTIATION_STRATEGY,
-			heap_pages: None,
 			export_proof: None,
 			overwrite_state_version: None,
 		}
