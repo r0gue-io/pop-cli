@@ -5,7 +5,6 @@
 //! This module provides template definitions for different parachain configurations,
 //! including providers like Pop, OpenZeppelin and Parity. It includes template metadata,
 //! configuration options and utility functions for template management.
-#![expect(deprecated, reason = "Keep EVM and ParityContracts templates until v0.11.0")]
 
 use pop_common::templates::{Template, Type};
 use strum::{EnumProperty as _, VariantArray};
@@ -124,23 +123,6 @@ pub enum ChainTemplate {
 		)
 	)]
 	Contracts,
-	/// Pop EVM Template: Parachain configured with Frontier, enabling compatibility with the
-	/// Ethereum Virtual Machine (EVM).
-	#[strum(
-		serialize = "r0gue-io/evm-parachain",
-		message = "EVM",
-		detailed_message = "Parachain configured with Frontier, enabling compatibility with the Ethereum Virtual Machine (EVM).",
-		props(
-			Provider = "Pop",
-			Repository = "https://github.com/r0gue-io/evm-parachain",
-			Network = "./network.toml",
-			License = "Unlicense",
-			DeploymentName = "POP_EVM",
-			IsDeprecated = "true",
-		)
-	)]
-	#[deprecated(since = "0.10.0", note = "will be removed in v0.11.0")]
-	EVM,
 	/// OpenZeppelin Generic Runtime Template: A generic template for Substrate Runtime.
 	#[strum(
 		serialize = "openzeppelin/generic-template",
@@ -187,22 +169,6 @@ pub enum ChainTemplate {
 		)
 	)]
 	ParityGeneric,
-	/// Parity Contracts Template: Minimal Substrate node configured for smart contracts via
-	/// pallet-contracts and pallet-revive.
-	#[strum(
-		serialize = "paritytech/substrate-contracts-node",
-		message = "Contracts",
-		detailed_message = "Minimal Substrate node configured for smart contracts via pallet-contracts and pallet-revive.",
-		props(
-			Provider = "Parity",
-			Repository = "https://github.com/paritytech/substrate-contracts-node",
-			Network = "./zombienet.toml",
-			License = "Unlicense",
-			IsDeprecated = "true",
-		)
-	)]
-	#[deprecated(since = "0.10.0", note = "will be removed in v0.11.0")]
-	ParityContracts,
 	/// Test template 01 used for unit testing.
 	#[cfg(test)]
 	#[strum(
@@ -307,13 +273,11 @@ mod tests {
 			("r0gue-io/base-parachain".to_string(), Standard),
 			("r0gue-io/assets-parachain".to_string(), Assets),
 			("r0gue-io/contracts-parachain".to_string(), Contracts),
-			("r0gue-io/evm-parachain".to_string(), EVM),
 			// openzeppelin
 			("openzeppelin/generic-template".to_string(), OpenZeppelinGeneric),
 			("openzeppelin/evm-template".to_string(), OpenZeppelinEVM),
 			// pàrity
 			("paritytech/polkadot-sdk-parachain-template".to_string(), ParityGeneric),
-			("paritytech/substrate-contracts-node".to_string(), ParityContracts),
 			("test_01".to_string(), TestTemplate01),
 			("test_02".to_string(), TestTemplate02),
 		])
@@ -324,11 +288,9 @@ mod tests {
 			(Standard, "base-parachain".to_string()),
 			(Assets, "assets-parachain".to_string()),
 			(Contracts, "contracts-parachain".to_string()),
-			(EVM, "evm-parachain".to_string()),
 			(OpenZeppelinGeneric, "generic-template".to_string()),
 			(OpenZeppelinEVM, "evm-template".to_string()),
 			(ParityGeneric, "polkadot-sdk-parachain-template".to_string()),
-			(ParityContracts, "substrate-contracts-node".to_string()),
 			(TestTemplate01, "test_01".to_string()),
 			(TestTemplate02, "test_02".to_string()),
 		])
@@ -378,11 +340,9 @@ mod tests {
 			(Standard, Some("./network.toml")),
 			(Assets, Some("./network.toml")),
 			(Contracts, Some("./network.toml")),
-			(EVM, Some("./network.toml")),
 			(OpenZeppelinGeneric, Some("./zombienet-config/devnet.toml")),
 			(OpenZeppelinEVM, Some("./zombienet-config/devnet.toml")),
 			(ParityGeneric, Some("./zombienet.toml")),
-			(ParityContracts, Some("./zombienet.toml")),
 			(TestTemplate01, Some("")),
 			(TestTemplate02, Some("")),
 		]
@@ -394,11 +354,9 @@ mod tests {
 			(Standard, Some("Unlicense")),
 			(Assets, Some("Unlicense")),
 			(Contracts, Some("Unlicense")),
-			(EVM, Some("Unlicense")),
 			(OpenZeppelinGeneric, Some("GPL-3.0")),
 			(OpenZeppelinEVM, Some("GPL-3.0")),
 			(ParityGeneric, Some("Unlicense")),
-			(ParityContracts, Some("Unlicense")),
 			(TestTemplate01, Some("Unlicense")),
 			(TestTemplate02, Some("GPL-3.0")),
 		]
@@ -410,11 +368,9 @@ mod tests {
 			(Standard, Some("POP_STANDARD")),
 			(Assets, Some("POP_ASSETS")),
 			(Contracts, Some("POP_CONTRACTS")),
-			(EVM, Some("POP_EVM")),
 			(OpenZeppelinGeneric, Some("OZ_GENERIC")),
 			(OpenZeppelinEVM, Some("OZ_EVM")),
 			(ParityGeneric, Some("PARITY_GENERIC")),
-			(ParityContracts, None),
 			(TestTemplate01, None),
 			(TestTemplate02, None),
 		]
@@ -424,11 +380,11 @@ mod tests {
 	#[test]
 	fn test_is_template_correct() {
 		for template in ChainTemplate::VARIANTS {
-			if matches!(template, Standard | Assets | Contracts | EVM) {
+			if matches!(template, Standard | Assets | Contracts) {
 				assert!(Provider::Pop.provides(template));
 				assert!(!Provider::Parity.provides(template));
 			}
-			if matches!(template, ParityContracts | ParityGeneric) {
+			if matches!(template, ParityGeneric) {
 				assert!(!Provider::Pop.provides(template));
 				assert!(Provider::Parity.provides(template))
 			}
