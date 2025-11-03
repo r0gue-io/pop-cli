@@ -119,7 +119,6 @@ pub fn guide_user_to_select_command(cli: &mut impl cli::traits::Cli) -> AnyhowRe
 		#[cfg(feature = "contract")]
 		"contract" => Ok(Command::Contract(contract::NewContractCommand {
 			name: None,
-			contract_type: None,
 			template: None,
 			with_frontend: None,
 		})),

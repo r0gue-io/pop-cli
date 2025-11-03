@@ -23,7 +23,7 @@ pub use new::{create_smart_contract, is_valid_contract_name};
 pub use node::{
 	eth_rpc_generator, ink_node_generator, is_chain_alive, run_eth_rpc_node, run_ink_node,
 };
-pub use templates::{Contract, ContractType};
+pub use templates::Contract;
 pub use test::test_e2e_smart_contract;
 pub use testing::{mock_build_process, new_environment};
 pub use up::{
