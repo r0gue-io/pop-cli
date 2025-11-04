@@ -108,15 +108,17 @@ pub fn has_contract_been_built(path: &Path) -> bool {
 /// # Arguments
 /// * `function` - The contract function containing argument definitions.
 /// * `cli` - Command line interface implementation for user interaction.
+/// * `current_args` - A vector of strings containing the user-provided argument values.
 ///
 /// # Returns
 /// A vector of strings containing the user-provided argument values.
-pub fn request_contract_function_args(
+pub fn request_remaining_contract_function_args(
 	function: &ContractFunction,
 	cli: &mut impl Cli,
+	current_args: &[String],
 ) -> anyhow::Result<Vec<String>> {
-	let mut user_provided_args = Vec::new();
-	for arg in &function.args {
+	let mut user_provided_args = current_args.to_vec();
+	for arg in function.args.iter().skip(user_provided_args.len()) {
 		let mut input = cli
 			.input(format!("Enter the value for the parameter: {}", arg.label))
 			.placeholder(&format!("Type required: {}", arg.type_name));
@@ -225,7 +227,7 @@ mod tests {
 			"new",
 			FunctionType::Constructor,
 		)?;
-		assert_eq!(request_contract_function_args(&function, &mut cli)?, vec!["true"]);
+		assert_eq!(request_remaining_contract_function_args(&function, &mut cli, &[])?, vec!["true"]);
 		cli.verify()
 	}
 
