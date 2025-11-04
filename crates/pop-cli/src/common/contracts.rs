@@ -114,9 +114,26 @@ pub fn has_contract_been_built(path: &Path) -> bool {
 pub fn request_contract_function_args(
 	function: &ContractFunction,
 	cli: &mut impl Cli,
+	existing_args: Option<&[String]>,
 ) -> anyhow::Result<Vec<String>> {
-	let mut user_provided_args = Vec::new();
-	for arg in &function.args {
+	let mut resolved_args = Vec::with_capacity(function.args.len());
+	let provided_args = existing_args.unwrap_or(&[]);
+
+	if provided_args.len() > function.args.len() {
+		return Err(anyhow::anyhow!(
+			"Expected {} arguments for `{}`, but received {}. Remove the extra values or run \
+			 without `--args` to be prompted.",
+			function.args.len(),
+			function.label,
+			provided_args.len()
+		));
+	}
+
+	for (idx, arg) in function.args.iter().enumerate() {
+		if let Some(value) = provided_args.get(idx) {
+			resolved_args.push(value.clone());
+			continue;
+		}
 		let mut input = cli
 			.input(format!("Enter the value for the parameter: {}", arg.label))
 			.placeholder(&format!("Type required: {}", arg.type_name));
@@ -125,9 +142,10 @@ pub fn request_contract_function_args(
 		if arg.type_name.starts_with("Option<") {
 			input = input.default_input("");
 		}
-		user_provided_args.push(input.interact()?);
+		resolved_args.push(input.interact()?);
 	}
-	Ok(user_provided_args)
+
+	Ok(resolved_args)
 }
 
 /// Normalizes contract arguments before execution.
@@ -184,13 +202,8 @@ mod tests {
 	use cliclack::spinner;
 	use duct::cmd;
 	use pop_common::{find_free_port, set_executable_permission};
-	use pop_contracts::{
-		FunctionType, Param, extract_function, is_chain_alive, run_eth_rpc_node, run_ink_node,
-	};
-	use std::{
-		env,
-		fs::{self, File},
-	};
+	use pop_contracts::{Param, is_chain_alive, run_eth_rpc_node, run_ink_node};
+	use std::fs::{self, File};
 	use url::Url;
 
 	#[test]
@@ -214,18 +227,62 @@ mod tests {
 		Ok(())
 	}
 
-	#[tokio::test]
-	async fn request_contract_function_args_works() -> anyhow::Result<()> {
-		let mut current_dir = env::current_dir().expect("Failed to get current directory");
-		current_dir.pop();
+	#[test]
+	fn request_contract_function_args_works() -> anyhow::Result<()> {
+		let function = ContractFunction {
+			label: "new".to_string(),
+			payable: false,
+			args: vec![Param { label: "init_value".into(), type_name: "bool".into() }],
+			docs: String::new(),
+			default: false,
+			mutates: true,
+		};
 		let mut cli = MockCli::new()
 			.expect_input("Enter the value for the parameter: init_value", "true".into());
-		let function = extract_function(
-			current_dir.join("pop-contracts/tests/files/testing.json"),
-			"new",
-			FunctionType::Constructor,
-		)?;
-		assert_eq!(request_contract_function_args(&function, &mut cli)?, vec!["true"]);
+		assert_eq!(request_contract_function_args(&function, &mut cli, None)?, vec!["true"]);
+		cli.verify()
+	}
+
+	#[test]
+	fn request_contract_function_args_respects_existing() -> anyhow::Result<()> {
+		let mut cli =
+			MockCli::new().expect_input("Enter the value for the parameter: number", "2".into());
+		let function = ContractFunction {
+			label: "specific_flip".to_string(),
+			payable: true,
+			args: vec![
+				Param { label: "new_value".into(), type_name: "bool".into() },
+				Param { label: "number".into(), type_name: "Option<u32>".into() },
+			],
+			docs: String::new(),
+			default: false,
+			mutates: true,
+		};
+		let existing = vec!["true".to_string()];
+		assert_eq!(
+			request_contract_function_args(&function, &mut cli, Some(&existing))?,
+			vec!["true", "2"]
+		);
+		cli.verify()
+	}
+
+	#[test]
+	fn request_contract_function_args_preserves_preprovided_args() -> anyhow::Result<()> {
+		let function = ContractFunction {
+			label: "specific_flip".into(),
+			payable: true,
+			args: vec![
+				Param { label: "new_value".into(), type_name: "bool".into() },
+				Param { label: "number".into(), type_name: "Option<u32>".into() },
+			],
+			docs: String::new(),
+			default: false,
+			mutates: true,
+		};
+
+		let mut cli = MockCli::new();
+		let existing = vec!["true".to_string(), "Some(2)".to_string()];
+		assert_eq!(request_contract_function_args(&function, &mut cli, Some(&existing))?, existing);
 		cli.verify()
 	}
 

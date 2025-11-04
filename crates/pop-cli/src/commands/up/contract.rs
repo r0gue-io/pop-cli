@@ -343,8 +343,8 @@ impl UpContractCommand {
 
 		let function =
 			extract_function(self.path.clone(), &self.constructor, FunctionType::Constructor)?;
-		if self.args.is_empty() && !function.args.is_empty() {
-			self.args = request_contract_function_args(&function, &mut Cli)?;
+		if !function.args.is_empty() {
+			self.args = request_contract_function_args(&function, &mut Cli, Some(&self.args))?;
 		}
 		normalize_call_args(&mut self.args, &function);
 		// Otherwise instantiate.

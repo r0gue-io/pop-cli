@@ -246,8 +246,8 @@ impl CallContractCommand {
 	}
 
 	fn configure_message(&mut self, message: &ContractFunction, cli: &mut impl Cli) -> Result<()> {
-		// Resolve message arguments.
-		self.args = request_contract_function_args(message, cli)?;
+		let resolved_args = request_contract_function_args(message, cli, Some(&self.args))?;
+		self.args = resolved_args;
 
 		// Resolve value.
 		if message.payable && self.value == DEFAULT_PAYABLE_VALUE {
@@ -647,7 +647,7 @@ mod tests {
 		cli::MockCli,
 		common::{urls, wallet::USE_WALLET_PROMPT},
 	};
-	use pop_contracts::{mock_build_process, new_environment};
+	use pop_contracts::{Param, mock_build_process, new_environment};
 	use std::{env, fs::write};
 	use url::Url;
 
@@ -730,6 +730,36 @@ mod tests {
 			)
 		);
 
+		cli.verify()
+	}
+
+	#[test]
+	fn configure_message_prompts_for_remaining_args() -> Result<()> {
+		let message = ContractFunction {
+			label: "run".into(),
+			payable: false,
+			args: vec![
+				Param { label: "first".into(), type_name: "u32".into() },
+				Param { label: "second".into(), type_name: "u32".into() },
+			],
+			docs: String::new(),
+			default: false,
+			mutates: true,
+		};
+
+		let mut command = CallContractCommand {
+			args: vec!["10".to_string()],
+			value: DEFAULT_PAYABLE_VALUE.to_string(),
+			dev_mode: true,
+			..Default::default()
+		};
+
+		let mut cli =
+			MockCli::new().expect_input("Enter the value for the parameter: second", "20".into());
+
+		command.configure_message(&message, &mut cli)?;
+
+		assert_eq!(command.args, vec!["10".to_string(), "20".to_string()]);
 		cli.verify()
 	}
 
