@@ -2,6 +2,48 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.11.0] - 2025-11-03
+
+### 🚀 Features
+
+- Always build contracts with pop up (#657)
+- Upgrade to rust edition 2024 (#656)
+- Do not ask for confirmation when removing all in the cache (#660)
+- *(cli)* Allow to choose a chain from a list (#658)
+- Build spec runtime (#647)
+- Upgrade to rust 1.90 (#673)
+- Read constants and storage when using `pop call chain` (#664)
+- Build the chain with runtime (#671)
+- *(cli)* Fetch latest release when instantiating the template (#680)
+- Fetch polkadot-omni-node with pop up command (#684)
+- Force specifying storage parameters if the key is composite (#697)
+- Pop up chain spec cmd (#699)
+- Upgrade zombienet from 0.4.1 to 0.4.2 (#703)
+- Specify optional test filter (#701)
+- Using ink! `v6.0.0-beta` (#645)
+- Contract call read (#677)
+- Add eth-rpc binary to `pop up contract` (#705)
+- Remove deprecated templates (#706)
+
+### 🐛 Fixes
+
+- `pop install` command with rustup (#681)
+- Allow `pop build spec` to specify the runtime path as argument (#687)
+- Add is-relay field to `pop build spec` (#693)
+- Pop call with composite types (#696)
+- StripPrefixError contract and pallet creation (#702)
+
+### 🚜 Refactor
+
+- Remove psp example and improve pop new contract devex (#700)
+
+### ⚙️ Miscellaneous Tasks
+
+- Optimize ci integration tests (#653)
+- *(ci)* Mark coverage status project and patch as informational only (#662)
+- Publish on homebrew (#666)
+- Lint PR title (#698)
+
 ## [0.10.0] - 2025-10-01
 
 ### 🚀 Features
