@@ -485,7 +485,9 @@ impl CallChainCommand {
 			.collect()
 	}
 
-	/// Resolves dispatchable arguments by leveraging CLI-provided values when available.
+	/// Resolves dispatchable arguments by leveraging CLI-provided values when available,
+	/// prompting for missing ones. Updates `self.args` with the resolved values.
+	/// Returns an error if more arguments than expected are provided.
 	fn resolve_function_args(
 		&mut self,
 		function: &Function,
