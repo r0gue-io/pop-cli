@@ -41,6 +41,7 @@ jobs:
       - name: Install packages (Linux)
         if: contains(matrix.platform.target, 'linux')
         run: |
+          sudo apt-get update
           sudo apt-get install -y protobuf-compiler ${{ contains(matrix.platform.target, 'aarch64') && 'crossbuild-essential-arm64' || '' }}
           protoc --version
 
