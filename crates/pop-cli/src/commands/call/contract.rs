@@ -58,7 +58,7 @@ pub struct CallContractCommand {
 	/// If not specified it will perform a dry-run to estimate the proof size required.
 	/// DEPRECATED use `--manual-weight <REF_TIME> <PROOF_SIZE>` instead, will be removed in
 	/// v0.13.0.
-	#[arg(short = 'P', long, conflicts_with = "manual_weight", requires = "gas_limit")]
+	#[arg(short = 'P', long, conflicts_with = "manual_weight", requires = "gas")]
 	proof_size: Option<u64>,
 	/// The maximum amount of execution time and proof size for this command. If not specified it
 	/// will perform a dry-run to estimate the limits.
@@ -871,7 +871,7 @@ mod tests {
             .expect_input("Value to transfer to the call:", "50".into()) // Only if payable
             .expect_confirm(USE_WALLET_PROMPT, true)
             .expect_info(format!(
-                "pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\", \"2\" --value 50 --url {} --use-wallet --execute",
+                "pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\" \"2\" --value 50 --url {} --use-wallet --execute",
                 temp_dir.path().join("testing").display(), urls::LOCAL
             ));
 
@@ -913,7 +913,7 @@ mod tests {
 		assert_eq!(
 			call_config.display(),
 			format!(
-				"pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\", \"2\" --value 50 --url {} --use-wallet --execute",
+				"pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\" \"2\" --value 50 --url {} --use-wallet --execute",
 				temp_dir.path().join("testing").display(),
 				urls::LOCAL
 			)
@@ -961,7 +961,7 @@ mod tests {
             .expect_input("Value to transfer to the call:", "50".into()) // Only if payable
             .expect_input("Signer calling the contract:", "//Alice".into())
             .expect_info(format!(
-                "pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\", \"2\" --value 50 --manual-weight 100000 1000000 --url {} --suri //Alice --execute --skip-confirm",
+                "pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\" \"2\" --value 50 --manual-weight 100000 1000000 --url {} --suri //Alice --execute --skip-confirm",
                 temp_dir.path().join("testing").display(), urls::LOCAL
             ));
 
@@ -1003,7 +1003,7 @@ mod tests {
 		assert_eq!(
 			call_config.display(),
 			format!(
-				"pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\", \"2\" --value 50 --manual-weight 100000 1000000 --url {} --suri //Alice --execute --skip-confirm",
+				"pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\" \"2\" --value 50 --manual-weight 100000 1000000 --url {} --suri //Alice --execute --skip-confirm",
 				temp_dir.path().join("testing").display(),
 				urls::LOCAL
 			)
