@@ -51,12 +51,12 @@ pub struct CallContractCommand {
 	/// Maximum amount of gas to be used for this command.
 	/// If not specified it will perform a dry-run to estimate the gas consumed for the
 	/// call.
-	/// [DEPRECATED] use `--manual-weight <REF_TIME> <PROOF_SIZE>` instead, removed in v0.13.0.
+	/// DEPRECATED use `--manual-weight <REF_TIME> <PROOF_SIZE>` instead, removed in v0.13.0.
 	#[arg(name = "gas", short, long, conflicts_with = "manual_weight", requires = "proof_size")]
 	gas_limit: Option<u64>,
 	/// Maximum proof size for this command.
 	/// If not specified it will perform a dry-run to estimate the proof size required.
-	/// [DEPRECATED] use `--manual-weight <REF_TIME> <PROOF_SIZE>` instead, will be removed in
+	/// DEPRECATED use `--manual-weight <REF_TIME> <PROOF_SIZE>` instead, will be removed in
 	/// v0.13.0.
 	#[arg(short = 'P', long, conflicts_with = "manual_weight", requires = "gas_limit")]
 	proof_size: Option<u64>,
@@ -96,7 +96,7 @@ pub struct CallContractCommand {
 	dry_run: bool,
 	/// Enables developer mode, bypassing certain user prompts for faster testing.
 	/// Recommended for testing and local development only.
-	/// [DEPRECATED] Use `--skip-confirm` and/or `--manual-weight`, will be removed in v0.13.0.
+	/// DEPRECATED Use `--skip-confirm` and/or `--manual-weight`, will be removed in v0.13.0.
 	#[arg(name = "dev", short, long, default_value = "false", conflicts_with = "skip_confirm")]
 	dev_mode: bool,
 	/// Whether the contract was just deployed or not.
@@ -183,7 +183,7 @@ impl CallContractCommand {
 		}
 		if !self.args.is_empty() {
 			let args: Vec<_> = self.args.iter().map(|a| format!("\"{a}\"")).collect();
-			full_message.push_str(&format!(" --args {}", args.join(", ")));
+			full_message.push_str(&format!(" --args {}", args.join(" ")));
 		}
 		if self.value != DEFAULT_PAYABLE_VALUE {
 			full_message.push_str(&format!(" --value {}", self.value));
