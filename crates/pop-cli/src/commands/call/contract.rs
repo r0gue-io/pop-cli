@@ -5,8 +5,7 @@ use crate::{
 	common::{
 		builds::{ensure_project_path, get_project_path},
 		contracts::{
-			has_contract_been_built, map_account, normalize_call_args,
-			request_contract_function_args,
+			has_contract_been_built, map_account, normalize_call_args, resolve_function_args,
 		},
 		prompt::display_message,
 		rpc::prompt_to_select_chain_rpc,
@@ -246,8 +245,7 @@ impl CallContractCommand {
 	}
 
 	fn configure_message(&mut self, message: &ContractFunction, cli: &mut impl Cli) -> Result<()> {
-		let resolved_args = request_contract_function_args(message, cli, Some(&self.args))?;
-		self.args = resolved_args;
+		resolve_function_args(message, cli, &mut self.args)?;
 
 		// Resolve value.
 		if message.payable && self.value == DEFAULT_PAYABLE_VALUE {

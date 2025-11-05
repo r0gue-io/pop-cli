@@ -103,37 +103,28 @@ pub fn has_contract_been_built(path: &Path) -> bool {
 		.unwrap_or_default()
 }
 
-/// Requests and collects function arguments from the user via CLI interaction.
+/// Resolves function arguments by reusing provided values and prompting for any missing entries.
 ///
 /// # Arguments
 /// * `function` - The contract function containing argument definitions.
 /// * `cli` - Command line interface implementation for user interaction.
-///
-/// # Returns
-/// A vector of strings containing the user-provided argument values.
-pub fn request_contract_function_args(
+/// * `args` - Argument values provided by the user. Missing items will be requested.
+pub fn resolve_function_args(
 	function: &ContractFunction,
 	cli: &mut impl Cli,
-	existing_args: Option<&[String]>,
-) -> anyhow::Result<Vec<String>> {
-	let mut resolved_args = Vec::with_capacity(function.args.len());
-	let provided_args = existing_args.unwrap_or(&[]);
-
-	if provided_args.len() > function.args.len() {
+	args: &mut Vec<String>,
+) -> anyhow::Result<()> {
+	if args.len() > function.args.len() {
 		return Err(anyhow::anyhow!(
 			"Expected {} arguments for `{}`, but received {}. Remove the extra values or run \
 			 without `--args` to be prompted.",
 			function.args.len(),
 			function.label,
-			provided_args.len()
+			args.len()
 		));
 	}
 
-	for (idx, arg) in function.args.iter().enumerate() {
-		if let Some(value) = provided_args.get(idx) {
-			resolved_args.push(value.clone());
-			continue;
-		}
+	for arg in function.args.iter().skip(args.len()) {
 		let mut input = cli
 			.input(format!("Enter the value for the parameter: {}", arg.label))
 			.placeholder(&format!("Type required: {}", arg.type_name));
@@ -142,10 +133,10 @@ pub fn request_contract_function_args(
 		if arg.type_name.starts_with("Option<") {
 			input = input.default_input("");
 		}
-		resolved_args.push(input.interact()?);
+		args.push(input.interact()?);
 	}
 
-	Ok(resolved_args)
+	Ok(())
 }
 
 /// Normalizes contract arguments before execution.
@@ -228,7 +219,7 @@ mod tests {
 	}
 
 	#[test]
-	fn request_contract_function_args_works() -> anyhow::Result<()> {
+	fn resolve_function_args_works() -> anyhow::Result<()> {
 		let function = ContractFunction {
 			label: "new".to_string(),
 			payable: false,
@@ -239,12 +230,14 @@ mod tests {
 		};
 		let mut cli = MockCli::new()
 			.expect_input("Enter the value for the parameter: init_value", "true".into());
-		assert_eq!(request_contract_function_args(&function, &mut cli, None)?, vec!["true"]);
+		let mut args = Vec::new();
+		resolve_function_args(&function, &mut cli, &mut args)?;
+		assert_eq!(args, vec!["true"]);
 		cli.verify()
 	}
 
 	#[test]
-	fn request_contract_function_args_respects_existing() -> anyhow::Result<()> {
+	fn resolve_function_args_respects_existing() -> anyhow::Result<()> {
 		let mut cli =
 			MockCli::new().expect_input("Enter the value for the parameter: number", "2".into());
 		let function = ContractFunction {
@@ -258,16 +251,14 @@ mod tests {
 			default: false,
 			mutates: true,
 		};
-		let existing = vec!["true".to_string()];
-		assert_eq!(
-			request_contract_function_args(&function, &mut cli, Some(&existing))?,
-			vec!["true", "2"]
-		);
+		let mut args = vec!["true".to_string()];
+		resolve_function_args(&function, &mut cli, &mut args)?;
+		assert_eq!(args, vec!["true", "2"]);
 		cli.verify()
 	}
 
 	#[test]
-	fn request_contract_function_args_preserves_preprovided_args() -> anyhow::Result<()> {
+	fn resolve_function_args_preserves_preprovided_args() -> anyhow::Result<()> {
 		let function = ContractFunction {
 			label: "specific_flip".into(),
 			payable: true,
@@ -281,8 +272,9 @@ mod tests {
 		};
 
 		let mut cli = MockCli::new();
-		let existing = vec!["true".to_string(), "Some(2)".to_string()];
-		assert_eq!(request_contract_function_args(&function, &mut cli, Some(&existing))?, existing);
+		let mut args = vec!["true".to_string(), "Some(2)".to_string()];
+		resolve_function_args(&function, &mut cli, &mut args)?;
+		assert_eq!(args, vec!["true".to_string(), "Some(2)".to_string()]);
 		cli.verify()
 	}
 

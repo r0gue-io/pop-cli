@@ -9,7 +9,7 @@ use crate::{
 	common::{
 		contracts::{
 			check_ink_node_and_prompt, has_contract_been_built, map_account, normalize_call_args,
-			request_contract_function_args, terminate_nodes,
+			resolve_function_args, terminate_nodes,
 		},
 		rpc::prompt_to_select_chain_rpc,
 		urls,
@@ -344,7 +344,7 @@ impl UpContractCommand {
 		let function =
 			extract_function(self.path.clone(), &self.constructor, FunctionType::Constructor)?;
 		if !function.args.is_empty() {
-			self.args = request_contract_function_args(&function, &mut Cli, Some(&self.args))?;
+			resolve_function_args(&function, &mut Cli, &mut self.args)?;
 		}
 		normalize_call_args(&mut self.args, &function);
 		// Otherwise instantiate.
