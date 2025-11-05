@@ -9988,7 +9988,7 @@ dependencies = [
 
 [[package]]
 name = "rustilities"
-version = "3.0.0"
+version = "3.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "647edbdbbd488fa193058afbb7232161ca3696fe5619580ce6d354001c301cbf"
 dependencies = [
