@@ -851,6 +851,7 @@ mod tests {
 	// This test only covers the interactive portion of the call contract command, without actually
 	// calling the contract.
 	#[tokio::test]
+	#[allow(deprecated)]
 	async fn guide_user_to_call_contract_works() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
@@ -941,6 +942,7 @@ mod tests {
 	// This test only covers the interactive portion of the call contract command, without actually
 	// calling the contract.
 	#[tokio::test]
+	#[allow(deprecated)]
 	async fn guide_user_to_call_contract_with_skip_confirm_works() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
@@ -1029,6 +1031,7 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[allow(deprecated)]
 	async fn guide_user_to_call_contract_fails_not_build() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
@@ -1089,6 +1092,7 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[allow(deprecated)]
 	async fn execute_contract_fails_no_message_or_contract() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
@@ -1135,6 +1139,7 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[allow(deprecated)]
 	async fn confirm_contract_deployment_works() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let call_config = CallContractCommand {
@@ -1170,6 +1175,7 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[allow(deprecated)]
 	async fn is_contract_build_required_works() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let call_config = CallContractCommand {
@@ -1206,6 +1212,7 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[allow(deprecated)]
 	async fn execute_handles_generic_configure_error() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
@@ -1257,6 +1264,7 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[allow(deprecated)]
 	async fn execute_handles_execute_call_error() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
@@ -1300,6 +1308,7 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[allow(deprecated)]
 	async fn execute_sets_prompt_to_repeat_call_when_message_is_none() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
@@ -1363,6 +1372,7 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[allow(deprecated)]
 	async fn execute_sets_prompt_to_repeat_call_when_message_is_some() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
