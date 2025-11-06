@@ -113,11 +113,26 @@ impl Telemetry {
 
 		let request_builder = self.client.post(&self.endpoint);
 
-		request_builder
+		log::debug!("send_json payload: {:?}", payload);
+		match request_builder
 			.json(&payload)
 			.send()
 			.await
-			.map_err(TelemetryError::NetworkError)?;
+			.map_err(TelemetryError::NetworkError)
+		{
+			Ok(res) => match res.error_for_status() {
+				Ok(res) => {
+					let text = res.text().await.unwrap_or_default();
+					log::debug!("send_json response: {}", text);
+				},
+				Err(e) => {
+					log::debug!("send_json server error: {:?}", e);
+				},
+			},
+			Err(e) => {
+				log::debug!("send_json network error: {:?}", e);
+			},
+		}
 
 		Ok(())
 	}
@@ -127,12 +142,8 @@ impl Telemetry {
 /// There is explicitly no reqwest retries on failure to ensure overhead
 /// stays to a minimum.
 pub async fn record_cli_used(tel: Telemetry) -> Result<()> {
-	let payload = generate_payload("", "");
-
-	let res = tel.send_json(payload).await;
-	log::debug!("send_cli_used result: {:?}", res);
-
-	res
+	let payload = generate_payload("init", "");
+	tel.send_json(payload).await
 }
 
 /// Reports what CLI command was called to telemetry.
@@ -142,11 +153,7 @@ pub async fn record_cli_used(tel: Telemetry) -> Result<()> {
 /// `data`: additional data to record.
 pub async fn record_cli_command(tel: Telemetry, event: &str, data: &str) -> Result<()> {
 	let payload = generate_payload(event, data);
-
-	let res = tel.send_json(payload).await;
-	log::debug!("send_cli_used result: {:?}", res);
-
-	res
+	tel.send_json(payload).await
 }
 
 #[derive(PartialEq, Serialize, Deserialize, Debug)]
@@ -213,7 +220,9 @@ fn generate_payload(event: &str, data: &str) -> Value {
 			"url": "/",
 			"website": WEBSITE_ID,
 			"name": event,
-			"data": data
+			"data": {
+				"args": data
+			}
 		},
 		"type": "event"
 	})
@@ -329,7 +338,7 @@ mod tests {
 		let temp_dir = TempDir::new().unwrap();
 		let config_path = temp_dir.path().join("config.json");
 
-		let expected_payload = generate_payload("", "").to_string();
+		let expected_payload = generate_payload("init", "").to_string();
 
 		let mock = default_mock(&mut mock_server, expected_payload).await;
 
@@ -381,10 +390,7 @@ mod tests {
 
 		assert!(matches!(tel.send_json(Value::Null).await, Err(TelemetryError::OptedOut)));
 		assert!(matches!(record_cli_used(tel.clone()).await, Err(TelemetryError::OptedOut)));
-		assert!(matches!(
-			record_cli_command(tel.clone(), "foo", "").await,
-			Err(TelemetryError::OptedOut)
-		));
+		assert!(matches!(record_cli_command(tel, "foo", "").await, Err(TelemetryError::OptedOut)));
 		mock.assert_async().await;
 	}
 }
