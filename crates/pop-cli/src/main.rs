@@ -7,7 +7,6 @@ use clap::Parser;
 use commands::*;
 #[cfg(feature = "telemetry")]
 use pop_telemetry::{Telemetry, config_file_path, record_cli_command, record_cli_used};
-use serde_json::json;
 use std::{
 	fmt::{self, Display, Formatter},
 	fs::create_dir_all,
@@ -34,7 +33,7 @@ async fn main() -> Result<()> {
 	let result = cli.command.execute().await;
 	#[cfg(feature = "telemetry")]
 	if let Some(tel) = maybe_tel {
-		let data = json!(cli.command);
+		let data = serde_json::json!(cli.command);
 		// Best effort to send on first try, no action if failure.
 		let _ = record_cli_command(tel, &event, data).await;
 	}
