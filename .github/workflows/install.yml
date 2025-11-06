@@ -4,11 +4,15 @@ on:
   push:
     branches: ["main"]
     paths:
+      - 'rust-toolchain.toml'
+      - 'Cargo.lock'
       - '.github/workflows/install.yml'
       - 'crates/pop-cli/src/commands/install/**'
   pull_request:
     branches: ["main"]
     paths:
+      - 'rust-toolchain.toml'
+      - 'Cargo.lock'
       - '.github/workflows/install.yml'
       - 'crates/pop-cli/src/commands/install/**'
 

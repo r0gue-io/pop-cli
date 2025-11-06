@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#[cfg(any(feature = "chain", feature = "contract"))]
+use crate::common::Project::Network;
 use crate::{
 	cache,
 	cli::Cli,
-	common::{
-		Data::{self, *},
-		Project::Network,
-	},
+	common::Data::{self, *},
 };
+
 use clap::Subcommand;
 use serde::Serialize;
 use std::fmt::{Display, Formatter, Result};
@@ -161,6 +161,7 @@ impl Command {
 						up::Command::Polkadot(cmd) => cmd.execute(Polkadot, &mut Cli).await.map(|_| Up(Network)),
 						#[cfg(feature = "chain")]
 						up::Command::Westend(cmd) => cmd.execute(Westend, &mut Cli).await.map(|_| Up(Network)),
+						#[cfg(not(feature = "chain"))]
 						_ => Ok(Up(Network)),
 					},
 				}
@@ -182,6 +183,7 @@ impl Command {
 						test::Command::CreateSnapshot(cmd) => cmd.execute(&mut Cli).await.map(|_| Null),
 						#[cfg(feature = "chain")]
 						test::Command::FastForward(cmd) => cmd.execute(&mut Cli).await.map(|_| Null),
+                        #[cfg(not(feature = "chain"))]
 						_ => Ok(Null),
 					},
 				}
