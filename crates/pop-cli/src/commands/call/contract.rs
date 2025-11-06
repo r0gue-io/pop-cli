@@ -51,12 +51,18 @@ pub struct CallContractCommand {
 	/// Maximum amount of gas to be used for this command.
 	/// If not specified it will perform a dry-run to estimate the gas consumed for the
 	/// call.
-	#[deprecated(since = "0.12.0", note = "use `--manual-weight <REF_TIME> <PROOF_SIZE>` instead, will be removed in v0.13.0")]
+	#[deprecated(
+		since = "0.12.0",
+		note = "use `--manual-weight <REF_TIME> <PROOF_SIZE>` instead, will be removed in v0.13.0"
+	)]
 	#[arg(name = "gas", short, long, conflicts_with = "manual_weight", requires = "proof_size")]
 	gas_limit: Option<u64>,
 	/// Maximum proof size for this command.
 	/// If not specified it will perform a dry-run to estimate the proof size required.
-	#[deprecated(since = "0.12.0", note = "use `--manual-weight <REF_TIME> <PROOF_SIZE>` instead, will be removed in v0.13.0")]
+	#[deprecated(
+		since = "0.12.0",
+		note = "use `--manual-weight <REF_TIME> <PROOF_SIZE>` instead, will be removed in v0.13.0"
+	)]
 	#[arg(short = 'P', long, conflicts_with = "manual_weight", requires = "gas")]
 	proof_size: Option<u64>,
 	/// The maximum amount of execution time and proof size for this command. If not specified it
@@ -95,7 +101,10 @@ pub struct CallContractCommand {
 	dry_run: bool,
 	/// Enables developer mode, bypassing certain user prompts for faster testing.
 	/// Recommended for testing and local development only.
-	#[deprecated(since = "0.12.0", note = "Use `--skip-confirm` and/or `--manual-weight`, will be removed in v0.13.0")]
+	#[deprecated(
+		since = "0.12.0",
+		note = "Use `--skip-confirm` and/or `--manual-weight`, will be removed in v0.13.0"
+	)]
 	#[arg(name = "dev", short, long, default_value = "false", conflicts_with = "skip_confirm")]
 	dev_mode: bool,
 	/// Whether the contract was just deployed or not.
