@@ -51,7 +51,7 @@ pub struct CallContractCommand {
 	/// Maximum amount of gas to be used for this command.
 	/// If not specified it will perform a dry-run to estimate the gas consumed for the
 	/// call.
-	/// DEPRECATED use `--manual-weight <REF_TIME> <PROOF_SIZE>` instead, removed in v0.13.0.
+	#[deprecated(since = "0.12.0", note = "use `--manual-weight <REF_TIME> <PROOF_SIZE>` instead, will be removed in v0.13.0")]
 	#[arg(name = "gas", short, long, conflicts_with = "manual_weight", requires = "proof_size")]
 	gas_limit: Option<u64>,
 	/// Maximum proof size for this command.
