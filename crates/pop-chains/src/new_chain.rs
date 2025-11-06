@@ -13,6 +13,9 @@ use pop_common::{
 use std::{fs, path::Path};
 use walkdir::WalkDir;
 
+// The latest version where we should overwrite the ./network.toml file on.
+const LATEST_NETWORK_TOML_OVERWRITE_VERSION: &str = "polkadot-stable2506";
+
 /// Create a new chain.
 ///
 /// # Arguments
@@ -48,7 +51,7 @@ pub fn instantiate_standard_template(
 	let temp_dir = ::tempfile::TempDir::new_in(std::env::temp_dir())?;
 	let source = temp_dir.path();
 
-	let tag = Git::clone_and_degit(template.repository_url()?, source, tag_version)?;
+	let tag = Git::clone_and_degit(template.repository_url()?, source, tag_version.clone())?;
 
 	for entry in WalkDir::new(source) {
 		let entry = entry?;
@@ -73,9 +76,16 @@ pub fn instantiate_standard_template(
 		&target.join("node/src/chain_spec.rs"),
 		chainspec.render().expect("infallible").as_ref(),
 	)?;
-	// Add network configuration
-	let network = Network { node: "parachain-template-node".into() };
-	write_to_file(&target.join("network.toml"), network.render().expect("infallible").as_ref())?;
+	if let Some(version) = tag_version.as_deref() &&
+		version <= LATEST_NETWORK_TOML_OVERWRITE_VERSION
+	{
+		// Add network configuration
+		let network = Network { node: "parachain-template-node".into() };
+		write_to_file(
+			&target.join("network.toml"),
+			network.render().expect("infallible").as_ref(),
+		)?;
+	}
 	Ok(tag)
 }
 
@@ -106,7 +116,12 @@ mod tests {
 			decimals: 18,
 			initial_endowment: "1000000".to_string(),
 		};
-		instantiate_standard_template(&ChainTemplate::Standard, temp_dir.path(), config, None)?;
+		instantiate_standard_template(
+			&ChainTemplate::Standard,
+			temp_dir.path(),
+			config,
+			Some(LATEST_NETWORK_TOML_OVERWRITE_VERSION.to_string()),
+		)?;
 		Ok(temp_dir)
 	}
 
