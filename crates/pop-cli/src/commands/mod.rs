@@ -183,7 +183,7 @@ impl Command {
 						test::Command::CreateSnapshot(cmd) => cmd.execute(&mut Cli).await.map(|_| Null),
 						#[cfg(feature = "chain")]
 						test::Command::FastForward(cmd) => cmd.execute(&mut Cli).await.map(|_| Null),
-                        #[cfg(not(feature = "chain"))]
+						#[cfg(not(feature = "chain"))]
 						_ => Ok(Null),
 					},
 				}

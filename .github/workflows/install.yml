@@ -85,7 +85,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install prerequisites
-        run: yum update -y && yum install -y perl-IPC-Cmd clang curl git make cmake protobuf-compiler gcc pkg-config openssl-devel
+        run: yum update -y && yum install -y perl perl-IPC-Cmd perl-Time-HiRes perl-Time-Piece clang curl git make cmake protobuf-compiler gcc pkg-config openssl-devel
       - name: Install Rust
         run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       - name: Install Pop
