@@ -96,7 +96,6 @@ pub struct CallContractCommand {
 	dry_run: bool,
 	/// Enables developer mode, bypassing certain user prompts for faster testing.
 	/// Recommended for testing and local development only.
-	/// DEPRECATED Use `--skip-confirm` and/or `--manual-weight`, will be removed in v0.13.0.
 	#[deprecated(since = "0.12.0", note = "Use `--skip-confirm` and/or `--manual-weight`, will be removed in v0.13.0")]
 	#[arg(name = "dev", short, long, default_value = "false", conflicts_with = "skip_confirm")]
 	dev_mode: bool,
