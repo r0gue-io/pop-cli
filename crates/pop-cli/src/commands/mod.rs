@@ -3,13 +3,16 @@
 use crate::{
 	cache,
 	cli::Cli,
-	common::Data::{self, *},
+	common::{
+		Data::{self, *},
+		Project::Network,
+	},
 };
 use clap::Subcommand;
 use serde::Serialize;
 use std::fmt::{Display, Formatter, Result};
 #[cfg(feature = "chain")]
-use {crate::common::Project::Network, up::network::Relay::*};
+use up::network::Relay::*;
 
 #[cfg(feature = "chain")]
 pub(crate) mod bench;
@@ -158,6 +161,7 @@ impl Command {
 						up::Command::Polkadot(cmd) => cmd.execute(Polkadot, &mut Cli).await.map(|_| Up(Network)),
 						#[cfg(feature = "chain")]
 						up::Command::Westend(cmd) => cmd.execute(Westend, &mut Cli).await.map(|_| Up(Network)),
+						_ => Ok(Up(Network)),
 					},
 				}
 			},
@@ -178,6 +182,7 @@ impl Command {
 						test::Command::CreateSnapshot(cmd) => cmd.execute(&mut Cli).await.map(|_| Null),
 						#[cfg(feature = "chain")]
 						test::Command::FastForward(cmd) => cmd.execute(&mut Cli).await.map(|_| Null),
+						_ => Ok(Null),
 					},
 				}
 
