@@ -115,6 +115,7 @@ pub struct CallContractCommand {
 	skip_confirm: bool,
 }
 
+#[allow(deprecated)]
 impl Default for CallContractCommand {
 	fn default() -> Self {
 		Self {
@@ -270,6 +271,7 @@ impl CallContractCommand {
 		Ok(())
 	}
 
+	#[allow(deprecated)]
 	fn configure_message(&mut self, message: &ContractFunction, cli: &mut impl Cli) -> Result<()> {
 		resolve_function_args(message, cli, &mut self.args)?;
 
@@ -456,6 +458,7 @@ impl CallContractCommand {
 		Ok(())
 	}
 
+	#[allow(deprecated)]
 	async fn execute_message(
 		&mut self,
 		cli: &mut impl Cli,
@@ -636,6 +639,7 @@ impl CallContractCommand {
 	}
 
 	// Get the call data.
+	#[allow(deprecated)]
 	fn get_contract_data(
 		&self,
 		call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
@@ -651,6 +655,7 @@ impl CallContractCommand {
 	}
 
 	/// Resets message specific fields to default values for a new call.
+	#[allow(deprecated)]
 	fn reset_for_new_call(&mut self) {
 		self.message = None;
 		self.value = DEFAULT_PAYABLE_VALUE.to_string();
@@ -676,6 +681,7 @@ mod tests {
 	// This test only covers the interactive portion of the call contract command, without actually
 	// calling the contract.
 	#[tokio::test]
+	#[allow(deprecated)]
 	async fn guide_user_to_query_contract_works() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
@@ -787,6 +793,7 @@ mod tests {
 
 	// Remove in v0.13.0
 	#[test]
+	#[allow(deprecated)]
 	fn configure_message_warns_for_deprecated_dev_flag() -> Result<()> {
 		let message = ContractFunction {
 			label: "run".into(),
@@ -811,6 +818,7 @@ mod tests {
 
 	// Remove in v0.13.0
 	#[test]
+	#[allow(deprecated)]
 	fn configure_message_converts_deprecated_weight_flags() -> Result<()> {
 		let message = ContractFunction {
 			label: "run".into(),
