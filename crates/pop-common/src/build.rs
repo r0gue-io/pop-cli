@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use serde::Serialize;
 use std::{
 	fmt,
 	path::{Path, PathBuf},
@@ -8,7 +9,19 @@ use strum::{EnumMessage as _, VariantArray as _};
 use strum_macros::{AsRefStr, EnumMessage, EnumString, VariantArray};
 
 /// Enum representing a build profile.
-#[derive(AsRefStr, Clone, Default, Debug, EnumString, EnumMessage, VariantArray, Eq, PartialEq)]
+#[derive(
+	AsRefStr,
+	Copy,
+	Clone,
+	Default,
+	Debug,
+	EnumString,
+	EnumMessage,
+	VariantArray,
+	Eq,
+	PartialEq,
+	Serialize,
+)]
 pub enum Profile {
 	/// Debug profile, optimized for debugging.
 	#[strum(serialize = "debug", message = "Debug", detailed_message = "Optimized for debugging.")]

@@ -24,6 +24,7 @@ use pop_chains::{
 	try_runtime_generator, try_state_details, try_state_label,
 };
 use pop_common::Profile;
+use serde::Serialize;
 use std::{
 	cmp::Ordering,
 	collections::HashSet,
@@ -42,7 +43,7 @@ const TARGET_BINARY_VERSION: SemanticVersion = SemanticVersion(0, 8, 0);
 impl_binary_generator!(TryRuntimeGenerator, try_runtime_generator);
 
 /// Build parameters for the runtime binary.
-#[derive(Args, Clone, Debug, Default)]
+#[derive(Args, Clone, Debug, Default, Serialize)]
 pub(crate) struct BuildRuntimeParams {
 	/// Build profile [default: release].
 	#[clap(long, value_enum)]

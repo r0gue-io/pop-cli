@@ -11,6 +11,7 @@ use crate::{
 use clap::Args;
 use pop_chains::{BenchmarkingCliCommand, bench::BlockCmd, generate_binary_benchmarks};
 use pop_common::Profile;
+use serde::Serialize;
 use std::{
 	env::current_dir,
 	path::{Path, PathBuf},
@@ -18,9 +19,10 @@ use std::{
 
 const EXCLUDED_ARGS: [&str; 1] = ["--profile"];
 
-#[derive(Args)]
+#[derive(Args, Serialize)]
 pub(crate) struct BenchmarkBlock {
 	/// Command to benchmark the execution time of historic blocks.
+	#[serde(skip_serializing)]
 	#[clap(flatten)]
 	pub command: BlockCmd,
 	/// Build profile.

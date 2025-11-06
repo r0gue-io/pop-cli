@@ -19,6 +19,7 @@ use pop_chains::{
 	up::{NetworkConfiguration, Zombienet},
 };
 use pop_common::Status;
+use serde::Serialize;
 use std::{
 	collections::HashMap,
 	ffi::OsStr,
@@ -28,7 +29,7 @@ use std::{
 use tokio::time::sleep;
 
 /// Launch a local network by specifying a network configuration file.
-#[derive(Args, Clone, Default)]
+#[derive(Args, Clone, Default, Serialize)]
 pub(crate) struct ConfigFileCommand {
 	/// The Zombienet network configuration file to be used.
 	#[arg(value_name = "FILE")]
@@ -70,7 +71,7 @@ pub(crate) struct ConfigFileCommand {
 
 impl ConfigFileCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	pub(crate) async fn execute(&self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		cli.intro("Launch a local network")?;
 
 		let path = self.path.canonicalize()?;
@@ -93,7 +94,7 @@ impl ConfigFileCommand {
 }
 
 /// Launch a local network with supported parachains.
-#[derive(Args, Clone)]
+#[derive(Args, Clone, Serialize)]
 #[cfg_attr(test, derive(Default))]
 pub(crate) struct BuildCommand<const FILTER: u8> {
 	/// The version of the binary to be used for the relay chain, as per the release tag (e.g.
@@ -115,6 +116,7 @@ pub(crate) struct BuildCommand<const FILTER: u8> {
 	system_parachain_runtime: Option<String>,
 	/// The parachain(s) to be included. An optional parachain identifier and/or port can be
 	/// affixed via #id and :port specifiers (e.g. `asset-hub#1000:9944`).
+	#[serde(skip_serializing)]
 	#[arg(short, long, value_delimiter = ',', value_parser = SupportedRollups::<FILTER>::new())]
 	parachain: Option<Vec<Box<dyn Rollup>>>,
 	/// The port to be used for the first relay chain validator.

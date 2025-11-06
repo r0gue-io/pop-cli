@@ -11,6 +11,7 @@ use duct::cmd;
 use pop_common::Profile;
 #[cfg(feature = "contract")]
 use pop_contracts::MetadataSpec;
+use serde::Serialize;
 use std::path::{Path, PathBuf};
 #[cfg(feature = "chain")]
 use {
@@ -41,7 +42,7 @@ const PARACHAIN: &str = "parachain";
 const PROJECT: &str = "project";
 
 /// Arguments for building a project.
-#[derive(Args)]
+#[derive(Args, Serialize)]
 #[cfg_attr(test, derive(Default))]
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct BuildArgs {
@@ -89,7 +90,7 @@ pub(crate) struct BuildArgs {
 }
 
 /// Subcommand for building chain artifacts.
-#[derive(Subcommand)]
+#[derive(Subcommand, Serialize)]
 pub(crate) enum Command {
 	/// Build a chain specification and its genesis artifacts.
 	#[clap(alias = "s")]
@@ -111,7 +112,7 @@ fn collect_features(input: &str, benchmark: bool, try_runtime: bool) -> Vec<&str
 
 impl Command {
 	/// Executes the command.
-	pub(crate) fn execute(args: BuildArgs) -> anyhow::Result<Project> {
+	pub(crate) fn execute(args: &BuildArgs) -> anyhow::Result<Project> {
 		// If only contract feature enabled, build as contract
 		let project_path =
 			crate::common::builds::ensure_project_path(args.path.clone(), args.path_pos.clone());
@@ -119,8 +120,8 @@ impl Command {
 		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(&project_path)? {
 			// All commands originating from root command are valid
-			let release = match args.profile {
-				Some(profile) => profile.into(),
+			let release = match &args.profile {
+				Some(profile) => profile.clone().into(),
 				None => args.release,
 			};
 			BuildContract { path: project_path, release, metadata: args.metadata }.execute()?;
@@ -133,11 +134,11 @@ impl Command {
 			args.deterministic ||
 			pop_chains::runtime::is_supported(&project_path)
 		{
-			let profile = match args.profile {
-				Some(profile) => profile,
-				None => args.release.into(),
+			let profile = match &args.profile {
+				Some(profile) => profile.clone(),
+				None => args.release.clone().into(),
 			};
-			let features = args.features.unwrap_or_default();
+			let features = args.features.clone().unwrap_or_default();
 			let mut feature_list = collect_features(&features, args.benchmark, args.try_runtime);
 			feature_list.sort();
 
@@ -156,16 +157,16 @@ impl Command {
 		// If project is a parachain runtime, build as parachain runtime
 		#[cfg(feature = "chain")]
 		if pop_chains::is_supported(&project_path) {
-			let profile = match args.profile {
-				Some(profile) => profile,
-				None => args.release.into(),
+			let profile = match &args.profile {
+				Some(profile) => profile.clone(),
+				None => args.release.clone().into(),
 			};
-			let features = args.features.unwrap_or_default();
+			let features = args.features.clone().unwrap_or_default();
 			let feature_list = collect_features(&features, args.benchmark, args.try_runtime);
 
 			BuildChain {
 				path: project_path,
-				package: args.package,
+				package: args.package.clone(),
 				profile,
 				benchmark: feature_list.contains(&Benchmark.as_ref()),
 				try_runtime: feature_list.contains(&TryRuntime.as_ref()),
@@ -185,7 +186,7 @@ impl Command {
 	/// * `path` - The path to the project.
 	/// * `package` - A specific package to be built.
 	/// * `release` - Whether the release profile is to be used.
-	fn build(args: BuildArgs, path: &Path, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	fn build(args: &BuildArgs, path: &Path, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		let project = if args.package.is_some() { PACKAGE } else { PROJECT };
 		cli.intro(format!("Building your {project}"))?;
 
@@ -194,14 +195,14 @@ impl Command {
 			cargo_args.push("--package");
 			cargo_args.push(package)
 		}
-		let profile = args.profile.unwrap_or(Profile::Debug);
+		let profile = args.profile.clone().unwrap_or(Profile::Debug);
 		if profile == Profile::Release {
 			cargo_args.push("--release");
 		} else if profile == Profile::Production {
 			cargo_args.push("--profile=production");
 		}
 
-		let feature_input = args.features.unwrap_or_default();
+		let feature_input = args.features.clone().unwrap_or_default();
 		#[allow(unused_mut)]
 		let mut features: Vec<&str> = feature_input.split(',').filter(|s| !s.is_empty()).collect();
 		#[cfg(feature = "chain")]
@@ -340,7 +341,7 @@ mod tests {
 		cli = cli.expect_outro("Build completed successfully!");
 		assert!(
 			Command::build(
-				BuildArgs {
+				&BuildArgs {
 					#[cfg(feature = "chain")]
 					command: None,
 					path: Some(project_path.to_path_buf()),
@@ -408,7 +409,7 @@ mod tests {
 		let project_path = path.join(name);
 		cmd("cargo", ["new", name, "--bin"]).dir(path).run()?;
 
-		let result = Command::execute(BuildArgs {
+		let result = Command::execute(&BuildArgs {
 			#[cfg(feature = "chain")]
 			command: None,
 			path: Some(project_path.clone()),
@@ -454,7 +455,7 @@ mod tests {
 		}
 
 		// Test 1: Execute with release mode
-		let result = Command::execute(BuildArgs {
+		let result = Command::execute(&BuildArgs {
 			#[cfg(feature = "chain")]
 			command: None,
 			path: Some(project_path.clone()),
@@ -477,7 +478,7 @@ mod tests {
 		assert_eq!(result, Unknown);
 
 		// Test 2: Execute with production profile
-		let result = Command::execute(BuildArgs {
+		let result = Command::execute(&BuildArgs {
 			#[cfg(feature = "chain")]
 			command: None,
 			path: Some(project_path.clone()),
@@ -502,7 +503,7 @@ mod tests {
 		// Test 3: Execute with custom features
 		#[cfg(feature = "chain")]
 		{
-			let result = Command::execute(BuildArgs {
+			let result = Command::execute(&BuildArgs {
 				command: None,
 				path: Some(project_path.clone()),
 				path_pos: None,
@@ -521,7 +522,7 @@ mod tests {
 		}
 
 		// Test 4: Execute with package parameter
-		let result = Command::execute(BuildArgs {
+		let result = Command::execute(&BuildArgs {
 			#[cfg(feature = "chain")]
 			command: None,
 			path: Some(project_path.clone()),
@@ -544,7 +545,7 @@ mod tests {
 		assert_eq!(result, Unknown);
 
 		// Test 5: Execute with path_pos instead of path
-		let result = Command::execute(BuildArgs {
+		let result = Command::execute(&BuildArgs {
 			#[cfg(feature = "chain")]
 			command: None,
 			path: None,
@@ -569,7 +570,7 @@ mod tests {
 		// Test 6: Execute with benchmark and try_runtime flags
 		#[cfg(feature = "chain")]
 		{
-			let result = Command::execute(BuildArgs {
+			let result = Command::execute(&BuildArgs {
 				command: None,
 				path: Some(project_path.clone()),
 				path_pos: None,

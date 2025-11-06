@@ -13,14 +13,16 @@ use clap::{Args, Parser};
 use cliclack::spinner;
 use pop_chains::{BenchmarkingCliCommand, bench::OverheadCmd, generate_omni_bencher_benchmarks};
 use pop_common::Profile;
+use serde::Serialize;
 use std::{env::current_dir, path::PathBuf};
 use tempfile::tempdir;
 
 const EXCLUDED_ARGS: [&str; 5] = ["--profile", "--skip-confirm", "-y", "--no-build", "-n"];
 
-#[derive(Args)]
+#[derive(Args, Serialize)]
 pub(crate) struct BenchmarkOverhead {
 	/// Command to benchmark the execution overhead per-block and per-extrinsic.
+	#[serde(skip_serializing)]
 	#[clap(flatten)]
 	pub command: OverheadCmd,
 	/// Build profile.

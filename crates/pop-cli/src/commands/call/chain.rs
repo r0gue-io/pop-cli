@@ -19,6 +19,7 @@ use pop_chains::{
 	encode_call_data, find_callable_by_name, find_pallet_by_name, raw_value_to_string,
 	render_storage_key_values, sign_and_submit_extrinsic, supported_actions, type_to_param,
 };
+use serde::Serialize;
 use url::Url;
 
 const DEFAULT_URI: &str = "//Alice";
@@ -33,7 +34,7 @@ fn to_tuple(args: &[String]) -> String {
 
 /// Command to construct and execute extrinsics with configurable pallets, functions, arguments, and
 /// signing options.
-#[derive(Args, Clone, Default)]
+#[derive(Args, Clone, Default, Serialize)]
 pub struct CallChainCommand {
 	/// The pallet containing the dispatchable function to execute.
 	#[arg(short, long, value_parser = parse_pallet_name)]
@@ -53,6 +54,7 @@ pub struct CallChainCommand {
 	/// e.g.
 	/// - for a dev account "//Alice"
 	/// - with a password "//Alice///SECRET_PASSWORD"
+	#[serde(skip_serializing)]
 	#[arg(short, long)]
 	suri: Option<String>,
 	/// Use a browser extension wallet to sign the extrinsic.

@@ -6,6 +6,7 @@ use crate::{
 	common::Data::{self, *},
 };
 use clap::Subcommand;
+use serde::Serialize;
 use std::fmt::{Display, Formatter, Result};
 #[cfg(feature = "chain")]
 use {crate::common::Project::Network, up::network::Relay::*};
@@ -26,7 +27,7 @@ pub(crate) mod test;
 #[cfg(any(feature = "chain", feature = "contract"))]
 pub(crate) mod up;
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Serialize)]
 #[command(subcommand_required = true)]
 pub(crate) enum Command {
 	/// Set up the environment for development by installing required packages.
@@ -88,7 +89,7 @@ fn about_up() -> &'static str {
 
 impl Command {
 	/// Executes the command.
-	pub(crate) async fn execute(self) -> anyhow::Result<Data> {
+	pub(crate) async fn execute(&mut self) -> anyhow::Result<Data> {
 		match self {
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::Install(args) => {
@@ -101,9 +102,9 @@ impl Command {
 				use crate::common::Template::*;
 
 				// If no command is provided, guide the user to select one interactively
-				let command = match args.command {
+				let command = match &mut args.command {
 					Some(cmd) => cmd,
-					None => new::guide_user_to_select_command(&mut Cli)?,
+					None => &mut new::guide_user_to_select_command(&mut Cli)?,
 				};
 
 				match command {
@@ -120,7 +121,7 @@ impl Command {
 			Self::Build(args) => {
 				env_logger::init();
 				#[cfg(feature = "chain")]
-				match args.command {
+				match &args.command {
 					None => build::Command::execute(args).map(Build),
 					Some(cmd) => match cmd {
 						#[cfg(feature = "chain")]
@@ -144,19 +145,19 @@ impl Command {
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::Up(args) => {
 				env_logger::init();
-				match args.command {
-					None => up::Command::execute(*args).await.map(Up),
+				match &mut args.command {
+					None => up::Command::execute(args).await.map(Up),
 					Some(cmd) => match cmd {
 						#[cfg(feature = "chain")]
 						up::Command::Network(cmd) => cmd.execute(&mut Cli).await.map(|_| Up(Network)),
 						#[cfg(feature = "chain")]
-						up::Command::Paseo(mut cmd) => cmd.execute(Paseo, &mut Cli).await.map(|_| Up(Network)),
+						up::Command::Paseo(cmd) => cmd.execute(Paseo, &mut Cli).await.map(|_| Up(Network)),
 						#[cfg(feature = "chain")]
-						up::Command::Kusama(mut cmd) => cmd.execute(Kusama, &mut Cli).await.map(|_| Up(Network)),
+						up::Command::Kusama(cmd) => cmd.execute(Kusama, &mut Cli).await.map(|_| Up(Network)),
 						#[cfg(feature = "chain")]
-						up::Command::Polkadot(mut cmd) => cmd.execute(Polkadot, &mut Cli).await.map(|_| Up(Network)),
+						up::Command::Polkadot(cmd) => cmd.execute(Polkadot, &mut Cli).await.map(|_| Up(Network)),
 						#[cfg(feature = "chain")]
-						up::Command::Westend(mut cmd) => cmd.execute(Westend, &mut Cli).await.map(|_| Up(Network)),
+						up::Command::Westend(cmd) => cmd.execute(Westend, &mut Cli).await.map(|_| Up(Network)),
 					},
 				}
 			},
@@ -164,7 +165,7 @@ impl Command {
 				env_logger::init();
 
 				#[cfg(any(feature = "contract", feature = "chain"))]
-				match args.command {
+				match &mut args.command {
 					None => test::Command::execute(args)
 						.await
 						.map(|(project, feature)| Test { project, feature }),
@@ -191,7 +192,7 @@ impl Command {
 			},
 			Self::Clean(args) => {
 				env_logger::init();
-				match args.command {
+				match &args.command {
 					clean::Command::Cache(cmd_args) => {
 						// Initialize command and execute
 						clean::CleanCacheCommand {

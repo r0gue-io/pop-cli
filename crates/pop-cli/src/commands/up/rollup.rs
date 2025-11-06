@@ -22,6 +22,7 @@ use pop_chains::{
 	construct_proxy_extrinsic, find_callable_by_name,
 };
 use pop_common::{Profile, parse_account, templates::Template};
+use serde::Serialize;
 use std::{
 	env,
 	path::{Path, PathBuf},
@@ -36,7 +37,7 @@ const HELP_HEADER: &str = "Chain deployment options";
 const PLACEHOLDER_ADDRESS: &str = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty";
 const PDP_API_KEY: &str = "PDP_API_KEY";
 
-#[derive(Args, Clone, Default)]
+#[derive(Args, Clone, Default, Serialize)]
 #[clap(next_help_heading = HELP_HEADER)]
 pub struct UpCommand {
 	/// Path to the project.

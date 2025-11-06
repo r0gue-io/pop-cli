@@ -19,6 +19,7 @@ use pop_chains::{
 	utils::helpers::get_preset_names,
 };
 use pop_common::{Profile, manifest::from_path};
+use serde::Serialize;
 use std::{
 	fs::create_dir_all,
 	path::{Path, PathBuf},
@@ -48,6 +49,7 @@ const DEFAULT_SPEC_NAME: &str = "chain-spec.json";
 	VariantArray,
 	Eq,
 	PartialEq,
+	Serialize,
 )]
 /// Supported chain types for the resulting chain spec.
 pub(crate) enum ChainType {
@@ -84,6 +86,7 @@ pub(crate) enum ChainType {
 	VariantArray,
 	Eq,
 	PartialEq,
+	Serialize,
 )]
 /// Supported relay chains that can be included in the resulting chain spec.
 pub(crate) enum RelayChain {
@@ -139,7 +142,7 @@ pub(crate) enum RelayChain {
 }
 
 /// Command for generating a chain specification.
-#[derive(Args, Default)]
+#[derive(Args, Default, Serialize)]
 pub struct BuildSpecCommand {
 	/// Directory path for your project [default: current directory]
 	#[arg(long, default_value = "./")]
@@ -214,7 +217,7 @@ pub struct BuildSpecCommand {
 
 impl BuildSpecCommand {
 	/// Executes the build spec command.
-	pub(crate) async fn execute(self) -> anyhow::Result<()> {
+	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
 		let mut cli = Cli;
 		cli.intro("Generate your chain spec")?;
 		// Checks for appchain project.
@@ -237,7 +240,7 @@ impl BuildSpecCommand {
 	/// # Arguments
 	/// * `cli` - The cli.
 	pub(crate) async fn configure_build_spec(
-		self,
+		&self,
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<BuildSpec> {
 		let BuildSpecCommand {
@@ -291,7 +294,7 @@ impl BuildSpecCommand {
 				None => {
 					// Prompt for output file if not provided.
 					let default_output = format!("./{DEFAULT_SPEC_NAME}");
-					PathBuf::from(
+					&PathBuf::from(
 						cli.input("Name or path for the plain chain spec file:")
 							.placeholder(&default_output)
 							.default_input(&default_output)
@@ -304,12 +307,12 @@ impl BuildSpecCommand {
 		// If chain specification file already exists, obtain values for defaults when prompting.
 		let chain_spec = ChainSpec::from(&output_file).ok();
 
-		let (para_id, relay) = if is_relay {
+		let (para_id, relay) = if *is_relay {
 			(None, None)
 		} else {
 			// Para id.
 			let para_id = match para_id {
-				Some(id) => id,
+				Some(id) => *id,
 				None => {
 					let default = chain_spec
 						.as_ref()
@@ -331,7 +334,7 @@ impl BuildSpecCommand {
 
 			// Relay.
 			let relay = match relay {
-				Some(relay) => relay,
+				Some(relay) => relay.clone(),
 				None => {
 					let default = chain_spec
 						.as_ref()
@@ -344,15 +347,15 @@ impl BuildSpecCommand {
 							.select(
 								"Choose the relay your chain will be connecting to: ".to_string(),
 							)
-							.initial_value(&default);
+							.initial_value(default);
 						for relay in RelayChain::VARIANTS {
 							prompt = prompt.item(
-								relay,
+								relay.clone(),
 								relay.get_message().unwrap_or(relay.as_ref()),
 								relay.get_detailed_message().unwrap_or_default(),
 							);
 						}
-						*prompt.interact()?
+						prompt.interact()?
 					} else {
 						default
 					}
@@ -364,7 +367,7 @@ impl BuildSpecCommand {
 		// Chain type.
 		let chain_type = match chain_type {
 			Some(chain_type) => chain_type,
-			None => {
+			None => &{
 				let default = chain_spec
 					.as_ref()
 					.and_then(|cs| cs.get_chain_type())
@@ -373,15 +376,15 @@ impl BuildSpecCommand {
 				if prompt {
 					// Prompt for chain type.
 					let mut prompt =
-						cli.select("Choose the chain type: ".to_string()).initial_value(&default);
+						cli.select("Choose the chain type: ".to_string()).initial_value(default);
 					for chain_type in ChainType::VARIANTS {
 						prompt = prompt.item(
-							chain_type,
+							chain_type.clone(),
 							chain_type.get_message().unwrap_or(chain_type.as_ref()),
 							chain_type.get_detailed_message().unwrap_or_default(),
 						);
 					}
-					prompt.interact()?.clone()
+					prompt.interact()?
 				} else {
 					default
 				}
@@ -391,7 +394,7 @@ impl BuildSpecCommand {
 		// Prompt user for build profile.
 		let profile = match profile {
 			Some(profile) => profile,
-			None => {
+			None => &{
 				let default = Profile::Release;
 				if prompt { guide_user_to_select_profile(cli)? } else { default }
 			},
@@ -399,7 +402,7 @@ impl BuildSpecCommand {
 
 		// Protocol id.
 		let protocol_id = match protocol_id {
-			Some(protocol_id) => protocol_id,
+			Some(protocol_id) => protocol_id.clone(),
 			None => {
 				let default = chain_spec
 					.as_ref()
@@ -448,13 +451,13 @@ impl BuildSpecCommand {
 		// Prompt the user for deterministic build only if the profile is Production.
 		let deterministic = prompt && deterministic.unwrap_or_else(|| cli
             .confirm("Would you like to build the runtime deterministically? This requires a containerization solution (Docker/Podman) and is recommended for production builds.")
-            .initial_value(profile == Profile::Production)
+            .initial_value(*profile == Profile::Production)
             .interact()
             .unwrap_or(false));
 		// If deterministic build is selected, use the provided runtime path or prompt the user if
 		// missing.
 		let runtime_dir = if deterministic {
-			Some(runtime_dir.unwrap_or_else(|| {
+			Some(runtime_dir.clone().unwrap_or_else(|| {
 				cli.input("Enter the directory path where the runtime is located:")
 					.placeholder(DEFAULT_RUNTIME_DIR)
 					.default_input(DEFAULT_RUNTIME_DIR)
@@ -463,13 +466,14 @@ impl BuildSpecCommand {
 					.unwrap_or_else(|_| PathBuf::from(DEFAULT_RUNTIME_DIR))
 			}))
 		} else {
-			runtime_dir
+			runtime_dir.clone()
 		};
 
 		// If deterministic build is selected, extract package name from runtime path provided
 		// above. Prompt the user if unavailable.
 		let package = if deterministic {
 			package
+				.clone()
 				.or_else(|| {
 					from_path(
 						runtime_dir
@@ -491,28 +495,28 @@ impl BuildSpecCommand {
 		};
 
 		Ok(BuildSpec {
-			path,
+			path: path.clone(),
 			output_file,
-			profile,
+			profile: profile.clone(),
 			para_id,
 			default_bootnode,
-			chain_type,
-			is_relay,
-			chain,
+			chain_type: chain_type.clone(),
+			is_relay: is_relay.clone(),
+			chain: chain.clone(),
 			relay,
 			protocol_id,
-			properties,
+			properties: properties.clone(),
 			features,
-			name,
-			id,
-			skip_build,
+			name: name.clone(),
+			id: id.clone(),
+			skip_build: skip_build.clone(),
 			genesis_state,
 			genesis_code,
 			deterministic,
 			package,
 			runtime_dir,
 			use_existing_plain_spec: !prompt,
-			raw,
+			raw: raw.clone(),
 		})
 	}
 }

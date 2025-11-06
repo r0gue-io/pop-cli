@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use clap::{Args, Subcommand};
+use serde::Serialize;
 use std::fmt::{Display, Formatter, Result};
+
 #[cfg(feature = "chain")]
 pub(crate) mod chain;
 #[cfg(feature = "contract")]
 pub(crate) mod contract;
 
 /// Arguments for calling a smart contract.
-#[derive(Args)]
+#[derive(Args, Serialize)]
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct CallArgs {
 	#[command(subcommand)]
@@ -16,7 +18,7 @@ pub(crate) struct CallArgs {
 }
 
 /// Call a chain or a smart contract.
-#[derive(Subcommand)]
+#[derive(Subcommand, Serialize, Clone)]
 pub(crate) enum Command {
 	/// Call a chain
 	#[cfg(feature = "chain")]
@@ -30,9 +32,9 @@ pub(crate) enum Command {
 
 impl CallArgs {
 	/// Auto-detects the project type and returns the appropriate command if none was specified.
-	pub(crate) fn resolve_command(self) -> anyhow::Result<Command> {
-		if let Some(command) = self.command {
-			return Ok(command);
+	pub(crate) fn resolve_command(&self) -> anyhow::Result<Command> {
+		if let Some(command) = &self.command {
+			return Ok(command.clone());
 		}
 
 		// Auto-detect project type based on current directory
