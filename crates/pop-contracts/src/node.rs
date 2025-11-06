@@ -142,6 +142,7 @@ pub async fn run_ink_node(
 	let mut command = Command::new(binary_path);
 	command.arg("-linfo,runtime::contracts=debug");
 	command.arg(format!("--rpc-port={}", port));
+	command.arg("--tmp");
 	if let Some(output) = output {
 		command.stdout(Stdio::from(output.try_clone()?));
 		command.stderr(Stdio::from(output.try_clone()?));

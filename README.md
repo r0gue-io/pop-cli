@@ -22,7 +22,7 @@ You can install Pop CLI from [crates.io](https://crates.io/crates/pop-cli):
 cargo install --force --locked pop-cli
 ```
 
-> :information_source: Pop CLI requires Rust 1.81 or later.
+> :information_source: Pop CLI requires Rust 1.90 or later.
 
 You can also install Pop CLI using the [Pop CLI GitHub repo](https://github.com/r0gue-io/pop-cli):
 
