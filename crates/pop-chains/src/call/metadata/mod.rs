@@ -591,13 +591,13 @@ pub fn find_callable_by_name(
 ) -> Result<CallItem, Error> {
 	let pallet = find_pallet_by_name(pallets, pallet_name)?;
 	if let Some(function) = pallet.functions.iter().find(|&e| e.name == function_name) {
-		return Ok(CallItem::Function(function.clone()))
+		return Ok(CallItem::Function(function.clone()));
 	}
 	if let Some(constant) = pallet.constants.iter().find(|&e| e.name == function_name) {
-		return Ok(CallItem::Constant(constant.clone()))
+		return Ok(CallItem::Constant(constant.clone()));
 	}
 	if let Some(storage) = pallet.state.iter().find(|&e| e.name == function_name) {
-		return Ok(CallItem::Storage(storage.clone()))
+		return Ok(CallItem::Storage(storage.clone()));
 	}
 	Err(Error::FunctionNotFound(format!(
 		"Could not find a function, constant or storage with the name \"{function_name}\""
