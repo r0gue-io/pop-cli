@@ -302,7 +302,7 @@ impl BuildSpecCommand {
 					)
 				},
 			};
-			(prepare_output_path(&output_file)?, true)
+			(prepare_output_path(output_file)?, true)
 		};
 		// If chain specification file already exists, obtain values for defaults when prompting.
 		let chain_spec = ChainSpec::from(&output_file).ok();
@@ -334,7 +334,7 @@ impl BuildSpecCommand {
 
 			// Relay.
 			let relay = match relay {
-				Some(relay) => relay.clone(),
+				Some(relay) => *relay,
 				None => {
 					let default = chain_spec
 						.as_ref()
@@ -350,7 +350,7 @@ impl BuildSpecCommand {
 							.initial_value(default);
 						for relay in RelayChain::VARIANTS {
 							prompt = prompt.item(
-								relay.clone(),
+								*relay,
 								relay.get_message().unwrap_or(relay.as_ref()),
 								relay.get_detailed_message().unwrap_or_default(),
 							);
@@ -497,11 +497,11 @@ impl BuildSpecCommand {
 		Ok(BuildSpec {
 			path: path.clone(),
 			output_file,
-			profile: profile.clone(),
+			profile: *profile,
 			para_id,
 			default_bootnode,
 			chain_type: chain_type.clone(),
-			is_relay: is_relay.clone(),
+			is_relay: *is_relay,
 			chain: chain.clone(),
 			relay,
 			protocol_id,
@@ -509,14 +509,14 @@ impl BuildSpecCommand {
 			features,
 			name: name.clone(),
 			id: id.clone(),
-			skip_build: skip_build.clone(),
+			skip_build: *skip_build,
 			genesis_state,
 			genesis_code,
 			deterministic,
 			package,
 			runtime_dir,
 			use_existing_plain_spec: !prompt,
-			raw: raw.clone(),
+			raw: *raw,
 		})
 	}
 }
@@ -643,7 +643,7 @@ impl BuildSpec {
 					cli,
 					&spinner,
 					&self.package,
-					self.profile.clone(),
+					self.profile,
 					self.runtime_dir
 						.clone()
 						.expect("Deterministic builds always contains runtime_dir"),
@@ -866,7 +866,7 @@ mod tests {
 				BuildSpecCommand {
 					path: path.clone(),
 					output_file: Some(PathBuf::from(output_file)),
-					profile: Some(profile.clone()),
+					profile: Some(profile),
 					name: Some(name.to_string()),
 					id: Some(id.to_string()),
 					is_relay: false,
@@ -893,7 +893,7 @@ mod tests {
 				BuildSpecCommand {
 					path: path.clone(),
 					output_file: Some(PathBuf::from(output_file)),
-					profile: Some(profile.clone()),
+					profile: Some(profile),
 					name: Some(name.to_string()),
 					id: Some(id.to_string()),
 					is_relay: true,
@@ -950,7 +950,7 @@ mod tests {
 						Some(false),
 						true,
 						Some(profiles()),
-						profile.clone() as usize,
+						profile as usize,
 						None,
 					)
 					.expect_confirm(
@@ -1037,7 +1037,7 @@ mod tests {
 				BuildSpecCommand {
 					path: path.clone(),
 					output_file: Some(PathBuf::from(output_file)),
-					profile: Some(profile.clone()),
+					profile: Some(profile),
 					is_relay: false,
 					para_id: Some(para_id),
 					default_bootnode: None,
@@ -1061,7 +1061,7 @@ mod tests {
 				BuildSpecCommand {
 					path: path.clone(),
 					output_file: Some(PathBuf::from(output_file)),
-					profile: Some(profile.clone()),
+					profile: Some(profile),
 					is_relay: true,
 					para_id: None,
 					default_bootnode: None,
@@ -1120,7 +1120,7 @@ mod tests {
 							Some(false),
 							true,
 							Some(profiles()),
-							profile.clone() as usize,
+							profile as usize,
 							None,
 						);
 					}

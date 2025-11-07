@@ -78,15 +78,14 @@ async fn contract_lifecycle() -> Result<()> {
 	let temp_dir = temp.path();
 	//let temp_dir = Path::new("./"); //For testing locally
 	// Test that all templates are generated correctly
-	generate_all_the_templates(&temp_dir)?;
+	generate_all_the_templates(temp_dir)?;
 	// pop new contract test_contract (default)
-	let mut command =
-		pop(&temp_dir, ["new", "contract", "test_contract", "--template", "standard"]);
+	let mut command = pop(temp_dir, ["new", "contract", "test_contract", "--template", "standard"]);
 	assert!(command.spawn()?.wait()?.success());
 	assert!(temp_dir.join("test_contract").exists());
 
 	// pop build --path ./test_contract --release
-	command = pop(&temp_dir, ["build", "--path", "./test_contract", "--release"]);
+	command = pop(temp_dir, ["build", "--path", "./test_contract", "--release"]);
 	assert!(command.spawn()?.wait()?.success());
 
 	// Verify that the directory target has been created
@@ -103,12 +102,12 @@ async fn contract_lifecycle() -> Result<()> {
 	sleep(Duration::from_secs(5)).await;
 
 	// pop test --path ./test_contract
-	command = pop(&temp_dir, ["test", "--path", "./test_contract"]);
+	command = pop(temp_dir, ["test", "--path", "./test_contract"]);
 	assert!(command.spawn()?.wait()?.success());
 	// Only upload the contract
 	// pop up --path ./test_contract --upload-only
 	command = pop(
-		&temp_dir,
+		temp_dir,
 		["up", "--path", "./test_contract", "--upload-only", "--url", default_endpoint],
 	);
 	assert!(command.spawn()?.wait()?.success());
@@ -213,7 +212,7 @@ async fn contract_lifecycle() -> Result<()> {
 	// Using `cargo run --` as means for the CI to pass.
 	// Possibly there's room for improvement here.
 	let _ = tokio::process::Command::new("cargo")
-		.args(&[
+		.args([
 			"run",
 			"--",
 			"up",
@@ -253,7 +252,7 @@ async fn contract_lifecycle() -> Result<()> {
 		SubmitRequest { signed_payload: Some(to_hex(signed.encoded())), contract_address: None };
 	// Submit signed payload. This kills the wallet integration server.
 	let _ = reqwest::Client::new()
-		.post(&format!("{}/submit", WALLET_INT_URI))
+		.post(format!("{}/submit", WALLET_INT_URI))
 		.json(&submit_request)
 		.send()
 		.await
@@ -277,10 +276,8 @@ fn generate_all_the_templates(temp_dir: &Path) -> Result<()> {
 	for template in Contract::VARIANTS {
 		let contract_name = format!("test_contract_{}", template).replace("-", "_");
 		// pop new contract test_contract
-		let mut command = pop(
-			&temp_dir,
-			["new", "contract", &contract_name, "--template", &template.to_string()],
-		);
+		let mut command =
+			pop(temp_dir, ["new", "contract", &contract_name, "--template", template.as_ref()]);
 		assert!(command.spawn()?.wait()?.success());
 	}
 	Ok(())

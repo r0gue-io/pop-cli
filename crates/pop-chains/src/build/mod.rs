@@ -71,11 +71,10 @@ impl ChainSpecBuilder {
 	/// # Returns
 	/// The build profile (debug, release, production, etc.) to use when building the chain.
 	pub fn profile(&self) -> Profile {
-		match self {
+		*match self {
 			ChainSpecBuilder::Node { profile, .. } => profile,
 			ChainSpecBuilder::Runtime { profile, .. } => profile,
 		}
-		.clone()
 	}
 
 	/// Gets the path to the built artifact.
@@ -1677,7 +1676,7 @@ mod tests {
 			let builder = ChainSpecBuilder::Node {
 				node_path: PathBuf::from("/test/node"),
 				default_bootnode: true,
-				profile: profile.clone(),
+				profile: *profile,
 			};
 			assert_eq!(builder.profile(), *profile);
 		}
@@ -1689,7 +1688,7 @@ mod tests {
 		for profile in Profile::VARIANTS {
 			let builder = ChainSpecBuilder::Runtime {
 				runtime_path: PathBuf::from("/test/runtime"),
-				profile: profile.clone(),
+				profile: *profile,
 			};
 			assert_eq!(builder.profile(), *profile);
 		}

@@ -61,7 +61,7 @@ pub(crate) struct BuildRuntimeParams {
 impl BuildRuntimeParams {
 	/// Adds arguments to the argument constructor. These arguments are used by `try-runtime-cli`.
 	pub(crate) fn add_arguments(&self, c: &mut ArgumentConstructor) {
-		c.add(&[], true, "--profile", self.profile.clone().map(|p| p.to_string()));
+		c.add(&[], true, "--profile", self.profile.map(|p| p.to_string()));
 		c.add(&["--no-build"], self.no_build, "-n", Some(String::default()));
 		c.add(&["--skip-confirm"], self.skip_confirm, "-y", Some(String::default()));
 	}

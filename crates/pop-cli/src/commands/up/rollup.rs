@@ -289,7 +289,7 @@ impl UpCommand {
 			deployment_config,
 			id,
 			&self.path,
-			self.profile.clone(),
+			self.profile,
 			cli,
 		)
 		.await

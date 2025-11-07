@@ -86,11 +86,11 @@ pub fn create_chain_spec_builder(
 			if default_node_path.is_dir() {
 				let node_path = default_node_path.canonicalize()?;
 				cli.info(format!("Using node at {}", node_path.display()))?;
-				Ok(ChainSpecBuilder::Node { node_path, default_bootnode, profile: profile.clone() })
+				Ok(ChainSpecBuilder::Node { node_path, default_bootnode, profile: *profile })
 			} else {
 				let runtime_path = find_runtime_dir(&path, cli)?;
 				cli.info(format!("Using runtime at {}", runtime_path.display()))?;
-				Ok(ChainSpecBuilder::Runtime { runtime_path, profile: profile.clone() })
+				Ok(ChainSpecBuilder::Runtime { runtime_path, profile: *profile })
 			}
 		},
 		ChainPath::Exact(runtime_path) => {
@@ -99,7 +99,7 @@ pub fn create_chain_spec_builder(
 
 			Ok(ChainSpecBuilder::Runtime {
 				runtime_path: runtime_path.to_owned(),
-				profile: profile.clone(),
+				profile: *profile,
 			})
 		},
 	}
@@ -167,7 +167,7 @@ pub fn guide_user_to_select_profile(cli: &mut impl Cli) -> anyhow::Result<Profil
 			profile.get_detailed_message().unwrap_or_default(),
 		);
 	}
-	Ok(prompt.interact()?.clone())
+	Ok(*prompt.interact()?)
 }
 
 #[cfg(test)]

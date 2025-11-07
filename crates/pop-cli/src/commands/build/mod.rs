@@ -121,7 +121,7 @@ impl Command {
 		if pop_contracts::is_supported(&project_path)? {
 			// All commands originating from root command are valid
 			let release = match &args.profile {
-				Some(profile) => profile.clone().into(),
+				Some(profile) => (*profile).into(),
 				None => args.release,
 			};
 			BuildContract { path: project_path, release, metadata: args.metadata }.execute()?;
@@ -135,8 +135,8 @@ impl Command {
 			pop_chains::runtime::is_supported(&project_path)
 		{
 			let profile = match &args.profile {
-				Some(profile) => profile.clone(),
-				None => args.release.clone().into(),
+				Some(profile) => *profile,
+				None => args.release.into(),
 			};
 			let features = args.features.clone().unwrap_or_default();
 			let mut feature_list = collect_features(&features, args.benchmark, args.try_runtime);
@@ -158,8 +158,8 @@ impl Command {
 		#[cfg(feature = "chain")]
 		if pop_chains::is_supported(&project_path) {
 			let profile = match &args.profile {
-				Some(profile) => profile.clone(),
-				None => args.release.clone().into(),
+				Some(profile) => *profile,
+				None => args.release.into(),
 			};
 			let features = args.features.clone().unwrap_or_default();
 			let feature_list = collect_features(&features, args.benchmark, args.try_runtime);
@@ -195,7 +195,7 @@ impl Command {
 			cargo_args.push("--package");
 			cargo_args.push(package)
 		}
-		let profile = args.profile.clone().unwrap_or(Profile::Debug);
+		let profile = args.profile.unwrap_or(Profile::Debug);
 		if profile == Profile::Release {
 			cargo_args.push("--release");
 		} else if profile == Profile::Production {
@@ -272,7 +272,7 @@ mod tests {
 		for package in [None, Some(name.to_string())] {
 			for release in [true, false] {
 				for profile in Profile::VARIANTS {
-					let profile = if release { Profile::Release } else { profile.clone() };
+					let profile = if release { Profile::Release } else { *profile };
 					#[allow(unused_variables)]
 					for &(benchmark_flag, try_runtime_flag, features_flag, expected_features) in &[
 						// No features
@@ -348,7 +348,7 @@ mod tests {
 					path_pos: Some(project_path.to_path_buf()),
 					package: package.clone(),
 					release,
-					profile: Some(profile.clone()),
+					profile: Some(*profile),
 					#[cfg(feature = "chain")]
 					benchmark,
 					#[cfg(feature = "chain")]
