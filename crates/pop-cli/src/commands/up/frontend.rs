@@ -83,7 +83,7 @@ pub fn resolve_frontend_dir(
 /// Decide which command to use to run locally the frontend and run it.
 ///
 /// # Arguments
-/// * `target` - Location where the smart contract will be created.
+/// * `target` - Path to the frontend project.
 pub fn run_frontend(target: &Path) -> Result<()> {
 	if is_cmd_available("bun") {
 		cmd("bun", &["install"]).dir(target).run()?;

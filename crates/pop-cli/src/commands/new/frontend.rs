@@ -42,7 +42,7 @@ pub fn prompt_frontend_template(
 /// Create a new frontend.
 ///
 /// # Arguments
-/// * `target` - Location where the smart contract will be created.
+/// * `target` - Location where the frontend will be created.
 /// * `template` - Frontend template to generate the contract from.
 /// * `cli`: Command line interface.
 pub async fn create_frontend(

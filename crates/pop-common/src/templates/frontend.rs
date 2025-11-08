@@ -21,7 +21,7 @@ pub enum FrontendType {
 impl Type<FrontendTemplate> for FrontendType {
 	fn default_template(&self) -> Option<FrontendTemplate> {
 		match &self {
-			FrontendType::Contract => Some(FrontendTemplate::Inkathon),
+			FrontendType::Contract => Some(FrontendTemplate::Typink),
 			FrontendType::Chain => Some(FrontendTemplate::CreateDotApp),
 		}
 	}
