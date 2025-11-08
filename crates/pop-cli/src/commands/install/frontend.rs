@@ -81,7 +81,11 @@ pub async fn ensure_bun(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> 
 	// Install Bun using the official installer script
 	run_external_script("https://bun.sh/install", &[]).await?;
 
-	// Use the default install location from the official installer
+	// Try to locate bun in PATH again
+	if let Some(path) = which("bun") {
+		return Ok(PathBuf::from(path));
+	}
+	// Use the default install location from the official installer if not found in PATH
 	let home = std::env::var("HOME").map_err(|_| anyhow!("HOME not set"))?;
 	let bun_abs = PathBuf::from(format!("{home}/.bun/bin/bun"));
 
