@@ -13,6 +13,7 @@ use pop_common::{
 use std::path::Path;
 
 /// Prompts the user to pick a frontend template for the given frontend type (Chain or Contract).
+/// If only one template is available, it is automatically selected without prompting.
 ///
 /// # Arguments
 /// * `frontend_type`: The filter that determines which frontend templates are shown.
@@ -21,9 +22,15 @@ pub fn prompt_frontend_template(
 	frontend_type: &FrontendType,
 	cli: &mut impl cli::traits::Cli,
 ) -> Result<FrontendTemplate> {
+	let templates = frontend_type.templates();
+
+	// If there's only one template, return it without prompting
+	if templates.len() == 1 {
+		return Ok(templates[0].clone());
+	}
 	let mut prompt =
 		cli.select(format!("Select a frontend template for your {}:", frontend_type.name()));
-	for (i, template) in frontend_type.templates().into_iter().enumerate() {
+	for (i, template) in templates.into_iter().enumerate() {
 		if i == 0 {
 			prompt = prompt.initial_value(template);
 		}
@@ -94,19 +101,8 @@ mod tests {
 
 	#[test]
 	fn prompt_chain_frontend_template_works() -> anyhow::Result<()> {
-		let mut items_select_template: Vec<(String, String)> = Vec::new();
-		for template in FrontendType::Chain.templates() {
-			items_select_template
-				.push((template.name().to_string(), template.description().to_string()));
-		}
-		let mut cli = MockCli::new().expect_select(
-			"Select a frontend template for your Chain:",
-			Some(false),
-			true,
-			Some(items_select_template),
-			0,
-			None,
-		);
+		// Chain only has one template, so it should be selected automatically without prompting
+		let mut cli = MockCli::new();
 
 		let user_input = prompt_frontend_template(&FrontendType::Chain, &mut cli)?;
 		assert_eq!(user_input, FrontendTemplate::CreateDotApp);
