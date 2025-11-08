@@ -7,6 +7,7 @@ edition.workspace = true
 readme = "README.md"
 repository.workspace = true
 version.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
@@ -54,7 +55,7 @@ sc-cli.workspace = true
 sp-version.workspace = true
 
 # Pop
-pop-common = { path = "../pop-common", version = "0.10.0" }
+pop-common = { path = "../pop-common", version = "0.11.0" }
 
 [dev-dependencies]
 # Used in doc tests.

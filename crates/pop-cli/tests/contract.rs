@@ -194,7 +194,7 @@ async fn contract_lifecycle() -> Result<()> {
 		[
 			"call",
 			"contract",
-			"--dev", // do not ask for weight
+			"--skip-confirm", // skip execution confirmation
 			"--contract",
 			&contract_info.address,
 			"--message",

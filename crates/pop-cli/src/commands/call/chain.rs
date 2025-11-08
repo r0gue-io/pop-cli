@@ -14,7 +14,7 @@ use crate::{
 use anyhow::{Result, anyhow};
 use clap::Args;
 use pop_chains::{
-	Action, CallData, CallItem, DynamicPayload, OnlineClient, Pallet, Param, Payload,
+	Action, CallData, CallItem, DynamicPayload, Function, OnlineClient, Pallet, Param, Payload,
 	SubstrateConfig, construct_extrinsic, construct_sudo_extrinsic, decode_call_data,
 	encode_call_data, find_callable_by_name, find_pallet_by_name, raw_value_to_string,
 	render_storage_key_values, sign_and_submit_extrinsic, supported_actions, type_to_param,
@@ -272,16 +272,7 @@ impl CallChainCommand {
 					}
 
 					// Resolve dispatchable function arguments.
-					let args = if self.args.is_empty() {
-						let mut args = Vec::new();
-						for param in &function.params {
-							let input = prompt_for_param(cli, param, true)?;
-							args.push(input);
-						}
-						args
-					} else {
-						self.expand_file_arguments()?
-					};
+					let args = self.resolve_function_args(function, cli)?;
 
 					// If the chain has sudo prompt the user to confirm if they want to execute the
 					// call via sudo.
@@ -492,6 +483,38 @@ impl CallChainCommand {
 				}
 			})
 			.collect()
+	}
+
+	/// Resolves dispatchable arguments by leveraging CLI-provided values when available,
+	/// prompting for missing ones. Updates `self.args` with the resolved values.
+	/// Returns an error if more arguments than expected are provided.
+	fn resolve_function_args(
+		&mut self,
+		function: &Function,
+		cli: &mut impl Cli,
+	) -> Result<Vec<String>> {
+		let expanded_args = self.expand_file_arguments()?;
+		if expanded_args.len() > function.params.len() {
+			return Err(anyhow!(
+				"Expected {} arguments for `{}`, but received {}. Remove the extra values or run \
+				 without `--args` to be prompted.",
+				function.params.len(),
+				function.name,
+				expanded_args.len()
+			));
+		}
+
+		let mut resolved_args = Vec::with_capacity(function.params.len());
+		for (idx, param) in function.params.iter().enumerate() {
+			if let Some(value) = expanded_args.get(idx) {
+				resolved_args.push(value.clone());
+			} else {
+				resolved_args.push(prompt_for_param(cli, param, true)?);
+			}
+		}
+
+		self.args = resolved_args.clone();
+		Ok(resolved_args)
 	}
 }
 
@@ -1127,6 +1150,45 @@ mod tests {
 			]
 		);
 		Ok(())
+	}
+
+	#[test]
+	fn resolve_function_args_preserves_cli_values() -> Result<()> {
+		let function = Function {
+			pallet: "System".to_string(),
+			name: "remark".to_string(),
+			params: vec![Param { name: "remark".to_string(), ..Default::default() }],
+			is_supported: true,
+			..Default::default()
+		};
+		let mut call_config =
+			CallChainCommand { args: vec!["0x11".to_string()], ..Default::default() };
+		let mut cli = MockCli::new();
+		let resolved = call_config.resolve_function_args(&function, &mut cli)?;
+		assert_eq!(resolved, vec!["0x11".to_string()]);
+		cli.verify()
+	}
+
+	#[test]
+	fn resolve_function_args_prompts_for_missing_values() -> Result<()> {
+		let function = Function {
+			pallet: "System".to_string(),
+			name: "remark".to_string(),
+			params: vec![
+				Param { name: "first".to_string(), ..Default::default() },
+				Param { name: "second".to_string(), ..Default::default() },
+			],
+			is_supported: true,
+			..Default::default()
+		};
+		let mut call_config =
+			CallChainCommand { args: vec!["0x11".to_string()], ..Default::default() };
+		let mut cli =
+			MockCli::new().expect_input("Enter the value for the parameter: second", "0x22".into());
+		let resolved = call_config.resolve_function_args(&function, &mut cli)?;
+		assert_eq!(resolved, vec!["0x11".to_string(), "0x22".to_string()]);
+		assert_eq!(call_config.args, resolved);
+		cli.verify()
 	}
 
 	#[test]

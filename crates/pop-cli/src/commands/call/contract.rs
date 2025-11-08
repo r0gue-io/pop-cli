@@ -5,8 +5,7 @@ use crate::{
 	common::{
 		builds::{ensure_project_path, get_project_path},
 		contracts::{
-			has_contract_been_built, map_account, normalize_call_args,
-			request_contract_function_args,
+			has_contract_been_built, map_account, normalize_call_args, resolve_function_args,
 		},
 		prompt::display_message,
 		rpc::prompt_to_select_chain_rpc,
@@ -52,12 +51,29 @@ pub struct CallContractCommand {
 	/// Maximum amount of gas to be used for this command.
 	/// If not specified it will perform a dry-run to estimate the gas consumed for the
 	/// call.
-	#[arg(name = "gas", short, long)]
+	#[deprecated(
+		since = "0.12.0",
+		note = "use `--manual-weight <REF_TIME> <PROOF_SIZE>` instead, will be removed in v0.13.0"
+	)]
+	#[arg(name = "gas", short, long, conflicts_with = "manual_weight", requires = "proof_size")]
 	gas_limit: Option<u64>,
 	/// Maximum proof size for this command.
 	/// If not specified it will perform a dry-run to estimate the proof size required.
-	#[arg(short = 'P', long)]
+	#[deprecated(
+		since = "0.12.0",
+		note = "use `--manual-weight <REF_TIME> <PROOF_SIZE>` instead, will be removed in v0.13.0"
+	)]
+	#[arg(short = 'P', long, conflicts_with = "manual_weight", requires = "gas")]
 	proof_size: Option<u64>,
+	/// The maximum amount of execution time and proof size for this command. If not specified it
+	/// will perform a dry-run to estimate the limits.
+	#[arg(
+		long = "manual-weight",
+		value_names = ["REF_TIME", "PROOF_SIZE"],
+       num_args = 2,
+       value_parser = clap::value_parser!(u64),
+   )]
+	manual_weight: Option<(u64, u64)>,
 	/// Websocket endpoint of a node.
 	#[arg(short, long, value_parser)]
 	pub(crate) url: Option<url::Url>,
@@ -85,13 +101,21 @@ pub struct CallContractCommand {
 	dry_run: bool,
 	/// Enables developer mode, bypassing certain user prompts for faster testing.
 	/// Recommended for testing and local development only.
-	#[arg(name = "dev", short, long, default_value = "false")]
+	#[deprecated(
+		since = "0.12.0",
+		note = "Use `--skip-confirm` and/or `--manual-weight`, will be removed in v0.13.0"
+	)]
+	#[arg(name = "dev", short, long, default_value = "false", conflicts_with = "skip_confirm")]
 	dev_mode: bool,
 	/// Whether the contract was just deployed or not.
 	#[arg(hide = true, long, default_value = "false")]
 	pub(crate) deployed: bool,
+	/// Automatically submits the call without prompting for confirmation.
+	#[arg(short = 'y', long)]
+	skip_confirm: bool,
 }
 
+#[allow(deprecated)]
 impl Default for CallContractCommand {
 	fn default() -> Self {
 		Self {
@@ -103,6 +127,7 @@ impl Default for CallContractCommand {
 			value: DEFAULT_PAYABLE_VALUE.to_string(),
 			gas_limit: None,
 			proof_size: None,
+			manual_weight: None,
 			url: None,
 			suri: Some("//Alice".to_string()),
 			use_wallet: false,
@@ -110,6 +135,7 @@ impl Default for CallContractCommand {
 			dry_run: false,
 			dev_mode: false,
 			deployed: false,
+			skip_confirm: false,
 		}
 	}
 }
@@ -166,16 +192,13 @@ impl CallContractCommand {
 		}
 		if !self.args.is_empty() {
 			let args: Vec<_> = self.args.iter().map(|a| format!("\"{a}\"")).collect();
-			full_message.push_str(&format!(" --args {}", args.join(", ")));
+			full_message.push_str(&format!(" --args {}", args.join(" ")));
 		}
 		if self.value != DEFAULT_PAYABLE_VALUE {
 			full_message.push_str(&format!(" --value {}", self.value));
 		}
-		if let Some(gas_limit) = self.gas_limit {
-			full_message.push_str(&format!(" --gas {}", gas_limit));
-		}
-		if let Some(proof_size) = self.proof_size {
-			full_message.push_str(&format!(" --proof-size {}", proof_size));
+		if let Some((ref_time, proof_size)) = self.manual_weight {
+			full_message.push_str(&format!(" --manual-weight {} {}", ref_time, proof_size));
 		}
 		if let Some(url) = &self.url {
 			full_message.push_str(&format!(" --url {}", url));
@@ -190,6 +213,9 @@ impl CallContractCommand {
 		}
 		if self.dry_run {
 			full_message.push_str(" --dry-run");
+		}
+		if self.skip_confirm {
+			full_message.push_str(" --skip-confirm");
 		}
 		full_message
 	}
@@ -245,9 +271,9 @@ impl CallContractCommand {
 		Ok(())
 	}
 
+	#[allow(deprecated)]
 	fn configure_message(&mut self, message: &ContractFunction, cli: &mut impl Cli) -> Result<()> {
-		// Resolve message arguments.
-		self.args = request_contract_function_args(message, cli)?;
+		resolve_function_args(message, cli, &mut self.args)?;
 
 		// Resolve value.
 		if message.payable && self.value == DEFAULT_PAYABLE_VALUE {
@@ -262,27 +288,18 @@ impl CallContractCommand {
 				.interact()?;
 		}
 
-		// Resolve gas limit.
-		if message.mutates && !self.dev_mode && self.gas_limit.is_none() {
-			// Prompt for gas limit and proof_size of the call.
-			let gas_limit_input: String = cli
-				.input("Enter the gas limit:")
-				.required(false)
-				.default_input("")
-				.placeholder("If left blank, an estimation will be used")
-				.interact()?;
-			self.gas_limit = gas_limit_input.parse::<u64>().ok(); // If blank or bad input, estimate it.
+		// Remove with release v0.13.0:
+		if self.dev_mode {
+			cli.warning(
+				"The `--dev` flag is deprecated. Use `--skip-confirm` and/or `--manual-weight` instead.",
+			)?;
+			self.skip_confirm = true;
 		}
-
-		// Resolve proof size.
-		if message.mutates && !self.dev_mode && self.proof_size.is_none() {
-			let proof_size_input: String = cli
-				.input("Enter the proof size limit:")
-				.required(false)
-				.placeholder("If left blank, an estimation will be used")
-				.default_input("")
-				.interact()?;
-			self.proof_size = proof_size_input.parse::<u64>().ok(); // If blank or bad input, estimate it.
+		if self.gas_limit.is_some() && self.proof_size.is_some() {
+			cli.warning(
+				"The `--execution-time`/`--proof-size` flags are deprecated. Use `--manual-weight` instead.",
+			)?;
+			self.manual_weight = Some((self.gas_limit.unwrap(), self.proof_size.unwrap()));
 		}
 
 		// Resolve who is calling the contract. If a `suri` was provided via the command line, skip
@@ -301,7 +318,7 @@ impl CallContractCommand {
 		}
 
 		// Finally prompt for confirmation.
-		let is_call_confirmed = if message.mutates && !self.dev_mode && !self.use_wallet {
+		let is_call_confirmed = if message.mutates && !self.skip_confirm && !self.use_wallet {
 			cli.confirm("Do you want to execute the call? (Selecting 'No' will perform a dry run)")
 				.initial_value(true)
 				.interact()?
@@ -441,6 +458,7 @@ impl CallContractCommand {
 		Ok(())
 	}
 
+	#[allow(deprecated)]
 	async fn execute_message(
 		&mut self,
 		cli: &mut impl Cli,
@@ -460,14 +478,19 @@ impl CallContractCommand {
 			},
 		};
 		normalize_call_args(&mut self.args, &message);
+		let (gas_limit, proof_size) = if let Some((ref_time, proof_size)) = self.manual_weight {
+			(Some(ref_time), Some(proof_size))
+		} else {
+			(None, None)
+		};
 		let call_exec = match set_up_call(CallOpts {
 			path: project_path,
 			contract,
 			message: message.label,
 			args: self.args.clone(),
 			value: self.value.clone(),
-			gas_limit: self.gas_limit,
-			proof_size: self.proof_size,
+			gas_limit,
+			proof_size,
 			url: self.url()?,
 			suri: self.suri.clone().unwrap_or(DEFAULT_URI.to_string()),
 			execute: self.execute,
@@ -616,6 +639,7 @@ impl CallContractCommand {
 	}
 
 	// Get the call data.
+	#[allow(deprecated)]
 	fn get_contract_data(
 		&self,
 		call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
@@ -631,6 +655,7 @@ impl CallContractCommand {
 	}
 
 	/// Resets message specific fields to default values for a new call.
+	#[allow(deprecated)]
 	fn reset_for_new_call(&mut self) {
 		self.message = None;
 		self.value = DEFAULT_PAYABLE_VALUE.to_string();
@@ -647,7 +672,7 @@ mod tests {
 		cli::MockCli,
 		common::{urls, wallet::USE_WALLET_PROMPT},
 	};
-	use pop_contracts::{mock_build_process, new_environment};
+	use pop_contracts::{Param, mock_build_process, new_environment};
 	use std::{env, fs::write};
 	use url::Url;
 
@@ -656,6 +681,7 @@ mod tests {
 	// This test only covers the interactive portion of the call contract command, without actually
 	// calling the contract.
 	#[tokio::test]
+	#[allow(deprecated)]
 	async fn guide_user_to_query_contract_works() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
@@ -699,6 +725,7 @@ mod tests {
 			value: DEFAULT_PAYABLE_VALUE.to_string(),
 			gas_limit: None,
 			proof_size: None,
+			manual_weight: None,
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
@@ -706,6 +733,7 @@ mod tests {
 			execute: false,
 			dev_mode: false,
 			deployed: false,
+			skip_confirm: false,
 		};
 		call_config.configure(&mut cli, false).await?;
 		assert_eq!(
@@ -733,9 +761,97 @@ mod tests {
 		cli.verify()
 	}
 
+	#[test]
+	fn configure_message_prompts_for_remaining_args() -> Result<()> {
+		let message = ContractFunction {
+			label: "run".into(),
+			payable: false,
+			args: vec![
+				Param { label: "first".into(), type_name: "u32".into() },
+				Param { label: "second".into(), type_name: "u32".into() },
+			],
+			docs: String::new(),
+			default: false,
+			mutates: true,
+		};
+
+		let mut command = CallContractCommand {
+			args: vec!["10".to_string()],
+			value: DEFAULT_PAYABLE_VALUE.to_string(),
+			skip_confirm: true,
+			..Default::default()
+		};
+
+		let mut cli =
+			MockCli::new().expect_input("Enter the value for the parameter: second", "20".into());
+
+		command.configure_message(&message, &mut cli)?;
+
+		assert_eq!(command.args, vec!["10".to_string(), "20".to_string()]);
+		cli.verify()
+	}
+
+	// Remove in v0.13.0
+	#[test]
+	#[allow(deprecated)]
+	fn configure_message_warns_for_deprecated_dev_flag() -> Result<()> {
+		let message = ContractFunction {
+			label: "run".into(),
+			payable: false,
+			args: vec![],
+			docs: String::new(),
+			default: false,
+			mutates: true,
+		};
+
+		let mut command = CallContractCommand { dev_mode: true, ..Default::default() };
+		let mut cli = MockCli::new().expect_warning(
+			"The `--dev` flag is deprecated. Use `--skip-confirm` and/or `--manual-weight` instead.",
+		);
+
+		command.configure_message(&message, &mut cli)?;
+
+		assert!(command.skip_confirm);
+		assert!(command.dev_mode);
+		cli.verify()
+	}
+
+	// Remove in v0.13.0
+	#[test]
+	#[allow(deprecated)]
+	fn configure_message_converts_deprecated_weight_flags() -> Result<()> {
+		let message = ContractFunction {
+			label: "run".into(),
+			payable: false,
+			args: vec![],
+			docs: String::new(),
+			default: false,
+			mutates: true,
+		};
+
+		let mut command = CallContractCommand {
+			gas_limit: Some(12345),
+			proof_size: Some(5000),
+			skip_confirm: true,
+			..Default::default()
+		};
+
+		let mut cli = MockCli::new().expect_warning(
+			"The `--execution-time`/`--proof-size` flags are deprecated. Use `--manual-weight` instead.",
+		);
+
+		command.configure_message(&message, &mut cli)?;
+
+		assert_eq!(command.manual_weight, Some((12345, 5000)));
+		assert_eq!(command.gas_limit, Some(12345));
+		assert_eq!(command.proof_size, Some(5000));
+		cli.verify()
+	}
+
 	// This test only covers the interactive portion of the call contract command, without actually
 	// calling the contract.
 	#[tokio::test]
+	#[allow(deprecated)]
 	async fn guide_user_to_call_contract_works() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
@@ -770,11 +886,9 @@ mod tests {
             .expect_input("Enter the value for the parameter: new_value", "true".into()) // Args for specific_flip
             .expect_input("Enter the value for the parameter: number", "2".into()) // Args for specific_flip
             .expect_input("Value to transfer to the call:", "50".into()) // Only if payable
-            .expect_input("Enter the gas limit:", "".into()) // Only if call
-            .expect_input("Enter the proof size limit:", "".into()) // Only if call
             .expect_confirm(USE_WALLET_PROMPT, true)
             .expect_info(format!(
-                "pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\", \"2\" --value 50 --url {} --use-wallet --execute",
+                "pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\" \"2\" --value 50 --url {} --use-wallet --execute",
                 temp_dir.path().join("testing").display(), urls::LOCAL
             ));
 
@@ -787,6 +901,7 @@ mod tests {
 			value: DEFAULT_PAYABLE_VALUE.to_string(),
 			gas_limit: None,
 			proof_size: None,
+			manual_weight: None,
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
@@ -794,6 +909,7 @@ mod tests {
 			execute: false,
 			dev_mode: false,
 			deployed: false,
+			skip_confirm: false,
 		};
 		call_config.configure(&mut cli, false).await?;
 		assert_eq!(
@@ -805,8 +921,7 @@ mod tests {
 		assert_eq!(call_config.args[0], "true".to_string());
 		assert_eq!(call_config.args[1], "2".to_string());
 		assert_eq!(call_config.value, "50".to_string());
-		assert_eq!(call_config.gas_limit, None);
-		assert_eq!(call_config.proof_size, None);
+		assert_eq!(call_config.manual_weight, None);
 		assert_eq!(call_config.url()?.to_string(), urls::LOCAL);
 		assert_eq!(call_config.suri, None);
 		assert!(call_config.use_wallet);
@@ -815,7 +930,7 @@ mod tests {
 		assert_eq!(
 			call_config.display(),
 			format!(
-				"pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\", \"2\" --value 50 --url {} --use-wallet --execute",
+				"pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\" \"2\" --value 50 --url {} --use-wallet --execute",
 				temp_dir.path().join("testing").display(),
 				urls::LOCAL
 			)
@@ -827,7 +942,8 @@ mod tests {
 	// This test only covers the interactive portion of the call contract command, without actually
 	// calling the contract.
 	#[tokio::test]
-	async fn guide_user_to_call_contract_in_dev_mode_works() -> Result<()> {
+	#[allow(deprecated)]
+	async fn guide_user_to_call_contract_with_skip_confirm_works() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
 		current_dir.pop();
@@ -863,7 +979,7 @@ mod tests {
             .expect_input("Value to transfer to the call:", "50".into()) // Only if payable
             .expect_input("Signer calling the contract:", "//Alice".into())
             .expect_info(format!(
-                "pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\", \"2\" --value 50 --url {} --suri //Alice --execute",
+                "pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\" \"2\" --value 50 --manual-weight 100000 1000000 --url {} --suri //Alice --execute --skip-confirm",
                 temp_dir.path().join("testing").display(), urls::LOCAL
             ));
 
@@ -876,13 +992,15 @@ mod tests {
 			value: DEFAULT_PAYABLE_VALUE.to_string(),
 			gas_limit: None,
 			proof_size: None,
+			manual_weight: Some((100000, 1000000)),
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
 			dry_run: false,
 			execute: false,
-			dev_mode: true,
+			dev_mode: false,
 			deployed: false,
+			skip_confirm: true,
 		};
 		call_config.configure(&mut cli, false).await?;
 		assert_eq!(
@@ -894,17 +1012,16 @@ mod tests {
 		assert_eq!(call_config.args[0], "true".to_string());
 		assert_eq!(call_config.args[1], "2".to_string());
 		assert_eq!(call_config.value, "50".to_string());
-		assert_eq!(call_config.gas_limit, None);
-		assert_eq!(call_config.proof_size, None);
+		assert_eq!(call_config.manual_weight, Some((100000, 1000000)));
 		assert_eq!(call_config.url()?.to_string(), urls::LOCAL);
 		assert_eq!(call_config.suri, Some("//Alice".to_string()));
 		assert!(call_config.execute);
 		assert!(!call_config.dry_run);
-		assert!(call_config.dev_mode);
+		assert!(call_config.skip_confirm);
 		assert_eq!(
 			call_config.display(),
 			format!(
-				"pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\", \"2\" --value 50 --url {} --suri //Alice --execute",
+				"pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\" \"2\" --value 50 --manual-weight 100000 1000000 --url {} --suri //Alice --execute --skip-confirm",
 				temp_dir.path().join("testing").display(),
 				urls::LOCAL
 			)
@@ -914,6 +1031,7 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[allow(deprecated)]
 	async fn guide_user_to_call_contract_fails_not_build() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
@@ -933,14 +1051,15 @@ mod tests {
 		)?;
 		// Test the path is a folder with an invalid build.
 		let mut command = CallContractCommand {
-			path: Some(temp_dir.path().join("testing")),
-			path_pos: None,
+			path: None,
+			path_pos: Some(temp_dir.path().join("testing")),
 			contract: None,
 			message: None,
 			args: vec![],
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
+			manual_weight: None,
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
@@ -948,6 +1067,7 @@ mod tests {
 			execute: false,
 			dev_mode: false,
 			deployed: false,
+			skip_confirm: false,
 		};
 		let mut cli = MockCli::new();
 		assert!(
@@ -972,6 +1092,7 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[allow(deprecated)]
 	async fn execute_contract_fails_no_message_or_contract() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
@@ -992,14 +1113,15 @@ mod tests {
 			.expect_outro_cancel("Invalid address.");
 
 		let result = CallContractCommand {
-			path: Some(temp_dir.path().join("testing")),
-			path_pos: None,
+			path: None,
+			path_pos: Some(temp_dir.path().join("testing")),
 			contract: None,
 			message: Some("get".to_string()),
 			args: vec![],
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
+			manual_weight: None,
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
@@ -1007,6 +1129,7 @@ mod tests {
 			execute: false,
 			dev_mode: false,
 			deployed: false,
+			skip_confirm: false,
 		}
 		.execute(&mut cli)
 		.await;
@@ -1016,6 +1139,7 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[allow(deprecated)]
 	async fn confirm_contract_deployment_works() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let call_config = CallContractCommand {
@@ -1027,6 +1151,7 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
+			manual_weight: None,
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
@@ -1034,6 +1159,7 @@ mod tests {
 			execute: false,
 			dev_mode: false,
 			deployed: false,
+			skip_confirm: false,
 		};
 		// Contract is not deployed.
 		let mut cli =
@@ -1049,6 +1175,7 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[allow(deprecated)]
 	async fn is_contract_build_required_works() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let call_config = CallContractCommand {
@@ -1060,6 +1187,7 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
+			manual_weight: None,
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
@@ -1067,6 +1195,7 @@ mod tests {
 			execute: false,
 			dev_mode: false,
 			deployed: false,
+			skip_confirm: false,
 		};
 		// Contract not build. Build is required.
 		assert!(call_config.is_contract_build_required());
@@ -1083,6 +1212,7 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[allow(deprecated)]
 	async fn execute_handles_generic_configure_error() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
@@ -1107,6 +1237,7 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
+			manual_weight: None,
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
@@ -1114,6 +1245,7 @@ mod tests {
 			execute: false,
 			dev_mode: false,
 			deployed: false,
+			skip_confirm: false,
 		};
 
 		// We can't check the exact error message because it includes dynamic temp paths,
@@ -1132,6 +1264,7 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[allow(deprecated)]
 	async fn execute_handles_execute_call_error() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
@@ -1152,6 +1285,7 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
+			manual_weight: None,
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
@@ -1159,6 +1293,7 @@ mod tests {
 			execute: false,
 			dev_mode: false,
 			deployed: false,
+			skip_confirm: false,
 		};
 
 		let mut cli = MockCli::new()
@@ -1173,6 +1308,7 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[allow(deprecated)]
 	async fn execute_sets_prompt_to_repeat_call_when_message_is_none() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
@@ -1201,6 +1337,7 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
+			manual_weight: None,
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: Some("//Alice".to_string()),
 			use_wallet: false,
@@ -1208,24 +1345,25 @@ mod tests {
 			execute: false,
 			dev_mode: false,
 			deployed: true,
+			skip_confirm: false,
 		};
 
 		let mut cli = MockCli::new()
-			.expect_intro("Call a contract")
-			.expect_input("Provide the on-chain contract address:", "0x48550a4bb374727186c55365b7c9c0a1a31bdafe".into())
-			.expect_select(
-				"Select the message to call (type to filter)",
+		.expect_intro("Call a contract")
+		.expect_input("Provide the on-chain contract address:", "0x48550a4bb374727186c55365b7c9c0a1a31bdafe".into())
+		.expect_select(
+			"Select the message to call (type to filter)",
 				Some(false),
 				true,
 				Some(items),
 				1, // "get" message
 				None,
 			)
-			.expect_info(format!(
-				"pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message get --url {} --suri //Alice",
-				temp_dir.path().join("testing").display(),
-				urls::LOCAL
-			));
+		.expect_info(format!(
+			"pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message get --url {} --suri //Alice",
+			temp_dir.path().join("testing").display(),
+			urls::LOCAL
+		));
 
 		// Execute should work correctly
 		let result = command.execute(&mut cli).await;
@@ -1234,6 +1372,7 @@ mod tests {
 	}
 
 	#[tokio::test]
+	#[allow(deprecated)]
 	async fn execute_sets_prompt_to_repeat_call_when_message_is_some() -> Result<()> {
 		let temp_dir = new_environment("testing")?;
 		let mut current_dir = env::current_dir().expect("Failed to get current directory");
@@ -1255,6 +1394,7 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
+			manual_weight: None,
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: Some("//Alice".to_string()),
 			use_wallet: false,
@@ -1262,13 +1402,14 @@ mod tests {
 			execute: false,
 			dev_mode: false,
 			deployed: true,
+			skip_confirm: false,
 		};
 
 		let mut cli = MockCli::new().expect_intro("Call a contract").expect_info(format!(
-			"pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message get --url {} --suri //Alice",
-			temp_dir.path().join("testing").display(),
-			urls::LOCAL
-		));
+		"pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message get --url {} --suri //Alice",
+		temp_dir.path().join("testing").display(),
+		urls::LOCAL
+	));
 
 		// Execute should work correctly
 		let result = command.execute(&mut cli).await;
