@@ -87,7 +87,7 @@ impl NewChainCommand {
 	pub(crate) async fn execute(self) -> Result<ChainTemplate> {
 		// If user doesn't select the name guide them to generate a parachain.
 		let parachain_config = if self.name.is_none() {
-			guide_user_to_generate_parachain(self.verify, &mut cli::Cli).await?
+			guide_user_to_generate_parachain(self, &mut cli::Cli).await?
 		} else {
 			self.clone()
 		};
@@ -132,7 +132,7 @@ impl NewChainCommand {
 			&template,
 			tag_version,
 			config,
-			self.verify,
+			parachain_config.verify,
 			frontend_template,
 			&mut cli::Cli,
 		)
@@ -144,7 +144,7 @@ impl NewChainCommand {
 
 /// Guide the user to generate a parachain from available templates.
 async fn guide_user_to_generate_parachain(
-	verify: bool,
+	mut command: NewChainCommand,
 	cli: &mut impl Cli,
 ) -> Result<NewChainCommand> {
 	cli.intro("Generate a parachain")?;
@@ -169,7 +169,7 @@ async fn guide_user_to_generate_parachain(
 		prompt.interact()?
 	};
 	let template = display_select_options(provider, cli)?;
-	let release_name = choose_release(&template, verify, cli).await?;
+	let release_name = choose_release(&template, command.verify, cli).await?;
 
 	// Prompt for location.
 	let name: String = cli
@@ -188,15 +188,17 @@ async fn guide_user_to_generate_parachain(
 		customizable_options = prompt_customizable_options(cli)?;
 	}
 
-	let with_frontend = if cli
-		.confirm("Would you like to scaffold a frontend template as well?".to_string())
-		.initial_value(true)
-		.interact()?
-	{
-		Some("prompt".to_string())
-	} else {
-		None
-	};
+	if command.with_frontend.is_none() {
+		command.with_frontend = if cli
+			.confirm("Would you like to scaffold a frontend template as well?".to_string())
+			.initial_value(true)
+			.interact()?
+		{
+			Some("prompt".to_string())
+		} else {
+			None
+		};
+	}
 
 	Ok(NewChainCommand {
 		name: Some(name),
@@ -206,8 +208,8 @@ async fn guide_user_to_generate_parachain(
 		symbol: Some(customizable_options.symbol),
 		decimals: Some(customizable_options.decimals),
 		initial_endowment: Some(customizable_options.initial_endowment),
-		verify,
-		with_frontend,
+		verify: command.verify,
+		with_frontend: command.with_frontend,
 	})
 }
 

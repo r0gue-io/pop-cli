@@ -123,15 +123,17 @@ async fn guide_user_to_generate_contract(
 		command.name = Some(name);
 	}
 
-	command.with_frontend = if cli
-		.confirm("Would you like to scaffold a frontend template as well?".to_string())
-		.initial_value(true)
-		.interact()?
-	{
-		Some("prompt".to_string())
-	} else {
-		None
-	};
+	if command.with_frontend.is_none() {
+		command.with_frontend = if cli
+			.confirm("Would you like to scaffold a frontend template as well?".to_string())
+			.initial_value(true)
+			.interact()?
+		{
+			Some("prompt".to_string())
+		} else {
+			None
+		};
+	}
 
 	Ok(command)
 }

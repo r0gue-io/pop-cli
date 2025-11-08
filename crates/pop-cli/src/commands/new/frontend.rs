@@ -54,7 +54,7 @@ pub async fn create_frontend(
 		FrontendTemplate::Inkathon => {
 			let bun = ensure_bun(false, cli).await?;
 			cmd(&bun, &["add", "polkadot-api"]).dir(&project_dir).unchecked().run()?;
-			cmd(&bun, &[command, "frontend", "--yes"])
+			cmd(&bun, &["x", command, "frontend", "--yes"])
 				.dir(&project_dir)
 				.env("SKIP_INSTALL_SIMPLE_GIT_HOOKS", "1")
 				.unchecked()
