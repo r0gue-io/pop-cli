@@ -16,8 +16,12 @@
 
 ## Installation
 
-You can install Pop CLI from [crates.io](https://crates.io/crates/pop-cli):
-
+You can install Pop CLI 
+- from homebrew:
+```shell
+brew install r0gue-io/pop-cli/pop
+```
+- from [crates.io](https://crates.io/crates/pop-cli):
 ```shell
 cargo install --force --locked pop-cli
 ```
