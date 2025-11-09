@@ -9,6 +9,7 @@ use crate::common::{
 };
 use clap::{Args, Subcommand};
 use pop_common::test_project;
+use serde::Serialize;
 #[cfg(feature = "chain")]
 use std::fmt::{Display, Formatter, Result};
 use std::path::PathBuf;
@@ -25,7 +26,7 @@ pub mod fast_forward;
 pub mod on_runtime_upgrade;
 
 /// Arguments for testing.
-#[derive(Args, Default)]
+#[derive(Args, Default, Serialize)]
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct TestArgs {
 	#[cfg(any(feature = "contract", feature = "chain"))]
@@ -46,7 +47,7 @@ pub(crate) struct TestArgs {
 }
 
 /// Test a Rust project.
-#[derive(Subcommand)]
+#[derive(Subcommand, Serialize)]
 pub(crate) enum Command {
 	/// Test migrations.
 	#[cfg(feature = "chain")]
@@ -64,7 +65,7 @@ pub(crate) enum Command {
 }
 
 impl Command {
-	pub(crate) async fn execute(args: TestArgs) -> anyhow::Result<(Project, TestFeature)> {
+	pub(crate) async fn execute(args: &mut TestArgs) -> anyhow::Result<(Project, TestFeature)> {
 		Self::test(
 			args,
 			#[cfg(feature = "contract")]
@@ -74,7 +75,7 @@ impl Command {
 	}
 
 	async fn test(
-		mut args: TestArgs,
+		args: &mut TestArgs,
 		#[cfg(feature = "contract")] cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<(Project, TestFeature)> {
 		// If user gave only one positional and it doesn’t resolve to a directory,
@@ -93,14 +94,13 @@ impl Command {
 
 		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(&project_path)? {
-			let mut cmd = args.contract;
-			cmd.path = project_path.clone();
-			cmd.test = args.test;
-			let feature = contract::TestContractCommand::execute(cmd, cli).await?;
+			args.contract.path = project_path.clone();
+			args.contract.test = args.test.clone();
+			let feature = contract::TestContractCommand::execute(&mut args.contract, cli).await?;
 			return Ok((Contract, feature));
 		}
 
-		test_project(&project_path, args.test)?;
+		test_project(&project_path, args.test.clone())?;
 
 		#[cfg(feature = "chain")]
 		if pop_chains::is_supported(&project_path) {
@@ -138,14 +138,14 @@ mod tests {
 		let name = "hello_world";
 		let path = temp_dir.path();
 		let project_path = path.join(name);
-		let args = create_test_args(project_path)?;
+		let mut args = create_test_args(project_path)?;
 
 		cmd("cargo", ["new", name, "--bin"]).dir(path).run()?;
 		#[allow(unused_mut)]
 		let mut cli = MockCli::new();
 		assert_eq!(
 			Command::test(
-				args,
+				&mut args,
 				#[cfg(feature = "contract")]
 				&mut cli
 			)

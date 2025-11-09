@@ -26,6 +26,7 @@ use pop_chains::{
 	try_runtime::UpgradeCheckSelect,
 	upgrade_checks_details,
 };
+use serde::Serialize;
 use std::{str::FromStr, time::Duration};
 
 // Custom arguments which are not in `try-runtime on-runtime-upgrade`.
@@ -33,7 +34,7 @@ const CUSTOM_ARGS: [&str; 5] = ["--profile", "--no-build", "-n", "--skip-confirm
 const DISABLE_SPEC_VERSION_CHECK: &str = "disable-spec-version-check";
 const DISABLE_SPEC_NAME_CHECK: &str = "disable-spec-name-check";
 
-#[derive(Debug, Clone, clap::Parser)]
+#[derive(Debug, Clone, clap::Parser, Serialize)]
 struct Command {
 	/// The state to use.
 	#[command(subcommand)]
@@ -48,6 +49,7 @@ struct Command {
 	/// - `try-state`: Perform the try-state checks.
 	///
 	/// Performing any checks will potentially invalidate the measured PoV/Weight.
+	#[serde(skip_serializing)]
 	#[clap(long,
 			default_value = "pre-and-post",
 			default_missing_value = "all",
@@ -90,7 +92,7 @@ struct Command {
 	blocktime: u64,
 }
 
-#[derive(Args)]
+#[derive(Args, Serialize)]
 pub(crate) struct TestOnRuntimeUpgradeCommand {
 	/// Command to test migrations.
 	#[clap(flatten)]
@@ -105,7 +107,7 @@ pub(crate) struct TestOnRuntimeUpgradeCommand {
 
 impl TestOnRuntimeUpgradeCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	pub(crate) async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		cli.intro("Testing migrations")?;
 		let user_provided_args = std::env::args().collect::<Vec<String>>();
 		if let Err(e) = update_runtime_source(

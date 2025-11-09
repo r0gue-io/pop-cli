@@ -12,6 +12,7 @@ use anyhow::Context;
 use clap::Args;
 use duct::cmd;
 use os_info::Type;
+use serde::Serialize;
 use std::{fs::Permissions, os::unix::fs::PermissionsExt};
 use strum_macros::Display;
 use tokio::fs;
@@ -53,7 +54,7 @@ pub enum Dependencies {
 }
 
 /// Arguments for installing.
-#[derive(Args)]
+#[derive(Args, Serialize)]
 #[cfg_attr(test, derive(Default))]
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct InstallArgs {
@@ -67,7 +68,7 @@ pub(crate) struct Command;
 
 impl Command {
 	/// Executes the command.
-	pub(crate) async fn execute(self, args: InstallArgs) -> anyhow::Result<Os> {
+	pub(crate) async fn execute(self, args: &InstallArgs) -> anyhow::Result<Os> {
 		let mut cli = Cli;
 		cli.intro("Install dependencies for development")?;
 		let os = if cfg!(target_os = "macos") {

@@ -11,6 +11,7 @@ use crate::{
 use clap::Args;
 use pop_chains::{BenchmarkingCliCommand, bench::MachineCmd, generate_binary_benchmarks};
 use pop_common::Profile;
+use serde::Serialize;
 use std::{
 	env::current_dir,
 	path::{Path, PathBuf},
@@ -18,9 +19,10 @@ use std::{
 
 const EXCLUDED_ARGS: [&str; 1] = ["--profile"];
 
-#[derive(Args)]
+#[derive(Args, Serialize)]
 pub(crate) struct BenchmarkMachine {
 	/// Command to benchmark the hardware.
+	#[serde(skip_serializing)]
 	#[clap(flatten)]
 	pub command: MachineCmd,
 	/// Build profile.

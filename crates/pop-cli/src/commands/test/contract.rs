@@ -11,11 +11,12 @@ use clap::Args;
 use cliclack::spinner;
 use pop_common::test_project;
 use pop_contracts::test_e2e_smart_contract;
+use serde::Serialize;
 use std::path::PathBuf;
 
 const HELP_HEADER: &str = "Smart contract testing options";
 
-#[derive(Args, Default)]
+#[derive(Args, Default, Serialize, Clone)]
 #[clap(next_help_heading = HELP_HEADER)]
 pub(crate) struct TestContractCommand {
 	/// Path to the smart contract.
@@ -38,7 +39,7 @@ pub(crate) struct TestContractCommand {
 impl TestContractCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(
-		mut self,
+		&mut self,
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<TestFeature> {
 		if self.e2e {
@@ -58,12 +59,12 @@ impl TestContractCommand {
 				};
 
 			spinner.clear();
-			test_e2e_smart_contract(&self.path, self.node.as_deref(), self.test)?;
+			test_e2e_smart_contract(&self.path, self.node.as_deref(), self.test.clone())?;
 			cli.outro("End-to-end testing complete")?;
 			Ok(E2e)
 		} else {
 			cli.intro("Starting unit tests")?;
-			test_project(&self.path, self.test)?;
+			test_project(&self.path, self.test.clone())?;
 			cli.outro("Unit testing complete")?;
 			Ok(Unit)
 		}

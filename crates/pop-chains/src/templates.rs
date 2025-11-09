@@ -7,12 +7,23 @@
 //! configuration options and utility functions for template management.
 
 use pop_common::templates::{Template, Type};
+use serde::Serialize;
 use strum::{EnumProperty as _, VariantArray};
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString};
 
 /// Supported template providers.
 #[derive(
-	AsRefStr, Clone, Default, Debug, Display, EnumMessage, EnumString, Eq, PartialEq, VariantArray,
+	AsRefStr,
+	Clone,
+	Default,
+	Debug,
+	Display,
+	EnumMessage,
+	EnumString,
+	Eq,
+	PartialEq,
+	VariantArray,
+	Serialize,
 )]
 pub enum Provider {
 	/// Pop: An all-in-one tool for Polkadot development.
@@ -73,6 +84,7 @@ pub struct Config {
 	EnumMessage,
 	EnumProperty,
 	EnumString,
+	Serialize,
 	Eq,
 	Hash,
 	PartialEq,

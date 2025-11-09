@@ -255,7 +255,7 @@ name = "test-workspace"
 			BuildChain {
 				path: project_path.to_path_buf(),
 				package: package.clone(),
-				profile: profile.clone(),
+				profile: *profile,
 				benchmark: features.contains(&Benchmark.as_ref()),
 				try_runtime: features.contains(&TryRuntime.as_ref()),
 				features: features.iter().map(|f| f.to_string()).collect(),

@@ -44,7 +44,7 @@ fn convert_address(address: &str, ss58_prefix: Option<u16>) -> Result<String> {
 }
 
 /// Arguments for utility commands.
-#[derive(Args)]
+#[derive(Args, Serialize)]
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct ConvertArgs {
 	/// Entry point subcommand for several utility functionalities.
@@ -53,7 +53,7 @@ pub(crate) struct ConvertArgs {
 }
 
 /// Entrypoint for several utility commands.
-#[derive(Subcommand)]
+#[derive(Subcommand, Serialize)]
 pub(crate) enum Command {
 	/// Convert an Ethereum address into a Substrate address and vice versa.
 	#[clap(alias = "a")]

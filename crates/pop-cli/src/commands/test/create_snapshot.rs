@@ -12,12 +12,13 @@ use clap::Args;
 use cliclack::spinner;
 use console::style;
 use pop_chains::{TryRuntimeCliCommand, parse::url, run_try_runtime, state::LiveState};
+use serde::Serialize;
 
 // Custom arguments which are not in `try-runtime create-snapshot`.
 const CUSTOM_ARGS: [&str; 2] = ["--skip-confirm", "-y"];
 const DEFAULT_SNAPSHOT_PATH: &str = "example.snap";
 
-#[derive(Args, Default)]
+#[derive(Args, Default, Serialize)]
 pub(crate) struct TestCreateSnapshotCommand {
 	/// The source of the snapshot. Must be a remote node.
 	#[clap(flatten)]
@@ -36,7 +37,7 @@ pub(crate) struct TestCreateSnapshotCommand {
 
 impl TestCreateSnapshotCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	pub(crate) async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		cli.intro("Creating a snapshot file")?;
 		cli.warning(
 			"NOTE: `create-snapshot` only works with the remote node. No runtime required.",
@@ -78,7 +79,7 @@ impl TestCreateSnapshotCommand {
 		display_message(
 			&format!(
 				"Snapshot is created successfully!{}",
-				if let Some(p) = self.snapshot_path {
+				if let Some(p) = &self.snapshot_path {
 					style(format!("\n{} Generated snapshot file: {}", console::Emoji("●", ">"), p))
 						.dim()
 						.to_string()

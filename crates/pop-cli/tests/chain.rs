@@ -289,10 +289,10 @@ rpc_port = {random_port}
 fn test_benchmarking(working_dir: &Path) -> Result<()> {
 	// pop bench block --from 0 --to 1 --profile=release
 	let mut command =
-		pop(&working_dir, ["bench", "block", "--from", "0", "--to", "1", "--profile=release"]);
+		pop(working_dir, ["bench", "block", "--from", "0", "--to", "1", "--profile=release"]);
 	assert!(command.spawn()?.wait()?.success());
 	// pop bench machine --allow-fail --profile=release
-	command = pop(&working_dir, ["bench", "machine", "--allow-fail", "--profile=release"]);
+	command = pop(working_dir, ["bench", "machine", "--allow-fail", "--profile=release"]);
 	assert!(command.spawn()?.wait()?.success());
 	// pop bench overhead --runtime={runtime_path} --genesis-builder=runtime
 	// --genesis-builder-preset=development --weight-path={output_path} --profile=release --warmup=1
@@ -302,7 +302,7 @@ fn test_benchmarking(working_dir: &Path) -> Result<()> {
 	let output_path = temp_dir.path();
 	assert!(!output_path.join("block_weights.rs").exists());
 	command = pop(
-		&working_dir,
+		working_dir,
 		[
 			"bench",
 			"overhead",
@@ -324,7 +324,7 @@ fn test_benchmarking(working_dir: &Path) -> Result<()> {
 	assert!(!output_path.join("weights.rs").exists());
 	assert!(!working_dir.join("pop-bench.toml").exists());
 	command = pop(
-		&working_dir,
+		working_dir,
 		[
 			"bench",
 			"pallet",
@@ -342,8 +342,8 @@ fn test_benchmarking(working_dir: &Path) -> Result<()> {
 	assert!(command.spawn()?.wait()?.success());
 	// Parse weights file.
 	assert!(output_path.join("weights.rs").exists());
-	let content = fs::read_to_string(&output_path.join("weights.rs"))?;
-	let expected = vec![
+	let content = fs::read_to_string(output_path.join("weights.rs"))?;
+	let expected = [
 		"// Executed Command:".to_string(),
 		"//  pop".to_string(),
 		"//  bench".to_string(),
@@ -370,7 +370,7 @@ fn test_benchmarking(working_dir: &Path) -> Result<()> {
 	// Use the generated pop-bench.toml file:
 	// pop bench pallet --bench-file={working_dir.join("pop-bench.toml")} -y
 	command = pop(
-		&working_dir,
+		working_dir,
 		[
 			"bench",
 			"pallet",

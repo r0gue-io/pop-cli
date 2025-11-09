@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use serde::Serialize;
 use std::path::PathBuf;
 use strum::{Display, EnumDiscriminants};
 use strum_macros::{AsRefStr, EnumMessage, EnumString, VariantArray};
 
 /// The runtime *state*.
-#[derive(Clone, Debug, clap::Subcommand, EnumDiscriminants)]
+#[derive(Clone, Debug, clap::Subcommand, EnumDiscriminants, Serialize)]
 #[strum_discriminants(derive(AsRefStr, EnumString, EnumMessage, VariantArray, Display))]
 #[strum_discriminants(name(StateCommand))]
 pub enum State {
@@ -31,7 +32,7 @@ pub enum State {
 }
 
 /// A `Live` variant for [`State`]
-#[derive(Debug, Default, Clone, clap::Args)]
+#[derive(Debug, Default, Clone, clap::Args, Serialize)]
 pub struct LiveState {
 	/// The url to connect to.
 	#[arg(

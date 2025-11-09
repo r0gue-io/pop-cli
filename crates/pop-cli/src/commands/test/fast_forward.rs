@@ -23,12 +23,13 @@ use pop_chains::{
 	state::{LiveState, State, StateCommand},
 	try_runtime::TryStateSelect,
 };
+use serde::Serialize;
 
 // Custom arguments which are not in `try-runtime fast-forward`.
 const CUSTOM_ARGS: [&str; 5] = ["--profile", "--no-build", "-n", "--skip-confirm", "-y"];
 const DEFAULT_N_BLOCKS: u64 = 10;
 
-#[derive(Args)]
+#[derive(Args, Serialize)]
 pub(crate) struct TestFastForwardCommand {
 	/// The state to use.
 	#[command(subcommand)]
@@ -51,6 +52,7 @@ pub(crate) struct TestFastForwardCommand {
 	///   `Staking, System`).
 	/// - `rr-[x]` where `[x]` is a number. Then, the given number of pallets are checked in a
 	///   round-robin fashion.
+	#[serde(skip_serializing)]
 	#[arg(long)]
 	try_state: Option<TryStateSelect>,
 
@@ -83,13 +85,13 @@ impl Default for TestFastForwardCommand {
 }
 
 impl TestFastForwardCommand {
-	pub(crate) async fn execute(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	pub(crate) async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		let user_provided_args: Vec<String> = std::env::args().skip(3).collect();
 		self.fast_forward(cli, &user_provided_args).await
 	}
 
 	async fn fast_forward(
-		mut self,
+		&mut self,
 		cli: &mut impl cli::traits::Cli,
 		user_provided_args: &[String],
 	) -> anyhow::Result<()> {

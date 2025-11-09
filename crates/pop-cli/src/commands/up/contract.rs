@@ -27,6 +27,7 @@ use pop_contracts::{
 	instantiate_smart_contract, is_chain_alive, parse_hex_bytes, run_eth_rpc_node, run_ink_node,
 	set_up_deployment, set_up_upload, upload_contract_signed, upload_smart_contract,
 };
+use serde::Serialize;
 use sp_core::bytes::to_hex;
 use std::path::PathBuf;
 use tempfile::NamedTempFile;
@@ -39,7 +40,7 @@ const DEFAULT_INK_NODE_URL: &str = "ws://127.0.0.1:9944";
 const FAILED: &str = "🚫 Deployment failed.";
 const HELP_HEADER: &str = "Smart contract deployment options";
 
-#[derive(Args, Clone)]
+#[derive(Args, Clone, Serialize)]
 #[clap(next_help_heading = HELP_HEADER)]
 pub struct UpContractCommand {
 	/// Path to the contract build directory.
@@ -104,7 +105,7 @@ pub struct UpContractCommand {
 
 impl UpContractCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(mut self) -> anyhow::Result<()> {
+	pub(crate) async fn execute(&mut self) -> anyhow::Result<()> {
 		Cli.intro("Deploy a smart contract")?;
 		// Check if build exists in the specified "Contract build directory"
 		let contract_already_built = has_contract_been_built(&self.path);
@@ -396,7 +397,7 @@ impl UpContractCommand {
 	}
 
 	async fn keep_interacting_with_node(
-		self,
+		&self,
 		cli: &mut Cli,
 		address: String,
 	) -> anyhow::Result<()> {
@@ -408,7 +409,7 @@ impl UpContractCommand {
 			let mut cmd = CallContractCommand::default();
 			cmd.path_pos = Some(self.path.clone());
 			cmd.contract = Some(address);
-			cmd.url = Some(self.url);
+			cmd.url = Some(self.url.clone());
 			cmd.deployed = true;
 			cmd.execute(cli).await?;
 		}
@@ -416,7 +417,7 @@ impl UpContractCommand {
 	}
 
 	/// Uploads the contract without instantiating it.
-	async fn upload_contract(self) -> anyhow::Result<()> {
+	async fn upload_contract(&self) -> anyhow::Result<()> {
 		let upload_exec = set_up_upload(self.clone().into()).await?;
 		if self.dry_run {
 			match dry_run_upload(&upload_exec).await {
