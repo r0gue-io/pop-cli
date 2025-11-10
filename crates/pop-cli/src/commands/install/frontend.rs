@@ -55,7 +55,7 @@ pub async fn ensure_node_v20(skip_confirm: bool, cli: &mut impl cli::traits::Cli
 	let nvm_script = install_nvm(cli).await?;
 
 	// Install node via nvm (need to source nvm first)
-	let install_cmd = format!(r#"source "{}" && nvm install node"#, nvm_script);
+	let install_cmd = format!(r#"source "{}" && nvm install node --lts"#, nvm_script);
 	cmd("bash", vec!["-c", &install_cmd]).run()?;
 	Ok(())
 }
@@ -71,12 +71,14 @@ pub async fn ensure_bun(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> 
 	}
 	if !skip_confirm &&
 		!cli.confirm(
-			"📦 Do you want to proceed with the installation of the following package: bun ?",
+			"📦 Do you want to proceed with the installation of the following package: bun?",
 		)
 		.initial_value(true)
 		.interact()?
 	{
-		return Err(anyhow!("🚫 You have cancelled the installation process."));
+		return Err(anyhow!(
+			"🚫 You have cancelled the installation process. Bun is required. Install from https://bun.com/ and re-run."
+		));
 	}
 	// Install Bun using the official installer script
 	run_external_script("https://bun.sh/install", &[]).await?;
@@ -109,11 +111,11 @@ pub fn ensure_npx() -> Result<()> {
 }
 
 fn has(bin: &str) -> bool {
-	cmd("which", vec![bin]).read().is_ok()
+	which(bin).is_some()
 }
 
 fn which(bin: &str) -> Option<String> {
-	cmd("which", vec![bin]).read().ok().map(|s| s.trim().to_string())
+	cmd("which", vec![bin]).read().ok()
 }
 
 /// Install nvm (Node Version Manager) if not already present.
@@ -145,18 +147,8 @@ mod tests {
 	#[test]
 	fn which_works() {
 		let result = which("sh");
-		assert!(result.is_some() || result.is_none()); // Just verify no panic
+		assert!(result.is_some());
 		let result = which("this_binary_should_not_exist_12345");
 		assert!(result.is_none());
-	}
-
-	#[tokio::test]
-	async fn ensure_bun_returns_path_when_bun_exists() {
-		// Only test if bun exists: check we get a path
-		if which("bun").is_some() {
-			let mut cli = MockCli::new();
-			let result = ensure_bun(true, &mut cli).await;
-			assert!(result.is_ok());
-		}
 	}
 }
