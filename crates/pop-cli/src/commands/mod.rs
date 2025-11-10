@@ -175,7 +175,7 @@ impl Command {
 						#[cfg(feature = "chain")]
 						test::Command::FastForward(cmd) => cmd.execute(&mut Cli).await,
 						#[cfg(not(feature = "chain"))]
-						_ => Ok(Null),
+						_ => Ok(()),
 					},
 				}
 
