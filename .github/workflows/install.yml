@@ -4,11 +4,15 @@ on:
   push:
     branches: ["main"]
     paths:
+      - 'rust-toolchain.toml'
+      - 'Cargo.lock'
       - '.github/workflows/install.yml'
       - 'crates/pop-cli/src/commands/install/**'
   pull_request:
     branches: ["main"]
     paths:
+      - 'rust-toolchain.toml'
+      - 'Cargo.lock'
       - '.github/workflows/install.yml'
       - 'crates/pop-cli/src/commands/install/**'
 
@@ -81,13 +85,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install prerequisites
-        run: |
-          yum -y update
-          yum -y module enable perl || true
-          yum -y install \
-            clang curl git make cmake gcc \
-            protobuf-compiler openssl-devel \
-            pkgconf-pkg-config perl perl-IPC-Cmd perl-Time-Piece
+        run: yum update -y && yum install -y perl perl-IPC-Cmd perl-Time-HiRes perl-Time-Piece clang curl git make cmake protobuf-compiler gcc pkg-config openssl-devel
       - name: Install Rust
         run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       - name: Install Pop

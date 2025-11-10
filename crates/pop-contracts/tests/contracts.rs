@@ -32,12 +32,12 @@ const CONTRACT_FILE: &str = "./tests/files/testing.contract";
 async fn run_contracts_node_works() -> Result<()> {
 	let node = TestNode::spawn().await?;
 	let localhost_url = node.ws_url();
-	let local_url = url::Url::parse(&localhost_url)?;
+	let local_url = url::Url::parse(localhost_url)?;
 
 	// Check if the node is alive
 	assert!(is_chain_alive(local_url).await?);
 
-	map_account_works(&localhost_url).await?;
+	map_account_works(localhost_url).await?;
 
 	// Tests the deployment
 	let temp_dir = new_environment("testing")?;
@@ -47,28 +47,28 @@ async fn run_contracts_node_works() -> Result<()> {
 		current_dir.join(CONTRACT_FILE),
 		current_dir.join("./tests/files/testing.json"),
 	)?;
-	set_up_deployment_works(&temp_dir, &localhost_url).await?;
-	set_up_upload_works(&temp_dir, &localhost_url).await?;
-	get_payload_works(&temp_dir, &localhost_url).await?;
-	dry_run_gas_estimate_instantiate_works(&temp_dir, &localhost_url).await?;
-	dry_run_gas_estimate_instantiate_throw_custom_error(&temp_dir, &localhost_url).await?;
-	dry_run_upload_throw_custom_error(&temp_dir, &localhost_url).await?;
-	let contract_address = instantiate_and_upload(&temp_dir, &localhost_url).await?;
+	set_up_deployment_works(&temp_dir, localhost_url).await?;
+	set_up_upload_works(&temp_dir, localhost_url).await?;
+	get_payload_works(&temp_dir, localhost_url).await?;
+	dry_run_gas_estimate_instantiate_works(&temp_dir, localhost_url).await?;
+	dry_run_gas_estimate_instantiate_throw_custom_error(&temp_dir, localhost_url).await?;
+	dry_run_upload_throw_custom_error(&temp_dir, localhost_url).await?;
+	let contract_address = instantiate_and_upload(&temp_dir, localhost_url).await?;
 
 	// Tests the call of contract
-	test_set_up_call(&temp_dir, &localhost_url, &contract_address).await?;
-	test_set_up_call_from_artifact_file(&localhost_url, &contract_address).await?;
-	test_set_up_call_error_contract_not_build(&localhost_url, &contract_address).await?;
-	test_set_up_call_fails_no_smart_contract_directory(&localhost_url, &contract_address).await?;
-	test_dry_run_call_error_contract_not_deployed(&temp_dir, &localhost_url, &contract_address)
+	test_set_up_call(&temp_dir, localhost_url, &contract_address).await?;
+	test_set_up_call_from_artifact_file(localhost_url, &contract_address).await?;
+	test_set_up_call_error_contract_not_build(localhost_url, &contract_address).await?;
+	test_set_up_call_fails_no_smart_contract_directory(localhost_url, &contract_address).await?;
+	test_dry_run_call_error_contract_not_deployed(&temp_dir, localhost_url, &contract_address)
 		.await?;
 	test_dry_run_estimate_call_error_contract_not_deployed(
 		&temp_dir,
-		&localhost_url,
+		localhost_url,
 		&contract_address,
 	)
 	.await?;
-	call_works(&temp_dir, &localhost_url, &contract_address).await?;
+	call_works(&temp_dir, localhost_url, &contract_address).await?;
 
 	Ok(())
 }
@@ -140,7 +140,7 @@ async fn get_payload_works(temp_dir: &TempDir, localhost_url: &str) -> Result<()
 		let upload_exec = set_up_upload(up_opts).await?;
 		get_upload_payload(upload_exec, contract_code, localhost_url).await?
 	};
-	let payload_hash = BlakeTwo256::hash(&call_data);
+	let payload_hash = BlakeTwo256.hash(&call_data);
 	// We know that for the above opts the payload hash should be:
 	// 0x5e8744d9d1863f89e9e77e360e89a208584e398a35f7a4be6a42a8fbdcfbef62
 	let hex_bytes = from_hex("5e8744d9d1863f89e9e77e360e89a208584e398a35f7a4be6a42a8fbdcfbef62")

@@ -22,6 +22,8 @@ url.workspace = true
 
 heck.workspace = true
 ink_env.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
 sp-core.workspace = true
 sp-weights.workspace = true
 strum.workspace = true

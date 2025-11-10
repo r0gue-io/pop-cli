@@ -3,12 +3,13 @@
 use crate::{cli::traits::*, style::style};
 use anyhow::Result;
 use clap::{Args, Subcommand};
+use serde::Serialize;
 use std::{
 	fs::{read_dir, remove_file},
 	path::PathBuf,
 };
 
-#[derive(Args)]
+#[derive(Args, Serialize)]
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct CleanArgs {
 	#[command(subcommand)]
@@ -16,14 +17,14 @@ pub(crate) struct CleanArgs {
 }
 
 /// Remove generated/cached artifacts.
-#[derive(Subcommand)]
+#[derive(Subcommand, Serialize)]
 pub(crate) enum Command {
 	/// Remove cached artifacts.
 	#[clap(alias = "c")]
 	Cache(CleanCommandArgs),
 }
 
-#[derive(Args)]
+#[derive(Args, Serialize)]
 pub struct CleanCommandArgs {
 	/// Pass flag to remove all artifacts
 	#[arg(short, long)]

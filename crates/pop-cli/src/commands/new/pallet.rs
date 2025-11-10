@@ -12,18 +12,19 @@ use pop_chains::{
 	TemplatePalletConfig, TemplatePalletConfigCommonTypes, TemplatePalletOptions,
 	TemplatePalletStorageTypes, create_pallet_template,
 };
+use serde::Serialize;
 use std::{path::PathBuf, process::Command};
 use strum::{EnumMessage, IntoEnumIterator};
 
 fn after_help_simple() -> &'static str {
 	r#"Examples:
-        pop new pallet 
+        pop new pallet
             -> Will create a simple pallet, you'll have to choose your pallet name.
         pop new pallet my-pallet
             -> Will automatically create a pallet called my-pallet in the current directory.
-        pop new pallet pallets/my-pallet 
+        pop new pallet pallets/my-pallet
             -> Will automatically create a pallet called my pallet in the directory ./pallets
-        pop new pallet advanced 
+        pop new pallet advanced
             -> Will unlock the advanced mode. pop new pallet advanced --help for further info.
     "#
 }
@@ -38,7 +39,7 @@ fn after_help_advanced() -> &'static str {
     "#
 }
 
-#[derive(Args)]
+#[derive(Args, Serialize)]
 #[cfg_attr(test, derive(Default))]
 #[command(after_help= after_help_simple())]
 pub struct NewPalletCommand {
@@ -52,13 +53,13 @@ pub struct NewPalletCommand {
 	pub(crate) mode: Option<Mode>,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Serialize)]
 pub enum Mode {
 	/// Advanced mode enables more detailed customization of pallet development.
 	Advanced(AdvancedMode),
 }
 
-#[derive(Args)]
+#[derive(Args, Serialize)]
 #[command(after_help = after_help_advanced())]
 pub struct AdvancedMode {
 	#[arg(short, long, value_enum, num_args(0..), help = "Add common types to your config trait from the CLI.")]
@@ -75,12 +76,12 @@ pub struct AdvancedMode {
 
 impl NewPalletCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(self) -> anyhow::Result<()> {
+	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
 		self.generate_pallet(&mut cli::Cli).await
 	}
 
 	/// Generates a pallet
-	async fn generate_pallet(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	async fn generate_pallet(&self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		cli.intro("Generate a pallet")?;
 
 		let mut pallet_default_config = false;
@@ -142,7 +143,7 @@ impl NewPalletCommand {
 			}
 		};
 
-		let pallet_path = if let Some(path) = self.name {
+		let pallet_path = if let Some(path) = &self.name {
 			PathBuf::from(path)
 		} else {
 			let path: String = cli

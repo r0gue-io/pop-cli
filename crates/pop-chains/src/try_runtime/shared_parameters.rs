@@ -20,6 +20,7 @@ use sc_cli::{
 	DEFAULT_WASM_EXECUTION_METHOD, DEFAULT_WASMTIME_INSTANTIATION_STRATEGY, WasmExecutionMethod,
 	WasmtimeInstantiationStrategy,
 };
+use serde::Serialize;
 use sp_runtime::StateVersion;
 use std::{path::PathBuf, str::FromStr};
 
@@ -35,7 +36,7 @@ const SHARED_PARAMS: [&str; 7] = [
 ];
 
 /// Shared parameters of the `try-runtime` commands
-#[derive(Debug, Clone, clap::Parser)]
+#[derive(Debug, Clone, clap::Parser, Serialize)]
 #[group(skip)]
 pub struct SharedParams {
 	/// The runtime to use.
@@ -46,6 +47,7 @@ pub struct SharedParams {
 	/// whatever comes from the remote node, or the snapshot file. This will most likely not work
 	/// against a remote node, as no (sane) blockchain should compile its onchain wasm with
 	/// `try-runtime` feature.
+	#[serde(skip_serializing)]
 	#[arg(long, default_value = "existing")]
 	pub runtime: Runtime,
 
@@ -54,6 +56,7 @@ pub struct SharedParams {
 	pub disable_spec_name_check: bool,
 
 	/// Type of wasm execution used.
+	#[serde(skip_serializing)]
 	#[arg(
 		long = "wasm-execution",
 		value_name = "METHOD",
@@ -66,6 +69,7 @@ pub struct SharedParams {
 	/// The WASM instantiation method to use.
 	///
 	/// Only has an effect when `wasm-execution` is set to `compiled`.
+	#[serde(skip_serializing)]
 	#[arg(
 		long = "wasm-instantiation-strategy",
 		value_name = "STRATEGY",
@@ -83,6 +87,7 @@ pub struct SharedParams {
 	/// Overwrite the `state_version`.
 	///
 	/// Otherwise `remote-externalities` will automatically set the correct state version.
+	#[serde(skip_serializing)]
 	#[arg(long, value_parser = state_version)]
 	pub overwrite_state_version: Option<StateVersion>,
 }
@@ -108,7 +113,7 @@ impl SharedParams {
 }
 
 /// Source of the runtime.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum Runtime {
 	/// Use the given path to the wasm binary file.
 	///

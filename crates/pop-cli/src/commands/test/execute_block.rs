@@ -18,11 +18,12 @@ use pop_chains::{
 	state::{LiveState, State, StateCommand},
 	try_runtime::TryStateSelect,
 };
+use serde::Serialize;
 
 // Custom arguments which are not in `try-runtime execute-block`.
 const CUSTOM_ARGS: [&str; 5] = ["--profile", "--no-build", "-n", "--skip-confirm", "-y"];
 
-#[derive(Args, Default)]
+#[derive(Args, Default, Serialize)]
 pub(crate) struct TestExecuteBlockCommand {
 	/// The state to use.
 	#[command(flatten)]
@@ -37,6 +38,7 @@ pub(crate) struct TestExecuteBlockCommand {
 	///   `Staking, System`).
 	/// - `rr-[x]` where `[x]` is a number. Then, the given number of pallets are checked in a
 	///   round-robin fashion.
+	#[serde(skip_serializing)]
 	#[arg(long)]
 	try_state: Option<TryStateSelect>,
 
@@ -50,12 +52,12 @@ pub(crate) struct TestExecuteBlockCommand {
 }
 
 impl TestExecuteBlockCommand {
-	pub(crate) async fn execute(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	pub(crate) async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		self.execute_block(cli, std::env::args().skip(3).collect()).await
 	}
 
 	async fn execute_block(
-		mut self,
+		&mut self,
 		cli: &mut impl cli::traits::Cli,
 		user_provided_args: Vec<String>,
 	) -> anyhow::Result<()> {

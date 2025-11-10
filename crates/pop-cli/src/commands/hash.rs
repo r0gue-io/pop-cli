@@ -21,7 +21,7 @@ const LENGTH: &str = "The length of the resulting hash, in bits.";
 const MAX_CODE_SIZE: u64 = 3 * 1024 * 1024;
 
 /// Arguments for hashing.
-#[derive(Args)]
+#[derive(Args, Serialize)]
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct HashArgs {
 	/// Hash data using a supported hash algorithm.
@@ -30,7 +30,7 @@ pub(crate) struct HashArgs {
 }
 
 /// Hash data using a supported hash algorithm.
-#[derive(Subcommand)]
+#[derive(Subcommand, Serialize)]
 pub(crate) enum Command {
 	/// Hashes data using the BLAKE2b cryptographic hash algorithm.
 	#[clap(alias = "b2")]
@@ -135,7 +135,7 @@ impl Display for Command {
 	}
 }
 
-#[derive(Clone, Debug, Display, Eq, PartialEq)]
+#[derive(Clone, Debug, Display, Eq, PartialEq, Serialize)]
 #[cfg_attr(test, derive(Default))]
 pub(crate) enum Data {
 	File(Vec<u8>),

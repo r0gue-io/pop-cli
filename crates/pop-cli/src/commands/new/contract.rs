@@ -19,6 +19,7 @@ use pop_common::{
 	FrontendTemplate, FrontendType, enum_variants, get_project_name_from_path, templates::Template,
 };
 use pop_contracts::{Contract, create_smart_contract, is_valid_contract_name};
+use serde::Serialize;
 use std::{
 	fs,
 	path::{Path, PathBuf},
@@ -26,7 +27,7 @@ use std::{
 };
 use strum::VariantArray;
 
-#[derive(Args, Clone)]
+#[derive(Args, Clone, Serialize)]
 #[cfg_attr(test, derive(Default))]
 pub struct NewContractCommand {
 	/// The name of the contract.
@@ -50,17 +51,15 @@ pub struct NewContractCommand {
 
 impl NewContractCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(self) -> Result<Contract> {
+	pub(crate) async fn execute(&mut self) -> Result<Contract> {
 		let mut cli = Cli;
 
-		let mut command = self;
-
 		// Prompt for missing fields interactively
-		if command.name.is_none() || command.template.is_none() {
-			command = guide_user_to_generate_contract(&mut cli, command).await?;
+		if self.name.is_none() || self.template.is_none() {
+			guide_user_to_generate_contract(&mut cli, self).await?;
 		}
 
-		let path_project = command.name.as_ref().expect("name can not be none; qed");
+		let path_project = self.name.as_ref().expect("name can not be none; qed");
 		let path = Path::new(path_project);
 		let name = get_project_name_from_path(path, "my_contract");
 
@@ -70,9 +69,9 @@ impl NewContractCommand {
 			return Ok(Contract::Standard);
 		}
 
-		let template = command.template.unwrap_or_default();
+		let template = self.template.clone().unwrap_or_default();
 		let mut frontend_template: Option<FrontendTemplate> = None;
-		if let Some(frontend_arg) = &command.with_frontend {
+		if let Some(frontend_arg) = &self.with_frontend {
 			frontend_template =
 				if frontend_arg == "prompt" {
 					// User provided --with-frontend without value: prompt for template
@@ -105,8 +104,8 @@ impl NewContractCommand {
 /// Guide the user to provide any missing fields for contract generation.
 async fn guide_user_to_generate_contract(
 	cli: &mut impl cli::traits::Cli,
-	mut command: NewContractCommand,
-) -> Result<NewContractCommand> {
+	command: &mut NewContractCommand,
+) -> Result<()> {
 	cli.intro("Generate a contract")?;
 
 	if command.template.is_none() {
@@ -135,7 +134,7 @@ async fn guide_user_to_generate_contract(
 		};
 	}
 
-	Ok(command)
+	Ok(())
 }
 
 fn display_select_options(cli: &mut impl cli::traits::Cli) -> Result<Contract> {
@@ -225,7 +224,7 @@ mod tests {
 		let dir_path = format!("{}/test_contract", dir.path().display());
 		let cli = Cli::parse_from(["pop", "new", "contract", &dir_path, "--template", "standard"]);
 
-		let New(NewArgs { command: Some(Contract(command)) }) = cli.command else {
+		let New(NewArgs { command: Some(Contract(mut command)) }) = cli.command else {
 			panic!("unable to parse command")
 		};
 		// Execute
@@ -255,7 +254,8 @@ mod tests {
 			.expect_confirm("Would you like to scaffold a frontend template as well?", true)
 			.expect_input("Where should your project be created?", "./erc20".into());
 
-		let user_input = guide_user_to_generate_contract(&mut cli, Default::default()).await?;
+		let mut user_input: NewContractCommand = Default::default();
+		guide_user_to_generate_contract(&mut cli, &mut user_input).await?;
 		assert_eq!(user_input.name, Some("./erc20".to_string()));
 		assert_eq!(user_input.template, Some(ContractTemplate::ERC20));
 		assert_eq!(user_input.with_frontend, Some("prompt".to_string()));
@@ -278,7 +278,7 @@ mod tests {
 		let mut cli = MockCli::new().expect_intro("Generating \"my_contract\" using Erc20!")
 		.expect_success("Generation complete")
 		.expect_warning(
-			format!("NOTE: the resulting contract is not guaranteed to be audited or reviewed for security vulnerabilities.{}", 
+			format!("NOTE: the resulting contract is not guaranteed to be audited or reviewed for security vulnerabilities.{}",
 			style(format!("\nPlease consult the source repository at {} to assess production suitability and licensing restrictions.", ContractTemplate::ERC20.repository_url().unwrap())).dim()))
 		.expect_success(format!("Next Steps:\n{}", next_steps.join("\n")))
 		.expect_outro(format!(
@@ -326,7 +326,7 @@ edition = "2024"
 			"--template",
 			"standard", // Just the name, not a path like "./flipper"
 		]);
-		let New(NewArgs { command: Some(Contract(command)) }) = cli.command else {
+		let New(NewArgs { command: Some(Contract(mut command)) }) = cli.command else {
 			panic!("unable to parse command")
 		};
 		let result = command.execute().await;

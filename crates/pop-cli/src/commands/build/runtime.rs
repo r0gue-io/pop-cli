@@ -183,7 +183,7 @@ mod tests {
 
 		BuildRuntime {
 			path: project_path.to_path_buf().clone(),
-			profile: profile.clone(),
+			profile: *profile,
 			benchmark: features.contains(&Benchmark),
 			try_runtime: features.contains(&TryRuntime),
 			deterministic: false,

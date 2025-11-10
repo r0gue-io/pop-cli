@@ -4,10 +4,11 @@ use crate::cli::{self, traits::*};
 use anyhow::Result;
 use clap::Args;
 use duct::cmd;
+use serde::Serialize;
 use std::path::{Path, PathBuf};
 
 /// Launch a frontend dev server.
-#[derive(Args, Clone, Default)]
+#[derive(Args, Clone, Default, Serialize)]
 pub(crate) struct FrontendCommand {
 	/// Path to the frontend directory
 	#[arg(long, short)]
@@ -16,10 +17,10 @@ pub(crate) struct FrontendCommand {
 
 impl FrontendCommand {
 	/// Executes the command.
-	pub(crate) fn execute(self, cli: &mut impl cli::traits::Cli) -> Result<()> {
+	pub(crate) fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> Result<()> {
 		cli.intro("Launch frontend dev server")?;
 
-		let frontend_dir = if let Some(path) = self.path {
+		let frontend_dir = if let Some(path) = self.path.clone() {
 			if path.is_dir() {
 				Some(path)
 			} else {

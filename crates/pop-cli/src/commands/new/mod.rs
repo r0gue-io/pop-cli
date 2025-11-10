@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::{self, traits::*};
+use crate::cli::traits::*;
 use anyhow::Result as AnyhowResult;
 use clap::{Args, Subcommand};
+use serde::Serialize;
 use std::fmt::{Display, Formatter, Result};
 
 #[cfg(feature = "chain")]
@@ -29,7 +30,7 @@ macro_rules! enum_variants {
 }
 
 /// Arguments for generating a new project.
-#[derive(Args)]
+#[derive(Args, Serialize)]
 #[command(args_conflicts_with_subcommands = true)]
 pub struct NewArgs {
 	#[command(subcommand)]
@@ -37,7 +38,7 @@ pub struct NewArgs {
 }
 
 /// Generate a new parachain, pallet or smart contract.
-#[derive(Subcommand)]
+#[derive(Subcommand, Serialize)]
 pub enum Command {
 	/// Generate a new parachain
 	#[cfg(feature = "chain")]
@@ -67,7 +68,7 @@ impl Display for Command {
 }
 
 /// Guide the user to select what type of project to create
-pub fn guide_user_to_select_command(cli: &mut impl cli::traits::Cli) -> AnyhowResult<Command> {
+pub fn guide_user_to_select_command(cli: &mut impl Cli) -> AnyhowResult<Command> {
 	cli.intro("Welcome to Pop CLI!")?;
 
 	let mut prompt = cli.select("What would you like to create?".to_string());

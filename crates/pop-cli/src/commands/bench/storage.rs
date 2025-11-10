@@ -12,6 +12,7 @@ use crate::{
 use clap::Args;
 use pop_chains::{BenchmarkingCliCommand, bench::StorageCmd, generate_binary_benchmarks};
 use pop_common::Profile;
+use serde::Serialize;
 use std::{
 	env::current_dir,
 	path::{Path, PathBuf},
@@ -20,9 +21,10 @@ use tempfile::tempdir;
 
 const EXCLUDED_ARGS: [&str; 1] = ["--profile"];
 
-#[derive(Args)]
+#[derive(Args, Serialize)]
 pub(crate) struct BenchmarkStorage {
 	/// Command to benchmark the storage speed of a chain snapshot.
+	#[serde(skip_serializing)]
 	#[clap(flatten)]
 	pub command: StorageCmd,
 	/// Build profile.
