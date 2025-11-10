@@ -23,12 +23,13 @@ use pop_contracts::{
 	call_smart_contract_from_signed_payload, dry_run_call, dry_run_gas_estimate_call,
 	fetch_contract_storage, get_call_payload, get_contract_storage_info, get_messages, set_up_call,
 };
+use serde::Serialize;
 use std::path::PathBuf;
 
 const DEFAULT_URI: &str = "//Alice";
 const DEFAULT_PAYABLE_VALUE: &str = "0";
 
-#[derive(Args, Clone)]
+#[derive(Args, Clone, Serialize)]
 pub struct CallContractCommand {
 	/// Path to the contract build directory or a contract artifact.
 	#[arg(short, long)]
@@ -82,6 +83,7 @@ pub struct CallContractCommand {
 	/// e.g.
 	/// - for a dev account "//Alice"
 	/// - with a password "//Alice///SECRET_PASSWORD"
+	#[serde(skip_serializing)]
 	#[arg(short, long)]
 	suri: Option<String>,
 	/// Use a browser extension wallet to sign the extrinsic.

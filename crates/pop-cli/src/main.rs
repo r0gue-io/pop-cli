@@ -27,15 +27,15 @@ async fn main() -> Result<()> {
 	#[cfg(feature = "telemetry")]
 	let maybe_tel = init().unwrap_or(None);
 
-	let cli = Cli::parse();
+	let mut cli = Cli::parse();
 	#[cfg(feature = "telemetry")]
 	let event = cli.command.to_string();
 	let result = cli.command.execute().await;
 	#[cfg(feature = "telemetry")]
 	if let Some(tel) = maybe_tel {
-		let data = result.as_ref().map_or_else(|e| e.to_string(), |t| t.to_string());
+		let data = serde_json::json!(cli.command);
 		// Best effort to send on first try, no action if failure.
-		let _ = record_cli_command(tel, &event, &data).await;
+		let _ = record_cli_command(tel, &event, data).await;
 	}
 	result.map(|_| ())
 }

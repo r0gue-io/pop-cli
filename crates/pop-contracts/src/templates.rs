@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use serde::Serialize;
 // pub to ease downstream imports
 pub use pop_common::templates::Template;
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
@@ -18,6 +19,7 @@ use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, Var
 	Hash,
 	PartialEq,
 	VariantArray,
+	Serialize,
 )]
 pub enum Contract {
 	/// A minimalist contract template.

@@ -17,6 +17,7 @@ use pop_common::{
 	Git, GitHub, Release, enum_variants, enum_variants_without_deprecated,
 	templates::{Template, Type},
 };
+use serde::Serialize;
 use std::{path::Path, str::FromStr, thread::sleep, time::Duration};
 use strum::VariantArray;
 
@@ -24,7 +25,7 @@ const DEFAULT_INITIAL_ENDOWMENT: &str = "1u64 << 60";
 const DEFAULT_TOKEN_DECIMALS: &str = "12";
 const DEFAULT_TOKEN_SYMBOL: &str = "UNIT";
 
-#[derive(Args, Clone)]
+#[derive(Args, Clone, Serialize)]
 #[cfg_attr(test, derive(Default))]
 pub struct NewChainCommand {
 	#[arg(help = "Name of the project. If empty assistance in the process will be provided.")]
@@ -70,7 +71,7 @@ pub struct NewChainCommand {
 
 impl NewChainCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(self) -> Result<ChainTemplate> {
+	pub(crate) async fn execute(&self) -> Result<ChainTemplate> {
 		// If user doesn't select the name guide them to generate a parachain.
 		let parachain_config = if self.name.is_none() {
 			guide_user_to_generate_parachain(self.verify, &mut cli::Cli).await?

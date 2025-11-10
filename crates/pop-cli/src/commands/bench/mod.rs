@@ -6,6 +6,7 @@ use clap::{Args, Subcommand};
 use machine::BenchmarkMachine;
 use overhead::BenchmarkOverhead;
 use pallet::BenchmarkPallet;
+use serde::Serialize;
 use std::fmt::{Display, Formatter, Result};
 use storage::BenchmarkStorage;
 use tracing_subscriber::EnvFilter;
@@ -17,14 +18,14 @@ mod pallet;
 mod storage;
 
 /// Arguments for benchmarking a project.
-#[derive(Args)]
+#[derive(Args, Serialize)]
 pub struct BenchmarkArgs {
 	#[command(subcommand)]
 	pub command: Command,
 }
 
 /// Benchmark a pallet or a parachain.
-#[derive(Subcommand)]
+#[derive(Subcommand, Serialize)]
 pub enum Command {
 	/// Benchmark the execution time of historic blocks.
 	#[clap(alias = "b")]
@@ -45,7 +46,7 @@ pub enum Command {
 
 impl Command {
 	/// Executes the command.
-	pub(crate) async fn execute(args: BenchmarkArgs) -> anyhow::Result<()> {
+	pub(crate) async fn execute(args: &mut BenchmarkArgs) -> anyhow::Result<()> {
 		// Disable these log targets because they are spammy.
 		let unwanted_targets = [
 			"cranelift_codegen",
@@ -64,12 +65,12 @@ impl Command {
 			.with_writer(std::io::stderr)
 			.init();
 		let mut cli = cli::Cli;
-		match args.command {
-			Command::Block(mut cmd) => cmd.execute(&mut cli),
-			Command::Machine(mut cmd) => cmd.execute(&mut cli),
-			Command::Overhead(mut cmd) => cmd.execute(&mut cli).await,
-			Command::Pallet(mut cmd) => cmd.execute(&mut cli).await,
-			Command::Storage(mut cmd) => cmd.execute(&mut cli),
+		match &mut args.command {
+			Command::Block(cmd) => cmd.execute(&mut cli),
+			Command::Machine(cmd) => cmd.execute(&mut cli),
+			Command::Overhead(cmd) => cmd.execute(&mut cli).await,
+			Command::Pallet(cmd) => cmd.execute(&mut cli).await,
+			Command::Storage(cmd) => cmd.execute(&mut cli),
 		}
 	}
 }

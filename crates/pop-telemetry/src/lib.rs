@@ -142,7 +142,7 @@ impl Telemetry {
 /// There is explicitly no reqwest retries on failure to ensure overhead
 /// stays to a minimum.
 pub async fn record_cli_used(tel: Telemetry) -> Result<()> {
-	let payload = generate_payload("init", "");
+	let payload = generate_payload("init", json!({}));
 	tel.send_json(payload).await
 }
 
@@ -151,7 +151,7 @@ pub async fn record_cli_used(tel: Telemetry) -> Result<()> {
 /// parameters:
 /// `event`: the name of the event to record (new, up, build, etc)
 /// `data`: additional data to record.
-pub async fn record_cli_command(tel: Telemetry, event: &str, data: &str) -> Result<()> {
+pub async fn record_cli_command(tel: Telemetry, event: &str, data: Value) -> Result<()> {
 	let payload = generate_payload(event, data);
 	tel.send_json(payload).await
 }
@@ -209,7 +209,7 @@ where
 	Ok(deserialized)
 }
 
-fn generate_payload(event: &str, data: &str) -> Value {
+fn generate_payload(event: &str, data: Value) -> Value {
 	json!({
 		"payload": {
 			"hostname": "cli",
@@ -220,9 +220,7 @@ fn generate_payload(event: &str, data: &str) -> Value {
 			"url": "/",
 			"website": WEBSITE_ID,
 			"name": event,
-			"data": {
-				"args": data
-			}
+			"data": data,
 		},
 		"type": "event"
 	})
@@ -337,9 +335,7 @@ mod tests {
 		// Mock config file path function to return a temporary path
 		let temp_dir = TempDir::new().unwrap();
 		let config_path = temp_dir.path().join("config.json");
-
-		let expected_payload = generate_payload("init", "").to_string();
-
+		let expected_payload = generate_payload("init", json!({})).to_string();
 		let mock = default_mock(&mut mock_server, expected_payload).await;
 
 		let mut tel = Telemetry::init(endpoint.clone(), &config_path);
@@ -363,14 +359,21 @@ mod tests {
 
 		let config_path = temp_dir.path().join("config.json");
 
-		let expected_payload = generate_payload("new", "chain").to_string();
+		let expected_payload = generate_payload("new", json!({"command": "chain"})).to_string();
 
 		let mock = default_mock(&mut mock_server, expected_payload).await;
 
 		let mut tel = Telemetry::init(endpoint.clone(), &config_path);
 		tel.opt_out = false; // override as endpoint is mocked
 
-		record_cli_command(tel, "new", "chain").await?;
+		record_cli_command(
+			tel,
+			"new",
+			json!({
+				"command": "chain"
+			}),
+		)
+		.await?;
 		mock.assert_async().await;
 		Ok(())
 	}
@@ -390,7 +393,10 @@ mod tests {
 
 		assert!(matches!(tel.send_json(Value::Null).await, Err(TelemetryError::OptedOut)));
 		assert!(matches!(record_cli_used(tel.clone()).await, Err(TelemetryError::OptedOut)));
-		assert!(matches!(record_cli_command(tel, "foo", "").await, Err(TelemetryError::OptedOut)));
+		assert!(matches!(
+			record_cli_command(tel, "foo", json!({})).await,
+			Err(TelemetryError::OptedOut)
+		));
 		mock.assert_async().await;
 	}
 }

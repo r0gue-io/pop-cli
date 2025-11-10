@@ -8,6 +8,7 @@ use crate::{
 	},
 };
 use clap::{Args, Subcommand};
+use serde::Serialize;
 use std::path::PathBuf;
 #[cfg(feature = "chain")]
 use {
@@ -32,7 +33,7 @@ const POLKADOT: u8 = Relay::Polkadot as u8;
 const WESTEND: u8 = Relay::Westend as u8;
 
 /// Arguments for launching or deploying a project.
-#[derive(Args, Clone)]
+#[derive(Args, Clone, Serialize)]
 #[cfg_attr(test, derive(Default))]
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct UpArgs {
@@ -57,7 +58,7 @@ pub(crate) struct UpArgs {
 }
 
 /// Launch a local network or deploy a smart contract.
-#[derive(Subcommand, Clone)]
+#[derive(Subcommand, Clone, Serialize)]
 pub(crate) enum Command {
 	/// Launch a local network by specifying a network configuration file.
 	#[cfg(feature = "chain")]
@@ -83,13 +84,13 @@ pub(crate) enum Command {
 
 impl Command {
 	/// Executes the command.
-	pub(crate) async fn execute(args: UpArgs) -> anyhow::Result<Project> {
+	pub(crate) async fn execute(args: &mut UpArgs) -> anyhow::Result<Project> {
 		Self::execute_project_deployment(args, &mut Cli).await
 	}
 
 	/// Identifies the project type and executes the appropriate deployment process.
 	async fn execute_project_deployment(
-		args: UpArgs,
+		args: &mut UpArgs,
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<Project> {
 		let project_path = ensure_project_path(args.path.clone(), args.path_pos.clone());
@@ -104,16 +105,14 @@ impl Command {
 		// If only contract feature enabled, deploy a contract
 		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(&project_path)? {
-			let mut cmd = args.contract;
-			cmd.path = project_path.clone();
-			cmd.execute().await?;
+			args.contract.path = project_path.clone();
+			args.contract.execute().await?;
 			return Ok(Contract);
 		}
 		#[cfg(feature = "chain")]
 		if pop_chains::is_supported(&project_path) {
-			let mut cmd = args.rollup;
-			cmd.path = project_path.clone();
-			cmd.execute(cli).await?;
+			args.rollup.path = project_path.clone();
+			args.rollup.execute(cli).await?;
 			return Ok(Chain);
 		}
 		cli.warning(
@@ -215,7 +214,7 @@ mod tests {
 			DeploymentProvider::VARIANTS.len(), // Register
 			None,
 		);
-		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, Chain);
+		assert_eq!(Command::execute_project_deployment(&mut args, &mut cli).await?, Chain);
 		cli.verify()
 	}
 
@@ -225,13 +224,13 @@ mod tests {
 		let name = "hello_world";
 		let path = temp_dir.path();
 		let project_path = path.join(name);
-		let args = create_up_args(project_path)?;
+		let mut args = create_up_args(project_path)?;
 
 		cmd("cargo", ["new", name, "--bin"]).dir(path).run()?;
 		let mut cli = MockCli::new().expect_warning(
 			"No contract or rollup detected. Ensure you are in a valid project directory.",
 		);
-		assert_eq!(Command::execute_project_deployment(args, &mut cli).await?, Unknown);
+		assert_eq!(Command::execute_project_deployment(&mut args, &mut cli).await?, Unknown);
 		cli.verify()
 	}
 

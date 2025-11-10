@@ -1,9 +1,10 @@
 use clap::ValueEnum;
+use serde::Serialize;
 use strum_macros::{EnumIter, EnumMessage};
 
 /// This enum is used to register from the CLI which types that are kind of usual in config traits
 /// are included in the pallet
-#[derive(Debug, Copy, Clone, PartialEq, EnumIter, EnumMessage, ValueEnum)]
+#[derive(Debug, Copy, Clone, PartialEq, EnumIter, EnumMessage, ValueEnum, Serialize)]
 pub enum TemplatePalletConfigCommonTypes {
 	/// This type will enable your pallet to emit events.
 	#[strum(
@@ -28,7 +29,7 @@ pub enum TemplatePalletConfigCommonTypes {
 }
 
 /// This enum is used to determine which storage shape has a storage item in the pallet
-#[derive(Debug, Copy, Clone, PartialEq, EnumIter, EnumMessage, ValueEnum)]
+#[derive(Debug, Copy, Clone, PartialEq, EnumIter, EnumMessage, ValueEnum, Serialize)]
 pub enum TemplatePalletStorageTypes {
 	/// A storage value is a single value of a given type stored on-chain.
 	#[strum(

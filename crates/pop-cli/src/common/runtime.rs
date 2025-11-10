@@ -133,8 +133,7 @@ pub(crate) fn build_runtime(
 		let package = manifest.package();
 		let name = package.clone().name;
 		spinner.start("Building deterministic runtime...");
-		build_deterministic_runtime(cli, &spinner, &name, mode.clone(), runtime_path.to_path_buf())?
-			.0
+		build_deterministic_runtime(cli, &spinner, &name, *mode, runtime_path.to_path_buf())?.0
 	} else {
 		cli.info(format!("Building your runtime in {mode} mode..."))?;
 		let features: Vec<String> = features.iter().map(|f| f.as_ref().to_string()).collect();

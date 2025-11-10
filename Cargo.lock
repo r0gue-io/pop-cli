@@ -8916,6 +8916,8 @@ dependencies = [
  "pop-common",
  "reqwest",
  "scale-info",
+ "serde",
+ "serde_json",
  "sp-core",
  "sp-weights",
  "strum 0.26.3",
