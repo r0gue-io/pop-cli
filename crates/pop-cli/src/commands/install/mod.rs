@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{
-	cli::{
-		self, Cli,
-		traits::{Cli as _, *},
-	},
-	common::Os::{self, *},
+use crate::cli::{
+	self, Cli,
+	traits::{Cli as _, *},
 };
 use Dependencies::*;
 use anyhow::Context;
@@ -68,13 +65,12 @@ pub(crate) struct Command;
 
 impl Command {
 	/// Executes the command.
-	pub(crate) async fn execute(self, args: &InstallArgs) -> anyhow::Result<Os> {
+	pub(crate) async fn execute(self, args: &InstallArgs) -> anyhow::Result<()> {
 		let mut cli = Cli;
 		cli.intro("Install dependencies for development")?;
-		let os = if cfg!(target_os = "macos") {
+		if cfg!(target_os = "macos") {
 			cli.info("ℹ️ Mac OS (Darwin) detected.")?;
 			install_mac(args.skip_confirm, &mut cli).await?;
-			Mac
 		} else if cfg!(target_os = "linux") {
 			match os_info::get().os_type() {
 				Type::Arch => {
@@ -93,15 +89,14 @@ impl Command {
 					cli.info("ℹ️ Ubuntu detected.")?;
 					install_ubuntu(args.skip_confirm, &mut cli).await?;
 				},
-				_ => return not_supported_message(&mut cli).map(|_| Unsupported),
+				_ => not_supported_message(&mut cli)?,
 			}
-			Linux
 		} else {
-			return not_supported_message(&mut cli).map(|_| Unsupported);
+			return not_supported_message(&mut cli);
 		};
 		install_rustup(&mut cli).await?;
 		cli.outro("✅ Installation complete.")?;
-		Ok(os)
+		Ok(())
 	}
 }
 

@@ -2,11 +2,7 @@
 
 #[cfg(feature = "contract")]
 use crate::cli;
-use crate::common::{
-	Project::{self, *},
-	TestFeature::{self, Unit},
-	builds::ensure_project_path,
-};
+use crate::common::builds::ensure_project_path;
 use clap::{Args, Subcommand};
 use pop_common::test_project;
 use serde::Serialize;
@@ -65,7 +61,7 @@ pub(crate) enum Command {
 }
 
 impl Command {
-	pub(crate) async fn execute(args: &mut TestArgs) -> anyhow::Result<(Project, TestFeature)> {
+	pub(crate) async fn execute(args: &mut TestArgs) -> anyhow::Result<()> {
 		Self::test(
 			args,
 			#[cfg(feature = "contract")]
@@ -77,7 +73,7 @@ impl Command {
 	async fn test(
 		args: &mut TestArgs,
 		#[cfg(feature = "contract")] cli: &mut impl cli::traits::Cli,
-	) -> anyhow::Result<(Project, TestFeature)> {
+	) -> anyhow::Result<()> {
 		// If user gave only one positional and it doesn’t resolve to a directory,
 		// treat it as the test filter and default the project path to CWD.
 		if args.test.is_none() &&
@@ -96,17 +92,16 @@ impl Command {
 		if pop_contracts::is_supported(&project_path)? {
 			args.contract.path = project_path.clone();
 			args.contract.test = args.test.clone();
-			let feature = contract::TestContractCommand::execute(&mut args.contract, cli).await?;
-			return Ok((Contract, feature));
+			return contract::TestContractCommand::execute(&mut args.contract, cli).await;
 		}
 
 		test_project(&project_path, args.test.clone())?;
 
 		#[cfg(feature = "chain")]
 		if pop_chains::is_supported(&project_path) {
-			return Ok((Chain, Unit));
+			return Ok(());
 		}
-		Ok((Unknown, Unit))
+		Ok(())
 	}
 }
 
@@ -143,15 +138,12 @@ mod tests {
 		cmd("cargo", ["new", name, "--bin"]).dir(path).run()?;
 		#[allow(unused_mut)]
 		let mut cli = MockCli::new();
-		assert_eq!(
-			Command::test(
-				&mut args,
-				#[cfg(feature = "contract")]
-				&mut cli
-			)
-			.await?,
-			(Unknown, Unit)
-		);
+		Command::test(
+			&mut args,
+			#[cfg(feature = "contract")]
+			&mut cli,
+		)
+		.await?;
 		cli.verify()
 	}
 
