@@ -76,9 +76,8 @@ pub struct NewChainCommand {
 		long = "with-frontend",
 		value_name = "TEMPLATE_NAME",
 		num_args = 0..=1,
-		default_missing_value = "prompt",
 		require_equals = true,
-		value_parser = ["prompt", "create-dot-app"]
+		value_parser = ["create-dot-app"]
 	)]
 	pub(crate) with_frontend: Option<String>,
 }
@@ -118,7 +117,7 @@ impl NewChainCommand {
 		let mut frontend_template: Option<FrontendTemplate> = None;
 		if let Some(frontend_arg) = &parachain_config.with_frontend {
 			frontend_template =
-				if frontend_arg == "prompt" {
+				if frontend_arg.is_empty() {
 					// User provided --with-frontend without value: prompt for template
 					Some(prompt_frontend_template(&FrontendType::Chain, &mut cli::Cli)?)
 				} else {
@@ -197,7 +196,7 @@ async fn guide_user_to_generate_parachain(
 			.initial_value(true)
 			.interact()?
 		{
-			Some("prompt".to_string())
+			Some(String::new()) // Empty string means prompt for template
 		} else {
 			None
 		}

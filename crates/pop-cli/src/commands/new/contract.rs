@@ -42,9 +42,8 @@ pub struct NewContractCommand {
 		long = "with-frontend",
 		value_name = "TEMPLATE_NAME",
 		num_args = 0..=1,
-		default_missing_value = "prompt",
 		require_equals = true,
-		value_parser = ["prompt", "typink", "inkathon"]
+		value_parser = ["typink", "inkathon"]
 	)]
 	pub(crate) with_frontend: Option<String>,
 }
@@ -73,7 +72,7 @@ impl NewContractCommand {
 		let mut frontend_template: Option<FrontendTemplate> = None;
 		if let Some(frontend_arg) = &self.with_frontend {
 			frontend_template =
-				if frontend_arg == "prompt" {
+				if frontend_arg.is_empty() {
 					// User provided --with-frontend without value: prompt for template
 					Some(prompt_frontend_template(&FrontendType::Contract, &mut cli)?)
 				} else {
@@ -128,7 +127,7 @@ async fn guide_user_to_generate_contract(
 			.initial_value(true)
 			.interact()?
 		{
-			Some("prompt".to_string())
+			Some(String::new()) // Empty string means prompt for template
 		} else {
 			None
 		};
@@ -258,7 +257,7 @@ mod tests {
 		guide_user_to_generate_contract(&mut cli, &mut user_input).await?;
 		assert_eq!(user_input.name, Some("./erc20".to_string()));
 		assert_eq!(user_input.template, Some(ContractTemplate::ERC20));
-		assert_eq!(user_input.with_frontend, Some("prompt".to_string()));
+		assert_eq!(user_input.with_frontend, Some(String::new())); // Empty string means prompt
 
 		cli.verify()
 	}

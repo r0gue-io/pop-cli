@@ -135,7 +135,11 @@ async fn install_mac(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> any
 	Ok(())
 }
 
-async fn install_arch(skip_confirm: bool, install_frontend: bool, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+async fn install_arch(
+	skip_confirm: bool,
+	install_frontend: bool,
+	cli: &mut impl cli::traits::Cli,
+) -> anyhow::Result<()> {
 	cli.info(format!(
 		"More information about the packages to be installed here: {DOCS_URL}#linux"
 	))?;
@@ -169,7 +173,11 @@ async fn install_arch(skip_confirm: bool, install_frontend: bool, cli: &mut impl
 	Ok(())
 }
 
-async fn install_ubuntu(skip_confirm: bool, install_frontend: bool, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+async fn install_ubuntu(
+	skip_confirm: bool,
+	install_frontend: bool,
+	cli: &mut impl cli::traits::Cli,
+) -> anyhow::Result<()> {
 	cli.info(format!(
 		"More information about the packages to be installed here: {DOCS_URL}#linux"
 	))?;
@@ -182,7 +190,8 @@ async fn install_ubuntu(skip_confirm: bool, install_frontend: bool, cli: &mut im
 		ProtobufCompiler.to_string(),
 	];
 
-	let mut package_names = format!("{}, {}, {}, {}, {}", Git, Clang, Curl, Libssl, ProtobufCompiler);
+	let mut package_names =
+		format!("{}, {}, {}, {}, {}", Git, Clang, Curl, Libssl, ProtobufCompiler);
 
 	if install_frontend {
 		packages.push(Unzip.to_string());
@@ -198,14 +207,16 @@ async fn install_ubuntu(skip_confirm: bool, install_frontend: bool, cli: &mut im
 	let mut args = vec!["install", "--assume-yes"];
 	args.extend(packages.iter().map(|s| s.as_str()));
 
-	cmd("apt", args)
-		.env("DEBIAN_FRONTEND", "noninteractive")
-		.run()?;
+	cmd("apt", args).env("DEBIAN_FRONTEND", "noninteractive").run()?;
 
 	Ok(())
 }
 
-async fn install_debian(skip_confirm: bool, install_frontend: bool, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+async fn install_debian(
+	skip_confirm: bool,
+	install_frontend: bool,
+	cli: &mut impl cli::traits::Cli,
+) -> anyhow::Result<()> {
 	cli.info(format!(
 		"More information about the packages to be installed here: {DOCS_URL}#linux"
 	))?;
@@ -241,9 +252,7 @@ async fn install_debian(skip_confirm: bool, install_frontend: bool, cli: &mut im
 	let mut args = vec!["install", "-y"];
 	args.extend(packages.iter().map(|s| s.as_str()));
 
-	cmd("apt", args)
-		.env("DEBIAN_FRONTEND", "noninteractive")
-		.run()?;
+	cmd("apt", args).env("DEBIAN_FRONTEND", "noninteractive").run()?;
 
 	Ok(())
 }
