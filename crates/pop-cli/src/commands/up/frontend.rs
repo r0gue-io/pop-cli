@@ -85,14 +85,14 @@ pub fn resolve_frontend_dir(
 /// # Arguments
 /// * `target` - Path to the frontend project.
 pub fn run_frontend(target: &Path) -> Result<()> {
-	if is_cmd_available("bun") {
-		cmd("bun", &["install"]).dir(target).run()?;
-		cmd("bun", &["run", "dev"]).dir(target).run()?;
-		return Ok(());
-	}
 	if is_cmd_available("npm") {
 		cmd("npm", &["install"]).dir(target).run()?;
 		cmd("npm", &["run", "dev"]).dir(target).run()?;
+		return Ok(());
+	}
+	if is_cmd_available("bun") {
+		cmd("bun", &["install"]).dir(target).run()?;
+		cmd("bun", &["run", "dev"]).dir(target).run()?;
 		return Ok(());
 	}
 	Err(anyhow::anyhow!("No supported package manager found. Please install bun or npm."))
