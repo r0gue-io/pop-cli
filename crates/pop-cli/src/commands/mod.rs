@@ -126,7 +126,7 @@ impl Command {
 				}
 
 				#[cfg(not(feature = "chain"))]
-				build::Command::execute(args).map(Build)
+				build::Command::execute(args)
 			},
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::Call(args) => {
@@ -155,7 +155,7 @@ impl Command {
 						#[cfg(feature = "chain")]
 						up::Command::Westend(cmd) => cmd.execute(Westend, &mut Cli).await,
 						#[cfg(not(feature = "chain"))]
-						_ => Ok(Up(Network)),
+						_ => Ok(()),
 					},
 				}
 			},
@@ -180,9 +180,7 @@ impl Command {
 				}
 
 				#[cfg(not(any(feature = "contract", feature = "chain")))]
-				test::Command::execute(args)
-					.await
-					.map(|(project, feature)| Test { project, feature })
+				test::Command::execute(args).await
 			},
 			Self::Hash(args) => {
 				env_logger::init();
