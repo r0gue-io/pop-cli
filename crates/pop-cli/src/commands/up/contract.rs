@@ -9,7 +9,7 @@ use crate::{
 	common::{
 		contracts::{
 			check_ink_node_and_prompt, has_contract_been_built, map_account, normalize_call_args,
-			resolve_function_args, terminate_nodes,
+			resolve_function_args, resolve_signer, terminate_nodes,
 		},
 		rpc::prompt_to_select_chain_rpc,
 		urls,
@@ -76,8 +76,8 @@ pub struct UpContractCommand {
 	/// e.g.
 	/// - for a dev account "//Alice"
 	/// - with a password "//Alice///SECRET_PASSWORD"
-	#[clap(short, long, default_value = "//Alice")]
-	pub(crate) suri: String,
+	#[clap(short, long)]
+	pub(crate) suri: Option<String>,
 	/// Use a browser extension wallet to sign the extrinsic.
 	#[clap(
 		name = "use-wallet",
@@ -233,6 +233,10 @@ impl UpContractCommand {
 		} else {
 			None
 		};
+
+		// Resolve who is deploying the contract. If a `suri` was provided via the command line,
+		// skip the prompt.
+		resolve_signer(&mut self.use_wallet, &mut self.suri, &mut Cli)?;
 
 		// Run steps for signing with wallet integration. Returns early.
 		if self.use_wallet {
@@ -486,7 +490,7 @@ impl From<UpContractCommand> for UpOpts {
 			proof_size: cmd.proof_size,
 			salt: cmd.salt,
 			url: cmd.url,
-			suri: cmd.suri,
+			suri: cmd.suri.unwrap_or_else(|| "//Alice".to_string()),
 		}
 	}
 }
@@ -523,7 +527,7 @@ impl Default for UpContractCommand {
 			proof_size: None,
 			salt: None,
 			url: Url::parse(urls::LOCAL).expect("default url is valid"),
-			suri: "//Alice".to_string(),
+			suri: Some("//Alice".to_string()),
 			use_wallet: false,
 			dry_run: false,
 			upload_only: false,

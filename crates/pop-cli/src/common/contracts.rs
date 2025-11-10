@@ -186,6 +186,39 @@ pub(crate) async fn map_account(
 	Ok(())
 }
 
+/// Resolves the signer for contract operations (deployment or calls).
+/// If neither `--suri` nor `--use-wallet` was provided, prompts the user to choose.
+///
+/// # Arguments
+/// * `use_wallet` - Mutable reference to the use_wallet flag
+/// * `suri` - Mutable reference to the optional suri string
+/// * `cli` - The CLI instance for user interaction
+///
+/// # Returns
+/// * `Ok(())` if signer was resolved successfully
+/// * `Err` if there was an error during prompting
+pub fn resolve_signer(
+	use_wallet: &mut bool,
+	suri: &mut Option<String>,
+	cli: &mut impl Cli,
+) -> anyhow::Result<()> {
+	use crate::common::wallet::prompt_to_use_wallet;
+
+	if !*use_wallet && suri.is_none() {
+		if prompt_to_use_wallet(cli)? {
+			*use_wallet = true;
+		} else {
+			*suri = Some(
+				cli.input("Signer:")
+					.placeholder("//Alice")
+					.default_input("//Alice")
+					.interact()?,
+			);
+		}
+	}
+	Ok(())
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -345,6 +378,64 @@ mod tests {
 		);
 		assert!(!is_chain_alive(Url::parse(&chain_url)?).await?);
 		cli.verify()
+	}
+
+	#[test]
+	fn resolve_signing_method_with_explicit_suri_works() -> anyhow::Result<()> {
+		use super::*;
+		let mut cli = MockCli::new();
+		let mut use_wallet = false;
+		let mut suri = Some("//Bob".to_string());
+		resolve_signer(&mut use_wallet, &mut suri, &mut cli)?;
+		assert!(!use_wallet);
+		assert_eq!(suri, Some("//Bob".to_string()));
+		Ok(())
+	}
+
+	#[test]
+	fn resolve_signing_method_with_use_wallet_flag_works() -> anyhow::Result<()> {
+		use super::*;
+		let mut cli = MockCli::new();
+		let mut use_wallet = true;
+		let mut suri = None;
+		resolve_signer(&mut use_wallet, &mut suri, &mut cli)?;
+		assert!(use_wallet);
+		assert_eq!(suri, None);
+		Ok(())
+	}
+
+	#[test]
+	fn resolve_signing_method_prompts_and_chooses_wallet_works() -> anyhow::Result<()> {
+		use super::*;
+		let mut cli = MockCli::new().expect_confirm(
+			"Do you want to use your browser wallet to sign the extrinsic? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')",
+			true,
+		);
+		let mut use_wallet = false;
+		let mut suri = None;
+		resolve_signer(&mut use_wallet, &mut suri, &mut cli)?;
+		assert!(use_wallet);
+		assert_eq!(suri, None);
+		cli.verify()?;
+		Ok(())
+	}
+
+	#[test]
+	fn resolve_signing_method_prompts_and_provides_suri_works() -> anyhow::Result<()> {
+		use super::*;
+		let mut cli = MockCli::new()
+			.expect_confirm(
+				"Do you want to use your browser wallet to sign the extrinsic? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')",
+				false,
+			)
+			.expect_input("Signer:", "//Charlie".to_string());
+		let mut use_wallet = false;
+		let mut suri = None;
+		resolve_signer(&mut use_wallet, &mut suri, &mut cli)?;
+		assert!(!use_wallet);
+		assert_eq!(suri, Some("//Charlie".to_string()));
+		cli.verify()?;
+		Ok(())
 	}
 
 	#[test]
