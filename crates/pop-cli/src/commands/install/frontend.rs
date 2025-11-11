@@ -9,7 +9,7 @@ use anyhow::{Result, anyhow};
 use duct::cmd;
 use std::path::PathBuf;
 
-const MIN_NODE_VERSION: u8 = 20;
+const MIN_NODE_VERSION: u8 = 24;
 const NVM_INSTALL_SCRIPT: &str = "https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh";
 
 /// Install frontend dependencies (Node.js and Bun).
