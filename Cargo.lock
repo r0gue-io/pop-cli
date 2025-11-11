@@ -3519,6 +3519,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
+name = "erased-serde"
+version = "0.4.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "89e8918065695684b2b0702da20382d5ae6065cf3327bc2d6436bd49a71ce9f3"
+dependencies = [
+ "serde",
+ "serde_core",
+ "typeid",
+]
+
+[[package]]
 name = "errno"
 version = "0.3.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3741,12 +3752,6 @@ name = "fixedbitset"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ce7134b9999ecaf8bcd65542e436736ef32ddca1b3e06094cb6ec5755203b80"
-
-[[package]]
-name = "fixedbitset"
-version = "0.5.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d674e81391d1e1ab681a28d99df07927c6d4aa5b027d7da16ba32d1d21ecd99"
 
 [[package]]
 name = "flate2"
@@ -5276,7 +5281,7 @@ dependencies = [
  "rtnetlink",
  "system-configuration",
  "tokio",
- "windows 0.53.0",
+ "windows",
 ]
 
 [[package]]
@@ -7900,7 +7905,7 @@ dependencies = [
  "expander",
  "indexmap 2.12.0",
  "itertools 0.11.0",
- "petgraph 0.6.5",
+ "petgraph",
  "proc-macro-crate 3.4.0",
  "proc-macro2",
  "quote",
@@ -8424,17 +8429,7 @@ version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4c5cc86750666a3ed20bdaf5ca2a0344f9c67674cae0515bec2da16fbaa47db"
 dependencies = [
- "fixedbitset 0.4.2",
- "indexmap 2.12.0",
-]
-
-[[package]]
-name = "petgraph"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3672b37090dbd86368a4145bc067582552b29c27377cad4e0a306c97f9bd7772"
-dependencies = [
- "fixedbitset 0.5.7",
+ "fixedbitset",
  "indexmap 2.12.0",
 ]
 
@@ -9472,7 +9467,7 @@ dependencies = [
  "log",
  "multimap",
  "once_cell",
- "petgraph 0.7.1",
+ "petgraph",
  "prettyplease",
  "prost 0.13.5",
  "prost-types",
@@ -14274,7 +14269,7 @@ dependencies = [
  "ntapi",
  "once_cell",
  "rayon",
- "windows 0.52.0",
+ "windows",
 ]
 
 [[package]]
@@ -15068,6 +15063,12 @@ name = "twox-hash"
 version = "2.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ea3136b675547379c4bd395ca6b938e5ad3c3d20fad76e7fe85f9e0d011419c"
+
+[[package]]
+name = "typeid"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc7d623258602320d5c55d1bc22793b57daff0ec7efc270ea7d55ce1d5f5471c"
 
 [[package]]
 name = "typenum"
@@ -16049,31 +16050,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "windows"
-version = "0.53.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efc5cf48f83140dcaab716eeaea345f9e93d0018fb81162753a3f76c3397b538"
-dependencies = [
- "windows-core 0.53.0",
- "windows-targets 0.52.6",
-]
-
-[[package]]
 name = "windows-core"
 version = "0.52.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33ab640c8d7e35bf8ba19b884ba838ceb4fba93a4e8c65a9059d08afcfc683d9"
 dependencies = [
- "windows-targets 0.52.6",
-]
-
-[[package]]
-name = "windows-core"
-version = "0.53.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9dcc5b895a6377f1ab9fa55acedab1fd5ac0db66ad1e6c7f47e28a22e446a5dd"
-dependencies = [
- "windows-result 0.1.2",
  "windows-targets 0.52.6",
 ]
 
@@ -16086,7 +16067,7 @@ dependencies = [
  "windows-implement",
  "windows-interface",
  "windows-link",
- "windows-result 0.4.1",
+ "windows-result",
  "windows-strings",
 ]
 
@@ -16125,17 +16106,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "02752bf7fbdcce7f2a27a742f798510f3e5ad88dbe84871e5168e2120c3d5720"
 dependencies = [
  "windows-link",
- "windows-result 0.4.1",
+ "windows-result",
  "windows-strings",
-]
-
-[[package]]
-name = "windows-result"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e383302e8ec8515204254685643de10811af0ed97ea37210dc26fb0032647f8"
-dependencies = [
- "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -16765,9 +16737,9 @@ dependencies = [
 
 [[package]]
 name = "zombienet-configuration"
-version = "0.4.2"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93e333d01dafa832ddd19360d701b9cfe95adbeac6a24af313a5d60f14d423f1"
+checksum = "6271dc31b9b0d13eb99d4c7f84ef66c457903683a1c54aac8221fa8604193b81"
 dependencies = [
  "anyhow",
  "lazy_static",
@@ -16786,12 +16758,13 @@ dependencies = [
 
 [[package]]
 name = "zombienet-orchestrator"
-version = "0.4.2"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35428664c52dfde114f2b6027e2e34aca331ce8e7891c5759bc2eb76d40a45a3"
+checksum = "795db8760b78f62533e7cd9d0910cd94b109d751359767f4806f53be07af59a5"
 dependencies = [
  "anyhow",
  "async-trait",
+ "erased-serde",
  "fancy-regex",
  "futures",
  "glob-match",
@@ -16821,9 +16794,9 @@ dependencies = [
 
 [[package]]
 name = "zombienet-prom-metrics-parser"
-version = "0.4.2"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ce10056be4114de0462d5281dfb1dcd21b9fbd3b0fae515e1d2a23471a44511"
+checksum = "1cb854057acc617a182fcfbd63d3554d439ab8dcc407e2eb02c19a5cbd3e6487"
 dependencies = [
  "pest",
  "pest_derive",
@@ -16832,12 +16805,13 @@ dependencies = [
 
 [[package]]
 name = "zombienet-provider"
-version = "0.4.2"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e72a6f032e412fc26601888ab22f8aa6262d0da3a734c8918e90a03ab4d3a253"
+checksum = "9167ee97e303d975f11f9d8aa400483cb227ee02fc4af98ac80c63eca75b6391"
 dependencies = [
  "anyhow",
  "async-trait",
+ "erased-serde",
  "flate2",
  "futures",
  "hex",
@@ -16863,9 +16837,9 @@ dependencies = [
 
 [[package]]
 name = "zombienet-sdk"
-version = "0.4.2"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9eb3db03375b0c1d0f251bb4913d4a1c8e2ca77d1eaa8e6d09d26a9ced5e0c40"
+checksum = "f6ecf7f7637e0e472aaf03e1a2f0865810b80babaf7ce7b942cec21081ba39d3"
 dependencies = [
  "async-trait",
  "futures",
@@ -16881,9 +16855,9 @@ dependencies = [
 
 [[package]]
 name = "zombienet-support"
-version = "0.4.2"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cbf2815367986941adc4c0d9d59f58e9e7c689c84909d7bd2eb99f36776cb4ce"
+checksum = "77a48e19efdef5e5d35781559445e06b94dc14c392d9e054d886dfb2c3018a77"
 dependencies = [
  "anyhow",
  "async-trait",
