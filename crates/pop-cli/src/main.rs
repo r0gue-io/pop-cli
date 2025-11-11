@@ -102,60 +102,6 @@ mod tests {
 	#[cfg(feature = "telemetry")]
 	mod telemetry {
 		use super::*;
-		use anyhow::anyhow;
-		use common::{
-			Data::{self, *},
-			Os::*,
-			Project::*,
-			Template,
-			TestFeature::*,
-		};
-
-		// Helper function to simulate what happens in main().
-		fn simulate_command_flow<T: Display>(
-			command: Command,
-			result: Result<T>,
-		) -> (String, String) {
-			let cli = Cli { command };
-			let event = cli.to_string();
-
-			let data = result.as_ref().map_or_else(|e| e.to_string(), |t| t.to_string());
-
-			(event, data)
-		}
-
-		#[test]
-		fn test_command() {
-			// Test command display.
-			assert_eq!(
-				Cli {
-					command: Command::Test(test::TestArgs {
-						command: None,
-						path: None,
-						path_pos: None,
-						#[cfg(any(feature = "contract"))]
-						contract: Default::default(),
-						test: None,
-					})
-				}
-				.to_string(),
-				"test"
-			);
-			// Successful execution.
-			let (command, data) = simulate_command_flow(
-				Command::Test(Default::default()),
-				Ok(Test { project: Contract, feature: Unit }),
-			);
-			assert_eq!(command, "test");
-			assert_eq!(data, "contract unit");
-			// Error handling.
-			let (command, data) = simulate_command_flow(
-				Command::Test(Default::default()),
-				Err(anyhow!("build error")) as Result<Data>,
-			);
-			assert_eq!(command, "test");
-			assert_eq!(data, "build error");
-		}
 
 		#[test]
 		fn build_command() {
@@ -173,36 +119,12 @@ mod tests {
 				.to_string(),
 				"build spec"
 			);
-			// Successful execution.
-			let (command, data) =
-				simulate_command_flow(Command::Build(Default::default()), Ok(Build(Contract)));
-			assert_eq!(command, "build");
-			assert_eq!(data, "contract");
-			// Error handling.
-			let (command, data) = simulate_command_flow(
-				Command::Build(Default::default()),
-				Err(anyhow!("compilation error")) as Result<Data>,
-			);
-			assert_eq!(command, "build");
-			assert_eq!(data, "compilation error");
 		}
 
 		#[test]
 		fn up_command() {
 			// Up command display.
 			assert_eq!(Cli { command: Command::Up(Default::default()) }.to_string(), "up");
-			// Successful execution.
-			let (command, data) =
-				simulate_command_flow(Command::Up(Default::default()), Ok(Up(Contract)));
-			assert_eq!(command, "up");
-			assert_eq!(data, "contract");
-			// Error handling.
-			let (command, data) = simulate_command_flow(
-				Command::Up(Default::default()),
-				Err(anyhow!("network error")) as Result<Data>,
-			);
-			assert_eq!(command, "up");
-			assert_eq!(data, "network error");
 		}
 
 		#[test]
@@ -218,18 +140,6 @@ mod tests {
 				.to_string(),
 				"clean"
 			);
-			// Successful execution.
-			let (command, data) =
-				simulate_command_flow(Command::Clean(Default::default()), Ok(Null));
-			assert_eq!(command, "clean");
-			assert_eq!(data, "");
-			// Error handling.
-			let (command, data) = simulate_command_flow(
-				Command::Clean(Default::default()),
-				Err(anyhow!("permission denied")) as Result<Data>,
-			);
-			assert_eq!(command, "clean");
-			assert_eq!(data, "permission denied");
 		}
 
 		#[test]
@@ -239,18 +149,6 @@ mod tests {
 				Cli { command: Command::Install(Default::default()) }.to_string(),
 				"install"
 			);
-			// Successful execution.
-			let (command, data) =
-				simulate_command_flow(Command::Install(Default::default()), Ok(Install(Linux)));
-			assert_eq!(command, "install");
-			assert_eq!(data, "linux");
-			// Error handling.
-			let (command, data) = simulate_command_flow(
-				Command::Install(Default::default()),
-				Err(anyhow!("download error")) as Result<Data>,
-			);
-			assert_eq!(command, "install");
-			assert_eq!(data, "download error");
 		}
 
 		#[test]
@@ -268,20 +166,6 @@ mod tests {
 			);
 			// New command display without subcommand.
 			assert_eq!(Cli { command: Command::New(NewArgs { command: None }) }.to_string(), "new");
-			// Successful execution.
-			let (command, data) = simulate_command_flow(
-				Command::New(NewArgs { command: Some(NewCommand::Contract(Default::default())) }),
-				Ok(New(Template::Contract(Default::default()))),
-			);
-			assert_eq!(command, "new contract");
-			assert_eq!(data, "Standard");
-			// Error handling.
-			let (command, data) = simulate_command_flow(
-				Command::New(NewArgs { command: Some(NewCommand::Contract(Default::default())) }),
-				Err(anyhow!("template error")) as Result<Data>,
-			);
-			assert_eq!(command, "new contract");
-			assert_eq!(data, "template error");
 		}
 
 		#[test]
@@ -295,20 +179,6 @@ mod tests {
 				.to_string(),
 				"bench pallet"
 			);
-			// Successful execution.
-			let (command, data) = simulate_command_flow(
-				Command::Bench(BenchmarkArgs { command: Pallet(Default::default()) }),
-				Ok(Null),
-			);
-			assert_eq!(command, "bench pallet");
-			assert_eq!(data, "");
-			// Error handling.
-			let (command, data) = simulate_command_flow(
-				Command::Bench(BenchmarkArgs { command: Pallet(Default::default()) }),
-				Err(anyhow!("runtime error")) as Result<Data>,
-			);
-			assert_eq!(command, "bench pallet");
-			assert_eq!(data, "runtime error");
 		}
 
 		#[test]
@@ -334,20 +204,6 @@ mod tests {
 				.to_string(),
 				"call contract"
 			);
-			// Successful execution.
-			let (command, data) = simulate_command_flow(
-				Command::Call(CallArgs { command: Some(CallCommand::Chain(Default::default())) }),
-				Ok(Null),
-			);
-			assert_eq!(command, "call chain");
-			assert_eq!(data, "");
-			// Error handling.
-			let (command, data) = simulate_command_flow(
-				Command::Call(CallArgs { command: Some(CallCommand::Chain(Default::default())) }),
-				Err(anyhow!("connection error")) as Result<Data>,
-			);
-			assert_eq!(command, "call chain");
-			assert_eq!(data, "connection error");
 		}
 	}
 }

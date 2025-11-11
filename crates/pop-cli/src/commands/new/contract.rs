@@ -36,7 +36,7 @@ pub struct NewContractCommand {
 
 impl NewContractCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(&mut self) -> Result<Contract> {
+	pub(crate) async fn execute(&mut self) -> Result<()> {
 		let mut cli = Cli;
 
 		// Prompt for missing fields interactively
@@ -51,7 +51,7 @@ impl NewContractCommand {
 		// Validate contract name.
 		if let Err(e) = is_valid_contract_name(name) {
 			cli.outro_cancel(e)?;
-			return Ok(Contract::Standard);
+			return Ok(());
 		}
 
 		let template = self.template.clone().unwrap_or_default();
@@ -67,7 +67,7 @@ impl NewContractCommand {
 			)?;
 		}
 
-		Ok(template)
+		Ok(())
 	}
 }
 
