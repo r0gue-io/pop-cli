@@ -998,7 +998,7 @@ edition = "2021"
 		let temp_dir =
 			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
 		mock_build_process(temp_dir.path())?;
-		mock_node(&temp_dir.path())?;
+		mock_node(temp_dir.path())?;
 		let release_path =
 			binary_path(&temp_dir.path().join("target/release"), &temp_dir.path().join("node"))?;
 		assert_eq!(
@@ -1035,7 +1035,7 @@ edition = "2021"
 	fn binary_path_fails_missing_binary() -> Result<()> {
 		let temp_dir =
 			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
-		mock_node(&temp_dir.path())?;
+		mock_node(temp_dir.path())?;
 		assert!(matches!(
 			binary_path(&temp_dir.path().join("target/release"), &temp_dir.path().join("node")),
 			Err(Error::MissingBinary(error)) if error == "parachain-template-node"
@@ -1717,7 +1717,7 @@ edition = "2021"
 		let temp_dir =
 			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
 		mock_build_process(temp_dir.path())?;
-		mock_node(&temp_dir.path())?;
+		mock_node(temp_dir.path())?;
 		let builder = ChainSpecBuilder::Node {
 			node_path: temp_dir.path().join("node"),
 			default_bootnode: true,
