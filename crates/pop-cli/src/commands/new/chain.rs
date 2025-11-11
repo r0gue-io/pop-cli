@@ -84,7 +84,7 @@ pub struct NewChainCommand {
 
 impl NewChainCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(&mut self) -> Result<ChainTemplate> {
+	pub(crate) async fn execute(&self) -> Result<()> {
 		// If user doesn't select the name guide them to generate a parachain.
 		let parachain_config = if self.name.is_none() {
 			guide_user_to_generate_parachain(self.verify, self.with_frontend.clone(), &mut cli::Cli)
@@ -138,8 +138,7 @@ impl NewChainCommand {
 			&mut cli::Cli,
 		)
 		.await?;
-
-		Ok(template)
+		Ok(())
 	}
 }
 

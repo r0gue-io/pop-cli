@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{
-	cli::{self, Cli},
-	common::Project::{self, *},
-};
+use crate::cli::{self, Cli};
 use clap::{Args, Subcommand};
 #[cfg(feature = "contract")]
 use contract::BuildContract;
@@ -112,7 +109,7 @@ fn collect_features(input: &str, benchmark: bool, try_runtime: bool) -> Vec<&str
 
 impl Command {
 	/// Executes the command.
-	pub(crate) fn execute(args: &BuildArgs) -> anyhow::Result<Project> {
+	pub(crate) fn execute(args: &BuildArgs) -> anyhow::Result<()> {
 		// If only contract feature enabled, build as contract
 		let project_path =
 			crate::common::builds::ensure_project_path(args.path.clone(), args.path_pos.clone());
@@ -125,7 +122,7 @@ impl Command {
 				None => args.release,
 			};
 			BuildContract { path: project_path, release, metadata: args.metadata }.execute()?;
-			return Ok(Contract);
+			return Ok(());
 		}
 
 		// If project is a parachain runtime, build as parachain runtime
@@ -151,7 +148,7 @@ impl Command {
 				features: feature_list.into_iter().map(|f| f.to_string()).collect(),
 			}
 			.execute()?;
-			return Ok(Chain);
+			return Ok(());
 		}
 
 		// If project is a parachain runtime, build as parachain runtime
@@ -173,11 +170,11 @@ impl Command {
 				features: feature_list.into_iter().map(|f| f.to_string()).collect(),
 			}
 			.execute()?;
-			return Ok(Chain);
+			return Ok(());
 		}
 
 		// Otherwise build as a normal Rust project
-		Self::build(args, &project_path, &mut Cli).map(|_| Unknown)
+		Self::build(args, &project_path, &mut Cli)
 	}
 
 	/// Builds a Rust project.
@@ -409,7 +406,7 @@ mod tests {
 		let project_path = path.join(name);
 		cmd("cargo", ["new", name, "--bin"]).dir(path).run()?;
 
-		let result = Command::execute(&BuildArgs {
+		Command::execute(&BuildArgs {
 			#[cfg(feature = "chain")]
 			command: None,
 			path: Some(project_path.clone()),
@@ -430,7 +427,6 @@ mod tests {
 			metadata: None,
 		})?;
 
-		assert_eq!(result, Unknown);
 		Ok(())
 	}
 
@@ -455,7 +451,7 @@ mod tests {
 		}
 
 		// Test 1: Execute with release mode
-		let result = Command::execute(&BuildArgs {
+		Command::execute(&BuildArgs {
 			#[cfg(feature = "chain")]
 			command: None,
 			path: Some(project_path.clone()),
@@ -475,10 +471,9 @@ mod tests {
 			#[cfg(feature = "contract")]
 			metadata: None,
 		})?;
-		assert_eq!(result, Unknown);
 
 		// Test 2: Execute with production profile
-		let result = Command::execute(&BuildArgs {
+		Command::execute(&BuildArgs {
 			#[cfg(feature = "chain")]
 			command: None,
 			path: Some(project_path.clone()),
@@ -498,12 +493,11 @@ mod tests {
 			#[cfg(feature = "contract")]
 			metadata: None,
 		})?;
-		assert_eq!(result, Unknown);
 
 		// Test 3: Execute with custom features
 		#[cfg(feature = "chain")]
 		{
-			let result = Command::execute(&BuildArgs {
+			Command::execute(&BuildArgs {
 				command: None,
 				path: Some(project_path.clone()),
 				path_pos: None,
@@ -518,11 +512,10 @@ mod tests {
 				#[cfg(feature = "contract")]
 				metadata: None,
 			})?;
-			assert_eq!(result, Unknown);
 		}
 
 		// Test 4: Execute with package parameter
-		let result = Command::execute(&BuildArgs {
+		Command::execute(&BuildArgs {
 			#[cfg(feature = "chain")]
 			command: None,
 			path: Some(project_path.clone()),
@@ -542,10 +535,9 @@ mod tests {
 			#[cfg(feature = "contract")]
 			metadata: None,
 		})?;
-		assert_eq!(result, Unknown);
 
 		// Test 5: Execute with path_pos instead of path
-		let result = Command::execute(&BuildArgs {
+		Command::execute(&BuildArgs {
 			#[cfg(feature = "chain")]
 			command: None,
 			path: None,
@@ -565,12 +557,11 @@ mod tests {
 			#[cfg(feature = "contract")]
 			metadata: None,
 		})?;
-		assert_eq!(result, Unknown);
 
 		// Test 6: Execute with benchmark and try_runtime flags
 		#[cfg(feature = "chain")]
 		{
-			let result = Command::execute(&BuildArgs {
+			Command::execute(&BuildArgs {
 				command: None,
 				path: Some(project_path.clone()),
 				path_pos: None,
@@ -585,7 +576,6 @@ mod tests {
 				#[cfg(feature = "contract")]
 				metadata: None,
 			})?;
-			assert_eq!(result, Unknown);
 		}
 
 		Ok(())
