@@ -818,6 +818,21 @@ mod tests {
 		Ok(())
 	}
 
+	// Function create a mocked node directory with Cargo.toml
+	fn mock_node(temp_dir: &Path) -> Result<(), Error> {
+		let node_dir = temp_dir.join("node");
+		fs::create_dir(&node_dir)?;
+		fs::write(
+			node_dir.join("Cargo.toml"),
+			r#"[package]
+name = "parachain-template-node"
+version = "0.1.0"
+edition = "2021"
+"#,
+		)?;
+		Ok(())
+	}
+
 	// Function that mocks the build process of WASM runtime generating the target dir and release.
 	fn mock_build_runtime_process(temp_dir: &Path) -> Result<(), Error> {
 		let runtime = "parachain-template-runtime";
@@ -983,6 +998,7 @@ mod tests {
 		let temp_dir =
 			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
 		mock_build_process(temp_dir.path())?;
+		mock_node(temp_dir.path())?;
 		let release_path =
 			binary_path(&temp_dir.path().join("target/release"), &temp_dir.path().join("node"))?;
 		assert_eq!(
@@ -1019,6 +1035,7 @@ mod tests {
 	fn binary_path_fails_missing_binary() -> Result<()> {
 		let temp_dir =
 			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+		mock_node(temp_dir.path())?;
 		assert!(matches!(
 			binary_path(&temp_dir.path().join("target/release"), &temp_dir.path().join("node")),
 			Err(Error::MissingBinary(error)) if error == "parachain-template-node"
@@ -1700,7 +1717,7 @@ mod tests {
 		let temp_dir =
 			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
 		mock_build_process(temp_dir.path())?;
-
+		mock_node(temp_dir.path())?;
 		let builder = ChainSpecBuilder::Node {
 			node_path: temp_dir.path().join("node"),
 			default_bootnode: true,
