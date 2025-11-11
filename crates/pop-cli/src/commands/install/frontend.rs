@@ -136,7 +136,6 @@ async fn install_nvm(cli: &mut impl cli::traits::Cli) -> Result<String> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::cli::MockCli;
 
 	#[test]
 	fn has_works() {
