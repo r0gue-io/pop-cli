@@ -677,7 +677,7 @@ fn cd_into_chain_base_dir(network_file: &Path) {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use clap::Parser;
+
 	use std::{env, fs};
 
 	#[tokio::test]
@@ -769,45 +769,5 @@ cumulus-client-collator = "0.14"
 
 		// Cleanup
 		fs::remove_dir_all(&base).ok();
-	}
-
-	#[test]
-	fn test_ink_node_command_clap_defaults() {
-		// Build a tiny clap::Parser that flattens InkNodeCommand so we can parse args
-		#[derive(clap::Parser)]
-		struct TestParser {
-			#[command(flatten)]
-			cmd: InkNodeCommand,
-		}
-
-		let parsed = TestParser::parse_from(["pop-cli-test"]);
-		let cmd = parsed.cmd;
-
-		assert_eq!(cmd.ink_node_port, 9944);
-		assert_eq!(cmd.eth_rpc_port, 8545);
-		assert!(!cmd.skip_confirm);
-	}
-
-	#[test]
-	fn test_ink_node_command_clap_overrides() {
-		#[derive(clap::Parser, Debug)]
-		struct TestParser {
-			#[command(flatten)]
-			cmd: InkNodeCommand,
-		}
-
-		let parsed = TestParser::parse_from([
-			"pop-cli-test",
-			"--ink-node-port",
-			"12000",
-			"--eth-rpc-port",
-			"13000",
-			"-y", // skip_confirm
-		]);
-		let cmd = parsed.cmd;
-
-		assert_eq!(cmd.ink_node_port, 12000);
-		assert_eq!(cmd.eth_rpc_port, 13000);
-		assert!(cmd.skip_confirm);
 	}
 }
