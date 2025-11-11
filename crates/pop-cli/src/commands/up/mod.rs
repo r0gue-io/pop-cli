@@ -5,13 +5,12 @@ use crate::{
 	common::builds::ensure_project_path,
 };
 use clap::{Args, Subcommand};
-use serde::Serialize;
-use std::path::PathBuf;
 #[cfg(feature = "chain")]
-use {
-	pop_chains::up::Relay,
-	std::fmt::{Display, Formatter, Result},
-};
+use pop_chains::up::Relay;
+use serde::Serialize;
+#[cfg(any(feature = "chain", feature = "contract"))]
+use std::fmt::{Display, Formatter, Result};
+use std::path::PathBuf;
 
 #[cfg(feature = "contract")]
 mod contract;
@@ -82,9 +81,10 @@ pub(crate) enum Command {
 	/// Launch a frontend dev server.
 	#[clap(alias = "f")]
 	Frontend(frontend::FrontendCommand),
+	#[cfg(feature = "contract")]
 	/// Launch a local Ink! node.
 	#[clap()]
-	InkNode(network::InkNodeCommand),
+	InkNode(contract::InkNodeCommand),
 }
 
 impl Command {
@@ -127,16 +127,21 @@ impl Command {
 	}
 }
 
-#[cfg(feature = "chain")]
 impl Display for Command {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		match self {
+			#[cfg(feature = "chain")]
 			Command::Network(_) => write!(f, "network"),
+			#[cfg(feature = "chain")]
 			Command::Paseo(_) => write!(f, "paseo"),
+			#[cfg(feature = "chain")]
 			Command::Kusama(_) => write!(f, "kusama"),
+			#[cfg(feature = "chain")]
 			Command::Polkadot(_) => write!(f, "polkadot"),
+			#[cfg(feature = "chain")]
 			Command::Westend(_) => write!(f, "westend"),
 			Command::Frontend(_) => write!(f, "frontend"),
+			#[cfg(feature = "contract")]
 			Command::InkNode(_) => write!(f, "ink-node"),
 		}
 	}

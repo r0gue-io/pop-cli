@@ -155,8 +155,9 @@ impl Command {
 						#[cfg(feature = "chain")]
 						up::Command::Westend(cmd) => cmd.execute(Westend, &mut Cli).await,
 						up::Command::Frontend(cmd) => cmd.execute(&mut Cli),
+						#[cfg(feature = "contract")]
 						up::Command::InkNode(cmd) => cmd.execute(&mut Cli).await,
-						#[cfg(not(feature = "chain"))]
+						#[cfg(not(any(feature = "chain", feature = "contract")))]
 						_ => Ok(()),
 					},
 				}

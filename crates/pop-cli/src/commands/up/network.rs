@@ -2,7 +2,6 @@
 
 use crate::{
 	cli::{self, traits::Confirm},
-	commands::up::contract::start_ink_node,
 	style::{Theme, style},
 };
 use clap::{
@@ -28,7 +27,6 @@ use std::{
 	time::Duration,
 };
 use tokio::time::sleep;
-use url::Url;
 
 /// Launch a local network by specifying a network configuration file.
 #[derive(Args, Clone, Default, Serialize)]
@@ -92,42 +90,6 @@ impl ConfigFileCommand {
 			cli,
 		)
 		.await
-	}
-}
-
-/// Launch a local ink! node.
-#[derive(Args, Clone, Serialize, Debug)]
-pub(crate) struct InkNodeCommand {
-	/// The port to be used for the ink! node.
-	#[clap(short, long, default_value = "9944")]
-	pub(crate) ink_node_port: u16,
-	/// The port to be used for the Ethereum RPC node.
-	#[clap(short, long, default_value = "8545")]
-	pub(crate) eth_rpc_port: u16,
-	/// Automatically source all necessary binaries required without prompting for confirmation.
-	#[clap(short = 'y', long)]
-	pub(crate) skip_confirm: bool,
-}
-
-impl InkNodeCommand {
-	pub(crate) async fn execute(&self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		cli.intro("Launch a local Ink! node")?;
-		let url = Url::parse(&format!("ws://localhost:{}", self.ink_node_port))?;
-		let ((mut ink_node_process, ink_node_log), (mut eth_rpc_process, _)) =
-			start_ink_node(&url, self.skip_confirm, self.ink_node_port, self.eth_rpc_port).await?;
-		std::process::Command::new("tail")
-			.args(["-F", &ink_node_log.path().to_string_lossy()])
-			.spawn()?;
-
-		// Wait for the process to terminate
-		tokio::signal::ctrl_c().await?;
-		ink_node_process.kill()?;
-		eth_rpc_process.kill()?;
-		ink_node_process.wait()?;
-		eth_rpc_process.wait()?;
-		cli.plain("\n")?;
-		cli.outro("✅ Ink! node terminated")?;
-		Ok(())
 	}
 }
 
