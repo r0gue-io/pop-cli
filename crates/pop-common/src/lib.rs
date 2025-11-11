@@ -18,7 +18,10 @@ use std::{cmp::Ordering, net::TcpListener, ops::Deref};
 use std::{ffi::OsStr, path::Path, process::Command};
 pub use subxt::{Config, PolkadotConfig as DefaultConfig};
 pub use subxt_signer::sr25519::Keypair;
-pub use templates::extractor::extract_template_files;
+pub use templates::{
+	extractor::extract_template_files,
+	frontend::{FrontendTemplate, FrontendType},
+};
 pub use test::test_project;
 
 /// Module for parsing and handling account IDs.

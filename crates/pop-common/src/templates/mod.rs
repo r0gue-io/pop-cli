@@ -5,6 +5,8 @@ pub use thiserror::Error;
 
 /// Functions for extracting a template's files.
 pub mod extractor;
+/// Frontend template definitions.
+pub mod frontend;
 
 /// An error relating to templates or template variants.
 #[derive(Error, Debug)]

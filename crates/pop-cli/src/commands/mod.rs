@@ -154,8 +154,7 @@ impl Command {
 						up::Command::Polkadot(cmd) => cmd.execute(Polkadot, &mut Cli).await,
 						#[cfg(feature = "chain")]
 						up::Command::Westend(cmd) => cmd.execute(Westend, &mut Cli).await,
-						#[cfg(not(feature = "chain"))]
-						_ => Ok(()),
+						up::Command::Frontend(cmd) => cmd.execute(&mut Cli),
 					},
 				}
 			},

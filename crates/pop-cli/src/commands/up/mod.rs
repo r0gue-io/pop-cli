@@ -15,6 +15,8 @@ use {
 
 #[cfg(feature = "contract")]
 mod contract;
+/// Utilities for launching a frontend dev server.
+mod frontend;
 #[cfg(feature = "chain")]
 pub(super) mod network;
 #[cfg(feature = "chain")]
@@ -77,6 +79,9 @@ pub(crate) enum Command {
 	#[cfg(feature = "chain")]
 	#[clap()]
 	Westend(network::BuildCommand<WESTEND>),
+	/// Launch a frontend dev server.
+	#[clap(alias = "f")]
+	Frontend(frontend::FrontendCommand),
 }
 
 impl Command {
@@ -128,6 +133,7 @@ impl Display for Command {
 			Command::Kusama(_) => write!(f, "kusama"),
 			Command::Polkadot(_) => write!(f, "polkadot"),
 			Command::Westend(_) => write!(f, "westend"),
+			Command::Frontend(_) => write!(f, "frontend"),
 		}
 	}
 }

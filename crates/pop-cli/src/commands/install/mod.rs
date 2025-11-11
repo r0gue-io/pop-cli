@@ -14,6 +14,9 @@ use std::{fs::Permissions, os::unix::fs::PermissionsExt};
 use strum_macros::Display;
 use tokio::fs;
 
+/// Utilities for installing the needed libraries for frontend development.
+pub mod frontend;
+
 const DOCS_URL: &str = "https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/";
 
 #[derive(Display)]
@@ -48,6 +51,8 @@ pub enum Dependencies {
 	ProtobufCompiler,
 	#[strum(serialize = "rustup")]
 	Rustup,
+	#[strum(serialize = "unzip")]
+	Unzip,
 }
 
 /// Arguments for installing.
@@ -58,6 +63,9 @@ pub(crate) struct InstallArgs {
 	/// Automatically install all dependencies required without prompting for confirmation.
 	#[clap(short = 'y', long)]
 	skip_confirm: bool,
+	/// Install frontend development dependencies.
+	#[clap(short = 'f', long)]
+	frontend: bool,
 }
 
 /// Setup user environment for development
@@ -75,11 +83,11 @@ impl Command {
 			match os_info::get().os_type() {
 				Type::Arch => {
 					cli.info("ℹ️ Arch Linux detected.")?;
-					install_arch(args.skip_confirm, &mut cli).await?;
+					install_arch(args.skip_confirm, args.frontend, &mut cli).await?;
 				},
 				Type::Debian => {
 					cli.info("ℹ️ Debian Linux detected.")?;
-					install_debian(args.skip_confirm, &mut cli).await?;
+					install_debian(args.skip_confirm, args.frontend, &mut cli).await?;
 				},
 				Type::Redhat => {
 					cli.info("ℹ️ Redhat Linux detected.")?;
@@ -87,7 +95,7 @@ impl Command {
 				},
 				Type::Ubuntu => {
 					cli.info("ℹ️ Ubuntu detected.")?;
-					install_ubuntu(args.skip_confirm, &mut cli).await?;
+					install_ubuntu(args.skip_confirm, args.frontend, &mut cli).await?;
 				},
 				_ => not_supported_message(&mut cli)?,
 			}
@@ -95,6 +103,10 @@ impl Command {
 			return not_supported_message(&mut cli);
 		};
 		install_rustup(&mut cli).await?;
+
+		if args.frontend {
+			frontend::install_frontend_dependencies(args.skip_confirm, &mut cli).await?;
+		}
 		cli.outro("✅ Installation complete.")?;
 		Ok(())
 	}
@@ -118,96 +130,124 @@ async fn install_mac(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> any
 	Ok(())
 }
 
-async fn install_arch(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+async fn install_arch(
+	skip_confirm: bool,
+	install_frontend: bool,
+	cli: &mut impl cli::traits::Cli,
+) -> anyhow::Result<()> {
 	cli.info(format!(
 		"More information about the packages to be installed here: {DOCS_URL}#linux"
 	))?;
-	if !skip_confirm {
-		prompt_for_confirmation(
-			&format!("{}, {}, {}, {}, {} and {}", Curl, Git, Clang, Make, Protobuf, Rustup,),
-			cli,
-		)?
+
+	let mut packages = vec![
+		Curl.to_string(),
+		Git.to_string(),
+		Clang.to_string(),
+		Make.to_string(),
+		Protobuf.to_string(),
+	];
+
+	let mut package_names = format!("{}, {}, {}, {}, {}", Curl, Git, Clang, Make, Protobuf);
+
+	if install_frontend {
+		packages.push(Unzip.to_string());
+		package_names.push_str(&format!(", {}", Unzip));
 	}
-	cmd(
-		"pacman",
-		vec![
-			"-Syu",
-			"--needed",
-			"--noconfirm",
-			&Curl.to_string(),
-			&Git.to_string(),
-			&Clang.to_string(),
-			&Make.to_string(),
-			&Protobuf.to_string(),
-		],
-	)
-	.run()?;
+
+	package_names.push_str(&format!(" and {}", Rustup));
+
+	if !skip_confirm {
+		prompt_for_confirmation(&package_names, cli)?
+	}
+
+	let mut args = vec!["-Syu", "--needed", "--noconfirm"];
+	args.extend(packages.iter().map(|s| s.as_str()));
+
+	cmd("pacman", args).run()?;
 
 	Ok(())
 }
 
-async fn install_ubuntu(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+async fn install_ubuntu(
+	skip_confirm: bool,
+	install_frontend: bool,
+	cli: &mut impl cli::traits::Cli,
+) -> anyhow::Result<()> {
 	cli.info(format!(
 		"More information about the packages to be installed here: {DOCS_URL}#linux"
 	))?;
-	if !skip_confirm {
-		prompt_for_confirmation(
-			&format!(
-				"{}, {}, {}, {}, {} and {}",
-				Git, Clang, Curl, Libssl, ProtobufCompiler, Rustup,
-			),
-			cli,
-		)?
+
+	let mut packages = vec![
+		Git.to_string(),
+		Clang.to_string(),
+		Curl.to_string(),
+		Libssl.to_string(),
+		ProtobufCompiler.to_string(),
+	];
+
+	let mut package_names =
+		format!("{}, {}, {}, {}, {}", Git, Clang, Curl, Libssl, ProtobufCompiler);
+
+	if install_frontend {
+		packages.push(Unzip.to_string());
+		package_names.push_str(&format!(", {}", Unzip));
 	}
-	cmd(
-		"apt",
-		vec![
-			"install",
-			"--assume-yes",
-			&Git.to_string(),
-			&Clang.to_string(),
-			&Curl.to_string(),
-			&Libssl.to_string(),
-			&ProtobufCompiler.to_string(),
-		],
-	)
-	.env("DEBIAN_FRONTEND", "noninteractive")
-	.run()?;
+
+	package_names.push_str(&format!(" and {}", Rustup));
+
+	if !skip_confirm {
+		prompt_for_confirmation(&package_names, cli)?
+	}
+
+	let mut args = vec!["install", "--assume-yes"];
+	args.extend(packages.iter().map(|s| s.as_str()));
+
+	cmd("apt", args).env("DEBIAN_FRONTEND", "noninteractive").run()?;
 
 	Ok(())
 }
 
-async fn install_debian(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+async fn install_debian(
+	skip_confirm: bool,
+	install_frontend: bool,
+	cli: &mut impl cli::traits::Cli,
+) -> anyhow::Result<()> {
 	cli.info(format!(
 		"More information about the packages to be installed here: {DOCS_URL}#linux"
 	))?;
-	if !skip_confirm {
-		prompt_for_confirmation(
-			&format!(
-				"{}, {}, {}, {}, {}, {}, {}, {} and {}",
-				Git, Clang, Curl, Libssl, Llvm, LibUdevDev, Make, ProtobufCompiler, Rustup,
-			),
-			cli,
-		)?
+
+	let mut packages = vec![
+		Libssl.to_string(),
+		Git.to_string(),
+		ProtobufCompiler.to_string(),
+		Clang.to_string(),
+		LibClang.to_string(),
+		Curl.to_string(),
+		Llvm.to_string(),
+		LibUdevDev.to_string(),
+		Make.to_string(),
+	];
+
+	let mut package_names = format!(
+		"{}, {}, {}, {}, {}, {}, {}, {}",
+		Git, Clang, Curl, Libssl, Llvm, LibUdevDev, Make, ProtobufCompiler
+	);
+
+	if install_frontend {
+		packages.push(Unzip.to_string());
+		package_names.push_str(&format!(", {}", Unzip));
 	}
-	cmd(
-		"apt",
-		vec![
-			"install",
-			"-y",
-			&Libssl.to_string(),
-			&Git.to_string(),
-			&ProtobufCompiler.to_string(),
-			&Clang.to_string(),
-			&LibClang.to_string(),
-			&Curl.to_string(),
-			&Llvm.to_string(),
-			&LibUdevDev.to_string(),
-			&Make.to_string(),
-		],
-	)
-	.env("DEBIAN_FRONTEND", "noninteractive")
-	.run()?;
+
+	package_names.push_str(&format!(" and {}", Rustup));
+
+	if !skip_confirm {
+		prompt_for_confirmation(&package_names, cli)?
+	}
+
+	let mut args = vec!["install", "-y"];
+	args.extend(packages.iter().map(|s| s.as_str()));
+
+	cmd("apt", args).env("DEBIAN_FRONTEND", "noninteractive").run()?;
 
 	Ok(())
 }
@@ -315,7 +355,7 @@ async fn install_homebrew(cli: &mut impl cli::traits::Cli) -> anyhow::Result<()>
 	Ok(())
 }
 
-async fn run_external_script(script_url: &str, args: &[&str]) -> anyhow::Result<()> {
+pub(crate) async fn run_external_script(script_url: &str, args: &[&str]) -> anyhow::Result<()> {
 	let temp = tempfile::tempdir()?;
 	let scripts_path = temp.path().join("install.sh");
 	let client = reqwest::Client::new();
@@ -353,7 +393,7 @@ mod tests {
 	async fn install_arch_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#linux").expect_confirm("📦 Do you want to proceed with the installation of the following packages: curl, git, clang, make, protobuf and rustup ?", false);
 		assert!(matches!(
-			install_arch(false, &mut cli)
+			install_arch(false, false, &mut cli)
 				.await,
 			anyhow::Result::Err(message) if message.to_string() == "🚫 You have cancelled the installation process."
 		));
@@ -363,7 +403,7 @@ mod tests {
 	async fn install_ubuntu_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#linux").expect_confirm("📦 Do you want to proceed with the installation of the following packages: git, clang, curl, libssl-dev, protobuf-compiler and rustup ?", false);
 		assert!(matches!(
-			install_ubuntu(false, &mut cli)
+			install_ubuntu(false, false, &mut cli)
 				.await,
 			anyhow::Result::Err(message) if message.to_string() == "🚫 You have cancelled the installation process."
 		));
@@ -373,7 +413,7 @@ mod tests {
 	async fn install_debian_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#linux").expect_confirm("📦 Do you want to proceed with the installation of the following packages: git, clang, curl, libssl-dev, llvm, libudev-dev, make, protobuf-compiler and rustup ?", false);
 		assert!(matches!(
-			install_debian(false, &mut cli)
+			install_debian(false, false, &mut cli)
 				.await,
 			anyhow::Result::Err(message) if message.to_string() == "🚫 You have cancelled the installation process."
 		));

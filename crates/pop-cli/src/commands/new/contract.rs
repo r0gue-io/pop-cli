@@ -6,6 +6,7 @@ use crate::{
 		traits::{Cli as _, *},
 	},
 	common::helpers::check_destination_path,
+	new::frontend::{create_frontend, prompt_frontend_template},
 };
 
 use anyhow::Result;
@@ -14,7 +15,9 @@ use clap::{
 	builder::{PossibleValue, PossibleValuesParser, TypedValueParser},
 };
 use console::style;
-use pop_common::{enum_variants, get_project_name_from_path, templates::Template};
+use pop_common::{
+	FrontendTemplate, FrontendType, enum_variants, get_project_name_from_path, templates::Template,
+};
 use pop_contracts::{Contract, create_smart_contract, is_valid_contract_name};
 use serde::Serialize;
 use std::{
@@ -32,6 +35,17 @@ pub struct NewContractCommand {
 	/// The template to use.
 	#[arg(short, long, value_parser = enum_variants!(Contract))]
 	pub(crate) template: Option<Contract>,
+	/// Also scaffold a frontend. Optionally specify template, if flag provided without value,
+	/// prompts for template selection.
+	#[arg(
+		short = 'f',
+		long = "with-frontend",
+		value_name = "TEMPLATE_NAME",
+		num_args = 0..=1,
+		require_equals = true,
+		value_parser = ["typink", "inkathon"]
+	)]
+	pub(crate) with_frontend: Option<String>,
 }
 
 impl NewContractCommand {
@@ -55,7 +69,22 @@ impl NewContractCommand {
 		}
 
 		let template = self.template.clone().unwrap_or_default();
-		let contract_path = generate_contract_from_template(name, path, &template, &mut cli)?;
+		let mut frontend_template: Option<FrontendTemplate> = None;
+		if let Some(frontend_arg) = &self.with_frontend {
+			frontend_template =
+				if frontend_arg.is_empty() {
+					// User provided --with-frontend without value: prompt for template
+					Some(prompt_frontend_template(&FrontendType::Contract, &mut cli)?)
+				} else {
+					// User specified a template explicitly: parse and use it
+					Some(FrontendTemplate::from_str(frontend_arg).map_err(|_| {
+						anyhow::anyhow!("Invalid frontend template: {}", frontend_arg)
+					})?)
+				};
+		}
+		let contract_path =
+			generate_contract_from_template(name, path, &template, frontend_template, &mut cli)
+				.await?;
 
 		// If the contract is part of a workspace, add it to that workspace
 		if let Some(workspace_toml) = rustilities::manifest::find_workspace_manifest(path) {
@@ -92,6 +121,18 @@ async fn guide_user_to_generate_contract(
 		command.name = Some(name);
 	}
 
+	if command.with_frontend.is_none() {
+		command.with_frontend = if cli
+			.confirm("Would you like to scaffold a frontend template as well?".to_string())
+			.initial_value(true)
+			.interact()?
+		{
+			Some(String::new()) // Empty string means prompt for template
+		} else {
+			None
+		};
+	}
+
 	Ok(())
 }
 
@@ -106,10 +147,11 @@ fn display_select_options(cli: &mut impl cli::traits::Cli) -> Result<Contract> {
 	Ok(prompt.interact()?.clone())
 }
 
-fn generate_contract_from_template(
+async fn generate_contract_from_template(
 	name: &str,
 	path: &Path,
 	template: &Contract,
+	frontend_template: Option<FrontendTemplate>,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<PathBuf> {
 	cli.intro(format!("Generating \"{}\" using {}!", name, template.name(),))?;
@@ -137,6 +179,14 @@ fn generate_contract_from_template(
 		"Use `pop build` to build your contract.".into(),
 	];
 	next_steps.push("Use `pop up contract` to deploy your contract to a live network.".to_string());
+
+	if let Some(frontend_template) = &frontend_template {
+		create_frontend(contract_path.as_path(), frontend_template, cli).await?;
+		next_steps.push(format!(
+			"Frontend template created inside {}. To run it locally, use: `pop up frontend`. Navigate to the `frontend` folder to start customizing it for your contract. ", contract_path.display()
+		))
+	};
+
 	let next_steps: Vec<_> = next_steps
 		.iter()
 		.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
@@ -200,18 +250,20 @@ mod tests {
 				1, // "erc20"
 				None,
 			)
+			.expect_confirm("Would you like to scaffold a frontend template as well?", true)
 			.expect_input("Where should your project be created?", "./erc20".into());
 
 		let mut user_input: NewContractCommand = Default::default();
 		guide_user_to_generate_contract(&mut cli, &mut user_input).await?;
 		assert_eq!(user_input.name, Some("./erc20".to_string()));
 		assert_eq!(user_input.template, Some(ContractTemplate::ERC20));
+		assert_eq!(user_input.with_frontend, Some(String::new())); // Empty string means prompt
 
 		cli.verify()
 	}
 
-	#[test]
-	fn generate_contract_from_template_works() -> anyhow::Result<()> {
+	#[tokio::test]
+	async fn generate_contract_from_template_works() -> anyhow::Result<()> {
 		let dir = tempdir()?;
 		let contract_path = dir.path().join("test_contract");
 		let next_steps: Vec<_> = [
@@ -236,8 +288,10 @@ mod tests {
 			"my_contract",
 			&contract_path,
 			&ContractTemplate::ERC20,
+			None,
 			&mut cli,
-		)?;
+		)
+		.await?;
 		cli.verify()
 	}
 

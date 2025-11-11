@@ -10,6 +10,8 @@ use std::fmt::{Display, Formatter, Result};
 pub mod chain;
 #[cfg(feature = "contract")]
 pub mod contract;
+/// Utilities for selecting a frontend template and generate it.
+pub mod frontend;
 #[cfg(feature = "chain")]
 pub mod pallet;
 
@@ -106,6 +108,7 @@ pub fn guide_user_to_select_command(cli: &mut impl Cli) -> AnyhowResult<Command>
 			decimals: None,
 			initial_endowment: None,
 			verify: false,
+			with_frontend: None,
 		})),
 		#[cfg(feature = "chain")]
 		"pallet" => Ok(Command::Pallet(pallet::NewPalletCommand {
@@ -115,7 +118,11 @@ pub fn guide_user_to_select_command(cli: &mut impl Cli) -> AnyhowResult<Command>
 			mode: None,
 		})),
 		#[cfg(feature = "contract")]
-		"contract" => Ok(Command::Contract(contract::NewContractCommand { name: None, template: None })),
+		"contract" => Ok(Command::Contract(contract::NewContractCommand {
+			name: None,
+			template: None,
+			with_frontend: None,
+		})),
 		_ => Err(anyhow::anyhow!("Invalid selection")),
 	}
 }

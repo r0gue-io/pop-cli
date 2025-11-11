@@ -43,7 +43,7 @@ jobs:
           rustup self uninstall -y
       - name: Run Pop install
         run: |
-          pop install -y
+          pop install -y --frontend
   debian:
     runs-on: ubuntu-latest
     container: debian
@@ -61,7 +61,7 @@ jobs:
           rustup self uninstall -y
       - name: Run Pop Install
         run: |
-          pop install -y
+          pop install -y --frontend
   macos:
     runs-on: macos-latest
     steps:
@@ -78,7 +78,7 @@ jobs:
           brew uninstall rustup
       - name: Run Pop Install
         run: |
-          pop install -y
+          pop install -y --frontend
   redhat:
     runs-on: ubuntu-latest
     container: redhat/ubi8
@@ -96,7 +96,7 @@ jobs:
           rustup self uninstall -y
       - name: Run Pop install
         run: |
-          pop install -y
+          pop install -y --frontend
   ubuntu:
     runs-on: ubuntu-latest
     container: ubuntu
@@ -114,4 +114,4 @@ jobs:
           rustup self uninstall -y
       - name: Run Pop install
         run: |
-          pop install -y
+          pop install -y --frontend
