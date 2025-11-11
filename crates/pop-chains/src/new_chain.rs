@@ -71,14 +71,14 @@ pub fn instantiate_standard_template(
 		initial_endowment: config.initial_endowment,
 		based_on: template.to_string(),
 	};
-	use askama::Template;
-	write_to_file(
-		&target.join("node/src/chain_spec.rs"),
-		chainspec.render().expect("infallible").as_ref(),
-	)?;
 	if let Some(version) = tag_version.as_deref() &&
 		version <= LATEST_NETWORK_TOML_OVERWRITE_VERSION
 	{
+		use askama::Template;
+		write_to_file(
+			&target.join("node/src/chain_spec.rs"),
+			chainspec.render().expect("infallible").as_ref(),
+		)?;
 		// Add network configuration
 		let network = Network { node: "parachain-template-node".into() };
 		write_to_file(
