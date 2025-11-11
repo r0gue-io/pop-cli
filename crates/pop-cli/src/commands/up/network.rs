@@ -2,6 +2,7 @@
 
 use crate::{
 	cli::{self, traits::Confirm},
+	commands::up::contract::start_ink_node,
 	style::{Theme, style},
 };
 use clap::{
@@ -27,6 +28,7 @@ use std::{
 	time::Duration,
 };
 use tokio::time::sleep;
+use url::Url;
 
 /// Launch a local network by specifying a network configuration file.
 #[derive(Args, Clone, Default, Serialize)]
@@ -90,6 +92,42 @@ impl ConfigFileCommand {
 			cli,
 		)
 		.await
+	}
+}
+
+/// Launch a local ink! node.
+#[derive(Args, Clone, Serialize, Debug)]
+pub(crate) struct InkNodeCommand {
+	/// The port to be used for the ink! node.
+	#[clap(short, long, default_value = "9944")]
+	pub(crate) ink_node_port: u16,
+	/// The port to be used for the Ethereum RPC node.
+	#[clap(short, long, default_value = "8545")]
+	pub(crate) eth_rpc_port: u16,
+	/// Automatically source all necessary binaries required without prompting for confirmation.
+	#[clap(short = 'y', long)]
+	pub(crate) skip_confirm: bool,
+}
+
+impl InkNodeCommand {
+	pub(crate) async fn execute(&self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+		cli.intro("Launch a local Ink! node")?;
+		let url = Url::parse(&format!("ws://localhost:{}", self.ink_node_port))?;
+		let ((mut ink_node_process, ink_node_log), (mut eth_rpc_process, _)) =
+			start_ink_node(&url, self.skip_confirm, self.ink_node_port, self.eth_rpc_port).await?;
+		std::process::Command::new("tail")
+			.args(["-F", &ink_node_log.path().to_string_lossy()])
+			.spawn()?;
+
+		// Wait for the process to terminate
+		tokio::signal::ctrl_c().await?;
+		ink_node_process.kill()?;
+		eth_rpc_process.kill()?;
+		ink_node_process.wait()?;
+		eth_rpc_process.wait()?;
+		cli.plain("\n")?;
+		cli.outro("✅ Ink! node terminated")?;
+		Ok(())
 	}
 }
 
@@ -677,6 +715,7 @@ fn cd_into_chain_base_dir(network_file: &Path) {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use clap::Parser;
 	use std::{env, fs};
 
 	#[tokio::test]
@@ -768,5 +807,45 @@ cumulus-client-collator = "0.14"
 
 		// Cleanup
 		fs::remove_dir_all(&base).ok();
+	}
+
+	#[test]
+	fn test_ink_node_command_clap_defaults() {
+		// Build a tiny clap::Parser that flattens InkNodeCommand so we can parse args
+		#[derive(clap::Parser)]
+		struct TestParser {
+			#[command(flatten)]
+			cmd: InkNodeCommand,
+		}
+
+		let parsed = TestParser::parse_from(["pop-cli-test"]);
+		let cmd = parsed.cmd;
+
+		assert_eq!(cmd.ink_node_port, 9944);
+		assert_eq!(cmd.eth_rpc_port, 8545);
+		assert!(!cmd.skip_confirm);
+	}
+
+	#[test]
+	fn test_ink_node_command_clap_overrides() {
+		#[derive(clap::Parser, Debug)]
+		struct TestParser {
+			#[command(flatten)]
+			cmd: InkNodeCommand,
+		}
+
+		let parsed = TestParser::parse_from([
+			"pop-cli-test",
+			"--ink-node-port",
+			"12000",
+			"--eth-rpc-port",
+			"13000",
+			"-y", // skip_confirm
+		]);
+		let cmd = parsed.cmd;
+
+		assert_eq!(cmd.ink_node_port, 12000);
+		assert_eq!(cmd.eth_rpc_port, 13000);
+		assert!(cmd.skip_confirm);
 	}
 }

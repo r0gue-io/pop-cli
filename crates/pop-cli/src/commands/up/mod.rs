@@ -82,6 +82,9 @@ pub(crate) enum Command {
 	/// Launch a frontend dev server.
 	#[clap(alias = "f")]
 	Frontend(frontend::FrontendCommand),
+	/// Launch a local Ink! node.
+	#[clap()]
+	InkNode(network::InkNodeCommand),
 }
 
 impl Command {
@@ -134,6 +137,7 @@ impl Display for Command {
 			Command::Polkadot(_) => write!(f, "polkadot"),
 			Command::Westend(_) => write!(f, "westend"),
 			Command::Frontend(_) => write!(f, "frontend"),
+			Command::InkNode(_) => write!(f, "ink-node"),
 		}
 	}
 }
