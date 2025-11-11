@@ -17,7 +17,8 @@ pub(crate) struct UpgradeArgs {
 	/// Path to the Cargo.toml file. If not provided, the current directory will be used.
 	#[arg(short, long)]
 	pub(crate) path: Option<PathBuf>,
-	/// Target Polkadot SDK version to switch to (default: 0.3.0).
+	/// Target Polkadot SDK version to switch to.
+	/// If not specified, you will be prompted to select it.
 	#[arg(short, long)]
 	pub(crate) version: Option<String>,
 }
