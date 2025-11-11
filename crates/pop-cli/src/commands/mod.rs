@@ -164,7 +164,7 @@ impl Command {
 			},
 			Self::Upgrade(args) => {
 				env_logger::init();
-				upgrade::Command::execute(args, &mut Cli).await.map(|_| Null)
+				upgrade::Command::execute(args, &mut Cli).await
 			},
 			Self::Test(args) => {
 				env_logger::init();
