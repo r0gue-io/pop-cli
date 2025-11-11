@@ -94,7 +94,8 @@ pub struct UpContractCommand {
 	#[clap(short = 'U', long)]
 	pub(crate) upload_only: bool,
 	/// Automatically source or update the needed binary required without prompting for
-	/// confirmation.
+	/// confirmation. When no `--url` is provided (falls back to the local default), this will
+	/// automatically start the ink! node if no endpoint is reachable.
 	#[clap(short = 'y', long)]
 	pub(crate) skip_confirm: bool,
 	/// Skip building the contract before deployment.
@@ -129,6 +130,7 @@ impl UpContractCommand {
 			));
 		}
 
+		let auto_start_local_node = should_auto_start_local_node(self.skip_confirm, &self.url);
 		// Check if specified chain is accessible
 		let processes = if !is_chain_alive(self.url.clone()).await? {
 			let local_url = Url::parse(urls::LOCAL).expect("default url is valid");
@@ -158,6 +160,11 @@ impl UpContractCommand {
 				} else {
 					true
 				}
+			} else if auto_start_local_node {
+				Cli.info(
+					"The default endpoint is unreachable. Fetching and launching a local ink! node because confirmations are skipped.",
+				)?;
+				true
 			} else {
 				Cli.outro_cancel(
 					"🚫 You need to specify an accessible endpoint to deploy the contract.",
@@ -516,6 +523,10 @@ fn display_contract_info(spinner: &ProgressBar, address: String, code_hash: Opti
 	));
 }
 
+fn should_auto_start_local_node(skip_confirm: bool, url: &Url) -> bool {
+	skip_confirm && url.as_str() == urls::LOCAL
+}
+
 impl Default for UpContractCommand {
 	fn default() -> Self {
 		Self {
@@ -560,6 +571,22 @@ mod tests {
 				suri: "//Alice".to_string(),
 			}
 		);
+		Ok(())
+	}
+
+	#[test]
+	fn auto_starts_local_node_when_skip_confirm_and_default_url() -> anyhow::Result<()> {
+		let url = Url::parse(urls::LOCAL)?;
+		assert!(should_auto_start_local_node(true, &url));
+		Ok(())
+	}
+
+	#[test]
+	fn auto_start_disabled_for_custom_url_or_when_confirmation_needed() -> anyhow::Result<()> {
+		let remote = Url::parse("wss://example.pop.io")?;
+		let local = Url::parse(urls::LOCAL)?;
+		assert!(!should_auto_start_local_node(true, &remote));
+		assert!(!should_auto_start_local_node(false, &local));
 		Ok(())
 	}
 }
