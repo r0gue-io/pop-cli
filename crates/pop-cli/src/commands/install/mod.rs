@@ -10,7 +10,7 @@ use clap::Args;
 use duct::cmd;
 use os_info::Type;
 use serde::Serialize;
-use std::{fs::Permissions, os::unix::fs::PermissionsExt};
+use std::{collections::HashMap, fs::Permissions, os::unix::fs::PermissionsExt, path::Path};
 use strum_macros::Display;
 use tokio::fs;
 
@@ -80,21 +80,27 @@ impl Command {
 			cli.info("ℹ️ Mac OS (Darwin) detected.")?;
 			install_mac(args.skip_confirm, &mut cli).await?;
 		} else if cfg!(target_os = "linux") {
-			match os_info::get().os_type() {
-				Type::Arch => {
-					cli.info("ℹ️ Arch Linux detected.")?;
+			let os_type = os_info::get().os_type();
+			let distro_type = match os_type {
+				Type::Arch | Type::Debian | Type::Redhat | Type::Ubuntu => Some(os_type),
+				_ => get_compatible_distro(),
+			};
+
+			match distro_type {
+				Some(Type::Arch) => {
+					cli.info("ℹ️ Arch Linux (or compatible) detected.")?;
 					install_arch(args.skip_confirm, args.frontend, &mut cli).await?;
 				},
-				Type::Debian => {
-					cli.info("ℹ️ Debian Linux detected.")?;
+				Some(Type::Debian) => {
+					cli.info("ℹ️ Debian Linux (or compatible) detected.")?;
 					install_debian(args.skip_confirm, args.frontend, &mut cli).await?;
 				},
-				Type::Redhat => {
-					cli.info("ℹ️ Redhat Linux detected.")?;
+				Some(Type::Redhat) => {
+					cli.info("ℹ️ Redhat Linux (or compatible) detected.")?;
 					install_redhat(args.skip_confirm, &mut cli).await?;
 				},
-				Type::Ubuntu => {
-					cli.info("ℹ️ Ubuntu detected.")?;
+				Some(Type::Ubuntu) => {
+					cli.info("ℹ️ Ubuntu (or compatible) detected.")?;
 					install_ubuntu(args.skip_confirm, args.frontend, &mut cli).await?;
 				},
 				_ => not_supported_message(&mut cli)?,
@@ -110,6 +116,53 @@ impl Command {
 		cli.outro("✅ Installation complete.")?;
 		Ok(())
 	}
+}
+
+/// Parse /etc/os-release to get distribution information
+fn parse_os_release() -> anyhow::Result<HashMap<String, String>> {
+	let path = Path::new("/etc/os-release");
+	if !path.exists() {
+		return Ok(HashMap::new());
+	}
+
+	let content = std::fs::read_to_string(path)?;
+	let mut map = HashMap::new();
+
+	for line in content.lines() {
+		// Skip empty lines and comments
+		let line = line.trim();
+		if line.is_empty() || line.starts_with('#') {
+			continue;
+		}
+
+		// Parse KEY=VALUE or KEY="VALUE" format
+		if let Some((key, value)) = line.split_once('=') {
+			let value = value.trim_matches('"').trim_matches('\'');
+			map.insert(key.to_string(), value.to_string());
+		}
+	}
+
+	Ok(map)
+}
+
+/// Check if the distribution is compatible with a known distribution based on ID_LIKE
+fn get_compatible_distro() -> Option<Type> {
+	let os_release = parse_os_release().ok()?;
+	let id_like = os_release.get("ID_LIKE")?;
+
+	// Check ID_LIKE for compatible distributions
+	// Split by space as ID_LIKE can contain multiple values (e.g., "ubuntu debian")
+	for distro in id_like.split_whitespace() {
+		match distro.to_lowercase().as_str() {
+			"ubuntu" => return Some(Type::Ubuntu),
+			"debian" => return Some(Type::Debian),
+			"arch" => return Some(Type::Arch),
+			"rhel" | "fedora" | "redhat" => return Some(Type::Redhat),
+			_ => continue,
+		}
+	}
+
+	None
 }
 
 async fn install_mac(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
@@ -378,6 +431,7 @@ pub(crate) async fn run_external_script(script_url: &str, args: &[&str]) -> anyh
 mod tests {
 	use super::*;
 	use crate::cli::MockCli;
+	use std::io::Write;
 
 	#[tokio::test]
 	async fn install_mac_works() -> anyhow::Result<()> {
@@ -453,5 +507,96 @@ mod tests {
 			);
 		not_supported_message(&mut cli)?;
 		cli.verify()
+	}
+
+	#[test]
+	fn test_parse_os_release() -> anyhow::Result<()> {
+		// Create a temporary os-release file
+		let temp_dir = tempfile::tempdir()?;
+		let os_release_path = temp_dir.path().join("os-release");
+		let mut file = std::fs::File::create(&os_release_path)?;
+		writeln!(file, "ID=tuxedo")?;
+		writeln!(file, "ID_LIKE=\"ubuntu debian\"")?;
+		writeln!(file, "NAME=\"Tuxedo OS\"")?;
+		writeln!(file, "# This is a comment")?;
+		writeln!(file)?;
+		writeln!(file, "VERSION_ID='22.04'")?;
+		drop(file);
+
+		// Read and parse the file
+		let content = std::fs::read_to_string(&os_release_path)?;
+		let mut map = HashMap::new();
+
+		for line in content.lines() {
+			let line = line.trim();
+			if line.is_empty() || line.starts_with('#') {
+				continue;
+			}
+			if let Some((key, value)) = line.split_once('=') {
+				let value = value.trim_matches('"').trim_matches('\'');
+				map.insert(key.to_string(), value.to_string());
+			}
+		}
+
+		assert_eq!(map.get("ID"), Some(&"tuxedo".to_string()));
+		assert_eq!(map.get("ID_LIKE"), Some(&"ubuntu debian".to_string()));
+		assert_eq!(map.get("NAME"), Some(&"Tuxedo OS".to_string()));
+		assert_eq!(map.get("VERSION_ID"), Some(&"22.04".to_string()));
+		assert_eq!(map.len(), 4);
+
+		Ok(())
+	}
+
+	#[test]
+	fn test_id_like_parsing() {
+		// Test Ubuntu-like
+		let id_like = "ubuntu debian";
+		let mut found = None;
+		for distro in id_like.split_whitespace() {
+			match distro.to_lowercase().as_str() {
+				"ubuntu" => {
+					found = Some(Type::Ubuntu);
+					break;
+				},
+				"debian" => {
+					found = Some(Type::Debian);
+					break;
+				},
+				_ => continue,
+			}
+		}
+		assert_eq!(found, Some(Type::Ubuntu));
+
+		// Test Debian-like
+		let id_like = "debian";
+		let mut found = None;
+		for distro in id_like.split_whitespace() {
+			match distro.to_lowercase().as_str() {
+				"ubuntu" => {
+					found = Some(Type::Ubuntu);
+					break;
+				},
+				"debian" => {
+					found = Some(Type::Debian);
+					break;
+				},
+				_ => continue,
+			}
+		}
+		assert_eq!(found, Some(Type::Debian));
+
+		// Test RHEL-like
+		let id_like = "rhel fedora";
+		let mut found = None;
+		for distro in id_like.split_whitespace() {
+			match distro.to_lowercase().as_str() {
+				"rhel" | "fedora" | "redhat" => {
+					found = Some(Type::Redhat);
+					break;
+				},
+				_ => continue,
+			}
+		}
+		assert_eq!(found, Some(Type::Redhat));
 	}
 }
