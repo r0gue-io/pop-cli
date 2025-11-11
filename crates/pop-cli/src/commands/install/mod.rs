@@ -68,7 +68,7 @@ pub(crate) struct InstallArgs {
 	frontend: bool,
 }
 
-/// Setup user environment for development
+/// Setup user environment for development.
 pub(crate) struct Command;
 
 impl Command {
@@ -118,24 +118,30 @@ impl Command {
 	}
 }
 
-/// Parse /etc/os-release to get distribution information
+/// Parse `os-release` to get distribution information.
+// source: https://www.freedesktop.org/software/systemd/man/latest/os-release.html
 fn parse_os_release() -> anyhow::Result<HashMap<String, String>> {
-	let path = Path::new("/etc/os-release");
-	if !path.exists() {
+	// Find the first path that exists.
+	let path = ["/etc/os-release", "/usr/lib/os-release"]
+		.iter()
+		.map(Path::new)
+		.find(|p| p.exists());
+
+	let Some(path) = path else {
 		return Ok(HashMap::new());
-	}
+	};
 
 	let content = std::fs::read_to_string(path)?;
 	let mut map = HashMap::new();
 
 	for line in content.lines() {
-		// Skip empty lines and comments
+		// Skip empty lines and comments.
 		let line = line.trim();
 		if line.is_empty() || line.starts_with('#') {
 			continue;
 		}
 
-		// Parse KEY=VALUE or KEY="VALUE" format
+		// Parse KEY=VALUE or KEY="VALUE" format.
 		if let Some((key, value)) = line.split_once('=') {
 			let value = value.trim_matches('"').trim_matches('\'');
 			map.insert(key.to_string(), value.to_string());
@@ -145,13 +151,13 @@ fn parse_os_release() -> anyhow::Result<HashMap<String, String>> {
 	Ok(map)
 }
 
-/// Check if the distribution is compatible with a known distribution based on ID_LIKE
+/// Check if the distribution is compatible with a known distribution based on ID_LIKE.
 fn get_compatible_distro() -> Option<Type> {
 	let os_release = parse_os_release().ok()?;
 	let id_like = os_release.get("ID_LIKE")?;
 
-	// Check ID_LIKE for compatible distributions
-	// Split by space as ID_LIKE can contain multiple values (e.g., "ubuntu debian")
+	// Check ID_LIKE for compatible distributions.
+	// Split by space as ID_LIKE can contain multiple values (e.g., "ubuntu debian").
 	for distro in id_like.split_whitespace() {
 		match distro.to_lowercase().as_str() {
 			"ubuntu" => return Some(Type::Ubuntu),
@@ -511,7 +517,7 @@ mod tests {
 
 	#[test]
 	fn test_parse_os_release() -> anyhow::Result<()> {
-		// Create a temporary os-release file
+		// Create a temporary os-release file.
 		let temp_dir = tempfile::tempdir()?;
 		let os_release_path = temp_dir.path().join("os-release");
 		let mut file = std::fs::File::create(&os_release_path)?;
@@ -523,7 +529,7 @@ mod tests {
 		writeln!(file, "VERSION_ID='22.04'")?;
 		drop(file);
 
-		// Read and parse the file
+		// Read and parse the file.
 		let content = std::fs::read_to_string(&os_release_path)?;
 		let mut map = HashMap::new();
 
@@ -549,7 +555,7 @@ mod tests {
 
 	#[test]
 	fn test_id_like_parsing() {
-		// Test Ubuntu-like
+		// Test Ubuntu-like.
 		let id_like = "ubuntu debian";
 		let mut found = None;
 		for distro in id_like.split_whitespace() {
@@ -567,7 +573,7 @@ mod tests {
 		}
 		assert_eq!(found, Some(Type::Ubuntu));
 
-		// Test Debian-like
+		// Test Debian-like.
 		let id_like = "debian";
 		let mut found = None;
 		for distro in id_like.split_whitespace() {
@@ -585,7 +591,7 @@ mod tests {
 		}
 		assert_eq!(found, Some(Type::Debian));
 
-		// Test RHEL-like
+		// Test RHEL-like.
 		let id_like = "rhel fedora";
 		let mut found = None;
 		for distro in id_like.split_whitespace() {
