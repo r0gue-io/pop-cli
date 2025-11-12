@@ -55,7 +55,7 @@ jobs:
         run: rustup target add ${{ matrix.platform.target }}
 
       - name: Build pop-cli
-        run: cargo build --profile=production -p pop-cli --target ${{ matrix.platform.target }}
+        run: cargo build --locked --profile=production -p pop-cli --target ${{ matrix.platform.target }}
 
       - name: Package binary (Linux)
         if: contains(matrix.platform.target, 'linux')
