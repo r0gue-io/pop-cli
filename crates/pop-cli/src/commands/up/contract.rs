@@ -609,10 +609,6 @@ fn display_contract_info(
 	Ok(())
 }
 
-fn should_auto_start_local_node(skip_confirm: bool, url: &Url) -> bool {
-	skip_confirm && url.as_str() == urls::LOCAL
-}
-
 impl Default for UpContractCommand {
 	fn default() -> Self {
 		Self {
