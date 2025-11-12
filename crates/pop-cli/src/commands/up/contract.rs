@@ -105,6 +105,10 @@ pub struct UpContractCommand {
 }
 
 impl UpContractCommand {
+	fn should_auto_start_local_node(&self) -> bool {
+		self.skip_confirm && self.url.as_str() == urls::LOCAL
+	}
+
 	/// Executes the command.
 	pub(crate) async fn execute(&mut self) -> anyhow::Result<()> {
 		Cli.intro("Deploy a smart contract")?;
@@ -130,7 +134,6 @@ impl UpContractCommand {
 			));
 		}
 
-		let auto_start_local_node = should_auto_start_local_node(self.skip_confirm, &self.url);
 		// Check if specified chain is accessible
 		let processes = if !is_chain_alive(self.url.clone()).await? {
 			let local_url = Url::parse(urls::LOCAL).expect("default url is valid");
@@ -160,7 +163,7 @@ impl UpContractCommand {
 				} else {
 					true
 				}
-			} else if auto_start_local_node {
+			} else if self.should_auto_start_local_node() {
 				Cli.info(
 					"The default endpoint is unreachable. Fetching and launching a local ink! node because confirmations are skipped.",
 				)?;
@@ -534,10 +537,6 @@ fn display_contract_info(spinner: &ProgressBar, address: String, code_hash: Opti
 	));
 }
 
-fn should_auto_start_local_node(skip_confirm: bool, url: &Url) -> bool {
-	skip_confirm && url.as_str() == urls::LOCAL
-}
-
 impl Default for UpContractCommand {
 	fn default() -> Self {
 		Self {
@@ -587,17 +586,30 @@ mod tests {
 
 	#[test]
 	fn auto_starts_local_node_when_skip_confirm_and_default_url() -> anyhow::Result<()> {
-		let url = Url::parse(urls::LOCAL)?;
-		assert!(should_auto_start_local_node(true, &url));
+		let cmd = UpContractCommand {
+			url: Url::parse(urls::LOCAL)?,
+			skip_confirm: true,
+			..Default::default()
+		};
+		assert!(cmd.should_auto_start_local_node());
 		Ok(())
 	}
 
 	#[test]
 	fn auto_start_disabled_for_custom_url_or_when_confirmation_needed() -> anyhow::Result<()> {
-		let remote = Url::parse("wss://example.pop.io")?;
-		let local = Url::parse(urls::LOCAL)?;
-		assert!(!should_auto_start_local_node(true, &remote));
-		assert!(!should_auto_start_local_node(false, &local));
+		let cmd = UpContractCommand {
+			url: Url::parse("wss://example.pop.io")?,
+			skip_confirm: true,
+			..Default::default()
+		};
+		assert!(!cmd.should_auto_start_local_node());
+
+		let cmd = UpContractCommand {
+			url: Url::parse(urls::LOCAL)?,
+			skip_confirm: false,
+			..Default::default()
+		};
+		assert!(!cmd.should_auto_start_local_node());
 		Ok(())
 	}
 }
