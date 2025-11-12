@@ -93,16 +93,16 @@ jobs:
           shared-key: shared-${{ github.head_ref || github.ref_name }}
 
       - name: Check no default features
-        run: cargo check --no-default-features
+        run: cargo check --locked --no-default-features
 
       - name: Check contract feature
-        run: cargo check --no-default-features --features contract
+        run: cargo check --locked --no-default-features --features contract
 
       - name: Check chain feature
-        run: cargo check --no-default-features --features chain
+        run: cargo check --locked --no-default-features --features chain
 
       - name: Check default features
-        run: cargo check
+        run: cargo check --locked
 
   clippy:
     needs:
@@ -159,7 +159,7 @@ jobs:
           shared-key: shared-docs-${{ github.head_ref || github.ref_name }}
 
       - name: Check no default features
-        run: cargo doc --no-deps
+        run: cargo doc --locked --no-deps
 
   documentation-tests:
     needs:
@@ -178,4 +178,4 @@ jobs:
           shared-key: shared-${{ github.head_ref || github.ref_name }}
 
       - name: Run doc tests
-        run: cargo test --doc
+        run: cargo test --locked --doc
