@@ -246,7 +246,7 @@ impl UpContractCommand {
 
 		// Resolve who is deploying the contract. If a `suri` was provided via the command line,
 		// skip the prompt.
-		resolve_signer(&mut self.use_wallet, &mut self.suri, &mut Cli)?;
+		resolve_signer(self.skip_confirm, &mut self.use_wallet, &mut self.suri, &mut Cli)?;
 
 		// Track the deployed contract address across both deployment flows.
 		let mut deployed_contract_address: Option<String> = None;

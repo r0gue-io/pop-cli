@@ -308,7 +308,7 @@ impl CallContractCommand {
 		// Resolve who is calling the contract. If a `suri` was provided via the command line, skip
 		// the prompt. Only prompt for mutations since read-only operations don't require signing.
 		if message.mutates {
-			resolve_signer(&mut self.use_wallet, &mut self.suri, cli)?;
+			resolve_signer(self.skip_confirm, &mut self.use_wallet, &mut self.suri, cli)?;
 		}
 
 		// Finally prompt for confirmation.
@@ -971,7 +971,7 @@ mod tests {
             .expect_input("Enter the value for the parameter: new_value", "true".into()) // Args for specific_flip
             .expect_input("Enter the value for the parameter: number", "2".into()) // Args for specific_flip
             .expect_input("Value to transfer to the call:", "50".into()) // Only if payable
-            .expect_input("Signer:", "//Alice".into())
+            .expect_input("Specify the signer:", "//Alice".into())
             .expect_info(format!(
                 "pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\" \"2\" --value 50 --manual-weight 100000 1000000 --url {} --suri //Alice --execute --skip-confirm",
                 temp_dir.path().join("testing").display(), urls::LOCAL
