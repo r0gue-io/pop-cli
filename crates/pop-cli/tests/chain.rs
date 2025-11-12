@@ -197,7 +197,7 @@ rpc_port = {random_port}
 	let mut up = TestChildProcess(command.spawn()?);
 
 	// Wait for the networks to initialize. Increased timeout to accommodate CI environment delays.
-	let wait = Duration::from_secs(50);
+	let wait = Duration::from_secs(120);
 	println!("waiting for {wait:?} for network to initialize...");
 	tokio::time::sleep(wait).await;
 

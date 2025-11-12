@@ -29,16 +29,60 @@ use pop_contracts::{
 };
 use serde::Serialize;
 use sp_core::bytes::to_hex;
-use std::path::PathBuf;
+use std::{path::PathBuf, process::Child};
 use tempfile::NamedTempFile;
 use url::Url;
 
 const COMPLETE: &str = "🚀 Deployment complete";
 const DEFAULT_PORT: u16 = 9944;
 const DEFAULT_ETH_RPC_PORT: u16 = 8545;
-const DEFAULT_INK_NODE_URL: &str = "ws://127.0.0.1:9944";
 const FAILED: &str = "🚫 Deployment failed.";
 const HELP_HEADER: &str = "Smart contract deployment options";
+
+/// Launch a local ink! node.
+#[derive(Args, Clone, Serialize, Debug)]
+pub(crate) struct InkNodeCommand {
+	/// The port to be used for the ink! node.
+	#[clap(short, long, default_value = "9944")]
+	pub(crate) ink_node_port: u16,
+	/// The port to be used for the Ethereum RPC node.
+	#[clap(short, long, default_value = "8545")]
+	pub(crate) eth_rpc_port: u16,
+	/// Automatically source all necessary binaries required without prompting for confirmation.
+	#[clap(short = 'y', long)]
+	pub(crate) skip_confirm: bool,
+	/// Automatically detach from the terminal and run the node in the background.
+	#[clap(short, long)]
+	pub(crate) detach: bool,
+}
+
+impl InkNodeCommand {
+	pub(crate) async fn execute(&self, cli: &mut Cli) -> anyhow::Result<()> {
+		cli.intro("Launch a local Ink! node")?;
+		let url = Url::parse(&format!("ws://localhost:{}", self.ink_node_port))?;
+		let ((mut ink_node_process, _), (mut eth_rpc_process, _)) =
+			start_ink_node(&url, self.skip_confirm, self.ink_node_port, self.eth_rpc_port).await?;
+
+		if !self.detach {
+			// Wait for the process to terminate
+			cli.info("Press Control+C to exit")?;
+			tokio::signal::ctrl_c().await?;
+			ink_node_process.kill()?;
+			eth_rpc_process.kill()?;
+			ink_node_process.wait()?;
+			eth_rpc_process.wait()?;
+			cli.plain("\n")?;
+			cli.outro("✅ Ink! node terminated")?;
+		} else {
+			cli.outro(format!(
+				"✅ Ink! node bootstrapped successfully. Run `kill -9 {} {}` to terminate it.",
+				ink_node_process.id(),
+				eth_rpc_process.id()
+			))?;
+		}
+		Ok(())
+	}
+}
 
 #[derive(Args, Clone, Serialize)]
 #[clap(next_help_heading = HELP_HEADER)]
@@ -169,64 +213,15 @@ impl UpContractCommand {
 				// Update url to that of the launched node
 				self.url = local_url;
 
-				let log_ink_node = NamedTempFile::new()?;
-				let log_eth_rpc = NamedTempFile::new()?;
-				let spinner = spinner();
-
-				// uses the cache location
-				let (ink_node_binary_path, eth_rpc_binary_path) = match check_ink_node_and_prompt(
-					&mut Cli,
-					&spinner,
-					&crate::cache()?,
-					self.skip_confirm,
+				Some(
+					start_ink_node(
+						&self.url,
+						self.skip_confirm,
+						DEFAULT_PORT,
+						DEFAULT_ETH_RPC_PORT,
+					)
+					.await?,
 				)
-				.await
-				{
-					Ok(binary_path) => binary_path,
-					Err(_) => {
-						Cli.outro_cancel(
-							"🚫 You need to specify an accessible endpoint to deploy the contract.",
-						)?;
-						return Ok(());
-					},
-				};
-
-				spinner.start("Starting local node...");
-
-				let ink_node_process =
-					run_ink_node(&ink_node_binary_path, Some(log_ink_node.as_file()), DEFAULT_PORT)
-						.await?;
-				let eth_rpc_node_process = run_eth_rpc_node(
-					&eth_rpc_binary_path,
-					Some(log_eth_rpc.as_file()),
-					DEFAULT_INK_NODE_URL,
-					DEFAULT_ETH_RPC_PORT,
-				)
-				.await?;
-				spinner.clear();
-				Cli.info(format!(
-					"Local node started successfully:{}",
-					style(format!(
-						"\n{}\n{}",
-						style(format!(
-							"portal: https://polkadot.js.org/apps/?rpc={}#/explorer",
-							self.url
-						))
-						.dim(),
-						style(format!("logs: tail -f {}", log_ink_node.path().display())).dim(),
-					))
-					.dim()
-				))?;
-				Cli.info(format!(
-					"Ethereum RPC node started successfully:{}",
-					style(format!(
-						"\n{}\n{}",
-						style(format!("url: ws://localhost:{}", DEFAULT_ETH_RPC_PORT)).dim(),
-						style(format!("logs: tail -f {}", log_eth_rpc.path().display())).dim(),
-					))
-					.dim()
-				))?;
-				Some(((ink_node_process, log_ink_node), (eth_rpc_node_process, log_eth_rpc)))
 			} else {
 				None
 			}
@@ -491,6 +486,61 @@ impl From<UpContractCommand> for UpOpts {
 	}
 }
 
+pub(crate) async fn start_ink_node(
+	url: &Url,
+	skip_confirm: bool,
+	ink_node_port: u16,
+	eth_rpc_port: u16,
+) -> anyhow::Result<((Child, NamedTempFile), (Child, NamedTempFile))> {
+	let log_ink_node = NamedTempFile::new()?;
+	let log_eth_rpc = NamedTempFile::new()?;
+	let spinner = spinner();
+
+	// uses the cache location
+	let (ink_node_binary_path, eth_rpc_binary_path) =
+		match check_ink_node_and_prompt(&mut Cli, &spinner, &crate::cache()?, skip_confirm).await {
+			Ok(binary_path) => binary_path,
+			Err(_) => {
+				Cli.outro_cancel(
+					"🚫 You need to specify an accessible endpoint to deploy the contract.",
+				)?;
+				anyhow::bail!("Failed to start the local ink! node");
+			},
+		};
+
+	spinner.start("Starting local node...");
+
+	let ink_node_process =
+		run_ink_node(&ink_node_binary_path, Some(log_ink_node.as_file()), ink_node_port).await?;
+	let eth_rpc_node_process = run_eth_rpc_node(
+		&eth_rpc_binary_path,
+		Some(log_eth_rpc.as_file()),
+		&format!("ws://localhost:{}", ink_node_port),
+		eth_rpc_port,
+	)
+	.await?;
+	spinner.clear();
+	Cli.info(format!(
+		"Local node started successfully:{}",
+		style(format!(
+			"\n{}\n{}",
+			style(format!("portal: https://polkadot.js.org/apps/?rpc={}#/explorer", url)).dim(),
+			style(format!("logs: tail -f {}", log_ink_node.path().display())).dim(),
+		))
+		.dim()
+	))?;
+	Cli.info(format!(
+		"Ethereum RPC node started successfully:{}",
+		style(format!(
+			"\n{}\n{}",
+			style(format!("url: ws://localhost:{}", eth_rpc_port)).dim(),
+			style(format!("logs: tail -f {}", log_eth_rpc.path().display())).dim(),
+		))
+		.dim()
+	))?;
+	Ok(((ink_node_process, log_ink_node), (eth_rpc_node_process, log_eth_rpc)))
+}
+
 fn display_contract_info(spinner: &ProgressBar, address: String, code_hash: Option<String>) {
 	spinner.stop(format!(
 		"Contract deployed and instantiated:\n{}",
@@ -536,6 +586,7 @@ impl Default for UpContractCommand {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use clap::Parser;
 	use url::Url;
 
 	#[test]
@@ -557,5 +608,45 @@ mod tests {
 			}
 		);
 		Ok(())
+	}
+
+	#[test]
+	fn test_ink_node_command_clap_defaults() {
+		// Build a tiny clap::Parser that flattens InkNodeCommand so we can parse args
+		#[derive(clap::Parser)]
+		struct TestParser {
+			#[command(flatten)]
+			cmd: InkNodeCommand,
+		}
+
+		let parsed = TestParser::parse_from(["pop-cli-test"]);
+		let cmd = parsed.cmd;
+
+		assert_eq!(cmd.ink_node_port, 9944);
+		assert_eq!(cmd.eth_rpc_port, 8545);
+		assert!(!cmd.skip_confirm);
+	}
+
+	#[test]
+	fn test_ink_node_command_clap_overrides() {
+		#[derive(clap::Parser, Debug)]
+		struct TestParser {
+			#[command(flatten)]
+			cmd: InkNodeCommand,
+		}
+
+		let parsed = TestParser::parse_from([
+			"pop-cli-test",
+			"--ink-node-port",
+			"12000",
+			"--eth-rpc-port",
+			"13000",
+			"-y", // skip_confirm
+		]);
+		let cmd = parsed.cmd;
+
+		assert_eq!(cmd.ink_node_port, 12000);
+		assert_eq!(cmd.eth_rpc_port, 13000);
+		assert!(cmd.skip_confirm);
 	}
 }
