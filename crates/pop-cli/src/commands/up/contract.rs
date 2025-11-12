@@ -60,15 +60,12 @@ impl InkNodeCommand {
 	pub(crate) async fn execute(&self, cli: &mut Cli) -> anyhow::Result<()> {
 		cli.intro("Launch a local Ink! node")?;
 		let url = Url::parse(&format!("ws://localhost:{}", self.ink_node_port))?;
-		let ((mut ink_node_process, ink_node_log), (mut eth_rpc_process, _)) =
+		let ((mut ink_node_process, _), (mut eth_rpc_process, _)) =
 			start_ink_node(&url, self.skip_confirm, self.ink_node_port, self.eth_rpc_port).await?;
 
 		if !self.detach {
-			// Fetch the logs
-			std::process::Command::new("tail")
-				.args(["-F", &ink_node_log.path().to_string_lossy()])
-				.spawn()?;
 			// Wait for the process to terminate
+			cli.info("Press Control+C to exit")?;
 			tokio::signal::ctrl_c().await?;
 			ink_node_process.kill()?;
 			eth_rpc_process.kill()?;
