@@ -325,7 +325,7 @@ async fn install_redhat(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> 
 		)?
 	}
 	cmd("yum", vec!["update", "-y"]).run()?;
-	cmd("yum", vec!["groupinstall", "-y", "'Development Tools"]).run()?;
+	cmd("yum", vec!["groupinstall", "-y", "Development Tools"]).run()?;
 	cmd(
 		"yum",
 		vec![
