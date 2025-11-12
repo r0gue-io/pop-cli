@@ -2,10 +2,7 @@
 
 use crate::{
 	cli::{self, Cli},
-	common::{
-		Project::{self, *},
-		builds::ensure_project_path,
-	},
+	common::builds::ensure_project_path,
 };
 use clap::{Args, Subcommand};
 use serde::Serialize;
@@ -18,6 +15,8 @@ use {
 
 #[cfg(feature = "contract")]
 mod contract;
+/// Utilities for launching a frontend dev server.
+mod frontend;
 #[cfg(feature = "chain")]
 pub(super) mod network;
 #[cfg(feature = "chain")]
@@ -80,11 +79,14 @@ pub(crate) enum Command {
 	#[cfg(feature = "chain")]
 	#[clap()]
 	Westend(network::BuildCommand<WESTEND>),
+	/// Launch a frontend dev server.
+	#[clap(alias = "f")]
+	Frontend(frontend::FrontendCommand),
 }
 
 impl Command {
 	/// Executes the command.
-	pub(crate) async fn execute(args: &mut UpArgs) -> anyhow::Result<Project> {
+	pub(crate) async fn execute(args: &mut UpArgs) -> anyhow::Result<()> {
 		Self::execute_project_deployment(args, &mut Cli).await
 	}
 
@@ -92,14 +94,14 @@ impl Command {
 	async fn execute_project_deployment(
 		args: &mut UpArgs,
 		cli: &mut impl cli::traits::Cli,
-	) -> anyhow::Result<Project> {
+	) -> anyhow::Result<()> {
 		let project_path = ensure_project_path(args.path.clone(), args.path_pos.clone());
 		#[cfg(feature = "chain")]
 		if project_path.is_file() {
 			let cmd =
 				network::ConfigFileCommand { path: project_path.clone(), ..Default::default() };
 			cmd.execute(cli).await?;
-			return Ok(Network);
+			return Ok(());
 		}
 
 		// If only contract feature enabled, deploy a contract
@@ -107,18 +109,18 @@ impl Command {
 		if pop_contracts::is_supported(&project_path)? {
 			args.contract.path = project_path.clone();
 			args.contract.execute().await?;
-			return Ok(Contract);
+			return Ok(());
 		}
 		#[cfg(feature = "chain")]
 		if pop_chains::is_supported(&project_path) {
 			args.rollup.path = project_path.clone();
 			args.rollup.execute(cli).await?;
-			return Ok(Chain);
+			return Ok(());
 		}
 		cli.warning(
 			"No contract or rollup detected. Ensure you are in a valid project directory.",
 		)?;
-		Ok(Unknown)
+		Ok(())
 	}
 }
 
@@ -131,6 +133,7 @@ impl Display for Command {
 			Command::Kusama(_) => write!(f, "kusama"),
 			Command::Polkadot(_) => write!(f, "polkadot"),
 			Command::Westend(_) => write!(f, "westend"),
+			Command::Frontend(_) => write!(f, "frontend"),
 		}
 	}
 }
@@ -214,7 +217,7 @@ mod tests {
 			DeploymentProvider::VARIANTS.len(), // Register
 			None,
 		);
-		assert_eq!(Command::execute_project_deployment(&mut args, &mut cli).await?, Chain);
+		Command::execute_project_deployment(&mut args, &mut cli).await?;
 		cli.verify()
 	}
 
@@ -230,7 +233,7 @@ mod tests {
 		let mut cli = MockCli::new().expect_warning(
 			"No contract or rollup detected. Ensure you are in a valid project directory.",
 		);
-		assert_eq!(Command::execute_project_deployment(&mut args, &mut cli).await?, Unknown);
+		Command::execute_project_deployment(&mut args, &mut cli).await?;
 		cli.verify()
 	}
 
