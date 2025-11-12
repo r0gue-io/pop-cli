@@ -20,6 +20,9 @@ defaults:
   run:
     shell: bash
 
+env:
+  DO_NOT_TRACK: 1
+
 concurrency:
   # Cancel any in-progress jobs for the same pull request or branch
   group: install-${{ github.head_ref || github.ref }}
@@ -38,7 +41,7 @@ jobs:
       - name: Install Pop
         run: |
           . "$HOME/.cargo/env"
-          cargo install --locked --no-default-features --features contract,chain --path ./crates/pop-cli
+          cargo install --locked --path ./crates/pop-cli
           cp $(which pop) /usr/local/bin/pop
           rustup self uninstall -y
       - name: Run Pop install
@@ -56,7 +59,7 @@ jobs:
       - name: Install Pop
         run: |
           . "$HOME/.cargo/env"
-          cargo install --locked --no-default-features --features contract,chain --path ./crates/pop-cli
+          cargo install --locked --path ./crates/pop-cli
           cp $(which pop) /usr/local/bin/pop
           rustup self uninstall -y
       - name: Run Pop Install
@@ -73,7 +76,7 @@ jobs:
           brew install cmake openssl protobuf
       - name: Install Pop
         run: |
-          cargo install --locked --no-default-features --features contract,chain --path ./crates/pop-cli
+          cargo install --locked --path ./crates/pop-cli
           cp $(which pop) /usr/local/bin/pop
           brew uninstall rustup
       - name: Run Pop Install
@@ -91,7 +94,7 @@ jobs:
       - name: Install Pop
         run: |
           . "$HOME/.cargo/env"
-          cargo install --locked --no-default-features --features contract,chain --path ./crates/pop-cli
+          cargo install --locked --path ./crates/pop-cli
           cp $(which pop) /usr/local/bin/pop
           rustup self uninstall -y
       - name: Run Pop install
@@ -109,7 +112,7 @@ jobs:
       - name: Install Pop
         run: |
           . "$HOME/.cargo/env"
-          cargo install --locked --no-default-features --features contract,chain --path ./crates/pop-cli
+          cargo install --locked --path ./crates/pop-cli
           cp $(which pop) /usr/local/bin/pop
           rustup self uninstall -y
       - name: Run Pop install
