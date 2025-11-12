@@ -51,6 +51,9 @@ pub(crate) struct InkNodeCommand {
 	/// Automatically source all necessary binaries required without prompting for confirmation.
 	#[clap(short = 'y', long)]
 	pub(crate) skip_confirm: bool,
+	/// Automatically detach from the terminal and run the node in the background.
+	#[clap(short, long)]
+	pub(crate) detach: bool,
 }
 
 impl InkNodeCommand {
@@ -59,18 +62,27 @@ impl InkNodeCommand {
 		let url = Url::parse(&format!("ws://localhost:{}", self.ink_node_port))?;
 		let ((mut ink_node_process, ink_node_log), (mut eth_rpc_process, _)) =
 			start_ink_node(&url, self.skip_confirm, self.ink_node_port, self.eth_rpc_port).await?;
-		std::process::Command::new("tail")
-			.args(["-F", &ink_node_log.path().to_string_lossy()])
-			.spawn()?;
 
-		// Wait for the process to terminate
-		tokio::signal::ctrl_c().await?;
-		ink_node_process.kill()?;
-		eth_rpc_process.kill()?;
-		ink_node_process.wait()?;
-		eth_rpc_process.wait()?;
-		cli.plain("\n")?;
-		cli.outro("✅ Ink! node terminated")?;
+		if !self.detach {
+			// Fetch the logs
+			std::process::Command::new("tail")
+				.args(["-F", &ink_node_log.path().to_string_lossy()])
+				.spawn()?;
+			// Wait for the process to terminate
+			tokio::signal::ctrl_c().await?;
+			ink_node_process.kill()?;
+			eth_rpc_process.kill()?;
+			ink_node_process.wait()?;
+			eth_rpc_process.wait()?;
+			cli.plain("\n")?;
+			cli.outro("✅ Ink! node terminated")?;
+		} else {
+			cli.outro(format!(
+				"✅ Ink! node bootstrapped successfully. Run `kill -9 {} {}` to terminate it.",
+				ink_node_process.id(),
+				eth_rpc_process.id()
+			))?;
+		}
 		Ok(())
 	}
 }
