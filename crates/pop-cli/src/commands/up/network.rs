@@ -677,6 +677,7 @@ fn cd_into_chain_base_dir(network_file: &Path) {
 #[cfg(test)]
 mod tests {
 	use super::*;
+
 	use std::{env, fs};
 
 	#[tokio::test]
