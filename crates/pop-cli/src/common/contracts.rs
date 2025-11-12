@@ -420,6 +420,28 @@ mod tests {
 	}
 
 	#[test]
+	fn resolve_signing_method_errors_when_skip_confirm_and_use_wallet() -> anyhow::Result<()> {
+		use super::*;
+		let mut cli = MockCli::new();
+		let mut use_wallet = true;
+		let mut suri = None;
+		let res = resolve_signer(true, &mut use_wallet, &mut suri, &mut cli);
+		assert!(res.is_err());
+		Ok(())
+	}
+
+	#[test]
+	fn resolve_signing_method_errors_when_skip_confirm_without_suri() -> anyhow::Result<()> {
+		use super::*;
+		let mut cli = MockCli::new();
+		let mut use_wallet = false;
+		let mut suri: Option<String> = None;
+		let res = resolve_signer(true, &mut use_wallet, &mut suri, &mut cli);
+		assert!(res.is_err());
+		Ok(())
+	}
+
+	#[test]
 	fn resolve_signing_method_prompts_and_chooses_wallet_works() -> anyhow::Result<()> {
 		use super::*;
 		let mut cli = MockCli::new().expect_confirm(
