@@ -428,6 +428,28 @@ mod tests {
 	}
 
 	#[test]
+	fn resolve_signing_method_errors_when_skip_confirm_and_use_wallet() -> anyhow::Result<()> {
+		use super::*;
+		let mut cli = MockCli::new();
+		let mut use_wallet = true;
+		let mut suri = None;
+		let res = resolve_signer(true, &mut use_wallet, &mut suri, &mut cli);
+		assert!(res.is_err());
+		Ok(())
+	}
+
+	#[test]
+	fn resolve_signing_method_errors_when_skip_confirm_without_suri() -> anyhow::Result<()> {
+		use super::*;
+		let mut cli = MockCli::new();
+		let mut use_wallet = false;
+		let mut suri: Option<String> = None;
+		let res = resolve_signer(true, &mut use_wallet, &mut suri, &mut cli);
+		assert!(res.is_err());
+		Ok(())
+	}
+
+	#[test]
 	fn resolve_signing_method_prompts_and_chooses_wallet_works() -> anyhow::Result<()> {
 		use super::*;
 		let mut cli = MockCli::new().expect_confirm(
@@ -484,5 +506,22 @@ mod tests {
 		assert_eq!(ensure_double_quoted("hello"), "\"hello\"");
 		assert_eq!(ensure_double_quoted("  hello  "), "\"hello\"");
 		assert_eq!(ensure_double_quoted("\"hello\""), "\"hello\"");
+	}
+
+	#[test]
+	fn resolve_function_args_requires_all_args_when_skip_confirm() -> anyhow::Result<()> {
+		let function = ContractFunction {
+			label: "test".into(),
+			payable: false,
+			args: vec![Param { label: "a".into(), type_name: "u32".into() }],
+			docs: String::new(),
+			default: false,
+			mutates: true,
+		};
+		let mut cli = MockCli::new();
+		let mut args: Vec<String> = vec![];
+		let res = resolve_function_args(&function, &mut cli, &mut args, true);
+		assert!(res.is_err());
+		Ok(())
 	}
 }
