@@ -85,7 +85,7 @@ jobs:
       - name: Run integration tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: cargo nextest run --no-default-features --features "contract,integration-tests" --test contract --no-fail-fast --nocapture --status-level all
+        run: cargo nextest run --locked --no-default-features --features "contract,integration-tests" --test contract --no-fail-fast --nocapture --status-level all
 
   chain-integration-tests:
     strategy:
@@ -143,4 +143,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cargo nextest run --no-default-features --features "chain,integration-tests" --test chain --test metadata --no-fail-fast --nocapture --status-level all
+          cargo nextest run --locked --no-default-features --features "chain,integration-tests" --test chain --test metadata --no-fail-fast --nocapture --status-level all
