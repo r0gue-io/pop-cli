@@ -329,16 +329,7 @@ async fn install_redhat(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> 
 	// We install here the most important packages from that group.
 	cmd(
 		"yum",
-		vec![
-			"install",
-			"-y",
-			"gcc",
-			"gcc-c++",
-			"make",
-			"cmake",
-			"pkgconf",
-			"pkgconf-pkg-config",
-		],
+		vec!["install", "-y", "gcc", "gcc-c++", "make", "cmake", "pkgconf", "pkgconf-pkg-config"],
 	)
 	.run()?;
 	cmd(
