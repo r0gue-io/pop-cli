@@ -59,20 +59,22 @@ pub async fn check_ink_node_and_prompt(
 /// # Arguments
 /// * `cli`: Command line interface.
 /// * `process`: Tuple identifying the child process to terminate and its log file.
+/// * `skip_confirm`: Whether to skip confirmation prompt.
 pub async fn terminate_nodes(
 	cli: &mut impl Cli,
 	processes: Option<((Child, NamedTempFile), (Child, NamedTempFile))>,
+	skip_confirm: bool,
 ) -> anyhow::Result<()> {
 	// Prompt to close any launched node
 	if let Some(mut processes) = processes {
-		if cli
-			.confirm("Would you like to terminate the local node?")
-			.initial_value(true)
-			.interact()?
+		if skip_confirm ||
+			cli.confirm("Would you like to terminate the local node?")
+				.initial_value(true)
+				.interact()?
 		{
 			processes.0.0.kill()?;
-			processes.0.0.wait()?;
 			processes.1.0.kill()?;
+			processes.0.0.wait()?;
 			processes.1.0.wait()?;
 		} else {
 			cli.warning("You can terminate the process by pressing Ctrl+C.")?;
@@ -85,7 +87,7 @@ pub async fn terminate_nodes(
 			tokio::signal::ctrl_c().await?;
 			cli.plain("\n")?;
 		}
-		cli.outro("✅ Local node terminated.")?;
+		cli.info("✅ Local node terminated.")?;
 	}
 	Ok(())
 }
@@ -116,6 +118,7 @@ pub fn resolve_function_args(
 	function: &ContractFunction,
 	cli: &mut impl Cli,
 	args: &mut Vec<String>,
+	skip_confirm: bool,
 ) -> anyhow::Result<()> {
 	if args.len() > function.args.len() {
 		return Err(anyhow::anyhow!(
@@ -128,6 +131,9 @@ pub fn resolve_function_args(
 	}
 
 	for arg in function.args.iter().skip(args.len()) {
+		if skip_confirm {
+			anyhow::bail!("When skipping confirmation, all arguments must be provided.")
+		}
 		let mut input = cli
 			.input(format!("Enter the value for the parameter: {}", arg.label))
 			.placeholder(&format!("Type required: {}", arg.type_name));
@@ -208,10 +214,16 @@ pub fn resolve_signer(
 	suri: &mut Option<String>,
 	cli: &mut impl Cli,
 ) -> anyhow::Result<()> {
-	if !*use_wallet && suri.is_none() {
-		if skip_confirm {
-			*suri = Some("//Alice".to_string());
-		} else if prompt_to_use_wallet(cli)? {
+	if skip_confirm {
+		if *use_wallet {
+			anyhow::bail!("External wallets cannot be used when skipping confirmation.")
+		}
+		if suri.is_none() {
+			anyhow::bail!("The --suri flag must be provided when skipping confirmation.")
+		}
+	}
+	if suri.is_none() {
+		if prompt_to_use_wallet(cli)? {
 			*use_wallet = true;
 		} else {
 			*suri = Some(
@@ -270,7 +282,7 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_input("Enter the value for the parameter: init_value", "true".into());
 		let mut args = Vec::new();
-		resolve_function_args(&function, &mut cli, &mut args)?;
+		resolve_function_args(&function, &mut cli, &mut args, false)?;
 		assert_eq!(args, vec!["true"]);
 		cli.verify()
 	}
@@ -291,7 +303,7 @@ mod tests {
 			mutates: true,
 		};
 		let mut args = vec!["true".to_string()];
-		resolve_function_args(&function, &mut cli, &mut args)?;
+		resolve_function_args(&function, &mut cli, &mut args, false)?;
 		assert_eq!(args, vec!["true", "2"]);
 		cli.verify()
 	}
@@ -312,7 +324,7 @@ mod tests {
 
 		let mut cli = MockCli::new();
 		let mut args = vec!["true".to_string(), "Some(2)".to_string()];
-		resolve_function_args(&function, &mut cli, &mut args)?;
+		resolve_function_args(&function, &mut cli, &mut args, false)?;
 		assert_eq!(args, vec!["true".to_string(), "Some(2)".to_string()]);
 		cli.verify()
 	}
@@ -378,7 +390,7 @@ mod tests {
 		let mut cli =
 			MockCli::new().expect_confirm("Would you like to terminate the local node?", true);
 		assert!(
-			terminate_nodes(&mut cli, Some(((process_1, log_1), (process_2, log_2))))
+			terminate_nodes(&mut cli, Some(((process_1, log_1), (process_2, log_2))), false)
 				.await
 				.is_ok()
 		);
@@ -401,12 +413,17 @@ mod tests {
 	#[test]
 	fn resolve_signing_method_with_use_wallet_flag_works() -> anyhow::Result<()> {
 		use super::*;
-		let mut cli = MockCli::new();
+		let mut cli = MockCli::new().expect_confirm(
+			"Do you want to use your browser wallet to sign the extrinsic? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')",
+			true,
+		);
 		let mut use_wallet = true;
 		let mut suri = None;
-		resolve_signer(true, &mut use_wallet, &mut suri, &mut cli)?;
+		// When skip_confirm is false, we prompt and choose wallet usage.
+		resolve_signer(false, &mut use_wallet, &mut suri, &mut cli)?;
 		assert!(use_wallet);
 		assert_eq!(suri, None);
+		cli.verify()?;
 		Ok(())
 	}
 

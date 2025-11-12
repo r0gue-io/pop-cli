@@ -144,7 +144,7 @@ pub struct UpContractCommand {
 	pub(crate) skip_confirm: bool,
 	/// Skip building the contract before deployment.
 	/// If the contract is not built, it will be built regardless.
-	#[clap(long)]
+	#[clap(long, conflicts_with = "suri")]
 	pub(crate) skip_build: bool,
 }
 
@@ -156,6 +156,7 @@ impl UpContractCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(&mut self) -> anyhow::Result<()> {
 		Cli.intro("Deploy a smart contract")?;
+
 		// Check if build exists in the specified "Contract build directory"
 		let contract_already_built = has_contract_been_built(&self.path);
 		if !self.skip_build || !contract_already_built {
@@ -176,6 +177,16 @@ impl UpContractCommand {
 				"Your contract artifacts are ready. You can find them in: {}",
 				result.target_directory.display()
 			));
+		}
+
+		// Resolve who is deploying the contract. If a `suri` was provided via the command line,
+		// skip the prompt.
+		if let Err(e) =
+			resolve_signer(self.skip_confirm, &mut self.use_wallet, &mut self.suri, &mut Cli)
+		{
+			Cli.error(e.to_string())?;
+			Cli.outro_cancel(FAILED)?;
+			return Ok(())
 		}
 
 		// Check if specified chain is accessible
@@ -239,10 +250,6 @@ impl UpContractCommand {
 			None
 		};
 
-		// Resolve who is deploying the contract. If a `suri` was provided via the command line,
-		// skip the prompt.
-		resolve_signer(self.skip_confirm, &mut self.use_wallet, &mut self.suri, &mut Cli)?;
-
 		// Track the deployed contract address across both deployment flows.
 		let mut deployed_contract_address: Option<String> = None;
 
@@ -252,7 +259,7 @@ impl UpContractCommand {
 				Ok(data) => data,
 				Err(e) => {
 					Cli.error(format!("An error occurred getting the call data: {e}"))?;
-					terminate_nodes(&mut Cli, processes).await?;
+					terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
 					Cli.outro_cancel(FAILED)?;
 					return Ok(());
 				},
@@ -273,7 +280,7 @@ impl UpContractCommand {
 						Err(e) => {
 							spinner
 								.error(format!("An error occurred uploading your contract: {e}"));
-							terminate_nodes(&mut Cli, processes).await?;
+							terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
 							Cli.outro_cancel(FAILED)?;
 							return Ok(());
 						},
@@ -293,7 +300,7 @@ impl UpContractCommand {
 							Cli.error(format!(
 								"An error occurred instantiating the contract: {e}"
 							))?;
-							terminate_nodes(&mut Cli, processes).await?;
+							terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
 							Cli.outro_cancel(FAILED)?;
 							return Ok(());
 						},
@@ -311,7 +318,7 @@ impl UpContractCommand {
 						Err(e) => {
 							spinner
 								.error(format!("An error occurred uploading your contract: {e}"));
-							terminate_nodes(&mut Cli, processes).await?;
+							terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
 							Cli.outro_cancel(FAILED)?;
 							return Ok(());
 						},
@@ -326,7 +333,7 @@ impl UpContractCommand {
 				};
 			} else {
 				Cli.outro_cancel("Signed payload doesn't exist.")?;
-				terminate_nodes(&mut Cli, processes).await?;
+				terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
 				return Ok(());
 			}
 		} else {
@@ -336,7 +343,7 @@ impl UpContractCommand {
 				match result {
 					Ok(_) => {},
 					Err(_) => {
-						terminate_nodes(&mut Cli, processes).await?;
+						terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
 						Cli.outro_cancel(FAILED)?;
 						return Ok(());
 					},
@@ -348,7 +355,7 @@ impl UpContractCommand {
 					FunctionType::Constructor,
 				)?;
 				if !function.args.is_empty() {
-					resolve_function_args(&function, &mut Cli, &mut self.args)?;
+					resolve_function_args(&function, &mut Cli, &mut self.args, self.skip_confirm)?;
 				}
 				normalize_call_args(&mut self.args, &function);
 				// Otherwise instantiate.
@@ -356,7 +363,7 @@ impl UpContractCommand {
 					Ok(i) => i,
 					Err(e) => {
 						Cli.error(format!("An error occurred instantiating the contract: {e}"))?;
-						terminate_nodes(&mut Cli, processes).await?;
+						terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
 						Cli.outro_cancel(FAILED)?;
 						return Ok(());
 					},
@@ -376,7 +383,7 @@ impl UpContractCommand {
 						},
 						Err(e) => {
 							spinner.error(format!("{e}"));
-							terminate_nodes(&mut Cli, processes).await?;
+							terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
 							Cli.outro_cancel(FAILED)?;
 							return Ok(());
 						},
@@ -404,15 +411,17 @@ impl UpContractCommand {
 		// Prompt to keep interacting with the contract if one was deployed and skip_confirm is
 		// false.
 		if let Some(contract_address) = deployed_contract_address {
-			Cli.success(COMPLETE)?;
 			if !self.skip_confirm {
+				Cli.success(COMPLETE)?;
 				self.keep_interacting_with_node(&mut Cli, contract_address).await?;
+			} else {
+				terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
+				Cli.outro(COMPLETE)?;
 			}
 		} else {
+			terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
 			Cli.outro(COMPLETE)?;
 		}
-
-		terminate_nodes(&mut Cli, processes).await?;
 		Ok(())
 	}
 
