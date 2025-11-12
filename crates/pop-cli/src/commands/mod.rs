@@ -23,6 +23,7 @@ pub(crate) mod new;
 pub(crate) mod test;
 #[cfg(any(feature = "chain", feature = "contract"))]
 pub(crate) mod up;
+pub(crate) mod upgrade;
 
 #[derive(Subcommand, Serialize)]
 #[command(subcommand_required = true)]
@@ -47,6 +48,9 @@ pub(crate) enum Command {
 	#[clap(aliases = ["u", "deploy"], about = about_up())]
 	#[cfg(any(feature = "chain", feature = "contract"))]
 	Up(Box<up::UpArgs>),
+	/// Upgrade the Polkadot SDK toolchain.
+	#[clap(alias = "ug")]
+	Upgrade(upgrade::UpgradeArgs),
 	/// Test a Rust project.
 	#[clap(alias = "t")]
 	Test(test::TestArgs),
@@ -162,6 +166,10 @@ impl Command {
 					},
 				}
 			},
+			Self::Upgrade(args) => {
+				env_logger::init();
+				upgrade::Command::execute(args, &mut Cli).await
+			},
 			Self::Test(args) => {
 				env_logger::init();
 
@@ -265,6 +273,7 @@ impl Display for Command {
 			Self::Bench(args) => write!(f, "bench {}", args.command),
 			Command::Hash(args) => write!(f, "hash {}", args.command),
 			Command::Convert(args) => write!(f, "convert {}", args.command),
+			Command::Upgrade(_) => write!(f, "upgrade"),
 		}
 	}
 }

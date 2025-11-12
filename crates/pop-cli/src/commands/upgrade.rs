@@ -1,0 +1,258 @@
+// SPDX-License-Identifier: GPL-3.0
+
+use crate::cli::traits::{Cli, Select};
+use anyhow::{Context, Result};
+use clap::Args;
+use cliclack::spinner;
+use serde::Serialize;
+use std::{env, path::PathBuf};
+
+const DEFAULT_GIT_SERVER: &str = "https://raw.githubusercontent.com";
+const CARGO_TOML_FILE: &str = "Cargo.toml";
+
+/// Arguments for upgrading the Polkadot SDK.
+#[derive(Args, Serialize)]
+#[command(args_conflicts_with_subcommands = true)]
+pub(crate) struct UpgradeArgs {
+	/// Path to the Cargo.toml file. If not provided, the current directory will be used.
+	#[arg(short, long)]
+	pub(crate) path: Option<PathBuf>,
+	/// Target Polkadot SDK version to switch to.
+	/// If not specified, you will be prompted to select it.
+	#[arg(short, long)]
+	pub(crate) version: Option<String>,
+}
+
+// NOTE: this is a test-only function that mocks the network call to fetch available Polkadot SDK
+// versions. It is used in tests to avoid network calls and exceeding the rate limit.
+#[cfg(test)]
+async fn fetch_polkadot_sdk_versions() -> Result<Vec<String>, anyhow::Error> {
+	Ok(vec![
+		"polkadot-stable2509-1".to_string(),
+		"polkadot-stable2509".to_string(),
+		"polkadot-stable2407-8".to_string(),
+		"polkadot-stable2407-7".to_string(),
+		"polkadot-stable2407-6".to_string(),
+	])
+}
+
+#[cfg(not(test))]
+async fn fetch_polkadot_sdk_versions() -> Result<Vec<String>, anyhow::Error> {
+	psvm::get_polkadot_sdk_versions()
+		.await
+		.map_err(|e| anyhow::anyhow!("Failed to get available Polkadot SDK versions: {}", e))
+}
+
+/// Upgrade command executor.
+pub(crate) struct Command;
+
+impl Command {
+	/// Executes the polkadot-sdk version upgrade.
+	pub(crate) async fn execute(args: &mut UpgradeArgs, cli: &mut impl Cli) -> Result<()> {
+		cli.intro("Upgrade Polkadot SDK version")?;
+		let toml_file = if let Some(path) = &args.path {
+			if matches!(path.file_name().map(|n| n.to_str().unwrap()), Some(CARGO_TOML_FILE)) {
+				path.clone()
+			} else {
+				path.join(CARGO_TOML_FILE)
+			}
+		} else {
+			let current_dir = env::current_dir().context("Failed to get current directory")?;
+			current_dir.join(CARGO_TOML_FILE)
+		};
+		if !toml_file.exists() {
+			anyhow::bail!("{CARGO_TOML_FILE} file not found at specified path");
+		}
+
+		cli.info(format!("Using {CARGO_TOML_FILE} file at {}", toml_file.display()))?;
+
+		let version = if let Some(version) = &args.version {
+			version.clone()
+		} else {
+			let spinner = spinner();
+			spinner.start("Fetching available Polkadot SDK versions...");
+			let mut available_versions = fetch_polkadot_sdk_versions().await?;
+			available_versions.sort();
+			spinner.clear();
+			let mut prompt = cli.select("Select the Polkadot SDK version");
+			for version in &available_versions {
+				prompt = prompt.item(version, version, "");
+			}
+			let version = prompt.filter_mode().interact()?.clone();
+			args.version = Some(version.clone());
+			version
+		};
+
+		let spinner = spinner();
+		spinner.start(format!("Updating dependencies to {}...", version));
+		let crates_versions = psvm::get_version_mapping_with_fallback(DEFAULT_GIT_SERVER, &version)
+			.await
+			.map_err(|e| anyhow::anyhow!("Failed to get version mapping: {}", e))?;
+
+		psvm::update_dependencies(&toml_file.canonicalize()?, &crates_versions, false, false)
+			.map_err(|e| anyhow::anyhow!("Failed to update dependencies: {}", e))?;
+
+		spinner.stop("Upgrade complete");
+
+		cli.warning(
+			"After upgrade to a new polkadot-sdk version, you may encounter compilation errors. \
+		 Run `pop build` to check if the project compiles successfully. \
+		 If it does not, fix the compilation errors and try again.",
+		)?;
+		cli.success(format!("Polkadot SDK versions successfully upgraded to {}", version))?;
+		Ok(())
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::cli::MockCli;
+	use std::{
+		fs,
+		io::Write,
+		path::{Path, PathBuf},
+	};
+	use tempfile::tempdir;
+
+	fn write_minimal_cargo_toml(dir: &Path) -> PathBuf {
+		fs::create_dir_all(dir).unwrap();
+		let cargo_path = dir.join("Cargo.toml");
+		let mut f = fs::File::create(&cargo_path).unwrap();
+		writeln!(f, "[package]\nname = \"tmp_pkg\"\nversion = \"0.1.0\"\nedition = \"2021\"\n")
+			.unwrap();
+		cargo_path
+	}
+
+	#[tokio::test]
+	async fn execute_errors_when_cargo_toml_missing_for_directory_path() -> Result<()> {
+		// Arrange: create an empty temporary directory without Cargo.toml
+		let tmp = tempdir()?;
+		fs::create_dir_all(&tmp)?;
+
+		let mut cli = MockCli::new().expect_intro("Upgrade Polkadot SDK version");
+		let mut args = UpgradeArgs {
+			path: Some(tmp.path().to_path_buf()),
+			version: Some("polkadot-stable2409-6".to_string()),
+		};
+
+		// Act
+		let res = Command::execute(&mut args, &mut cli).await;
+
+		// Assert: we should fail before any network calls trying to read version mapping
+		assert!(res.is_err(), "expected error when Cargo.toml is missing");
+		let msg = res.err().unwrap().to_string();
+		assert!(
+			msg.contains("Cargo.toml file not found at specified path"),
+			"unexpected error: {}",
+			msg
+		);
+
+		// Cleanup and verify CLI expectations
+		let _ = fs::remove_dir_all(&tmp);
+		cli.verify()?;
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn execute_errors_when_explicit_cargo_toml_path_does_not_exist() -> Result<()> {
+		// Arrange: create a temp dir and point directly to a non-existent Cargo.toml file inside it
+		let tmp = tempdir()?;
+		fs::create_dir_all(&tmp)?;
+		let cargo_path = tmp.path().join("Cargo.toml");
+
+		let mut cli = MockCli::new().expect_intro("Upgrade Polkadot SDK version");
+		let mut args = UpgradeArgs {
+			path: Some(cargo_path),
+			version: Some("polkadot-stable2509-1".to_string()),
+		};
+
+		// Act
+		let res = Command::execute(&mut args, &mut cli).await;
+
+		// Assert
+		assert!(res.is_err(), "expected error when explicit Cargo.toml path does not exist");
+		let msg = res.err().unwrap().to_string();
+		assert!(
+			msg.contains("Cargo.toml file not found at specified path"),
+			"unexpected error: {}",
+			msg
+		);
+
+		// Cleanup and verify CLI expectations
+		fs::remove_dir_all(&tmp)?;
+		cli.verify()?;
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn execute_prompts_for_version_and_sets_args_when_not_provided() -> Result<()> {
+		// Arrange: temp workspace with minimal Cargo.toml
+		let tmp = tempdir()?;
+		let cargo_path = write_minimal_cargo_toml(tmp.path());
+		let info_msg = format!("Using Cargo.toml file at {}", cargo_path.display());
+
+		// Expected items after sorting
+		let items = vec![
+			("polkadot-stable2407-6".to_string(), "".to_string()),
+			("polkadot-stable2407-7".to_string(), "".to_string()),
+			("polkadot-stable2407-8".to_string(), "".to_string()),
+			("polkadot-stable2509".to_string(), "".to_string()),
+			("polkadot-stable2509-1".to_string(), "".to_string()),
+		];
+
+		let mut cli = MockCli::new()
+			.expect_intro("Upgrade Polkadot SDK version")
+			.expect_info(info_msg)
+			.expect_select(
+				"Select the Polkadot SDK version",
+				None,
+				true,
+				Some(items.clone()),
+				4, // choose the last item after sorting
+				Some(true),
+			);
+
+		let mut args = UpgradeArgs { path: Some(tmp.path().to_path_buf()), version: None };
+
+		// Act: this should perform selection, set args.version, then fail later on network mapping
+		Command::execute(&mut args, &mut cli).await?;
+
+		// Assert: we expect an error from version mapping stage, but args.version must be set
+		assert_eq!(args.version, Some("polkadot-stable2509-1".to_string()));
+
+		// Cleanup and verify CLI expectations
+		fs::remove_dir_all(&tmp)?;
+		cli.verify()?;
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn execute_skips_prompt_when_version_is_provided() -> Result<()> {
+		// Arrange: temp workspace with minimal Cargo.toml and a preselected version
+		let tmp = tempdir()?;
+		let cargo_path = write_minimal_cargo_toml(tmp.path());
+		let info_msg = format!("Using Cargo.toml file at {}", cargo_path.display());
+
+		let initial_version = "polkadot-stable2407-8".to_string();
+		let mut cli = MockCli::new()
+			.expect_intro("Upgrade Polkadot SDK version")
+			.expect_info(info_msg);
+
+		let mut args = UpgradeArgs {
+			path: Some(tmp.path().to_path_buf()),
+			version: Some(initial_version.clone()),
+		};
+
+		// Act: should not prompt for selection, go straight to mapping and fail there
+		Command::execute(&mut args, &mut cli).await?;
+
+		// Assert
+		assert_eq!(args.version, Some(initial_version));
+
+		// Cleanup and verify CLI expectations
+		fs::remove_dir_all(&tmp)?;
+		cli.verify()?;
+		Ok(())
+	}
+}
