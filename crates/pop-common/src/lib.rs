@@ -15,7 +15,7 @@ pub use signer::create_signer;
 pub use sourcing::set_executable_permission;
 use std::{cmp::Ordering, net::TcpListener, ops::Deref};
 #[cfg(feature = "integration-tests")]
-use std::{ffi::OsStr, path::Path, process::Command};
+use std::{ffi::OsStr, path::Path};
 pub use subxt::{Config, PolkadotConfig as DefaultConfig};
 pub use subxt_signer::sr25519::Keypair;
 pub use templates::{
@@ -103,9 +103,12 @@ pub fn target() -> Result<&'static str, Error> {
 ///
 /// A new Command instance configured to run the pop binary with the specified arguments
 #[cfg(feature = "integration-tests")]
-pub fn pop(dir: &Path, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Command {
+pub fn pop(
+	dir: &Path,
+	args: impl IntoIterator<Item = impl AsRef<OsStr>>,
+) -> tokio::process::Command {
 	#[allow(deprecated)]
-	let mut command = Command::new(cargo_bin("pop"));
+	let mut command = tokio::process::Command::new(cargo_bin("pop"));
 	command.current_dir(dir).args(args);
 	println!("{command:?}");
 	command
