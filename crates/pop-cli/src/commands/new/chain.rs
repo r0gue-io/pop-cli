@@ -286,7 +286,7 @@ async fn generate_parachain_from_template(
 	];
 	if let Some(network_config) = template.network_config() {
 		next_steps.push(format!(
-			"Use `pop up chain -f {network_config}` to launch your parachain on a local network."
+			"Use `pop up {network_config}` to launch your parachain on a local network."
 		))
 	}
 	if let Some(frontend_template) = &frontend_template {
