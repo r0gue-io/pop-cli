@@ -21,9 +21,9 @@ use std::{
 	fs,
 	fs::write,
 	path::{Path, PathBuf},
-	process::Child,
 	time::Duration,
 };
+use tokio::process::Child;
 use strum::VariantArray;
 use tempfile::tempdir;
 
@@ -34,13 +34,13 @@ struct TestChildProcess(pub(crate) Child);
 
 impl Drop for TestChildProcess {
 	fn drop(&mut self) {
-		self.0.kill().expect("Child process failed to kill");
+		let _ = self.0.start_kill();
 	}
 }
 
 // Test that all templates are generated correctly
-#[test]
-fn generate_all_the_templates() -> Result<()> {
+#[tokio::test]
+async fn generate_all_the_templates() -> Result<()> {
 	let temp = tempfile::tempdir()?;
 	let temp_dir = temp.path();
 
@@ -60,7 +60,7 @@ fn generate_all_the_templates() -> Result<()> {
 				"--verify",
 			],
 		);
-		assert!(command.spawn()?.wait()?.success());
+		assert!(command.spawn()?.wait().await?.success());
 		assert!(temp_dir.join(parachain_name).exists());
 	}
 	Ok(())
@@ -97,7 +97,7 @@ async fn parachain_lifecycle() -> Result<()> {
 				"--with-frontend=create-dot-app",
 			],
 		);
-		assert!(command.spawn()?.wait()?.success());
+		assert!(command.spawn()?.wait().await?.success());
 		assert!(working_dir.exists());
 		assert!(working_dir.join("frontend").exists());
 	}
@@ -137,7 +137,7 @@ async fn parachain_lifecycle() -> Result<()> {
 			"--skip-build",
 		],
 	);
-	assert!(command.spawn()?.wait()?.success());
+	assert!(command.spawn()?.wait().await?.success());
 
 	// Assert build files have been generated
 	assert!(working_dir.join("target").exists());
@@ -157,7 +157,7 @@ async fn parachain_lifecycle() -> Result<()> {
 	assert!(content.contains("\"id\": \"local_testnet\""));
 
 	// Test the `pop bench` feature
-	test_benchmarking(&working_dir)?;
+	test_benchmarking(&working_dir).await?;
 
 	// Overwrite the config file to manually set the port to test pop call parachain.
 	let network_toml_path = working_dir.join("network.toml");
@@ -221,7 +221,7 @@ rpc_port = {random_port}
 			"--skip-confirm",
 		],
 	);
-	assert!(command.spawn()?.wait()?.success());
+	assert!(command.spawn()?.wait().await?.success());
 
 	// `pop call chain --pallet System --function Account --args
 	// "15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5" --url ws://127.0.0.1:random_port
@@ -242,7 +242,7 @@ rpc_port = {random_port}
 			"--skip-confirm",
 		],
 	);
-	assert!(command.spawn()?.wait()?.success());
+	assert!(command.spawn()?.wait().await?.success());
 
 	// `pop call chain --pallet System --function Account --args
 	// "15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5" --url ws://127.0.0.1:random_port`
@@ -260,7 +260,7 @@ rpc_port = {random_port}
 			"--skip-confirm",
 		],
 	);
-	assert!(command.spawn()?.wait()?.success());
+	assert!(command.spawn()?.wait().await?.success());
 
 	// pop call chain --call 0x00000411 --url ws://127.0.0.1:random_port --suri //Alice
 	// --skip-confirm
@@ -278,24 +278,24 @@ rpc_port = {random_port}
 			"--skip-confirm",
 		],
 	);
-	assert!(command.spawn()?.wait()?.success());
+	assert!(command.spawn()?.wait().await?.success());
 
 	assert!(up.0.try_wait()?.is_none(), "the process should still be running");
 	// Stop the process
-	up.0.kill()?;
-	up.0.wait()?;
+	up.0.kill().await?;
+	up.0.wait().await?;
 
 	Ok(())
 }
 
-fn test_benchmarking(working_dir: &Path) -> Result<()> {
+async fn test_benchmarking(working_dir: &Path) -> Result<()> {
 	// pop bench block --from 0 --to 1 --profile=release
 	let mut command =
 		pop(working_dir, ["bench", "block", "--from", "0", "--to", "1", "--profile=release"]);
-	assert!(command.spawn()?.wait()?.success());
+	assert!(command.spawn()?.wait().await?.success());
 	// pop bench machine --allow-fail --profile=release
 	command = pop(working_dir, ["bench", "machine", "--allow-fail", "--profile=release"]);
-	assert!(command.spawn()?.wait()?.success());
+	assert!(command.spawn()?.wait().await?.success());
 	// pop bench overhead --runtime={runtime_path} --genesis-builder=runtime
 	// --genesis-builder-preset=development --weight-path={output_path} --profile=release --warmup=1
 	// --repeat=1 -y
@@ -318,7 +318,7 @@ fn test_benchmarking(working_dir: &Path) -> Result<()> {
 			"-y",
 		],
 	);
-	assert!(command.spawn()?.wait()?.success());
+	assert!(command.spawn()?.wait().await?.success());
 
 	// pop bench pallet --runtime={runtime_path} --genesis-builder=runtime
 	// --pallets pallet_timestamp,pallet_system --extrinsic set,remark --output={output_path} -y
@@ -341,7 +341,7 @@ fn test_benchmarking(working_dir: &Path) -> Result<()> {
 			"-y",
 		],
 	);
-	assert!(command.spawn()?.wait()?.success());
+	assert!(command.spawn()?.wait().await?.success());
 	// Parse weights file.
 	assert!(output_path.join("weights.rs").exists());
 	let content = fs::read_to_string(output_path.join("weights.rs"))?;
@@ -380,7 +380,7 @@ fn test_benchmarking(working_dir: &Path) -> Result<()> {
 			"-y",
 		],
 	);
-	assert!(command.spawn()?.wait()?.success());
+	assert!(command.spawn()?.wait().await?.success());
 	Ok(())
 }
 
