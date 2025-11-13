@@ -74,7 +74,7 @@ async fn contract_lifecycle() -> Result<()> {
 	const WAIT_SECS: u64 = 20 * 60;
 	let endpoint_port = find_free_port(None);
 	let default_endpoint: &str = &format!("ws://127.0.0.1:{}", endpoint_port);
-	let temp = tempfile::tempdir().unwrap();
+	let temp = tempfile::tempdir()?;
 	let temp_dir = temp.path();
 	//let temp_dir = Path::new("./"); //For testing locally
 	// Test that all templates are generated correctly
@@ -220,25 +220,13 @@ async fn contract_lifecycle() -> Result<()> {
 	// Dry runs after changing the value
 	assert_eq!(dry_run_call(&call_exec).await?, "Ok(true)");
 
-	// pop up --upload-only --use-wallet
+	// pop up --upload-only --use-wallet --dry-run
 	// Will run http server for wallet integration.
-	// Using `cargo run --` as means for the CI to pass.
-	// Possibly there's room for improvement here.
-	let _ = tokio::process::Command::new("cargo")
-		.args([
-			"run",
-			"--",
-			"up",
-			"--upload-only",
-			"--use-wallet",
-			"--skip-confirm",
-			"--dry-run",
-			"--path",
-			temp_dir.join("test_contract").to_str().expect("to_str"),
-			"--url",
-			default_endpoint,
-		])
-		.spawn()?;
+	pop(
+		&temp_dir.join("test_contract"),
+		["up", "--upload-only", "--use-wallet", "--dry-run", "--url", default_endpoint],
+	)
+	.spawn()?;
 	// Wait a moment for node and server to be up.
 	sleep(Duration::from_secs(WAIT_SECS)).await;
 
