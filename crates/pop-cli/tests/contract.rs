@@ -218,7 +218,7 @@ async fn contract_lifecycle() -> Result<()> {
 	)
 	.spawn()?;
 	// Wait a moment for node and server to be up.
-	sleep(Duration::from_secs(20)).await;
+	sleep(Duration::from_secs(60)).await;
 
 	// Request payload from server.
 	let response = reqwest::get(&format!("{}/payload", WALLET_INT_URI))
