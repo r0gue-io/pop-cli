@@ -23,9 +23,9 @@ use std::{
 	path::{Path, PathBuf},
 	time::Duration,
 };
-use tokio::process::Child;
 use strum::VariantArray;
 use tempfile::tempdir;
+use tokio::process::Child;
 
 /// Utility child process wrapper to kill the child process on drop.
 ///
