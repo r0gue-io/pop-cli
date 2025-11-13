@@ -178,7 +178,7 @@ async fn generate_contract_from_template(
 		format!("cd into {:?} and enjoy hacking! 🚀", contract_path.display()),
 		"Use `pop build` to build your contract.".into(),
 	];
-	next_steps.push("Use `pop up contract` to deploy your contract to a live network.".to_string());
+	next_steps.push("Use `pop up` to deploy your contract to a live network.".to_string());
 
 	if let Some(frontend_template) = &frontend_template {
 		create_frontend(contract_path.as_path(), frontend_template, cli).await?;
@@ -269,7 +269,7 @@ mod tests {
 		let next_steps: Vec<_> = [
 			format!("cd into {:?} and enjoy hacking! 🚀", contract_path.display()),
 			"Use `pop build` to build your contract.".into(),
-			"Use `pop up contract` to deploy your contract to a live network.".into(),
+			"Use `pop up` to deploy your contract to a live network.".into(),
 		]
 		.iter()
 		.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
