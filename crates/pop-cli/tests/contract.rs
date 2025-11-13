@@ -164,7 +164,7 @@ async fn contract_lifecycle() -> Result<()> {
 		execute: false,
 	};
 	let call_exec = set_up_call(call_opts).await?;
-	let weight_limit = dry_run_gas_estimate_call(&call_exec).await?;
+	let (_, weight_limit) = dry_run_gas_estimate_call(&call_exec).await?;
 	assert!(weight_limit.all_gt(Weight::zero()));
 	assert_eq!(dry_run_call(&call_exec).await?, "Ok(false)");
 
