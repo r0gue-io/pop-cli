@@ -71,7 +71,6 @@ pub struct SubmitRequest {
 #[tokio::test]
 async fn contract_lifecycle() -> Result<()> {
 	const WALLET_INT_URI: &str = "http://127.0.0.1:9090";
-	const WAIT_SECS: u64 = 20 * 60;
 	let endpoint_port = find_free_port(None);
 	let default_endpoint: &str = &format!("ws://127.0.0.1:{}", endpoint_port);
 	let temp = tempfile::tempdir()?;
@@ -112,16 +111,7 @@ async fn contract_lifecycle() -> Result<()> {
 	// pop up --path ./test_contract --upload-only
 	command = pop(
 		temp_dir,
-		[
-			"up",
-			"--path",
-			"./test_contract",
-			"--suri",
-			"//Alice",
-			"--upload-only",
-			"--url",
-			default_endpoint,
-		],
+		["up", "--path", "./test_contract", "--upload-only", "--url", default_endpoint],
 	);
 	assert!(command.spawn()?.wait()?.success());
 	// Instantiate contract, only dry-run
@@ -228,7 +218,7 @@ async fn contract_lifecycle() -> Result<()> {
 	)
 	.spawn()?;
 	// Wait a moment for node and server to be up.
-	sleep(Duration::from_secs(WAIT_SECS)).await;
+	sleep(Duration::from_secs(20)).await;
 
 	// Request payload from server.
 	let response = reqwest::get(&format!("{}/payload", WALLET_INT_URI))

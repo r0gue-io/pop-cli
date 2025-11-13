@@ -429,7 +429,7 @@ impl CallChainCommand {
 			Some(suri) => suri.clone(),
 			None =>
 				if !self.use_wallet {
-					if prompt_to_use_wallet(cli)? {
+					if prompt_to_use_wallet(cli, self.skip_confirm)? {
 						use_wallet = true;
 						DEFAULT_URI.to_string()
 					} else {

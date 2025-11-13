@@ -214,16 +214,8 @@ pub fn resolve_signer(
 	suri: &mut Option<String>,
 	cli: &mut impl Cli,
 ) -> anyhow::Result<()> {
-	if skip_confirm {
-		if *use_wallet {
-			anyhow::bail!("External wallets cannot be used when skipping confirmation.")
-		}
-		if suri.is_none() {
-			anyhow::bail!("The --suri flag must be provided when skipping confirmation.")
-		}
-	}
 	if suri.is_none() {
-		if prompt_to_use_wallet(cli)? {
+		if prompt_to_use_wallet(cli, skip_confirm)? {
 			*use_wallet = true;
 		} else {
 			*suri = Some(
@@ -424,28 +416,6 @@ mod tests {
 		assert!(use_wallet);
 		assert_eq!(suri, None);
 		cli.verify()?;
-		Ok(())
-	}
-
-	#[test]
-	fn resolve_signing_method_errors_when_skip_confirm_and_use_wallet() -> anyhow::Result<()> {
-		use super::*;
-		let mut cli = MockCli::new();
-		let mut use_wallet = true;
-		let mut suri = None;
-		let res = resolve_signer(true, &mut use_wallet, &mut suri, &mut cli);
-		assert!(res.is_err());
-		Ok(())
-	}
-
-	#[test]
-	fn resolve_signing_method_errors_when_skip_confirm_without_suri() -> anyhow::Result<()> {
-		use super::*;
-		let mut cli = MockCli::new();
-		let mut use_wallet = false;
-		let mut suri: Option<String> = None;
-		let res = resolve_signer(true, &mut use_wallet, &mut suri, &mut cli);
-		assert!(res.is_err());
 		Ok(())
 	}
 

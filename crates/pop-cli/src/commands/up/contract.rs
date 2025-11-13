@@ -144,7 +144,7 @@ pub struct UpContractCommand {
 	pub(crate) skip_confirm: bool,
 	/// Skip building the contract before deployment.
 	/// If the contract is not built, it will be built regardless.
-	#[clap(long, conflicts_with = "suri")]
+	#[clap(long)]
 	pub(crate) skip_build: bool,
 }
 
