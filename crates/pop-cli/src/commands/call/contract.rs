@@ -154,7 +154,7 @@ impl CallContractCommand {
 				match e.to_string().as_str() {
 					"Contract not deployed." => {
 						display_message(
-							"Use `pop up contract` to deploy your contract.",
+							"Use `pop up` to deploy your contract.",
 							true, // Not an error, just a message.
 							cli,
 						)?;

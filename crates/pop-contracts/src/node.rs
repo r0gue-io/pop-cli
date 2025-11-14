@@ -58,14 +58,14 @@ pub(super) enum Chain {
 	#[strum(props(
 		Repository = "https://github.com/use-ink/ink-node",
 		Binary = "eth-rpc",
-		Fallback = "v0.46.0"
+		Fallback = "v0.47.0"
 	))]
 	EthRpc,
 	/// Minimal ink node configured for smart contracts via pallet-revive.
 	#[strum(props(
 		Repository = "https://github.com/use-ink/ink-node",
 		Binary = "ink-node",
-		Fallback = "v0.46.0"
+		Fallback = "v0.47.0"
 	))]
 	ContractsNode,
 }
