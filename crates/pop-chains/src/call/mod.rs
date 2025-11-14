@@ -10,7 +10,7 @@ use subxt::{
 	OnlineClient, SubstrateConfig,
 	blocks::ExtrinsicEvents,
 	dynamic::Value,
-	tx::{DynamicPayload, Payload, SubmittableTransaction},
+	tx::{DynamicPayload, Payload, SubmittableTransaction, TxStatus},
 };
 pub mod metadata;
 
@@ -91,18 +91,58 @@ pub async fn sign_and_submit_extrinsic<Xt: Payload>(
 	suri: &str,
 ) -> Result<String, Error> {
 	let signer = create_signer(suri)?;
-	let result = client
+	let mut tx = client
 		.tx()
 		.sign_and_submit_then_watch_default(&xt, &signer)
 		.await
-		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?
-		.wait_for_finalized_success()
-		.await
 		.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?;
 
-	let events = parse_and_format_events(client, url, &result).await?;
+	let tx_hash = tx.extrinsic_hash();
 
-	Ok(format!("Extrinsic Submitted with hash: {:?}\n\n{}", result.extrinsic_hash(), events))
+	while let Some(status) = tx.next().await {
+		match status.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))? {
+			TxStatus::InFinalizedBlock(tx_in_block) => {
+				let events = tx_in_block
+					.wait_for_success()
+					.await
+					.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?;
+
+				let parsed_events = parse_and_format_events(client, url, &events).await?;
+
+				return Ok(format!(
+					"Extrinsic Submitted with hash: {:?}\n\n{}",
+					tx_hash, parsed_events
+				));
+			},
+			TxStatus::InBestBlock(tx_in_block) => {
+				let events = tx_in_block
+					.wait_for_success()
+					.await
+					.map_err(|e| Error::ExtrinsicSubmissionError(format!("{:?}", e)))?;
+
+				let parsed_events = parse_and_format_events(client, url, &events).await?;
+
+				return Ok(format!(
+					"Extrinsic Submitted with hash: {:?}\n\n{}",
+					tx_hash, parsed_events
+				));
+			},
+			TxStatus::Error { message } => {
+				return Err(Error::ExtrinsicSubmissionError(format!("{:?}", message)));
+			},
+			TxStatus::Invalid { message } => {
+				return Err(Error::ExtrinsicSubmissionError(format!("{:?}", message)));
+			},
+			TxStatus::Dropped { message } => {
+				return Err(Error::ExtrinsicSubmissionError(format!("{:?}", message)));
+			},
+			_ => continue,
+		}
+	}
+
+	Err(Error::ExtrinsicSubmissionError(
+		"Transaction stream ended without finalization".to_string(),
+	))
 }
 
 /// Parses and formats the events from the extrinsic result.
