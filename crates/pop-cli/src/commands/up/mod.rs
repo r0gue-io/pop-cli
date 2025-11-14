@@ -179,7 +179,7 @@ mod tests {
 				url: Url::parse(urls::LOCAL)?,
 				suri: "//Alice".to_string(),
 				use_wallet: false,
-				dry_run: true,
+				execute: false,
 				upload_only: true,
 				skip_confirm: false,
 				skip_build: true,
