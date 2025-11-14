@@ -28,7 +28,7 @@ fn format_single_tuples<T, W: Write>(value: &Value<T>, mut writer: W) -> Option<
 				Err(_) => None,
 			},
 			Err(_) => None,
-		}
+		};
 	}
 	None
 }

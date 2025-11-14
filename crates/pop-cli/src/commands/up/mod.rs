@@ -177,7 +177,7 @@ mod tests {
 				proof_size: None,
 				salt: None,
 				url: Url::parse(urls::LOCAL)?,
-				suri: "//Alice".to_string(),
+				suri: Some("//Alice".to_string()),
 				use_wallet: false,
 				execute: false,
 				upload_only: true,

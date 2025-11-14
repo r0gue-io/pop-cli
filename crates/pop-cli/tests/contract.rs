@@ -71,26 +71,25 @@ pub struct SubmitRequest {
 #[tokio::test]
 async fn contract_lifecycle() -> Result<()> {
 	const WALLET_INT_URI: &str = "http://127.0.0.1:9090";
-	const WAIT_SECS: u64 = 20 * 60;
 	let endpoint_port = find_free_port(None);
 	let default_endpoint: &str = &format!("ws://127.0.0.1:{}", endpoint_port);
-	let temp = tempfile::tempdir().unwrap();
+	let temp = tempfile::tempdir()?;
 	let temp_dir = temp.path();
 	//let temp_dir = Path::new("./"); //For testing locally
 	// Test that all templates are generated correctly
-	generate_all_the_templates(temp_dir)?;
+	generate_all_the_templates(temp_dir).await?;
 	// pop new contract test_contract (default)
 	let mut command = pop(
 		temp_dir,
 		["new", "contract", "test_contract", "--template", "standard", "--with-frontend=typink"],
 	);
-	assert!(command.spawn()?.wait()?.success());
+	assert!(command.spawn()?.wait().await?.success());
 	assert!(temp_dir.join("test_contract").exists());
 	assert!(temp_dir.join("test_contract").join("frontend").exists());
 
 	// pop build --path ./test_contract --release
 	command = pop(temp_dir, ["build", "--path", "./test_contract", "--release"]);
-	assert!(command.spawn()?.wait()?.success());
+	assert!(command.spawn()?.wait().await?.success());
 
 	// Verify that the directory target has been created
 	assert!(temp_dir.join("test_contract/target").exists());
@@ -107,14 +106,23 @@ async fn contract_lifecycle() -> Result<()> {
 
 	// pop test --path ./test_contract
 	command = pop(temp_dir, ["test", "--path", "./test_contract"]);
-	assert!(command.spawn()?.wait()?.success());
+	assert!(command.spawn()?.wait().await?.success());
 	// Only upload the contract
-	// pop up --path ./test_contract --upload-only
+	// pop up --path ./test_contract --upload-only --suri //Alice
 	command = pop(
 		temp_dir,
-		["up", "--path", "./test_contract", "--upload-only", "--url", default_endpoint],
+		[
+			"up",
+			"--path",
+			"./test_contract",
+			"--upload-only",
+			"--url",
+			default_endpoint,
+			"--suri",
+			"//Alice",
+		],
 	);
-	assert!(command.spawn()?.wait()?.success());
+	assert!(command.spawn()?.wait().await?.success());
 	// Instantiate contract, only dry-run
 	command = pop(
 		&temp_dir.join("test_contract"),
@@ -129,9 +137,10 @@ async fn contract_lifecycle() -> Result<()> {
 			"--dry-run",
 			"--url",
 			default_endpoint,
+			"--skip-confirm",
 		],
 	);
-	assert!(command.spawn()?.wait()?.success());
+	assert!(command.spawn()?.wait().await?.success());
 
 	// Using methods from the pop_contracts crate to instantiate it to get the Contract Address for
 	// the call
@@ -183,9 +192,10 @@ async fn contract_lifecycle() -> Result<()> {
 			"//Alice",
 			"--url",
 			default_endpoint,
+			"--skip-confirm",
 		],
 	);
-	assert!(command.spawn()?.wait()?.success());
+	assert!(command.spawn()?.wait().await?.success());
 
 	// Call contract (execute extrinsic)
 	// pop call contract --contract $INSTANTIATED_CONTRACT_ADDRESS --message flip --suri //Alice -x
@@ -206,32 +216,28 @@ async fn contract_lifecycle() -> Result<()> {
 			default_endpoint,
 		],
 	);
-	assert!(command.spawn()?.wait()?.success());
+	assert!(command.spawn()?.wait().await?.success());
 
 	// Dry runs after changing the value
 	assert_eq!(dry_run_call(&call_exec).await?, "Ok(true)");
 
-	// pop up --upload-only --use-wallet
+	// pop up --upload-only --use-wallet --dry-run
 	// Will run http server for wallet integration.
-	// Using `cargo run --` as means for the CI to pass.
-	// Possibly there's room for improvement here.
-	let _ = tokio::process::Command::new("cargo")
-		.args([
-			"run",
-			"--",
+	pop(
+		&temp_dir.join("test_contract"),
+		[
 			"up",
 			"--upload-only",
 			"--use-wallet",
-			"--skip-confirm",
 			"--dry-run",
-			"--path",
-			temp_dir.join("test_contract").to_str().expect("to_str"),
 			"--url",
 			default_endpoint,
-		])
-		.spawn()?;
+			"--skip-confirm",
+		],
+	)
+	.spawn()?;
 	// Wait a moment for node and server to be up.
-	sleep(Duration::from_secs(WAIT_SECS)).await;
+	sleep(Duration::from_secs(120)).await;
 
 	// Request payload from server.
 	let response = reqwest::get(&format!("{}/payload", WALLET_INT_URI))
@@ -276,13 +282,13 @@ async fn contract_lifecycle() -> Result<()> {
 	Ok(())
 }
 
-fn generate_all_the_templates(temp_dir: &Path) -> Result<()> {
+async fn generate_all_the_templates(temp_dir: &Path) -> Result<()> {
 	for template in Contract::VARIANTS {
 		let contract_name = format!("test_contract_{}", template).replace("-", "_");
 		// pop new contract test_contract
 		let mut command =
 			pop(temp_dir, ["new", "contract", &contract_name, "--template", template.as_ref()]);
-		assert!(command.spawn()?.wait()?.success());
+		assert!(command.spawn()?.wait().await?.success());
 	}
 	Ok(())
 }

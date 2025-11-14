@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	cli::traits::Cli,
+	cli::traits::{Cli, Confirm},
 	wallet_integration::{
 		FrontendFromString, SubmitRequest, TransactionData, WalletIntegrationManager,
 	},
@@ -67,10 +67,13 @@ pub async fn request_signature(call_data: Vec<u8>, rpc: String) -> anyhow::Resul
 /// Prompts the user to use the wallet for signing.
 /// # Arguments
 /// * `cli` - The CLI instance.
+/// * `skip_confirm` - Whether to skip the confirmation prompt.
 /// # Returns
 /// * `true` if the user wants to use the wallet, `false` otherwise.
-pub fn prompt_to_use_wallet(cli: &mut impl Cli) -> anyhow::Result<bool> {
-	use crate::cli::traits::Confirm;
+pub fn prompt_to_use_wallet(cli: &mut impl Cli, skip_confirm: bool) -> anyhow::Result<bool> {
+	if skip_confirm {
+		return Ok(true);
+	}
 
 	if cli.confirm(USE_WALLET_PROMPT).initial_value(true).interact()? {
 		Ok(true)
@@ -90,7 +93,7 @@ pub(crate) async fn submit_extrinsic(
 	let maybe_payload = request_signature(call_data, url.to_string()).await?.signed_payload;
 	let payload = maybe_payload.ok_or_else(|| anyhow!("No signed payload received."))?;
 	cli.success("Signed payload received.")?;
-	let spinner = cliclack::spinner();
+	let spinner = spinner();
 	spinner.start("Submitting the extrinsic and waiting for finalization, please be patient...");
 
 	let result = submit_signed_extrinsic(client.clone(), payload)
