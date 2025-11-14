@@ -108,10 +108,19 @@ async fn contract_lifecycle() -> Result<()> {
 	command = pop(temp_dir, ["test", "--path", "./test_contract"]);
 	assert!(command.spawn()?.wait().await?.success());
 	// Only upload the contract
-	// pop up --path ./test_contract --upload-only
+	// pop up --path ./test_contract --upload-only --suri //Alice
 	command = pop(
 		temp_dir,
-		["up", "--path", "./test_contract", "--upload-only", "--url", default_endpoint],
+		[
+			"up",
+			"--path",
+			"./test_contract",
+			"--upload-only",
+			"--url",
+			default_endpoint,
+			"--suri",
+			"//Alice",
+		],
 	);
 	assert!(command.spawn()?.wait().await?.success());
 	// Instantiate contract, only dry-run
@@ -128,6 +137,7 @@ async fn contract_lifecycle() -> Result<()> {
 			"--dry-run",
 			"--url",
 			default_endpoint,
+			"--skip-confirm",
 		],
 	);
 	assert!(command.spawn()?.wait().await?.success());
@@ -182,6 +192,7 @@ async fn contract_lifecycle() -> Result<()> {
 			"//Alice",
 			"--url",
 			default_endpoint,
+			"--skip-confirm",
 		],
 	);
 	assert!(command.spawn()?.wait().await?.success());
@@ -214,7 +225,15 @@ async fn contract_lifecycle() -> Result<()> {
 	// Will run http server for wallet integration.
 	pop(
 		&temp_dir.join("test_contract"),
-		["up", "--upload-only", "--use-wallet", "--dry-run", "--url", default_endpoint],
+		[
+			"up",
+			"--upload-only",
+			"--use-wallet",
+			"--dry-run",
+			"--url",
+			default_endpoint,
+			"--skip-confirm",
+		],
 	)
 	.spawn()?;
 	// Wait a moment for node and server to be up.
