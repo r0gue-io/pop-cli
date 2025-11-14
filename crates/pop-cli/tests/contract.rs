@@ -205,7 +205,6 @@ async fn contract_lifecycle() -> Result<()> {
 			"-x",
 			"--url",
 			default_endpoint,
-			"--skip-confirm",
 		],
 	);
 	assert!(command.spawn()?.wait().await?.success());
