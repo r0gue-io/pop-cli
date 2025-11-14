@@ -1,8 +1,8 @@
 {
   "source": {
-    "hash": "0xaf8e21b9f596f7fae98086e7867d50ae047d2a45f147e96dd8e004ba507ef73a",
+    "hash": "0xfb067e841f0308b00e12f811778b2e1ac6eaadd8f3c01e907a47e41d018ff4bd",
     "language": "ink! 6.0.0-beta.1",
-    "compiler": "rustc 1.89.0",
+    "compiler": "rustc 1.91.0",
     "build_info": {
       "rust_toolchain": "stable-aarch64-apple-darwin",
       "cargo_contract_version": "6.0.0-beta.1",
@@ -373,8 +373,7 @@
           ]
         },
         "docs": [
-          "Constructor that initializes the `bool` value to `false`.",
-          " Constructors can delegate to other constructors."
+          "Constructor that initializes the `bool` value to `false`. Constructors can delegate to other constructors."
         ],
         "default": false
       }
@@ -498,6 +497,8 @@
         ]
       },
       "nativeToEthRatio": 100000000,
+      "trustBackedAssetsPrecompileIndex": 288,
+      "poolAssetsPrecompileIndex": 800,
       "staticBufferSize": 16384
     }
   }
