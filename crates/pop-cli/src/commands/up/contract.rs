@@ -113,8 +113,8 @@ pub struct UpContractCommand {
 	#[clap(short = 'S', long, value_parser = parse_hex_bytes)]
 	pub(crate) salt: Option<Bytes>,
 	/// Websocket endpoint of a chain.
-	#[clap(short, long, value_parser, default_value = urls::LOCAL)]
-	pub(crate) url: Url,
+	#[clap(short, long, value_parser)]
+	pub(crate) url: Option<Url>,
 	/// Secret key URI for the account deploying the contract.
 	///
 	/// e.g.
@@ -149,10 +149,6 @@ pub struct UpContractCommand {
 }
 
 impl UpContractCommand {
-	fn should_auto_start_local_node(&self) -> bool {
-		self.skip_confirm && self.url.as_str() == urls::LOCAL
-	}
-
 	/// Executes the command.
 	pub(crate) async fn execute(&mut self) -> anyhow::Result<()> {
 		Cli.intro("Deploy a smart contract")?;
@@ -186,65 +182,54 @@ impl UpContractCommand {
 		{
 			Cli.error(e.to_string())?;
 			Cli.outro_cancel(FAILED)?;
-			return Ok(())
+			return Ok(());
 		}
 
-		// Check if specified chain is accessible
-		let processes = if !is_chain_alive(self.url.clone()).await? {
-			let local_url = Url::parse(urls::LOCAL).expect("default url is valid");
-			let start_local_node = if !self.skip_confirm {
-				let msg = if self.url.as_str() == urls::LOCAL {
-					"No endpoint was specified.".into()
-				} else {
-					format!("The specified endpoint of {} is inaccessible.", self.url)
-				};
+		let url = if let Some(url) = self.url.clone() {
+			url
+		} else if self.skip_confirm {
+			Url::parse(urls::LOCAL).expect("default url is valid")
+		} else {
+			prompt_to_select_chain_rpc(
+				"Where do you want to deploy your contract? (type to filter)",
+				"Type the chain URL manually",
+				urls::LOCAL,
+				|n| n.supports_contracts,
+				&mut Cli,
+			)
+			.await?
+		};
+		self.url = Some(url.clone());
 
-				if !Cli
-					.confirm(format!(
-						"{msg} Would you like to start a local node in the background for testing?",
-					))
+		// Check if specified chain is accessible
+		let processes = if !is_chain_alive(url.clone()).await? {
+			let local_url = Url::parse(urls::LOCAL).expect("default url is valid");
+			if url == local_url {
+				if self.skip_confirm ||
+					Cli.confirm(
+						"No local ink! node detected. Would you like to start it node in the background for testing?",
+					)
 					.initial_value(true)
 					.interact()?
 				{
-					self.url = prompt_to_select_chain_rpc(
-						"Where is your contract deployed? (type to filter)",
-						"Type the chain URL manually",
-						urls::LOCAL,
-						|n| n.supports_contracts,
-						&mut Cli,
+					Cli.info(
+						"The default endpoint is unreachable. Fetching and launching a local ink! node",
+					)?;
+					Some(
+						start_ink_node(&url, self.skip_confirm, DEFAULT_PORT, DEFAULT_ETH_RPC_PORT)
+							.await?,
 					)
-					.await?;
-					self.url == local_url
 				} else {
-					true
+					Cli.outro_cancel(
+						"🚫 You need to specify an accessible endpoint to deploy the contract.",
+					)?;
+					return Ok(());
 				}
-			} else if self.should_auto_start_local_node() {
-				Cli.info(
-					"The default endpoint is unreachable. Fetching and launching a local ink! node because confirmations are skipped.",
-				)?;
-				true
 			} else {
 				Cli.outro_cancel(
 					"🚫 You need to specify an accessible endpoint to deploy the contract.",
 				)?;
 				return Ok(());
-			};
-
-			if start_local_node {
-				// Update url to that of the launched node
-				self.url = local_url;
-
-				Some(
-					start_ink_node(
-						&self.url,
-						self.skip_confirm,
-						DEFAULT_PORT,
-						DEFAULT_ETH_RPC_PORT,
-					)
-					.await?,
-				)
-			} else {
-				None
 			}
 		} else {
 			None
@@ -265,8 +250,7 @@ impl UpContractCommand {
 				},
 			};
 
-			let maybe_signature_request =
-				request_signature(call_data, self.url.to_string()).await?;
+			let maybe_signature_request = request_signature(call_data, url.to_string()).await?;
 			if let Some(payload) = maybe_signature_request.signed_payload {
 				Cli.success("Signed payload received.")?;
 				let spinner = spinner();
@@ -276,7 +260,7 @@ impl UpContractCommand {
 
 				if self.upload_only {
 					#[allow(unused_variables)]
-					let upload_result = match upload_contract_signed(self.url.as_str(), payload).await {
+					let upload_result = match upload_contract_signed(url.as_str(), payload).await {
 						Err(e) => {
 							spinner
 								.error(format!("An error occurred uploading your contract: {e}"));
@@ -310,7 +294,7 @@ impl UpContractCommand {
 					map_account(instantiate_exec.opts(), &mut Cli).await?;
 					let contract_info = match instantiate_contract_signed(
 						maybe_signature_request.contract_address,
-						self.url.as_str(),
+						url.as_str(),
 						payload,
 					)
 					.await
@@ -391,7 +375,7 @@ impl UpContractCommand {
 						},
 					};
 
-				let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
+				let weight_limit = if self.gas_limit.is_some() & self.proof_size.is_some() {
 					Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
 				} else {
 					calculated_weight
@@ -446,7 +430,7 @@ impl UpContractCommand {
 			let mut cmd = CallContractCommand::default();
 			cmd.path_pos = Some(self.path.clone());
 			cmd.contract = Some(address);
-			cmd.url = Some(self.url.clone());
+			cmd.url = self.url.clone();
 			cmd.deployed = true;
 			cmd.execute(cli).await?;
 		}
@@ -494,8 +478,12 @@ impl UpContractCommand {
 		let hash = contract_code.code_hash();
 		if self.upload_only {
 			let upload_exec = set_up_upload(self.clone().into()).await?;
-			let call_data =
-				get_upload_payload(upload_exec, contract_code, self.url.as_str()).await?;
+			let call_data = get_upload_payload(
+				upload_exec,
+				contract_code,
+				self.url.as_ref().expect("url must be defined").as_str(),
+			)
+			.await?;
 			Ok((call_data, hash))
 		} else {
 			let instantiate_exec = set_up_deployment(self.clone().into()).await?;
@@ -522,7 +510,7 @@ impl From<UpContractCommand> for UpOpts {
 			gas_limit: cmd.gas_limit,
 			proof_size: cmd.proof_size,
 			salt: cmd.salt,
-			url: cmd.url,
+			url: cmd.url.expect("url must be set"),
 			suri: cmd.suri.unwrap_or_else(|| "//Alice".to_string()),
 		}
 	}
@@ -619,7 +607,7 @@ impl Default for UpContractCommand {
 			gas_limit: None,
 			proof_size: None,
 			salt: None,
-			url: Url::parse(urls::LOCAL).expect("default url is valid"),
+			url: None,
 			suri: Some("//Alice".to_string()),
 			use_wallet: false,
 			execute: true,
@@ -638,7 +626,8 @@ mod tests {
 
 	#[test]
 	fn conversion_up_contract_command_to_up_opts_works() -> anyhow::Result<()> {
-		let command = UpContractCommand::default();
+		let command =
+			UpContractCommand { url: Some(Url::parse(urls::LOCAL)?), ..Default::default() };
 		let opts: UpOpts = command.into();
 		assert_eq!(
 			opts,
@@ -654,35 +643,6 @@ mod tests {
 				suri: "//Alice".to_string(),
 			}
 		);
-		Ok(())
-	}
-
-	#[test]
-	fn auto_starts_local_node_when_skip_confirm_and_default_url() -> anyhow::Result<()> {
-		let cmd = UpContractCommand {
-			url: Url::parse(urls::LOCAL)?,
-			skip_confirm: true,
-			..Default::default()
-		};
-		assert!(cmd.should_auto_start_local_node());
-		Ok(())
-	}
-
-	#[test]
-	fn auto_start_disabled_for_custom_url_or_when_confirmation_needed() -> anyhow::Result<()> {
-		let cmd = UpContractCommand {
-			url: Url::parse("wss://example.pop.io")?,
-			skip_confirm: true,
-			..Default::default()
-		};
-		assert!(!cmd.should_auto_start_local_node());
-
-		let cmd = UpContractCommand {
-			url: Url::parse(urls::LOCAL)?,
-			skip_confirm: false,
-			..Default::default()
-		};
-		assert!(!cmd.should_auto_start_local_node());
 		Ok(())
 	}
 

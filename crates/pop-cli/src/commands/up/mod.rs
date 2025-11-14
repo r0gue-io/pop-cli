@@ -152,7 +152,6 @@ mod tests {
 	#[cfg(feature = "contract")]
 	use super::contract::UpContractCommand;
 	use super::*;
-	use crate::common::urls;
 	use cli::MockCli;
 	use duct::cmd;
 	use url::Url;
@@ -176,7 +175,7 @@ mod tests {
 				gas_limit: None,
 				proof_size: None,
 				salt: None,
-				url: Url::parse(urls::LOCAL)?,
+				url: None,
 				suri: Some("//Alice".to_string()),
 				use_wallet: false,
 				execute: false,
