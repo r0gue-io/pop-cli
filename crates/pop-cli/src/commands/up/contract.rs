@@ -305,7 +305,7 @@ impl UpContractCommand {
 						&spinner,
 						format!("{:?}", contract_info.contract_address),
 						hash,
-					);
+					)?;
 				};
 
 				if self.upload_only {
@@ -381,7 +381,7 @@ impl UpContractCommand {
 			spinner.start("Uploading and instantiating the contract...");
 			let contract_info = instantiate_smart_contract(instantiate_exec, weight_limit).await?;
 			let contract_address = contract_info.address.to_string();
-			display_contract_info(&spinner, contract_address.clone(), contract_info.code_hash);
+			display_contract_info(&spinner, contract_address.clone(), contract_info.code_hash)?;
 
 			Cli.success(COMPLETE)?;
 			self.keep_interacting_with_node(&mut Cli, contract_address).await?;
@@ -541,8 +541,12 @@ pub(crate) async fn start_ink_node(
 	Ok(((ink_node_process, log_ink_node), (eth_rpc_node_process, log_eth_rpc)))
 }
 
-fn display_contract_info(spinner: &ProgressBar, address: String, code_hash: Option<String>) {
-	spinner.stop(format!(
+fn display_contract_info(
+	spinner: &ProgressBar,
+	address: String,
+	code_hash: Option<String>,
+) -> std::io::Result<()> {
+	let info = format!(
 		"Contract deployed and instantiated:\n{}",
 		style(format!(
 			"{}\n{}",
@@ -559,7 +563,10 @@ fn display_contract_info(spinner: &ProgressBar, address: String, code_hash: Opti
 				.unwrap_or_default(),
 		))
 		.dim()
-	));
+	);
+	Cli.info(info)?;
+	spinner.stop("");
+	Ok(())
 }
 
 impl Default for UpContractCommand {
