@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use strum::{EnumProperty as _};
+use strum::EnumProperty as _;
 use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, VariantArray};
 
 use crate::templates::{Template, Type};
