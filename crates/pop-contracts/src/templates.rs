@@ -79,6 +79,14 @@ pub enum Contract {
 		props(Type = "Examples", Repository = "https://github.com/use-ink/ink-examples")
 	)]
 	Multisig,
+	/// Demonstrates how to interact with ERC-20 asset precompiles in ink!
+	#[strum(
+		serialize = "assets-precompile",
+		message = "Assets Precompile",
+		detailed_message = "This contract demonstrates how to interact with ERC-20 asset precompiles in ink! using the ink_precompiles crate.",
+		props(Type = "Examples", Repository = "https://github.com/use-ink/ink-examples")
+	)]
+	AssetsPrecompile,
 }
 
 impl Template for Contract {}
@@ -99,6 +107,7 @@ mod tests {
 			("dns".to_string(), DNS),
 			("cross-contract-calls".to_string(), CrossContract),
 			("multisig".to_string(), Multisig),
+			("assets-precompile".to_string(), AssetsPrecompile),
 		])
 	}
 
@@ -110,6 +119,7 @@ mod tests {
 			("dns".to_string(), "https://github.com/use-ink/ink-examples"),
 			("cross-contract-calls".to_string(), "https://github.com/use-ink/ink-examples"),
 			("multisig".to_string(), "https://github.com/use-ink/ink-examples"),
+			("assets-precompile".to_string(), "https://github.com/use-ink/ink-examples"),
 		])
 	}
 
@@ -122,6 +132,10 @@ mod tests {
 			(DNS, "Domain name service example implemented in ink!"),
 			(CrossContract, "Cross-contract call example implemented in ink!"),
 			(Multisig, "Multisig contract example implemented in ink!"),
+			(
+				AssetsPrecompile,
+				"This contract demonstrates how to interact with ERC-20 asset precompiles in ink! using the ink_precompiles crate.",
+			),
 		])
 	}
 
