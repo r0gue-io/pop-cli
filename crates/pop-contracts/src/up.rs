@@ -291,6 +291,10 @@ pub async fn submit_signed_payload(
 				let events = tx_in_block.wait_for_success().await?;
 				return Ok(events);
 			},
+			TxStatus::InBestBlock(tx_in_block) => {
+				let events = tx_in_block.wait_for_success().await?;
+				return Ok(events);
+			},
 			TxStatus::Error { message } => return Err(TransactionError::Error(message).into()),
 			TxStatus::Invalid { message } => return Err(TransactionError::Invalid(message).into()),
 			TxStatus::Dropped { message } => return Err(TransactionError::Dropped(message).into()),
