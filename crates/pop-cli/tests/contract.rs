@@ -225,7 +225,15 @@ async fn contract_lifecycle() -> Result<()> {
 	// Will run http server for wallet integration.
 	pop(
 		&temp_dir.join("test_contract"),
-		["up", "--upload-only", "--use-wallet", "--dry-run", "--url", default_endpoint],
+		[
+			"up",
+			"--upload-only",
+			"--use-wallet",
+			"--dry-run",
+			"--url",
+			default_endpoint,
+			"--skip-confirm",
+		],
 	)
 	.spawn()?;
 	// Wait a moment for node and server to be up.
