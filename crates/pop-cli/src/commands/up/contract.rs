@@ -131,9 +131,9 @@ pub struct UpContractCommand {
 		conflicts_with = "suri"
 	)]
 	pub(crate) use_wallet: bool,
-	/// Perform a dry-run via RPC to estimate the gas usage. This does not submit a transaction.
-	#[clap(short = 'D', long)]
-	pub(crate) dry_run: bool,
+	/// Actually deploy the contract. Otherwise a dry-run is performed.
+	#[clap(short = 'x', long)]
+	pub(crate) execute: bool,
 	/// Uploads the contract only, without instantiation.
 	#[clap(short = 'U', long)]
 	pub(crate) upload_only: bool,
@@ -371,34 +371,40 @@ impl UpContractCommand {
 				// Check if the account is already mapped, and prompt the user to perform the
 				// mapping if it's required.
 				map_account(instantiate_exec.opts(), &mut Cli).await?;
-				let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
-					Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
-				} else {
-					let spinner = spinner();
-					spinner.start("Doing a dry run to estimate the gas...");
+
+				// Perform the dry run before attempting to execute the deployment, and since we are
+				// on it also to calculate the weight.
+				let spinner_1 = spinner();
+				spinner_1.start("Doing a dry run...");
+				let calculated_weight =
 					match dry_run_gas_estimate_instantiate(&instantiate_exec).await {
 						Ok(w) => {
-							spinner.stop(format!("Gas limit estimate: {:?}", w));
+							spinner_1.stop(format!("Gas limit estimate: {:?}", w));
 							w
 						},
 						Err(e) => {
-							spinner.error(format!("{e}"));
+							spinner_1.error(format!("{e}"));
 							terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
 							Cli.outro_cancel(FAILED)?;
 							return Ok(());
 						},
-					}
+					};
+
+				let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
+					Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
+				} else {
+					calculated_weight
 				};
 
 				// Finally upload and instantiate.
-				if !self.dry_run {
-					let spinner = spinner();
-					spinner.start("Uploading and instantiating the contract...");
+				if self.execute {
+					let spinner_2 = spinner();
+					spinner_2.start("Uploading and instantiating the contract...");
 					let contract_info =
 						instantiate_smart_contract(instantiate_exec, weight_limit).await?;
 					let contract_address = contract_info.address.to_string();
 					display_contract_info(
-						&spinner,
+						&spinner_2,
 						contract_address.clone(),
 						contract_info.code_hash,
 					);
@@ -448,7 +454,7 @@ impl UpContractCommand {
 	/// Uploads the contract without instantiating it.
 	async fn upload_contract(&self) -> anyhow::Result<()> {
 		let upload_exec = set_up_upload(self.clone().into()).await?;
-		if self.dry_run {
+		if !self.execute {
 			match dry_run_upload(&upload_exec).await {
 				Ok(upload_result) => {
 					let mut result = vec![format!("Code Hash: {:?}", upload_result.code_hash)];
@@ -609,7 +615,7 @@ impl Default for UpContractCommand {
 			url: Url::parse(urls::LOCAL).expect("default url is valid"),
 			suri: Some("//Alice".to_string()),
 			use_wallet: false,
-			dry_run: false,
+			execute: true,
 			upload_only: false,
 			skip_confirm: false,
 			skip_build: false,

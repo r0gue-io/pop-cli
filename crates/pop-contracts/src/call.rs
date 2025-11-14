@@ -98,21 +98,7 @@ pub async fn set_up_call(
 pub async fn dry_run_call(
 	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 ) -> Result<String, Error> {
-	let call_result = call_exec.call_dry_run().await?;
-	match call_result.result {
-		Ok(ref ret_val) => {
-			let value = call_exec
-				.transcoder()
-				.decode_message_return(call_exec.message(), &mut &ret_val.data[..])
-				.context(format!("Failed to decode return value {:?}", &ret_val))?;
-			Ok(value.to_string())
-		},
-		Err(ref err) => {
-			let error_variant =
-				ErrorVariant::from_dispatch_error(err, &call_exec.client().metadata())?;
-			Err(Error::DryRunCallContractError(format!("{error_variant}")))
-		},
-	}
+	dry_run_gas_estimate_call(call_exec).await.map(|(value, _)| value)
 }
 
 /// Estimate the gas required for a contract call without modifying the state of the blockchain.
@@ -122,16 +108,21 @@ pub async fn dry_run_call(
 /// * `call_exec` - the preprocessed data to call a contract.
 pub async fn dry_run_gas_estimate_call(
 	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
-) -> Result<Weight, Error> {
+) -> Result<(String, Weight), Error> {
 	let call_result = call_exec.call_dry_run().await?;
 	match call_result.result {
-		Ok(_) => {
+		Ok(ref ret_val) => {
 			// Use user specified values where provided, otherwise use the estimates.
 			let ref_time =
 				call_exec.gas_limit().unwrap_or_else(|| call_result.gas_required.ref_time());
 			let proof_size =
 				call_exec.proof_size().unwrap_or_else(|| call_result.gas_required.proof_size());
-			Ok(Weight::from_parts(ref_time, proof_size))
+			let value = call_exec
+				.transcoder()
+				.decode_message_return(call_exec.message(), &mut &ret_val.data[..])
+				.context(format!("Failed to decode return value {:?}", &ret_val))?
+				.to_string();
+			Ok((value, Weight::from_parts(ref_time, proof_size)))
 		},
 		Err(ref err) => {
 			let error_variant =

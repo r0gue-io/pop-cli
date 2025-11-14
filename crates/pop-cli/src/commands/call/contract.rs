@@ -21,8 +21,8 @@ use pop_common::{DefaultConfig, Keypair, parse_h160_account};
 use pop_contracts::{
 	CallExec, CallOpts, ContractCallable, ContractFunction, ContractStorage, DefaultEnvironment,
 	Verbosity, Weight, build_smart_contract, call_smart_contract,
-	call_smart_contract_from_signed_payload, dry_run_call, dry_run_gas_estimate_call,
-	fetch_contract_storage, get_call_payload, get_contract_storage_info, get_messages, set_up_call,
+	call_smart_contract_from_signed_payload, dry_run_gas_estimate_call, fetch_contract_storage,
+	get_call_payload, get_contract_storage_info, get_messages, set_up_call,
 };
 use serde::Serialize;
 use std::path::PathBuf;
@@ -99,9 +99,6 @@ pub struct CallContractCommand {
 	/// Submit an extrinsic for on-chain execution.
 	#[arg(short = 'x', long)]
 	execute: bool,
-	/// Perform a dry-run via RPC to estimate the gas usage. This does not submit a transaction.
-	#[arg(short = 'D', long, conflicts_with = "execute")]
-	dry_run: bool,
 	/// Enables developer mode, bypassing certain user prompts for faster testing.
 	/// Recommended for testing and local development only.
 	#[deprecated(
@@ -135,7 +132,6 @@ impl Default for CallContractCommand {
 			suri: Some("//Alice".to_string()),
 			use_wallet: false,
 			execute: false,
-			dry_run: false,
 			dev_mode: false,
 			deployed: false,
 			skip_confirm: false,
@@ -213,9 +209,6 @@ impl CallContractCommand {
 		}
 		if self.execute {
 			full_message.push_str(" --execute");
-		}
-		if self.dry_run {
-			full_message.push_str(" --dry-run");
 		}
 		if self.skip_confirm {
 			full_message.push_str(" --skip-confirm");
@@ -321,7 +314,6 @@ impl CallContractCommand {
 			true
 		};
 		self.execute = is_call_confirmed && message.mutates;
-		self.dry_run = !is_call_confirmed;
 		Ok(())
 	}
 
@@ -507,55 +499,37 @@ impl CallContractCommand {
 			self.execute_with_wallet(call_exec, cli).await?;
 			return Ok(());
 		}
-		if self.dry_run {
-			let spinner = spinner();
-			spinner.start("Doing a dry run to estimate the gas...");
+
+		let spinner = spinner();
+		spinner.start("Doing a dry run...");
+		let (call_dry_run_result, estimated_weight) =
 			match dry_run_gas_estimate_call(&call_exec).await {
-				Ok(w) => {
-					cli.info(format!("Gas limit: {:?}", w))?;
-					cli.warning("Your call has not been executed.")?;
-				},
+				Ok(w) => w,
 				Err(e) => {
 					spinner.error(format!("{e}"));
 					display_message("Call failed.", false, cli)?;
+					return Ok(());
 				},
 			};
-			return Ok(());
-		}
 
-		if !self.execute {
-			let spinner = spinner();
-			spinner.start("Calling the contract...");
-			let call_dry_run_result = dry_run_call(&call_exec).await?;
-			spinner.clear();
-			cli.success(call_dry_run_result)?;
-			cli.warning("Your call has not been executed.")?;
-		} else {
+		if self.execute {
 			let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
 				Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
 			} else {
-				let spinner = spinner();
-				spinner.start("Doing a dry run to estimate the gas...");
-				match dry_run_gas_estimate_call(&call_exec).await {
-					Ok(w) => {
-						cli.info(format!("Gas limit: {:?}", w))?;
-						w
-					},
-					Err(e) => {
-						spinner.error(format!("{e}"));
-						return Err(anyhow!("Call failed."));
-					},
-				}
+				estimated_weight
 			};
-			let spinner = spinner();
-			spinner.start("Calling the contract...");
 
+			spinner.set_message("Calling the contract...");
 			let call_result = call_smart_contract(call_exec, weight_limit, &self.url()?)
 				.await
 				.map_err(|err| anyhow!("ERROR: {err:?}"))?;
-
+			spinner.clear();
 			cli.info(call_result)?;
+		} else {
+			cli.success(call_dry_run_result)?;
+			cli.warning("Your call has not been executed.")?;
 		}
+
 		Ok(())
 	}
 
@@ -724,7 +698,6 @@ mod tests {
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
-			dry_run: false,
 			execute: false,
 			dev_mode: false,
 			deployed: false,
@@ -743,7 +716,6 @@ mod tests {
 		assert_eq!(call_config.url()?.to_string(), urls::LOCAL);
 		assert_eq!(call_config.suri, None);
 		assert!(!call_config.execute);
-		assert!(!call_config.dry_run);
 		assert_eq!(
 			call_config.display(),
 			format!(
@@ -900,7 +872,6 @@ mod tests {
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
-			dry_run: false,
 			execute: false,
 			dev_mode: false,
 			deployed: false,
@@ -921,7 +892,6 @@ mod tests {
 		assert_eq!(call_config.suri, None);
 		assert!(call_config.use_wallet);
 		assert!(call_config.execute);
-		assert!(!call_config.dry_run);
 		assert_eq!(
 			call_config.display(),
 			format!(
@@ -988,7 +958,6 @@ mod tests {
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: Some("//Alice".to_string()),
 			use_wallet: false,
-			dry_run: false,
 			execute: false,
 			dev_mode: false,
 			deployed: false,
@@ -1008,7 +977,6 @@ mod tests {
 		assert_eq!(call_config.url()?.to_string(), urls::LOCAL);
 		assert_eq!(call_config.suri, Some("//Alice".to_string()));
 		assert!(call_config.execute);
-		assert!(!call_config.dry_run);
 		assert!(call_config.skip_confirm);
 		assert_eq!(
 			call_config.display(),
@@ -1055,7 +1023,6 @@ mod tests {
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
-			dry_run: false,
 			execute: false,
 			dev_mode: false,
 			deployed: false,
@@ -1117,7 +1084,6 @@ mod tests {
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
-			dry_run: false,
 			execute: false,
 			dev_mode: false,
 			deployed: false,
@@ -1147,7 +1113,6 @@ mod tests {
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
-			dry_run: false,
 			execute: false,
 			dev_mode: false,
 			deployed: false,
@@ -1183,7 +1148,6 @@ mod tests {
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
-			dry_run: false,
 			execute: false,
 			dev_mode: false,
 			deployed: false,
@@ -1233,7 +1197,6 @@ mod tests {
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
-			dry_run: false,
 			execute: false,
 			dev_mode: false,
 			deployed: false,
@@ -1281,7 +1244,6 @@ mod tests {
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
-			dry_run: false,
 			execute: false,
 			dev_mode: false,
 			deployed: false,
@@ -1333,7 +1295,6 @@ mod tests {
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: Some("//Alice".to_string()),
 			use_wallet: false,
-			dry_run: false,
 			execute: false,
 			dev_mode: false,
 			deployed: true,
@@ -1390,7 +1351,6 @@ mod tests {
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: Some("//Alice".to_string()),
 			use_wallet: false,
-			dry_run: false,
 			execute: false,
 			dev_mode: false,
 			deployed: true,

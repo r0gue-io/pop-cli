@@ -148,7 +148,7 @@ tokio_test::block_on(async {
     let flip_call_exec = set_up_call(flip_call_opts).await.unwrap();
     let url = Url::parse("ws://localhost:9944").unwrap();
     // If you don't know the `gas_limit` and `proof_size`, you can perform a dry run to estimate the gas amount before calling the Smart Contract.
-    let weight_limit = dry_run_gas_estimate_call(&flip_call_exec).await.unwrap();
+    let (_, weight_limit) = dry_run_gas_estimate_call(&flip_call_exec).await.unwrap();
     // Use this weight to execute the call.
     let call_result = call_smart_contract(flip_call_exec, weight_limit, &url).await.unwrap();
 });
