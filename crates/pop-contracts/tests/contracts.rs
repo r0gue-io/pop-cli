@@ -428,7 +428,7 @@ async fn call_works(temp_dir: &TempDir, localhost_url: &str, contract_address: &
 		execute: false,
 	})
 	.await?;
-	let weight = dry_run_gas_estimate_call(&call_exec).await?;
+	let (_, weight) = dry_run_gas_estimate_call(&call_exec).await?;
 	assert!(weight.ref_time() > 0);
 	assert!(weight.proof_size() > 0);
 	call_smart_contract(call_exec, weight, &Url::parse(localhost_url)?).await?;
