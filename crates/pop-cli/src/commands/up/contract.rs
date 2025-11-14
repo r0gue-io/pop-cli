@@ -18,7 +18,7 @@ use crate::{
 	style::style,
 };
 use clap::Args;
-use cliclack::{ProgressBar, spinner};
+use cliclack::spinner;
 use console::Emoji;
 use pop_contracts::{
 	Bytes, FunctionType, UpOpts, Verbosity, Weight, build_smart_contract,
@@ -327,7 +327,8 @@ impl UpContractCommand {
 
 					let contract_address = format!("{:?}", contract_info.contract_address);
 					let hash = contract_info.code_hash.map(|code_hash| format!("{:?}", code_hash));
-					display_contract_info(&spinner, contract_address.clone(), hash);
+					spinner.clear();
+					display_contract_info(&mut Cli, contract_address.clone(), hash)?;
 					// Store the contract address for later interaction prompt.
 					deployed_contract_address = Some(contract_address);
 				};
@@ -403,11 +404,12 @@ impl UpContractCommand {
 					let contract_info =
 						instantiate_smart_contract(instantiate_exec, weight_limit).await?;
 					let contract_address = contract_info.address.to_string();
+					spinner_2.clear();
 					display_contract_info(
-						&spinner_2,
+						&mut Cli,
 						contract_address.clone(),
 						contract_info.code_hash,
-					);
+					)?;
 					// Store the contract address for later interaction prompt.
 					deployed_contract_address = Some(contract_address);
 				}
@@ -581,8 +583,12 @@ pub(crate) async fn start_ink_node(
 	Ok(((ink_node_process, log_ink_node), (eth_rpc_node_process, log_eth_rpc)))
 }
 
-fn display_contract_info(spinner: &ProgressBar, address: String, code_hash: Option<String>) {
-	spinner.stop(format!(
+fn display_contract_info(
+	cli: &mut Cli,
+	address: String,
+	code_hash: Option<String>,
+) -> anyhow::Result<()> {
+	cli.info(format!(
 		"Contract deployed and instantiated:\n{}",
 		style(format!(
 			"{}\n{}",
@@ -599,7 +605,8 @@ fn display_contract_info(spinner: &ProgressBar, address: String, code_hash: Opti
 				.unwrap_or_default(),
 		))
 		.dim()
-	));
+	))?;
+	Ok(())
 }
 
 impl Default for UpContractCommand {
