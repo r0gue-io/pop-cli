@@ -53,29 +53,12 @@ pub struct CallContractCommand {
 	/// Maximum amount of gas to be used for this command.
 	/// If not specified it will perform a dry-run to estimate the gas consumed for the
 	/// call.
-	#[deprecated(
-		since = "0.12.0",
-		note = "use `--manual-weight <REF_TIME> <PROOF_SIZE>` instead, will be removed in v0.13.0"
-	)]
-	#[arg(name = "gas", short, long, conflicts_with = "manual_weight", requires = "proof_size")]
+	#[arg(name = "gas", short, long, requires = "proof_size")]
 	gas_limit: Option<u64>,
 	/// Maximum proof size for this command.
 	/// If not specified it will perform a dry-run to estimate the proof size required.
-	#[deprecated(
-		since = "0.12.0",
-		note = "use `--manual-weight <REF_TIME> <PROOF_SIZE>` instead, will be removed in v0.13.0"
-	)]
-	#[arg(short = 'P', long, conflicts_with = "manual_weight", requires = "gas")]
+	#[arg(short = 'P', long, requires = "gas")]
 	proof_size: Option<u64>,
-	/// The maximum amount of execution time and proof size for this command. If not specified it
-	/// will perform a dry-run to estimate the limits.
-	#[arg(
-		long = "manual-weight",
-		value_names = ["REF_TIME", "PROOF_SIZE"],
-       num_args = 2,
-       value_parser = clap::value_parser!(u64),
-   )]
-	manual_weight: Option<(u64, u64)>,
 	/// Websocket endpoint of a node.
 	#[arg(short, long, value_parser)]
 	pub(crate) url: Option<url::Url>,
@@ -101,10 +84,7 @@ pub struct CallContractCommand {
 	execute: bool,
 	/// Enables developer mode, bypassing certain user prompts for faster testing.
 	/// Recommended for testing and local development only.
-	#[deprecated(
-		since = "0.12.0",
-		note = "Use `--skip-confirm` and/or `--manual-weight`, will be removed in v0.13.0"
-	)]
+	#[deprecated(since = "0.12.0", note = "Use `--skip-confirm`, will be removed in v0.13.0")]
 	#[arg(name = "dev", short, long, default_value = "false", conflicts_with = "skip_confirm")]
 	dev_mode: bool,
 	/// Whether the contract was just deployed or not.
@@ -127,7 +107,6 @@ impl Default for CallContractCommand {
 			value: DEFAULT_PAYABLE_VALUE.to_string(),
 			gas_limit: None,
 			proof_size: None,
-			manual_weight: None,
 			url: None,
 			suri: Some("//Alice".to_string()),
 			use_wallet: false,
@@ -196,8 +175,8 @@ impl CallContractCommand {
 		if self.value != DEFAULT_PAYABLE_VALUE {
 			full_message.push_str(&format!(" --value {}", self.value));
 		}
-		if let Some((ref_time, proof_size)) = self.manual_weight {
-			full_message.push_str(&format!(" --manual-weight {} {}", ref_time, proof_size));
+		if let (Some(gas_limit), Some(proof_size)) = (self.gas_limit, self.proof_size) {
+			full_message.push_str(&format!(" --gas {} --proof-size {}", gas_limit, proof_size));
 		}
 		if let Some(url) = &self.url {
 			full_message.push_str(&format!(" --url {}", url));
@@ -271,9 +250,7 @@ impl CallContractCommand {
 	fn configure_message(&mut self, message: &ContractFunction, cli: &mut impl Cli) -> Result<()> {
 		// TODO: Remove with release v0.13.0:
 		if self.dev_mode {
-			cli.warning(
-				"The `--dev` flag is deprecated. Use `--skip-confirm` and/or `--manual-weight` instead.",
-			)?;
+			cli.warning("The `--dev` flag is deprecated. Use `--skip-confirm` instead.")?;
 			self.skip_confirm = true;
 		}
 
@@ -290,13 +267,6 @@ impl CallContractCommand {
 					Err(_) => Err("Invalid value."),
 				})
 				.interact()?;
-		}
-
-		if self.gas_limit.is_some() && self.proof_size.is_some() {
-			cli.warning(
-				"The `--execution-time`/`--proof-size` flags are deprecated. Use `--manual-weight` instead.",
-			)?;
-			self.manual_weight = Some((self.gas_limit.unwrap(), self.proof_size.unwrap()));
 		}
 
 		// Resolve who is calling the contract. If a `suri` was provided via the command line, skip
@@ -465,11 +435,12 @@ impl CallContractCommand {
 			},
 		};
 		normalize_call_args(&mut self.args, &message);
-		let (gas_limit, proof_size) = if let Some((ref_time, proof_size)) = self.manual_weight {
-			(Some(ref_time), Some(proof_size))
-		} else {
-			(None, None)
-		};
+		let (gas_limit, proof_size) =
+			if let (Some(gas_limit), Some(proof_size)) = (self.gas_limit, self.proof_size) {
+				(Some(gas_limit), Some(proof_size))
+			} else {
+				(None, None)
+			};
 		let call_exec = match set_up_call(CallOpts {
 			path: project_path,
 			contract,
@@ -694,7 +665,6 @@ mod tests {
 			value: DEFAULT_PAYABLE_VALUE.to_string(),
 			gas_limit: None,
 			proof_size: None,
-			manual_weight: None,
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
@@ -772,9 +742,8 @@ mod tests {
 		};
 
 		let mut command = CallContractCommand { dev_mode: true, ..Default::default() };
-		let mut cli = MockCli::new().expect_warning(
-			"The `--dev` flag is deprecated. Use `--skip-confirm` and/or `--manual-weight` instead.",
-		);
+		let mut cli = MockCli::new()
+			.expect_warning("The `--dev` flag is deprecated. Use `--skip-confirm` instead.");
 
 		command.configure_message(&message, &mut cli)?;
 
@@ -803,13 +772,10 @@ mod tests {
 			..Default::default()
 		};
 
-		let mut cli = MockCli::new().expect_warning(
-			"The `--execution-time`/`--proof-size` flags are deprecated. Use `--manual-weight` instead.",
-		);
+		let mut cli = MockCli::new();
 
 		command.configure_message(&message, &mut cli)?;
 
-		assert_eq!(command.manual_weight, Some((12345, 5000)));
 		assert_eq!(command.gas_limit, Some(12345));
 		assert_eq!(command.proof_size, Some(5000));
 		cli.verify()
@@ -868,7 +834,6 @@ mod tests {
 			value: DEFAULT_PAYABLE_VALUE.to_string(),
 			gas_limit: None,
 			proof_size: None,
-			manual_weight: None,
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
@@ -887,7 +852,6 @@ mod tests {
 		assert_eq!(call_config.args[0], "true".to_string());
 		assert_eq!(call_config.args[1], "2".to_string());
 		assert_eq!(call_config.value, "50".to_string());
-		assert_eq!(call_config.manual_weight, None);
 		assert_eq!(call_config.url()?.to_string(), urls::LOCAL);
 		assert_eq!(call_config.suri, None);
 		assert!(call_config.use_wallet);
@@ -941,7 +905,7 @@ mod tests {
 			)
 			.expect_input("Value to transfer to the call:", "50".into()) // Only if payable
 			.expect_info(format!(
-				"pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\" \"2\" --value 50 --manual-weight 100000 1000000 --url {} --suri //Alice --execute --skip-confirm",
+				"pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\" \"2\" --value 50 --gas 100000 --proof-size 1000000 --url {} --suri //Alice --execute --skip-confirm",
 				temp_dir.path().join("testing").display(), urls::LOCAL
 			));
 
@@ -952,9 +916,8 @@ mod tests {
 			message: None,
 			args: vec!["true".to_string(), "2".to_string()],
 			value: DEFAULT_PAYABLE_VALUE.to_string(),
-			gas_limit: None,
-			proof_size: None,
-			manual_weight: Some((100000, 1000000)),
+			gas_limit: Some(100000),
+			proof_size: Some(1000000),
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: Some("//Alice".to_string()),
 			use_wallet: false,
@@ -973,7 +936,8 @@ mod tests {
 		assert_eq!(call_config.args[0], "true".to_string());
 		assert_eq!(call_config.args[1], "2".to_string());
 		assert_eq!(call_config.value, "50".to_string());
-		assert_eq!(call_config.manual_weight, Some((100000, 1000000)));
+		assert_eq!(call_config.gas_limit, Some(100000));
+		assert_eq!(call_config.proof_size, Some(1000000));
 		assert_eq!(call_config.url()?.to_string(), urls::LOCAL);
 		assert_eq!(call_config.suri, Some("//Alice".to_string()));
 		assert!(call_config.execute);
@@ -981,7 +945,7 @@ mod tests {
 		assert_eq!(
 			call_config.display(),
 			format!(
-				"pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\" \"2\" --value 50 --manual-weight 100000 1000000 --url {} --suri //Alice --execute --skip-confirm",
+				"pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\" \"2\" --value 50 --gas 100000 --proof-size 1000000 --url {} --suri //Alice --execute --skip-confirm",
 				temp_dir.path().join("testing").display(),
 				urls::LOCAL
 			)
@@ -1019,7 +983,6 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			manual_weight: None,
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
@@ -1080,7 +1043,6 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			manual_weight: None,
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
@@ -1109,7 +1071,6 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			manual_weight: None,
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
@@ -1144,7 +1105,6 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			manual_weight: None,
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
@@ -1193,7 +1153,6 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			manual_weight: None,
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
@@ -1240,7 +1199,6 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			manual_weight: None,
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: None,
 			use_wallet: false,
@@ -1291,7 +1249,6 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			manual_weight: None,
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: Some("//Alice".to_string()),
 			use_wallet: false,
@@ -1347,7 +1304,6 @@ mod tests {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			manual_weight: None,
 			url: Some(Url::parse(urls::LOCAL)?),
 			suri: Some("//Alice".to_string()),
 			use_wallet: false,

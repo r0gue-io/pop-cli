@@ -102,11 +102,11 @@ pub struct UpContractCommand {
 	/// Maximum amount of gas to be used for this command.
 	/// If not specified it will perform a dry-run to estimate the gas consumed for the
 	/// instantiation.
-	#[clap(name = "gas", short, long)]
+	#[clap(name = "gas", short, long, requires = "proof_size")]
 	pub(crate) gas_limit: Option<u64>,
 	/// Maximum proof size for the instantiation.
 	/// If not specified it will perform a dry-run to estimate the proof size required.
-	#[clap(short = 'P', long)]
+	#[clap(short = 'P', long, requires = "gas")]
 	pub(crate) proof_size: Option<u64>,
 	/// A salt used in the address derivation of the new contract. Use to create multiple
 	/// instances of the same contract code from the same account.
