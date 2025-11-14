@@ -6,11 +6,12 @@ use crate::{
 		builds::{ensure_project_path, get_project_path},
 		contracts::{
 			has_contract_been_built, map_account, normalize_call_args, resolve_function_args,
+			resolve_signer,
 		},
 		prompt::display_message,
 		rpc::prompt_to_select_chain_rpc,
 		urls,
-		wallet::{prompt_to_use_wallet, request_signature},
+		wallet::request_signature,
 	},
 };
 use anyhow::{Result, anyhow};
@@ -275,7 +276,15 @@ impl CallContractCommand {
 
 	#[allow(deprecated)]
 	fn configure_message(&mut self, message: &ContractFunction, cli: &mut impl Cli) -> Result<()> {
-		resolve_function_args(message, cli, &mut self.args)?;
+		// TODO: Remove with release v0.13.0:
+		if self.dev_mode {
+			cli.warning(
+				"The `--dev` flag is deprecated. Use `--skip-confirm` and/or `--manual-weight` instead.",
+			)?;
+			self.skip_confirm = true;
+		}
+
+		resolve_function_args(message, cli, &mut self.args, self.skip_confirm)?;
 
 		// Resolve value.
 		if message.payable && self.value == DEFAULT_PAYABLE_VALUE {
@@ -290,13 +299,6 @@ impl CallContractCommand {
 				.interact()?;
 		}
 
-		// Remove with release v0.13.0:
-		if self.dev_mode {
-			cli.warning(
-				"The `--dev` flag is deprecated. Use `--skip-confirm` and/or `--manual-weight` instead.",
-			)?;
-			self.skip_confirm = true;
-		}
 		if self.gas_limit.is_some() && self.proof_size.is_some() {
 			cli.warning(
 				"The `--execution-time`/`--proof-size` flags are deprecated. Use `--manual-weight` instead.",
@@ -305,18 +307,9 @@ impl CallContractCommand {
 		}
 
 		// Resolve who is calling the contract. If a `suri` was provided via the command line, skip
-		// the prompt.
-		if !self.use_wallet && message.mutates && self.suri.is_none() {
-			if prompt_to_use_wallet(cli)? {
-				self.use_wallet = true;
-			} else {
-				self.suri = Some(
-					cli.input("Signer calling the contract:")
-						.placeholder(DEFAULT_URI)
-						.default_input(DEFAULT_URI)
-						.interact()?,
-				);
-			};
+		// the prompt. Only prompt for mutations since read-only operations don't require signing.
+		if message.mutates {
+			resolve_signer(self.skip_confirm, &mut self.use_wallet, &mut self.suri, cli)?;
 		}
 
 		// Finally prompt for confirmation.
@@ -780,7 +773,7 @@ mod tests {
 		let mut command = CallContractCommand {
 			args: vec!["10".to_string()],
 			value: DEFAULT_PAYABLE_VALUE.to_string(),
-			skip_confirm: true,
+			skip_confirm: false,
 			..Default::default()
 		};
 
@@ -964,39 +957,36 @@ mod tests {
         ];
 		// The inputs are processed in reverse order.
 		let mut cli = MockCli::new()
-            .expect_input(
-                "Provide the on-chain contract address:",
-                "0x48550a4bb374727186c55365b7c9c0a1a31bdafe".into(),
-            )
-            .expect_select(
-                "Select the message to call (type to filter)",
-                Some(false),
-                true,
-                Some(items),
-                2, // "specific_flip" message
-                None,
-            )
-            .expect_input("Enter the value for the parameter: new_value", "true".into()) // Args for specific_flip
-            .expect_input("Enter the value for the parameter: number", "2".into()) // Args for specific_flip
-            .expect_input("Value to transfer to the call:", "50".into()) // Only if payable
-            .expect_input("Signer calling the contract:", "//Alice".into())
-            .expect_info(format!(
-                "pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\" \"2\" --value 50 --manual-weight 100000 1000000 --url {} --suri //Alice --execute --skip-confirm",
-                temp_dir.path().join("testing").display(), urls::LOCAL
-            ));
+			.expect_input(
+				"Provide the on-chain contract address:",
+				"0x48550a4bb374727186c55365b7c9c0a1a31bdafe".into(),
+			)
+			.expect_select(
+				"Select the message to call (type to filter)",
+				Some(false),
+				true,
+				Some(items),
+				2, // "specific_flip" message
+				None,
+			)
+			.expect_input("Value to transfer to the call:", "50".into()) // Only if payable
+			.expect_info(format!(
+				"pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message specific_flip --args \"true\" \"2\" --value 50 --manual-weight 100000 1000000 --url {} --suri //Alice --execute --skip-confirm",
+				temp_dir.path().join("testing").display(), urls::LOCAL
+			));
 
 		let mut call_config = CallContractCommand {
 			path: None,
 			path_pos: Some(temp_dir.path().join("testing")),
 			contract: None,
 			message: None,
-			args: vec![],
+			args: vec!["true".to_string(), "2".to_string()],
 			value: DEFAULT_PAYABLE_VALUE.to_string(),
 			gas_limit: None,
 			proof_size: None,
 			manual_weight: Some((100000, 1000000)),
 			url: Some(Url::parse(urls::LOCAL)?),
-			suri: None,
+			suri: Some("//Alice".to_string()),
 			use_wallet: false,
 			dry_run: false,
 			execute: false,
