@@ -108,10 +108,19 @@ async fn contract_lifecycle() -> Result<()> {
 	command = pop(temp_dir, ["test", "--path", "./test_contract"]);
 	assert!(command.spawn()?.wait().await?.success());
 	// Only upload the contract
-	// pop up --path ./test_contract --upload-only
+	// pop up --path ./test_contract --upload-only --suri //Alice
 	command = pop(
 		temp_dir,
-		["up", "--path", "./test_contract", "--upload-only", "--url", default_endpoint],
+		[
+			"up",
+			"--path",
+			"./test_contract",
+			"--upload-only",
+			"--url",
+			default_endpoint,
+			"--suri",
+			"//Alice",
+		],
 	);
 	assert!(command.spawn()?.wait().await?.success());
 	// Instantiate contract, only dry-run
