@@ -2,6 +2,93 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.0] - 2025-11-14
+
+### 🚀 Features
+
+- Conditionally remove network configuration from base-parachain (#711)
+- Upgrade to rust 1.91 (#708)
+- Rich info for telemetry (#723)
+- Scaffold UI templates (#676)
+- Add command to upgrade polkadot-sdk version (#728)
+- Add ink-node to pop up (#730)
+- Rust 1.91.1 (#735)
+- Improve eth conversion (#742)
+- Remove `--dry-run` from pop call (#744)
+- Bump zombienet version to 0.4.3 (#751)
+- Ask chain in pop up (#754)
+
+### 🐛 Fixes
+
+- Release workflow in ubuntu aarch64 (#709)
+- Telemetry data field (#719)
+- Chain & contract manual interaction (#712)
+- Remove chain spec generator for newer versions of templates (#727)
+- *(install)* Support more linux flavours based on already supported distros (#731)
+- Improve message (#741)
+- *(pop up contract)* Signer prompted if not provided (#725)
+- Add message about how to run pop install with sudo (#748)
+- Add the assets precompile example (#749)
+- Allow mcp to fetch the contract address upon deployment (#750)
+- Remove --manual-weight flag (#752)
+- tx always wait for finalization (#753)
+
+### 🚜 Refactor
+
+- Spawn ink-node with --tmp file (#715)
+- Remove return types from commands (#726)
+
+### ⚙️ Miscellaneous Tasks
+
+- Release0.11.0 (#707)
+- Bump rustilities (#716)
+- Update passet-hub spec (#718)
+- *(passet-hub)* Update spec (#736)
+- Update ink! dependencies to beta.1 (#745)
+
+## [0.12.0] - 2025-11-14
+
+### 🚀 Features
+
+- Conditionally remove network configuration from base-parachain (#711)
+- Upgrade to rust 1.91 (#708)
+- Rich info for telemetry (#723)
+- Scaffold UI templates (#676)
+- Add command to upgrade polkadot-sdk version (#728)
+- Add ink-node to pop up (#730)
+- Rust 1.91.1 (#735)
+- Improve eth conversion (#742)
+- Remove `--dry-run` from pop call (#744)
+- Bump zombienet version to 0.4.3 (#751)
+
+### 🐛 Fixes
+
+- Release workflow in ubuntu aarch64 (#709)
+- Telemetry data field (#719)
+- Chain & contract manual interaction (#712)
+- Remove chain spec generator for newer versions of templates (#727)
+- *(install)* Support more linux flavours based on already supported distros (#731)
+- Improve message (#741)
+- *(pop up contract)* Signer prompted if not provided (#725)
+- Add message about how to run pop install with sudo (#748)
+- Add the assets precompile example (#749)
+- Allow mcp to fetch the contract address upon deployment (#750)
+- Remove --manual-weight flag (#752)
+- tx always wait for finalization (#753)
+
+### 🚜 Refactor
+
+- Spawn ink-node with --tmp file (#715)
+- Remove return types from commands (#726)
+
+### ⚙️ Miscellaneous Tasks
+
+- Release0.11.0 (#707)
+- Bump rustilities (#716)
+- Update passet-hub spec (#718)
+- *(passet-hub)* Update spec (#736)
+- Update ink! dependencies to beta.1 (#745)
+
 ## [0.11.0] - 2025-11-03
 
 ### 🚀 Features
