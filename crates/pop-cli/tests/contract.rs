@@ -134,7 +134,6 @@ async fn contract_lifecycle() -> Result<()> {
 			"false",
 			"--suri",
 			"//Alice",
-			"--dry-run",
 			"--url",
 			default_endpoint,
 			"--skip-confirm",
@@ -173,7 +172,7 @@ async fn contract_lifecycle() -> Result<()> {
 		execute: false,
 	};
 	let call_exec = set_up_call(call_opts).await?;
-	let weight_limit = dry_run_gas_estimate_call(&call_exec).await?;
+	let (_, weight_limit) = dry_run_gas_estimate_call(&call_exec).await?;
 	assert!(weight_limit.all_gt(Weight::zero()));
 	assert_eq!(dry_run_call(&call_exec).await?, "Ok(false)");
 
@@ -221,19 +220,11 @@ async fn contract_lifecycle() -> Result<()> {
 	// Dry runs after changing the value
 	assert_eq!(dry_run_call(&call_exec).await?, "Ok(true)");
 
-	// pop up --upload-only --use-wallet --dry-run
+	// pop up --upload-only --use-wallet
 	// Will run http server for wallet integration.
 	pop(
 		&temp_dir.join("test_contract"),
-		[
-			"up",
-			"--upload-only",
-			"--use-wallet",
-			"--dry-run",
-			"--url",
-			default_endpoint,
-			"--skip-confirm",
-		],
+		["up", "--upload-only", "--use-wallet", "--url", default_endpoint, "--skip-confirm"],
 	)
 	.spawn()?;
 	// Wait a moment for node and server to be up.
