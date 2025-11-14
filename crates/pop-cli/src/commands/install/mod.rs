@@ -118,6 +118,13 @@ impl Command {
 	}
 }
 
+fn wrap_sudo_required_error(error: std::io::Error) -> anyhow::Error {
+	anyhow::anyhow!(
+		"An error occurred while installing components. If superuser privileges are needed run `sudo $(which pop) install`\n\n {}",
+		error
+	)
+}
+
 /// Parse `os-release` to get distribution information.
 // source: https://www.freedesktop.org/software/systemd/man/latest/os-release.html
 fn parse_os_release() -> anyhow::Result<HashMap<String, String>> {
@@ -182,9 +189,10 @@ async fn install_mac(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> any
 		)?
 	}
 	install_homebrew(cli).await?;
-	cmd("brew", vec!["update"]).run()?;
+	cmd("brew", vec!["update"]).run().map_err(wrap_sudo_required_error)?;
 	cmd("brew", vec!["install", &Protobuf.to_string(), &Openssl.to_string(), &Cmake.to_string()])
-		.run()?;
+		.run()
+		.map_err(wrap_sudo_required_error)?;
 
 	Ok(())
 }
@@ -222,7 +230,7 @@ async fn install_arch(
 	let mut args = vec!["-Syu", "--needed", "--noconfirm"];
 	args.extend(packages.iter().map(|s| s.as_str()));
 
-	cmd("pacman", args).run()?;
+	cmd("pacman", args).run().map_err(wrap_sudo_required_error)?;
 
 	Ok(())
 }
@@ -261,7 +269,10 @@ async fn install_ubuntu(
 	let mut args = vec!["install", "--assume-yes"];
 	args.extend(packages.iter().map(|s| s.as_str()));
 
-	cmd("apt", args).env("DEBIAN_FRONTEND", "noninteractive").run()?;
+	cmd("apt", args)
+		.env("DEBIAN_FRONTEND", "noninteractive")
+		.run()
+		.map_err(wrap_sudo_required_error)?;
 
 	Ok(())
 }
@@ -306,7 +317,10 @@ async fn install_debian(
 	let mut args = vec!["install", "-y"];
 	args.extend(packages.iter().map(|s| s.as_str()));
 
-	cmd("apt", args).env("DEBIAN_FRONTEND", "noninteractive").run()?;
+	cmd("apt", args)
+		.env("DEBIAN_FRONTEND", "noninteractive")
+		.run()
+		.map_err(wrap_sudo_required_error)?;
 
 	Ok(())
 }
@@ -324,14 +338,15 @@ async fn install_redhat(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> 
 			cli,
 		)?
 	}
-	cmd("yum", vec!["update", "-y"]).run()?;
+	cmd("yum", vec!["update", "-y"]).run().map_err(wrap_sudo_required_error)?;
 	// NOTE: in many RedHad distributions we cannot run `yum groupinstall -y "Development Tools"`.
 	// We install here the most important packages from that group.
 	cmd(
 		"yum",
 		vec!["install", "-y", "gcc", "gcc-c++", "make", "cmake", "pkgconf", "pkgconf-pkg-config"],
 	)
-	.run()?;
+	.run()
+	.map_err(wrap_sudo_required_error)?;
 	cmd(
 		"yum",
 		vec![
@@ -345,7 +360,8 @@ async fn install_redhat(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> 
 			&Make.to_string(),
 		],
 	)
-	.run()?;
+	.run()
+	.map_err(wrap_sudo_required_error)?;
 
 	Ok(())
 }
