@@ -381,6 +381,23 @@ impl UpContractCommand {
 					calculated_weight
 				};
 
+				// Confirm whether to execute if not specified via flag.
+				if !self.execute {
+					if self.skip_confirm {
+						Cli.warning("NOTE: The contract has not been instantiated.")?;
+					} else if Cli
+						.confirm(
+							"Do you want to deploy the contract? (Selecting 'No' will keep this as a dry run)",
+						)
+						.initial_value(true)
+						.interact()?
+					{
+						self.execute = true;
+					} else {
+						Cli.warning("NOTE: The contract has not been instantiated.")?;
+					}
+				}
+
 				// Finally upload and instantiate.
 				if self.execute {
 					let spinner_2 = spinner();
