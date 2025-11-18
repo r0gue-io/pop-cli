@@ -78,7 +78,7 @@ mod tests {
 	use clap::Parser;
 
 	#[test]
-	fn benchmark_machine_works() -> anyhow::Result<()> {
+	fn display_works() -> anyhow::Result<()> {
 		let mut command_info = BenchmarkMachine {
 			command: MachineCmd::try_parse_from(vec!["", "--allow-fail"])?,
 			skip_confirm: true,

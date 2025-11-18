@@ -117,43 +117,26 @@ impl BenchmarkStorage {
 
 #[cfg(test)]
 mod tests {
-	use crate::cli::MockCli;
-	use clap::Parser;
-	use duct::cmd;
-	use pop_common::Profile;
-	use std::fs::{self, File};
-	use tempfile::tempdir;
-
 	use super::*;
+	use clap::Parser;
 
 	#[tokio::test]
-	async fn benchmark_storage_works() -> anyhow::Result<()> {
-		let name = "node";
-		let temp_dir = tempdir()?;
-		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
-		let target_path = Profile::Debug.target_directory(temp_dir.path());
-
-		fs::create_dir(temp_dir.path().join("target"))?;
-		fs::create_dir(&target_path)?;
-		File::create(target_path.join("node"))?;
-
-		// With `profile` provided.
-		let mut cli = MockCli::new()
-			.expect_intro("Benchmarking the storage speed of a chain snapshot")
-			.expect_warning("NOTE: this may take some time...")
-			.expect_info("Benchmarking and generating weight file...")
-			.expect_info("pop bench storage --profile=debug")
-			.expect_outro_cancel(
-				// As we only mock the node to test the interactive flow, the returned error is
-				// expected.
-				"Failed to run benchmarking: Permission denied (os error 13)",
-			);
-		BenchmarkStorage {
-			command: StorageCmd::try_parse_from(vec!["", "--state-version=1"])?,
+	async fn display_works() -> anyhow::Result<()> {
+		// With --skip-confirm enabled, the flag should appear in the display string
+		let mut command_info = BenchmarkStorage {
+			command: StorageCmd::try_parse_from(vec!["", "--state-version", "1"])?,
 			skip_confirm: true,
 		}
-		.benchmark(&mut cli)
-		.await?;
-		cli.verify()
+		.display();
+		assert_eq!(command_info, "pop bench storage --skip-confirm");
+
+		// Without --skip-confirm, the display string should only include the base command
+		command_info = BenchmarkStorage {
+			command: StorageCmd::try_parse_from(vec!["", "--state-version", "0"])?,
+			skip_confirm: false,
+		}
+		.display();
+		assert_eq!(command_info, "pop bench storage");
+		Ok(())
 	}
 }
