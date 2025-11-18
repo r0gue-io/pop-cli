@@ -118,7 +118,7 @@ async fn node_generator_inner(
 	cache: PathBuf,
 	version: Option<&str>,
 ) -> Result<Binary, Error> {
-	let name = chain.binary().to_string();
+	let name = chain.binary()?.to_string();
 	let source = chain
 		.source()?
 		.resolve(&name, version, &cache, |f| prefix(f, &name))

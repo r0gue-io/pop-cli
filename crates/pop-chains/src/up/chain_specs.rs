@@ -60,7 +60,7 @@ impl SourceT for Runtime {
 		// Source from GitHub release asset
 		let repo = GitHub::parse(self.repository())?;
 		let name = self.name().to_lowercase();
-		let binary = self.binary();
+		let binary = self.binary()?;
 		Ok(Source::GitHub(ReleaseArchive {
 			owner: repo.org,
 			repository: repo.name,
@@ -132,7 +132,7 @@ pub(super) async fn chain_spec_generator(
 			// Westend runtimes included with binary.
 			return Ok(None);
 		}
-		let name = format!("{}-{}", runtime.name().to_lowercase(), runtime.binary());
+		let name = format!("{}-{}", runtime.name().to_lowercase(), runtime.binary()?);
 		let source = runtime
 			.source()?
 			.resolve(&name, version, cache, |f| prefix(f, &name))

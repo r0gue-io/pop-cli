@@ -29,7 +29,7 @@ pub async fn source_polkadot_omni_node_binary(
 	check_and_prompt::<PolkadotOmniNodeGenerator>(
 		cli,
 		spinner,
-		PolkadotOmniNodeCli::PolkadotOmniNode.binary(),
+		PolkadotOmniNodeCli::PolkadotOmniNode.binary()?,
 		cache_path,
 		skip_confirm,
 	)

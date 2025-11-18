@@ -1314,8 +1314,13 @@ pub mod traits {
 
 		/// The source of a binary.
 		pub trait Source {
+			type Error;
+
 			/// The name of the binary.
-			fn binary(&self) -> &'static str;
+			fn binary(&self) -> Result<&'static str, Self::Error>;
+
+			/// The name of the file
+			fn file(&self) -> Result<&'static str, Self::Error>;
 
 			/// The fallback version to be used when the latest version cannot be determined.
 			fn fallback(&self) -> &str;
@@ -1334,9 +1339,21 @@ pub mod traits {
 			fn tag_pattern(&self) -> Option<&str>;
 		}
 
-		impl<T: EnumProperty> Source for T {
-			fn binary(&self) -> &'static str {
-				self.get_str("Binary").expect("expected specification of `Binary` name")
+		impl<T: EnumProperty + std::fmt::Debug> Source for T {
+			type Error = crate::Error;
+
+			fn binary(&self) -> Result<&'static str, Self::Error> {
+				self.get_str("Binary").ok_or(Self::Error::StrumPropertyError(
+					"Binary".to_owned(),
+					format!("{:?}", self),
+				))
+			}
+
+			fn file(&self) -> Result<&'static str, Self::Error> {
+				self.get_str("File").ok_or(Self::Error::StrumPropertyError(
+					"File".to_owned(),
+					format!("{:?}", self),
+				))
 			}
 
 			fn fallback(&self) -> &str {
@@ -1351,7 +1368,7 @@ pub mod traits {
 			}
 		}
 
-		impl<T: EnumProperty> Repository for T {
+		impl<T: EnumProperty + std::fmt::Debug> Repository for T {
 			fn repository(&self) -> &str {
 				self.get_str("Repository").expect("expected specification of `Repository` url")
 			}

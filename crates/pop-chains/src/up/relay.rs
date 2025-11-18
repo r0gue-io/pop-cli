@@ -50,8 +50,8 @@ impl SourceT for &RelayChain {
 					prerelease: false,
 					version_comparator: sort_by_latest_stable_version,
 					fallback: self.fallback().into(),
-					archive: format!("{}-{}.tar.gz", self.binary(), target()?),
-					contents: once(self.binary())
+					archive: format!("{}-{}.tar.gz", self.binary()?, target()?),
+					contents: once(self.binary()?)
 						.chain(self.workers())
 						.map(|n| ArchiveFileSpec::new(n.into(), None, true))
 						.collect(),
@@ -82,7 +82,7 @@ pub(super) async fn default(
 	chain: &str,
 	cache: &Path,
 ) -> Result<super::RelayChain, Error> {
-	from(RelayChain::Polkadot.binary(), version, runtime_version, chain, cache).await
+	from(RelayChain::Polkadot.binary()?, version, runtime_version, chain, cache).await
 }
 
 /// Initializes the configuration required to launch the relay chain using the specified command.
@@ -100,11 +100,17 @@ pub(super) async fn from(
 	chain: &str,
 	cache: &Path,
 ) -> Result<super::RelayChain, Error> {
-	if let Some(relay) = RelayChain::VARIANTS
-		.iter()
-		.find(|r| command.to_lowercase().ends_with(r.binary()))
-	{
-		let name = relay.binary().to_string();
+	if let Some(relay) = RelayChain::VARIANTS.iter().find(|r| {
+		let binary = r.binary();
+		if binary.is_ok() {
+			command
+				.to_lowercase()
+				.ends_with(binary.expect("The assertion guarantees it's Ok; qed;"))
+		} else {
+			false
+		}
+	}) {
+		let name = relay.binary()?.to_string();
 		let source = relay
 			.source()?
 			.resolve(&name, version, cache, |f| prefix(f, &name))

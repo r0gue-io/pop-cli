@@ -35,7 +35,7 @@ impl SourceT for TryRuntimeCli {
 	fn source(&self) -> Result<Source, Error> {
 		// Source from GitHub release asset
 		let repo = GitHub::parse(self.repository())?;
-		let binary = self.binary();
+		let binary = self.binary()?;
 		Ok(Source::GitHub(ReleaseArchive {
 			owner: repo.org,
 			repository: repo.name,
@@ -58,7 +58,7 @@ impl SourceT for TryRuntimeCli {
 /// * `version` - An optional version string. If `None`, the latest available version is used.
 pub async fn try_runtime_generator(cache: PathBuf, version: Option<&str>) -> Result<Binary, Error> {
 	let cli = TryRuntimeCli::TryRuntime;
-	let name = cli.binary().to_string();
+	let name = cli.binary()?.to_string();
 	let source = cli
 		.source()?
 		.resolve(&name, version, cache.as_path(), |f| prefix(f, &name))

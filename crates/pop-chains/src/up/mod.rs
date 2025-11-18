@@ -214,7 +214,7 @@ impl Zombienet {
 				return Err(Error::MissingBinary(command));
 			}
 
-			if command.starts_with(PolkadotOmniNode.binary()) {
+			if command.starts_with(PolkadotOmniNode.binary()?) {
 				paras.insert(id, Chain::from_omni_node(id, cache)?);
 				continue 'outer;
 			}
@@ -806,7 +806,7 @@ impl Chain {
 		Ok(Chain {
 			id,
 			binary: Binary::Source {
-				name: PolkadotOmniNode.binary().to_string(),
+				name: PolkadotOmniNode.binary()?.to_string(),
 				source: Box::new(PolkadotOmniNode.source()?),
 				cache: cache.to_path_buf(),
 			},

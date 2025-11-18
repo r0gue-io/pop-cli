@@ -36,7 +36,7 @@ impl SourceT for BenchmarkingCli {
 	fn source(&self) -> Result<Source, Error> {
 		// Source from GitHub release asset
 		let repo = GitHub::parse(self.repository())?;
-		let binary = self.binary();
+		let binary = self.binary()?;
 		Ok(Source::GitHub(ReleaseArchive {
 			owner: repo.org,
 			repository: repo.name,
@@ -62,7 +62,7 @@ pub async fn omni_bencher_generator(
 	version: Option<&str>,
 ) -> Result<Binary, Error> {
 	let cli = BenchmarkingCli::OmniBencher;
-	let name = cli.binary().to_string();
+	let name = cli.binary()?.to_string();
 	let source = cli
 		.source()?
 		.resolve(&name, version, cache.as_path(), |f| prefix(f, &name))
