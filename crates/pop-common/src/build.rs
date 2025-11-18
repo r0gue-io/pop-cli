@@ -21,6 +21,7 @@ use strum_macros::{AsRefStr, EnumMessage, EnumString, VariantArray};
 	Eq,
 	PartialEq,
 	Serialize,
+	clap::ValueEnum,
 )]
 pub enum Profile {
 	/// Debug profile, optimized for debugging.

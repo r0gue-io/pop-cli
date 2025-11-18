@@ -154,12 +154,12 @@ mod tests {
 	use super::*;
 	use cli::MockCli;
 	use duct::cmd;
-	use url::Url;
 	#[cfg(feature = "chain")]
 	use {
 		crate::style::format_url,
 		pop_chains::{ChainTemplate, Config, DeploymentProvider, instantiate_template_dir},
 		strum::VariantArray,
+		url::Url,
 	};
 
 	fn create_up_args(project_path: PathBuf) -> anyhow::Result<UpArgs> {
