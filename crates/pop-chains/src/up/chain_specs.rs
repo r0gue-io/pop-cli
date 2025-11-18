@@ -34,10 +34,10 @@ pub enum Runtime {
 	Kusama = 0,
 	/// Paseo.
 	#[strum(props(
-		Repository = "https://github.com/r0gue-io/paseo-runtimes",
-		Binary = "chain-spec-generator",
+		Repository = "https://github.com/paseo-network/runtimes",
+		File = "paseo-local",
 		Chain = "paseo-local",
-		Fallback = "v1.4.1"
+		Fallback = "v2.0.1"
 	))]
 	Paseo = 1,
 	/// Polkadot.
@@ -60,23 +60,39 @@ impl SourceT for Runtime {
 		// Source from GitHub release asset
 		let repo = GitHub::parse(self.repository())?;
 		let name = self.name().to_lowercase();
-		let binary = self.binary()?;
-		Ok(Source::GitHub(ReleaseArchive {
-			owner: repo.org,
-			repository: repo.name,
-			tag: None,
-			tag_pattern: self.tag_pattern().map(|t| t.into()),
-			prerelease: false,
-			version_comparator: sort_by_latest_semantic_version,
-			fallback: self.fallback().into(),
-			archive: format!("{binary}-{}.tar.gz", target()?),
-			contents: vec![ArchiveFileSpec::new(
-				binary.into(),
-				Some(format!("{name}-{binary}").into()),
-				true,
-			)],
-			latest: None,
-		}))
+		match (self.binary(), self.file()) {
+			(Ok(binary), Err(_)) => Ok(Source::GitHub(ReleaseArchive {
+				owner: repo.org,
+				repository: repo.name,
+				tag: None,
+				tag_pattern: self.tag_pattern().map(|t| t.into()),
+				prerelease: false,
+				version_comparator: sort_by_latest_semantic_version,
+				fallback: self.fallback().into(),
+				archive: format!("{binary}-{}.tar.gz", target()?),
+				contents: vec![ArchiveFileSpec::new(
+					binary.into(),
+					Some(format!("{name}-{binary}").into()),
+					true,
+				)],
+				latest: None,
+			})),
+			(Err(_), Ok(file)) => Ok(Source::GitHub(ReleaseArchive {
+				owner: repo.org,
+				repository: repo.name,
+				tag: None,
+				tag_pattern: self.tag_pattern().map(|t| t.into()),
+				prerelease: false,
+				version_comparator: sort_by_latest_semantic_version,
+				fallback: self.fallback().into(),
+				archive: format!("{file}-{}.json", target()?),
+				contents: vec![],
+				latest: None,
+			})),
+			_ => Err(Error::Config(
+				"Runtime sourcing for chain specs can only contains the chain spec generator or the chain spec file",
+			)),
+		}
 	}
 }
 
@@ -180,26 +196,23 @@ mod tests {
 	#[tokio::test]
 	async fn paseo_works() -> anyhow::Result<()> {
 		let expected = Runtime::Paseo;
-		let version = "v1.4.1";
+		let version = "v2.0.1";
 		let temp_dir = tempdir()?;
-		let binary = chain_spec_generator("paseo-local", Some(version), temp_dir.path())
-			.await?
-			.unwrap();
-		assert!(matches!(binary, Binary::Source { name, source, cache }
-			if name == format!("{}-{}", expected.name().to_lowercase(), expected.binary()) &&
-				source == Source::GitHub(ReleaseArchive {
-					owner: "r0gue-io".to_string(),
-					repository: "paseo-runtimes".to_string(),
-					tag: Some(version.to_string()),
-					tag_pattern: None,
-					prerelease: false,
-					version_comparator: sort_by_latest_semantic_version,
-					fallback: expected.fallback().to_string(),
-					archive: format!("chain-spec-generator-{}.tar.gz", target()?),
-					contents: ["chain-spec-generator"].map(|b| ArchiveFileSpec::new(b.into(), Some(format!("paseo-{b}").into()), true)).to_vec(),
-					latest: binary.latest().map(|l| l.to_string()),
-				}).into() &&
-				cache == temp_dir.path()
+		let source = Runtime::Paseo.source();
+		assert!(matches!(
+			source,
+			Source::GitHub(ReleaseArchive {
+				owner: "paseo-network".to_string(),
+				repository: "runtimes".to_string(),
+				tag: Some(version.to_string()),
+				tag_pattern: None,
+				prerelease: false,
+				version_comparator: sort_by_latest_semantic_version,
+				fallback: expected.fallback().to_string(),
+				archive: format!("paseo-local-{}.json", target()?),
+				contents: Vec::new(),
+				latest: binary.latest().map(|l| l.to_string()),
+			})
 		));
 		Ok(())
 	}
