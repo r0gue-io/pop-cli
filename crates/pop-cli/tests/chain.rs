@@ -294,10 +294,10 @@ rpc_port = {random_port}
 async fn test_benchmarking(working_dir: &Path) -> Result<()> {
 	// pop bench block --from 0 --to 1 --profile=release
 	let mut command =
-		pop(working_dir, ["bench", "block", "--from", "0", "--to", "1", "--profile=release"]);
+		pop(working_dir, ["bench", "block", "-y", "--from", "0", "--to", "1", "--profile=release"]);
 	assert!(command.spawn()?.wait().await?.success());
 	// pop bench machine --allow-fail --profile=release
-	command = pop(working_dir, ["bench", "machine", "--allow-fail", "--profile=release"]);
+	command = pop(working_dir, ["bench", "machine", "-y", "--allow-fail"]);
 	assert!(command.spawn()?.wait().await?.success());
 	// pop bench overhead --runtime={runtime_path} --genesis-builder=runtime
 	// --genesis-builder-preset=development --weight-path={output_path} --profile=release --warmup=1
