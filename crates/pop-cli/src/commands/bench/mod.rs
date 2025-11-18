@@ -70,7 +70,7 @@ impl Command {
 			Command::Machine(cmd) => cmd.execute(&mut cli).await,
 			Command::Overhead(cmd) => cmd.execute(&mut cli).await,
 			Command::Pallet(cmd) => cmd.execute(&mut cli).await,
-			Command::Storage(cmd) => cmd.execute(&mut cli),
+			Command::Storage(cmd) => cmd.execute(&mut cli).await,
 		}
 	}
 }

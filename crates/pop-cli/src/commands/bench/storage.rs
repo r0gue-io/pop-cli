@@ -3,23 +3,18 @@
 use crate::{
 	cli::{self},
 	common::{
-		bench::overwrite_weight_dir_command,
-		builds::{ensure_node_binary_exists, guide_user_to_select_profile},
+		bench::{check_omni_bencher_and_prompt, overwrite_weight_dir_command},
 		prompt::display_message,
-		runtime::Feature::Benchmark,
 	},
 };
 use clap::Args;
+use cliclack::spinner;
 use pop_chains::{BenchmarkingCliCommand, bench::StorageCmd, generate_binary_benchmarks};
-use pop_common::Profile;
 use serde::Serialize;
-use std::{
-	env::current_dir,
-	path::{Path, PathBuf},
-};
+use std::path::PathBuf;
 use tempfile::tempdir;
 
-const EXCLUDED_ARGS: [&str; 1] = ["--profile"];
+const EXCLUDED_ARGS: [&str; 2] = ["--skip-confirm", "-y"];
 
 #[derive(Args, Serialize)]
 pub(crate) struct BenchmarkStorage {
@@ -27,32 +22,22 @@ pub(crate) struct BenchmarkStorage {
 	#[serde(skip_serializing)]
 	#[clap(flatten)]
 	pub command: StorageCmd,
-	/// Build profile.
-	#[clap(long, value_enum)]
-	pub(crate) profile: Option<Profile>,
+	/// Skip confirmation prompt when sourcing the `frame-omni-bencher` binary.
+	#[clap(short = 'y', long)]
+	pub(crate) skip_confirm: bool,
 }
 
 impl BenchmarkStorage {
-	pub(crate) fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		self.benchmark(cli, &current_dir().unwrap_or(PathBuf::from("./")))
+	pub(crate) async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+		self.benchmark(cli).await
 	}
 
-	fn benchmark(
-		&mut self,
-		cli: &mut impl cli::traits::Cli,
-		target_path: &Path,
-	) -> anyhow::Result<()> {
+	async fn benchmark(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		cli.intro("Benchmarking the storage speed of a chain snapshot")?;
 
-		if self.profile.is_none() {
-			self.profile = Some(guide_user_to_select_profile(cli)?);
-		};
-		let binary_path = ensure_node_binary_exists(
-			cli,
-			target_path,
-			self.profile.as_ref().ok_or_else(|| anyhow::anyhow!("No profile provided"))?,
-			&[Benchmark.as_ref().to_string()],
-		)?;
+		let spinner = spinner();
+		let binary_path = check_omni_bencher_and_prompt(cli, &spinner, self.skip_confirm).await?;
+		spinner.clear();
 
 		cli.warning("NOTE: this may take some time...")?;
 		cli.info("Benchmarking and generating weight file...")?;
@@ -122,18 +107,12 @@ impl BenchmarkStorage {
 				!matches!(arg.as_str(), "--show-output" | "--nocapture" | "--ignored")
 			});
 		}
-		if !argument_exists(&arguments, "--profile") &&
-			let Some(ref profile) = self.profile
-		{
-			arguments.push(format!("--profile={}", profile));
+		if self.skip_confirm {
+			arguments.push("--skip-confirm".to_string());
 		}
 		args.extend(arguments);
 		args
 	}
-}
-
-fn argument_exists(args: &[String], arg: &str) -> bool {
-	args.iter().any(|a| a.contains(arg))
 }
 
 #[cfg(test)]
@@ -147,8 +126,8 @@ mod tests {
 
 	use super::*;
 
-	#[test]
-	fn benchmark_storage_works() -> anyhow::Result<()> {
+	#[tokio::test]
+	async fn benchmark_storage_works() -> anyhow::Result<()> {
 		let name = "node";
 		let temp_dir = tempdir()?;
 		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
@@ -171,9 +150,10 @@ mod tests {
 			);
 		BenchmarkStorage {
 			command: StorageCmd::try_parse_from(vec!["", "--state-version=1"])?,
-			profile: Some(Profile::Debug),
+			skip_confirm: true,
 		}
-		.benchmark(&mut cli, temp_dir.path())?;
+		.benchmark(&mut cli)
+		.await?;
 		cli.verify()
 	}
 }
