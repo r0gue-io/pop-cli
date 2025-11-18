@@ -71,4 +71,4 @@ chain = ["dep:pop-chains", "dep:git2", "dep:tracing-subscriber", "dep:scale-valu
 contract = ["dep:pop-contracts", "wallet-integration"]
 telemetry = ["dep:pop-telemetry"]
 wallet-integration = ["dep:axum", "dep:open", "dep:tower-http"]
-integration-tests = []
+integration-tests = ["pop-common/integration-tests"]

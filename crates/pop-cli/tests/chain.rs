@@ -12,9 +12,8 @@ use pop_chains::{
 use pop_common::{
 	find_free_port,
 	polkadot_sdk::sort_by_latest_semantic_version,
-	pop, set_executable_permission,
+	pop,
 	sourcing::{ArchiveFileSpec, GitHub::ReleaseArchive},
-	target,
 	templates::Template,
 };
 use std::{
@@ -104,13 +103,14 @@ async fn parachain_lifecycle() -> Result<()> {
 
 	// Mock build process and fetch binary
 	mock_build_process(&working_dir)?;
-	assert!(temp_dir.join("test_parachain/target/release").exists());
-	let binary_name = fetch_binary(&working_dir).await?;
-	let binary_path = replace_mock_with_binary(&working_dir, binary_name)?;
+	assert!(temp_dir.join("test_parachain/target/release/wbuild/parachain-template-runtime/parachain_template_runtime.wasm").exists());
+	let binary_name = fetch_runtime(&working_dir).await?;
+	let binary_path = replace_mock_with_runtime(&working_dir, binary_name)?;
 	assert!(binary_path.exists());
 
 	// pop build spec --output ./target/pop/test-spec.json --para-id 2222 --type development --relay
-	// paseo-local --protocol-id pop-protocol --chain local --deterministic=true
+	// paseo-local --protocol-id pop-protocol --chain local --deterministic=false
+	// --default-bootnode=false
 	let mut command = pop(
 		&working_dir,
 		[
@@ -118,16 +118,19 @@ async fn parachain_lifecycle() -> Result<()> {
 			"spec",
 			"--output",
 			"./target/pop/test-spec.json",
+			"--id",
+			"test-chain",
 			"--para-id",
 			"2222",
 			"--type",
 			"development",
 			"--chain",
-			"local",
+			"local_testnet",
 			"--relay",
 			"paseo-local",
 			"--profile",
 			"release",
+			"--raw",
 			"--genesis-state=true",
 			"--genesis-code=true",
 			"--protocol-id",
@@ -154,7 +157,7 @@ async fn parachain_lifecycle() -> Result<()> {
 	// assert!(content.contains("\"tokenSymbol\": \"POP\""));
 	assert!(content.contains("\"relay_chain\": \"paseo-local\""));
 	assert!(content.contains("\"protocolId\": \"pop-protocol\""));
-	assert!(content.contains("\"id\": \"local_testnet\""));
+	assert!(content.contains("\"id\": \"test-chain\""));
 
 	// Test the `pop bench` feature
 	test_benchmarking(&working_dir).await?;
@@ -388,18 +391,19 @@ async fn test_benchmarking(working_dir: &Path) -> Result<()> {
 fn mock_build_process(temp_dir: &Path) -> Result<()> {
 	// Create a target directory
 	let target_dir = temp_dir.join("target");
-	fs::create_dir(&target_dir)?;
-	fs::create_dir(target_dir.join("release"))?;
+	fs::create_dir_all(target_dir.join("release/wbuild/parachain-template-runtime"))?;
 	// Create a release file
-	fs::File::create(target_dir.join("release/parachain-template-node"))?;
+	fs::File::create(
+		target_dir
+			.join("release/wbuild/parachain-template-runtime/parachain_template_runtime.wasm"),
+	)?;
 	Ok(())
 }
 
 /// Fetch binary from GitHub releases
-async fn fetch_binary(cache: &Path) -> Result<String> {
-	let name = "parachain-template-node";
-	let contents = ["parachain-template-node"];
-
+async fn fetch_runtime(cache: &Path) -> Result<String> {
+	let name = "parachain_template_runtime.wasm";
+	let contents = ["parachain_template_runtime.wasm"];
 	let binary = Binary::Source {
 		name: name.to_string(),
 		source: GitHub(ReleaseArchive {
@@ -410,7 +414,7 @@ async fn fetch_binary(cache: &Path) -> Result<String> {
 			prerelease: false,
 			version_comparator: sort_by_latest_semantic_version,
 			fallback: "stable2503".to_string(),
-			archive: format!("{name}-{}.tar.gz", target()?),
+			archive: "parachain-template-runtime.tar.gz".to_string(),
 			contents: contents
 				.into_iter()
 				.map(|b| ArchiveFileSpec::new(b.into(), None, true))
@@ -425,13 +429,16 @@ async fn fetch_binary(cache: &Path) -> Result<String> {
 }
 
 // Replace the binary fetched with the mocked binary
-fn replace_mock_with_binary(temp_dir: &Path, binary_name: String) -> Result<PathBuf> {
-	let binary_path = temp_dir.join(binary_name);
-	let content = fs::read(&binary_path)?;
-	write(temp_dir.join("target/release/parachain-template-node"), content)?;
-	// Make executable
-	set_executable_permission(temp_dir.join("target/release/parachain-template-node"))?;
-	Ok(binary_path)
+fn replace_mock_with_runtime(temp_dir: &Path, runtime_name: String) -> Result<PathBuf> {
+	let runtime_path = temp_dir.join(temp_dir.join(runtime_name));
+	let content = fs::read(&runtime_path)?;
+	write(
+		temp_dir.join(
+			"target/release/wbuild/parachain-template-runtime/parachain_template_runtime.wasm",
+		),
+		content,
+	)?;
+	Ok(runtime_path)
 }
 
 fn get_mock_runtime_path() -> PathBuf {
