@@ -368,4 +368,154 @@ mod tests {
 			);
 		}
 	}
+
+	// Tests for chain_spec_file function
+
+	#[tokio::test]
+	async fn chain_spec_file_paseo_relay_works() -> anyhow::Result<()> {
+		let expected = Runtime::Paseo;
+		let version = "v2.0.1";
+		let chain = "paseo-local";
+		let temp_dir = tempdir()?;
+
+		let file = chain_spec_file(chain, Some(version), temp_dir.path()).await?.unwrap();
+
+		assert!(matches!(file, SourcedArchive::Source { name, source, cache, archive_type }
+			if name == "paseo-local.json" &&
+				archive_type == ArchiveType::File &&
+				matches!(*source, Source::GitHub(ReleaseArchive {
+					ref owner,
+					ref repository,
+					ref tag,
+					ref tag_pattern,
+					prerelease,
+					ref fallback,
+					ref archive,
+					ref contents,
+					..
+				}) if owner == "paseo-network" &&
+					repository == "runtimes" &&
+					tag == &Some(version.to_string()) &&
+					tag_pattern.is_none() &&
+					!prerelease &&
+					fallback == expected.fallback() &&
+					archive == "paseo-local.json" &&
+					contents == &vec![ArchiveFileSpec::new(
+						"paseo-local.json".to_string(),
+						Some("paseo-local".into()),
+						true
+					)]
+				) &&
+				cache == temp_dir.path()
+		));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn chain_spec_file_paseo_parachain_works() -> anyhow::Result<()> {
+		let expected = Runtime::Paseo;
+		let version = "v2.0.1";
+		let chain = "asset-hub-paseo-local";
+		let temp_dir = tempdir()?;
+
+		let file = chain_spec_file(chain, Some(version), temp_dir.path()).await?.unwrap();
+
+		assert!(matches!(file, SourcedArchive::Source { name, source, cache, archive_type }
+			if name == "asset-hub-paseo-local.json" &&
+				archive_type == ArchiveType::File &&
+				matches!(*source, Source::GitHub(ReleaseArchive {
+					ref owner,
+					ref repository,
+					ref tag,
+					ref tag_pattern,
+					prerelease,
+					ref fallback,
+					ref archive,
+					ref contents,
+					..
+				}) if owner == "paseo-network" &&
+					repository == "runtimes" &&
+					tag == &Some(version.to_string()) &&
+					tag_pattern.is_none() &&
+					!prerelease &&
+					fallback == expected.fallback() &&
+					archive == "asset-hub-paseo-local.json" &&
+					contents == &vec![ArchiveFileSpec::new(
+						"asset-hub-paseo-local.json".to_string(),
+						Some("asset-hub-paseo-local".into()),
+						true
+					)]
+				) &&
+				cache == temp_dir.path()
+		));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn chain_spec_file_without_version_works() -> anyhow::Result<()> {
+		let chain = "asset-hub-paseo-local";
+		let temp_dir = tempdir()?;
+
+		let file = chain_spec_file(chain, None, temp_dir.path()).await?.unwrap();
+
+		// When no version is specified, it should still create the SourcedArchive
+		// but the tag will be resolved later
+		assert!(matches!(file, SourcedArchive::Source { name, archive_type, .. }
+			if name == "asset-hub-paseo-local.json" &&
+				archive_type == ArchiveType::File
+		));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn chain_spec_file_returns_none_when_no_match() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		assert_eq!(chain_spec_file("rococo-local", None, temp_dir.path()).await?, None);
+		assert_eq!(chain_spec_file("unknown-chain", None, temp_dir.path()).await?, None);
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn chain_spec_file_returns_none_for_kusama() -> anyhow::Result<()> {
+		// Kusama uses Binary (chain-spec-generator), not File
+		let temp_dir = tempdir()?;
+		assert_eq!(chain_spec_file("kusama-local", None, temp_dir.path()).await?, None);
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn chain_spec_file_returns_none_for_polkadot() -> anyhow::Result<()> {
+		// Polkadot uses Binary (chain-spec-generator), not File
+		let temp_dir = tempdir()?;
+		assert_eq!(chain_spec_file("polkadot-local", None, temp_dir.path()).await?, None);
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn chain_spec_file_returns_none_for_westend() -> anyhow::Result<()> {
+		// Westend doesn't have File property
+		let temp_dir = tempdir()?;
+		assert_eq!(chain_spec_file("westend-local", None, temp_dir.path()).await?, None);
+		Ok(())
+	}
+
+	#[test]
+	fn from_chain_matches_parachain_chains() {
+		// Verify that parachain chain names match to the correct relay runtime
+		for (parachain_chain, expected_relay) in [
+			("asset-hub-paseo-local", Paseo),
+			("bridge-hub-paseo-local", Paseo),
+			("coretime-paseo-local", Paseo),
+			("people-paseo-local", Paseo),
+			("passet-hub-paseo-local", Paseo),
+		] {
+			assert_eq!(
+				Runtime::from_chain(parachain_chain).unwrap(),
+				expected_relay,
+				"Chain '{}' should match to {:?}",
+				parachain_chain,
+				expected_relay
+			);
+		}
+	}
 }
