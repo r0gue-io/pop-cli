@@ -21,11 +21,11 @@ use clap::Args;
 use cliclack::spinner;
 use console::Emoji;
 use pop_contracts::{
-	Bytes, FunctionType, UpOpts, Verbosity, Weight, build_smart_contract,
+	FunctionType, UpOpts, Verbosity, Weight, build_smart_contract,
 	dry_run_gas_estimate_instantiate, dry_run_upload, extract_function, get_contract_code,
 	get_instantiate_payload, get_upload_payload, instantiate_contract_signed,
-	instantiate_smart_contract, is_chain_alive, parse_hex_bytes, run_eth_rpc_node, run_ink_node,
-	set_up_deployment, set_up_upload, upload_contract_signed, upload_smart_contract,
+	instantiate_smart_contract, is_chain_alive, run_eth_rpc_node, run_ink_node, set_up_deployment,
+	set_up_upload, upload_contract_signed, upload_smart_contract,
 };
 use serde::Serialize;
 use sp_core::bytes::to_hex;
@@ -108,10 +108,6 @@ pub struct UpContractCommand {
 	/// If not specified it will perform a dry-run to estimate the proof size required.
 	#[clap(short = 'P', long, requires = "gas")]
 	pub(crate) proof_size: Option<u64>,
-	/// A salt used in the address derivation of the new contract. Use to create multiple
-	/// instances of the same contract code from the same account.
-	#[clap(short = 'S', long, value_parser = parse_hex_bytes)]
-	pub(crate) salt: Option<Bytes>,
 	/// Websocket endpoint of a chain.
 	#[clap(short, long, value_parser)]
 	pub(crate) url: Option<Url>,
@@ -530,7 +526,6 @@ impl From<UpContractCommand> for UpOpts {
 			value: cmd.value,
 			gas_limit: cmd.gas_limit,
 			proof_size: cmd.proof_size,
-			salt: cmd.salt,
 			url: cmd.url.expect("url must be set"),
 			suri: cmd.suri.unwrap_or_else(|| "//Alice".to_string()),
 		}
@@ -627,7 +622,6 @@ impl Default for UpContractCommand {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			salt: None,
 			url: None,
 			suri: Some("//Alice".to_string()),
 			use_wallet: false,
@@ -659,7 +653,6 @@ mod tests {
 				value: "0".to_string(),
 				gas_limit: None,
 				proof_size: None,
-				salt: None,
 				url: Url::parse(urls::LOCAL)?,
 				suri: "//Alice".to_string(),
 			}

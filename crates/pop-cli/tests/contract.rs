@@ -150,7 +150,6 @@ async fn contract_lifecycle() -> Result<()> {
 		value: "0".to_string(),
 		gas_limit: None,
 		proof_size: None,
-		salt: None,
 		url: Url::parse(default_endpoint)?,
 		suri: "//Alice".to_string(),
 	})
