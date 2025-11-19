@@ -69,7 +69,7 @@ pub struct CallContractCommand {
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	#[serde(skip_serializing)]
 	#[arg(short, long)]
-	suri: Option<String>,
+	pub(crate) suri: Option<String>,
 	/// Use a browser extension wallet to sign the extrinsic.
 	#[arg(
 		name = "use-wallet",
@@ -78,10 +78,10 @@ pub struct CallContractCommand {
 		default_value = "false",
 		conflicts_with = "suri"
 	)]
-	use_wallet: bool,
+	pub(crate) use_wallet: bool,
 	/// Submit an extrinsic for on-chain execution.
 	#[arg(short = 'x', long)]
-	execute: bool,
+	pub(crate) execute: bool,
 	/// Enables developer mode, bypassing certain user prompts for faster testing.
 	/// Recommended for testing and local development only.
 	#[deprecated(since = "0.12.0", note = "Use `--skip-confirm`, will be removed in v0.13.0")]
@@ -92,7 +92,7 @@ pub struct CallContractCommand {
 	pub(crate) deployed: bool,
 	/// Automatically submits the call without prompting for confirmation.
 	#[arg(short = 'y', long)]
-	skip_confirm: bool,
+	pub(crate) skip_confirm: bool,
 }
 
 #[allow(deprecated)]
