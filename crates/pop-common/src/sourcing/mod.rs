@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{Git, Release, SortedSlice, Status, api, git::GITHUB_API_CLIENT};
-pub use binary::*;
+pub use archive::{ALLOWED_FILE_EXTENSIONS, ArchiveType, SourcedArchive};
 use derivative::Derivative;
 use duct::cmd;
 use flate2::read::GzDecoder;
@@ -21,7 +21,7 @@ use tempfile::{tempdir, tempfile};
 use thiserror::Error;
 use url::Url;
 
-mod binary;
+mod archive;
 
 /// An error relating to the sourcing of binaries.
 #[derive(Error, Debug)]
@@ -41,15 +41,15 @@ pub enum Error {
 	/// An IO error occurred.
 	#[error("IO error: {0}")]
 	IO(#[from] std::io::Error),
-	/// A binary cannot be sourced.
-	#[error("Missing binary: {0}")]
-	MissingBinary(String),
+	/// An archive cannot be sourced.
+	#[error("Missing archive: {0}")]
+	MissingArchive(String),
 	/// An error occurred during parsing.
 	#[error("ParseError error: {0}")]
 	ParseError(#[from] url::ParseError),
 }
 
-/// The source of a binary.
+/// The source of an archive
 #[derive(Clone, Debug, PartialEq)]
 pub enum Source {
 	/// An archive for download.
@@ -86,7 +86,7 @@ pub enum Source {
 }
 
 impl Source {
-	/// Sources the binary.
+	/// Sources the archive.
 	///
 	/// # Arguments
 	/// * `cache` - the cache to be used.
@@ -94,12 +94,14 @@ impl Source {
 	///   profile.
 	/// * `status` - used to observe status updates.
 	/// * `verbose` - whether verbose output is required.
+	/// * `archive_type` - the type of the archive.
 	pub(super) async fn source(
 		&self,
 		cache: &Path,
 		release: bool,
 		status: &impl Status,
 		verbose: bool,
+		archive_type: ArchiveType,
 	) -> Result<(), Error> {
 		use Source::*;
 		match self {
@@ -108,7 +110,7 @@ impl Source {
 					.iter()
 					.map(|name| ArchiveFileSpec::new(name.into(), Some(cache.join(name)), true))
 					.collect();
-				from_archive(url, &contents, status).await
+				from_archive(url, &contents, status, archive_type).await
 			},
 			Git { url, reference, manifest, package, artifacts } => {
 				let artifacts: Vec<_> = artifacts
@@ -130,8 +132,8 @@ impl Source {
 				)
 				.await
 			},
-			GitHub(source) => source.source(cache, release, status, verbose).await,
-			Url { url, name } => from_url(url, &cache.join(name), status).await,
+			GitHub(source) => source.source(cache, release, status, verbose, archive_type).await,
+			Url { url, name } => from_url(url, &cache.join(name), status, archive_type).await,
 		}
 	}
 
@@ -216,12 +218,14 @@ impl GitHub {
 	///   profile.
 	/// * `status` - used to observe status updates.
 	/// * `verbose` - whether verbose output is required.
+	/// * `archive_type` - The archive type
 	async fn source(
 		&self,
 		cache: &Path,
 		release: bool,
 		status: &impl Status,
 		verbose: bool,
+		archive_type: ArchiveType,
 	) -> Result<(), Error> {
 		use GitHub::*;
 		match self {
@@ -260,7 +264,7 @@ impl GitHub {
 						),
 					})
 					.collect();
-				from_archive(&url, &contents, status).await
+				from_archive(&url, &contents, status, archive_type).await
 			},
 			SourceCodeArchive { owner, repository, reference, manifest, package, artifacts } => {
 				let artifacts: Vec<_> = artifacts
@@ -367,7 +371,10 @@ impl GitHub {
 				let cached_file_names = cached_files
 					.filter_map(|f| f.ok().and_then(|f| f.file_name().into_string().ok()));
 				for file in cached_file_names.filter(|f| cache_filter(f)) {
-					let version = file.replace(&format!("{name}-"), "");
+					let mut version = file.replace(&format!("{name}-"), "");
+					ALLOWED_FILE_EXTENSIONS.iter().for_each(|ext| {
+						version = version.strip_suffix(ext).unwrap_or(&version).to_owned();
+					});
 					let tag = tag_pattern.as_ref().map_or_else(
 						|| version.to_string(),
 						|pattern| pattern.resolve_tag(&version),
@@ -385,7 +392,7 @@ impl GitHub {
 					|| {
 						// Resolve the version to be used.
 						let resolved_version =
-							Binary::resolve_version(name, None, &versions, cache);
+							SourcedArchive::resolve_version(name, None, &versions, cache);
 						resolved_version.and_then(|v| binaries.get(v)).cloned()
 					},
 					|v| {
@@ -509,10 +516,12 @@ impl From<&str> for TagPattern {
 /// * `url` - The url of the archive.
 /// * `contents` - The contents within the archive which are required.
 /// * `status` - Used to observe status updates.
+/// * `archive_type` - Whether the archive is a file or a binary
 async fn from_archive(
 	url: &str,
 	contents: &[ArchiveFileSpec],
 	status: &impl Status,
+	archive_type: ArchiveType,
 ) -> Result<(), Error> {
 	// Download archive
 	status.update(&format!("Downloading from {url}..."));
@@ -520,37 +529,57 @@ async fn from_archive(
 	let mut file = tempfile()?;
 	file.write_all(&response.bytes().await?)?;
 	file.seek(SeekFrom::Start(0))?;
-	// Extract contents
-	status.update("Extracting from archive...");
-	let tar = GzDecoder::new(file);
-	let mut archive = Archive::new(tar);
-	let temp_dir = tempdir()?;
-	let working_dir = temp_dir.path();
-	archive.unpack(working_dir)?;
-	for ArchiveFileSpec { name, target, required } in contents {
-		let src = working_dir.join(name);
-		if src.exists() {
-			set_executable_permission(&src)?;
-			if let Some(target) = target &&
-				let Err(_e) = rename(&src, target)
-			{
-				// If rename fails (e.g., due to cross-device linking), fallback to copy and
-				// remove
-				copy(&src, target)?;
-				std::fs::remove_file(&src)?;
+	match archive_type {
+		ArchiveType::Binary => {
+			// Extract contents from tar.gz archive
+			status.update("Extracting from archive...");
+			let tar = GzDecoder::new(file);
+			let mut archive = Archive::new(tar);
+			let temp_dir = tempdir()?;
+			let working_dir = temp_dir.path();
+			archive.unpack(working_dir)?;
+			for ArchiveFileSpec { name, target, required } in contents {
+				let src = working_dir.join(name);
+				if src.exists() {
+					set_executable_permission(&src)?;
+					if let Some(target) = target &&
+						let Err(_e) = rename(&src, target)
+					{
+						// If rename fails (e.g., due to cross-device linking), fallback to copy and
+						// remove
+						copy(&src, target)?;
+						std::fs::remove_file(&src)?;
+					}
+				} else if *required {
+					return Err(Error::ArchiveError(format!(
+						"Expected file '{}' in archive, but it was not found.",
+						name
+					)));
+				}
 			}
-		} else if *required {
-			return Err(Error::ArchiveError(format!(
-				"Expected file '{}' in archive, but it was not found.",
-				name
-			)));
-		}
+		},
+		ArchiveType::File => {
+			if let Some(ArchiveFileSpec { name, target: Some(target), .. }) = contents.first() {
+				let final_target = if let Some(ext) = Path::new(name).extension() {
+					PathBuf::from(format!("{}.{}", target.display(), ext.to_string_lossy()))
+				} else {
+					target.to_path_buf()
+				};
+				let mut target_file = File::create(&final_target)?;
+				std::io::copy(&mut file, &mut target_file)?;
+			} else {
+				return Err(Error::ArchiveError(
+					"File archive requires exactly one target path".to_owned(),
+				));
+			}
+		},
 	}
+
 	status.update("Sourcing complete.");
 	Ok(())
 }
 
-/// Source binary by cloning a git repository and then building.
+/// Source a binary by cloning a git repository and then building.
 ///
 /// # Arguments
 /// * `url` - The url of the repository.
@@ -705,10 +734,16 @@ pub(crate) async fn from_local_package(
 /// * `url` - The url of the binary.
 /// * `path` - The (local) destination path.
 /// * `status` - Used to observe status updates.
-async fn from_url(url: &str, path: &Path, status: &impl Status) -> Result<(), Error> {
+/// * `archive-type` - Archive type
+async fn from_url(
+	url: &str,
+	path: &Path,
+	status: &impl Status,
+	archive_type: ArchiveType,
+) -> Result<(), Error> {
 	// Download the binary
 	status.update(&format!("Downloading from {url}..."));
-	download(url, path).await?;
+	download(url, path, archive_type).await?;
 	status.update("Sourcing complete.");
 	Ok(())
 }
@@ -767,13 +802,16 @@ async fn build(
 /// # Arguments
 /// * `url` - The url of the file.
 /// * `path` - The (local) destination path.
-async fn download(url: &str, dest: &Path) -> Result<(), Error> {
+/// * `archive_type` - The archive type.
+async fn download(url: &str, dest: &Path, archive_type: ArchiveType) -> Result<(), Error> {
 	// Download to the destination path
 	let response = reqwest::get(url).await?.error_for_status()?;
 	let mut file = File::create(dest)?;
 	file.write_all(&response.bytes().await?)?;
-	// Make executable
-	set_executable_permission(dest)?;
+	// Make executable if binary
+	if let ArchiveType::Binary = archive_type {
+		set_executable_permission(dest)?;
+	}
 	Ok(())
 }
 

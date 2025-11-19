@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use super::{Binary, Relay, chain_specs::chain_spec_generator};
+use super::{
+	ArchiveType, Relay, SourcedArchive,
+	chain_specs::{chain_spec_file, chain_spec_generator},
+};
 use crate::{Error, registry, registry::System, traits::Binary as BinaryT};
 use pop_common::sourcing::{filters::prefix, traits::*};
 use std::path::Path;
@@ -35,12 +38,27 @@ pub(super) async fn system(
 		.resolve(&name, version.or(Some(relay_chain_version)), cache, |f| prefix(f, &name))
 		.await
 		.into();
-	let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
+	let binary = SourcedArchive::Source {
+		name,
+		source,
+		cache: cache.to_path_buf(),
+		archive_type: ArchiveType::Binary,
+	};
 	let chain_spec_generator = match chain {
 		Some(chain) => chain_spec_generator(chain, runtime_version, cache).await?,
 		None => None,
 	};
-	Ok(Some(super::Chain { id, binary, chain: chain.map(|c| c.to_string()), chain_spec_generator }))
+	let chain_spec_file = match chain {
+		Some(chain) => chain_spec_file(chain, runtime_version, cache).await?,
+		None => None,
+	};
+	Ok(Some(super::Chain {
+		id,
+		binary,
+		chain: chain.map(|c| c.to_string()),
+		chain_spec_generator,
+		chain_spec_file,
+	}))
 }
 
 /// Initializes the configuration required to launch a parachain.
@@ -63,12 +81,18 @@ pub(super) async fn from(
 		let name = para.binary().to_string();
 		let source =
 			para.source()?.resolve(&name, version, cache, |f| prefix(f, &name)).await.into();
-		let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
+		let binary = SourcedArchive::Source {
+			name,
+			source,
+			cache: cache.to_path_buf(),
+			archive_type: ArchiveType::Binary,
+		};
 		return Ok(Some(super::Chain {
 			id,
 			binary,
 			chain: chain.map(|c| c.to_string()),
 			chain_spec_generator: None,
+			chain_spec_file: None,
 		}));
 	}
 	Ok(None)

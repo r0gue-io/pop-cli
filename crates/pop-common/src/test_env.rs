@@ -4,7 +4,9 @@ use crate::{
 	Error, find_free_port,
 	polkadot_sdk::sort_by_latest_semantic_version,
 	set_executable_permission,
-	sourcing::{ArchiveFileSpec, Binary, GitHub::ReleaseArchive, Source::GitHub},
+	sourcing::{
+		ArchiveFileSpec, ArchiveType, GitHub::ReleaseArchive, Source::GitHub, SourcedArchive,
+	},
 };
 
 use serde_json::json;
@@ -66,7 +68,7 @@ impl TestNode {
 		let random_port = find_free_port(None);
 		let cache = temp_dir.path().to_path_buf();
 
-		let binary = Binary::Source {
+		let binary = SourcedArchive::Source {
 			name: "ink-node".to_string(),
 			source: GitHub(ReleaseArchive {
 				owner: "use-ink".into(),
@@ -82,6 +84,7 @@ impl TestNode {
 			})
 			.into(),
 			cache: cache.to_path_buf(),
+			archive_type: ArchiveType::Binary,
 		};
 		binary.source(false, &(), true).await?;
 		set_executable_permission(binary.path())?;

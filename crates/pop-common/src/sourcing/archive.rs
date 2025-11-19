@@ -11,9 +11,21 @@ use crate::{
 };
 use std::path::{Path, PathBuf};
 
-/// A binary used to launch a node.
+/// File extensions we allow in our sourcing
+pub static ALLOWED_FILE_EXTENSIONS: [&'static str; 1] = [".json"];
+
+/// The type of the Archive
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum ArchiveType {
+	/// If the archive is a binary
+	Binary,
+	/// If the archive is a file
+	File,
+}
+
+/// A sourced archive.
 #[derive(Debug, PartialEq)]
-pub enum Binary {
+pub enum SourcedArchive {
 	/// A local binary.
 	Local {
 		/// The name of the binary.
@@ -22,6 +34,8 @@ pub enum Binary {
 		path: PathBuf,
 		/// If applicable, the path to a manifest used to build the binary if missing.
 		manifest: Option<PathBuf>,
+		/// The archive type
+		archive_type: ArchiveType,
 	},
 	/// A binary which needs to be sourced.
 	Source {
@@ -32,11 +46,13 @@ pub enum Binary {
 		source: Box<Source>,
 		/// The cache to be used to store the binary.
 		cache: PathBuf,
+		/// The archive type
+		archive_type: ArchiveType,
 	},
 }
 
-impl Binary {
-	/// Whether the binary exists.
+impl SourcedArchive {
+	/// Whether the archive exists.
 	pub fn exists(&self) -> bool {
 		self.path().exists()
 	}
@@ -61,12 +77,12 @@ impl Binary {
 		}
 	}
 
-	/// Whether the binary is defined locally.
+	/// Whether the archive is defined locally.
 	pub fn local(&self) -> bool {
 		matches!(self, Self::Local { .. })
 	}
 
-	/// The name of the binary.
+	/// The name of the archive.
 	pub fn name(&self) -> &str {
 		match self {
 			Self::Local { name, .. } => name,
@@ -74,27 +90,53 @@ impl Binary {
 		}
 	}
 
-	/// The path of the binary.
+	/// The archive type.
+	pub fn archive_type(&self) -> ArchiveType {
+		match *self {
+			Self::Local { archive_type, .. } => archive_type,
+			Self::Source { archive_type, .. } => archive_type,
+		}
+	}
+
+	/// The path of the archive.
 	pub fn path(&self) -> PathBuf {
 		match self {
 			Self::Local { path, .. } => path.to_path_buf(),
-			Self::Source { name, cache, .. } => {
+			Self::Source { name, cache, archive_type, .. } => {
 				// Determine whether a specific version is specified
-				self.version()
-					.map_or_else(|| cache.join(name), |v| cache.join(format!("{name}-{v}")))
+				self.version().map_or_else(
+					|| cache.join(name),
+					|v| {
+						// For files,
+						if *archive_type == ArchiveType::File {
+							if let Some(ext_pos) = name.rfind('.') {
+								cache.join(format!(
+									"{}-{}{}",
+									&name[..ext_pos],
+									v,
+									&name[ext_pos..]
+								))
+							} else {
+								cache.join(format!("{name}-{v}"))
+							}
+						} else {
+							cache.join(format!("{name}-{v}"))
+						}
+					},
+				)
 			},
 		}
 	}
 
-	/// Attempts to resolve a version of a binary based on whether one is specified, an existing
+	/// Attempts to resolve a version of a archive based on whether one is specified, an existing
 	/// version can be found cached locally, or uses the latest version.
 	///
 	/// # Arguments
-	/// * `name` - The name of the binary.
+	/// * `name` - The name of the archive.
 	/// * `specified` - If available, a version explicitly specified.
 	/// * `available` - The available versions, which are used to check for existing matches already
 	///   cached locally or the latest otherwise.
-	/// * `cache` - The location used for caching binaries.
+	/// * `cache` - The location used for caching archives.
 	pub(super) fn resolve_version<'a>(
 		name: &str,
 		specified: Option<&'a str>,
@@ -117,11 +159,11 @@ impl Binary {
 		}
 	}
 
-	/// Sources the binary.
+	/// Sources the archive.
 	///
 	/// # Arguments
-	/// * `release` - Whether any binaries needing to be built should be done so using the release
-	///   profile.
+	/// * `release` - Whether any binary archives needing to be built should be done so using the
+	///   release profile.
 	/// * `status` - Used to observe status updates.
 	/// * `verbose` - Whether verbose output is required.
 	pub async fn source(
@@ -132,14 +174,14 @@ impl Binary {
 	) -> Result<(), Error> {
 		match self {
 			Self::Local { name, path, manifest, .. } => match manifest {
-				None => Err(Error::MissingBinary(format!(
+				None => Err(Error::MissingArchive(format!(
 					"The {path:?} binary cannot be sourced automatically."
 				))),
 				Some(manifest) =>
 					from_local_package(manifest, name, release, status, verbose).await,
 			},
-			Self::Source { source, cache, .. } =>
-				source.source(cache, release, status, verbose).await,
+			Self::Source { source, cache, archive_type, .. } =>
+				source.source(cache, release, status, verbose, *archive_type).await,
 		}
 	}
 
@@ -149,6 +191,7 @@ impl Binary {
 		let Self::Source { source, .. } = self else {
 			return false;
 		};
+
 		let GitHub(ReleaseArchive { tag, latest, .. }) = source.as_ref() else {
 			return false;
 		};

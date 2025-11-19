@@ -5,9 +5,9 @@ use pop_common::{
 	git::GitHub,
 	polkadot_sdk::sort_by_latest_semantic_version,
 	sourcing::{
-		ArchiveFileSpec, Binary,
+		ArchiveFileSpec, ArchiveType,
 		GitHub::*,
-		Source,
+		Source, SourcedArchive,
 		filters::prefix,
 		traits::{
 			Source as SourceT,
@@ -35,7 +35,7 @@ pub enum Runtime {
 	/// Paseo.
 	#[strum(props(
 		Repository = "https://github.com/paseo-network/runtimes",
-		File = "paseo-local",
+		File = "local",
 		Chain = "paseo-local",
 		Fallback = "v2.0.1"
 	))]
@@ -85,12 +85,16 @@ impl SourceT for Runtime {
 				prerelease: false,
 				version_comparator: sort_by_latest_semantic_version,
 				fallback: self.fallback().into(),
-				archive: format!("{file}-{}.json", target()?),
-				contents: vec![],
+                archive: format!("{name}-{file}.json"),
+				contents: vec![ArchiveFileSpec::new(
+					format!("{name}-{file}.json"),
+					Some(format!("{name}-{file}").into()),
+					true,
+				)],
 				latest: None,
 			})),
 			_ => Err(Error::Config(
-				"Runtime sourcing for chain specs can only contains the chain spec generator or the chain spec file",
+				"Runtime sourcing for chain specs can only contains the chain spec generator or the chain spec file".to_owned(),
 			)),
 		}
 	}
@@ -142,20 +146,81 @@ pub(super) async fn chain_spec_generator(
 	chain: &str,
 	version: Option<&str>,
 	cache: &Path,
-) -> Result<Option<Binary>, Error> {
+) -> Result<Option<SourcedArchive>, Error> {
 	if let Some(runtime) = Runtime::from_chain(chain) {
 		if runtime == Runtime::Westend {
 			// Westend runtimes included with binary.
 			return Ok(None);
 		}
-		let name = format!("{}-{}", runtime.name().to_lowercase(), runtime.binary()?);
+		let binary_name = if let Ok(binary) = runtime.binary() {
+			binary
+		} else {
+			return Ok(None);
+		};
+		let name = format!("{}-{}", runtime.name().to_lowercase(), binary_name);
 		let source = runtime
 			.source()?
 			.resolve(&name, version, cache, |f| prefix(f, &name))
 			.await
 			.into();
-		let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
+		let binary = SourcedArchive::Source {
+			name,
+			source,
+			cache: cache.to_path_buf(),
+			archive_type: ArchiveType::Binary,
+		};
 		return Ok(Some(binary));
+	}
+	Ok(None)
+}
+
+pub(super) async fn chain_spec_file(
+	chain: &str,
+	version: Option<&str>,
+	cache: &Path,
+) -> Result<Option<SourcedArchive>, Error> {
+	if let Some(runtime) = Runtime::from_chain(chain) {
+		let file = if let Ok(file) = runtime.file() {
+			file
+		} else {
+			return Ok(None);
+		};
+		let name = format!("{}-{}", runtime.name().to_lowercase(), file);
+		let source: Box<Source> = runtime
+			.source()?
+			.resolve(&name, version, cache, |f| prefix(f, &name))
+			.await
+			.into();
+
+		let name = if let Source::GitHub(ReleaseArchive { ref contents, .. }) = *source {
+			if let Some(file_extension) = Path::new(
+				&contents
+					.first()
+					.unwrap_or(&ArchiveFileSpec {
+						name: name.clone(),
+						target: None,
+						required: false,
+					})
+					.name,
+			)
+			.extension()
+			.map(|ext| ext.to_str())
+			.flatten()
+			{
+				name + "." + &file_extension
+			} else {
+				name
+			}
+		} else {
+			name
+		};
+		let chain_spec_file = SourcedArchive::Source {
+			name,
+			source,
+			cache: cache.to_path_buf(),
+			archive_type: ArchiveType::File,
+		};
+		return Ok(Some(chain_spec_file));
 	}
 	Ok(None)
 }

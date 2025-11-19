@@ -3,9 +3,9 @@ use pop_common::{
 	git::GitHub,
 	polkadot_sdk::sort_by_latest_semantic_version,
 	sourcing::{
-		ArchiveFileSpec, Binary,
+		ArchiveFileSpec, ArchiveType,
 		GitHub::*,
-		Source,
+		Source, SourcedArchive,
 		filters::prefix,
 		traits::{
 			Source as SourceT,
@@ -61,7 +61,7 @@ impl SourceT for PolkadotOmniNodeCli {
 pub async fn polkadot_omni_node_generator(
 	cache: PathBuf,
 	version: Option<&str>,
-) -> Result<Binary, Error> {
+) -> Result<SourcedArchive, Error> {
 	let cli = PolkadotOmniNodeCli::PolkadotOmniNode;
 	let name = cli.binary()?.to_string();
 	let source = cli
@@ -69,7 +69,12 @@ pub async fn polkadot_omni_node_generator(
 		.resolve(&name, version, cache.as_path(), |f| prefix(f, &name))
 		.await
 		.into();
-	let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
+	let binary = SourcedArchive::Source {
+		name,
+		source,
+		cache: cache.to_path_buf(),
+		archive_type: ArchiveType::Binary,
+	};
 	Ok(binary)
 }
 
@@ -132,9 +137,10 @@ mod tests {
 		let binary = polkadot_omni_node_generator(cache.path().to_path_buf(), None).await?;
 
 		match binary {
-			Binary::Source { name, source, cache: cache_path } => {
+			SourcedArchive::Source { name, source, cache: cache_path, archive_type } => {
 				assert_eq!(name, "polkadot-omni-node");
 				assert_eq!(cache_path, cache.path());
+				assert_eq!(archive_type, ArchiveType::Binary);
 				// Source should be a ResolvedRelease
 				match *source {
 					Source::GitHub(github) =>
@@ -144,7 +150,7 @@ mod tests {
 					_ => panic!("Expected GitHub variant"),
 				}
 			},
-			_ => panic!("Expected Binary::Source variant"),
+			_ => panic!("Expected SourcedArchive::Source variant"),
 		}
 
 		Ok(())
