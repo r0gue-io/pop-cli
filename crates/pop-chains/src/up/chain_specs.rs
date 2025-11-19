@@ -187,7 +187,7 @@ pub(super) async fn chain_spec_file(
 			return Ok(None);
 		};
 
-		// The file name is just a help only valid for the relay chains, we need to use the right
+		// The File prop name is only valid for the relay chains, we need to use the right
 		// parachain name for parachains chain specs (differently of chain-spec-generator which was
 		// unique for all the chains)
 		let mut name = if chain.contains(&file) {
