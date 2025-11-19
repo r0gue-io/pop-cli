@@ -7,6 +7,7 @@ use serde::Serialize;
 use std::{
 	fs::{read_dir, remove_file},
 	path::PathBuf,
+	process::Command as StdCommand,
 };
 
 #[derive(Args, Serialize)]
@@ -19,6 +20,9 @@ pub(crate) struct CleanArgs {
 /// Remove generated/cached artifacts.
 #[derive(Subcommand, Serialize)]
 pub(crate) enum Command {
+	/// Remove all processes running.
+	#[clap(alias = "p")]
+	Nodes(CleanCommandArgs),
 	/// Remove cached artifacts.
 	#[clap(alias = "c")]
 	Cache(CleanCommandArgs),
@@ -26,7 +30,7 @@ pub(crate) enum Command {
 
 #[derive(Args, Serialize)]
 pub struct CleanCommandArgs {
-	/// Pass flag to remove all artifacts
+	/// Pass flag to remove all cache artifacts or running nodes.
 	#[arg(short, long)]
 	pub(crate) all: bool,
 }
@@ -141,6 +145,147 @@ fn contents(path: &PathBuf) -> Result<Vec<(String, PathBuf, u64)>> {
 		.collect();
 	contents.sort_by(|(a, _, _), (b, _, _)| a.cmp(b));
 	Ok(contents)
+}
+
+/// Kills running nodes.
+pub(crate) struct CleanNodesCommand<'a, CLI: Cli> {
+	/// The cli to be used.
+	pub(crate) cli: &'a mut CLI,
+	/// Whether to clean all nodes.
+	pub(crate) all: bool,
+}
+
+impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
+	/// Executes the command.
+	pub(crate) fn execute(self) -> Result<()> {
+		self.cli.intro("Remove running nodes")?;
+
+		// Get running processes for both ink-node and eth-rpc
+		let processes = get_node_processes()?;
+
+		if processes.is_empty() {
+			self.cli.outro("ℹ️ No running nodes found.")?;
+			return Ok(());
+		}
+
+		if self.all {
+			// Display all processes to be killed
+			let list = style(format!(
+				"\n{}",
+				&processes
+					.iter()
+					.map(|(name, pid, ports)| format!("{} (PID {}) : ports {}", name, pid, ports))
+					.collect::<Vec<_>>()
+					.join("; \n")
+			))
+			.to_string();
+
+			self.cli.info(format!("Killing the following processes...\n {list} \n"))?;
+
+			for (_, pid, _) in &processes {
+				kill_process(pid)?;
+			}
+
+			self.cli.outro(format!("ℹ️ {} processes killed", processes.len()))?;
+		} else {
+			// Prompt for selection of processes to be killed
+			let selected = {
+				let mut prompt =
+					self.cli.multiselect("Select the processes you wish to kill:").required(false);
+				for (name, pid, ports) in &processes {
+					prompt = prompt.item(
+						pid,
+						format!("{} (PID {})", name, pid),
+						format!("ports: {}", ports),
+					)
+				}
+				prompt.interact()?
+			};
+
+			if selected.is_empty() {
+				self.cli.outro("ℹ️ No processes killed")?;
+				return Ok(());
+			}
+
+			// Confirm removal
+			let prompt = match selected.len() {
+				1 => "Are you sure you want to kill the selected process?".into(),
+				_ => format!(
+					"Are you sure you want to kill the {} selected processes?",
+					selected.len()
+				),
+			};
+			if !self.cli.confirm(prompt).interact()? {
+				self.cli.outro("ℹ️ No processes killed")?;
+				return Ok(());
+			}
+
+			// Finally kill selected processes
+			for pid in &selected {
+				kill_process(pid)?;
+			}
+
+			self.cli.outro(format!("ℹ️ {} processes killed", selected.len()))?;
+		}
+
+		Ok(())
+	}
+}
+
+/// Returns a list of (process_name, PID, ports) for ink-node and eth-rpc processes.
+fn get_node_processes() -> Result<Vec<(String, String, String)>> {
+	let mut processes = Vec::new();
+
+	// Process types to check
+	let process_names = ["ink-node", "eth-rpc"];
+
+	for process_name in &process_names {
+		// Get PIDs using pgrep
+		let pgrep_output = StdCommand::new("pgrep").arg(process_name).output()?;
+
+		if !pgrep_output.status.success() {
+			continue;
+		}
+
+		let pids = String::from_utf8_lossy(&pgrep_output.stdout);
+
+		for pid in pids.lines().filter(|l| !l.is_empty()) {
+			// Get ports for this PID using lsof
+			let lsof_output = StdCommand::new("lsof")
+				.args(["-Pan", "-p", pid, "-i", "TCP", "-s", "TCP:LISTEN"])
+				.output()?;
+
+			if !lsof_output.status.success() {
+				continue;
+			}
+
+			let lsof_lines = String::from_utf8_lossy(&lsof_output.stdout);
+			let mut ports = Vec::new();
+
+			for line in lsof_lines.lines().skip(1) {
+				if line.contains("127.0.0.1") {
+					let parts: Vec<&str> = line.split_whitespace().collect();
+					if let Some(addr) = parts.get(8) {
+						if let Some(port) = addr.split(':').last() {
+							ports.push(port.to_string());
+						}
+					}
+				}
+			}
+
+			if !ports.is_empty() {
+				processes.push((process_name.to_string(), pid.to_string(), ports.join(", ")));
+			}
+		}
+	}
+
+	Ok(processes)
+}
+
+/// Kills a process by PID.
+fn kill_process(pid: &str) -> Result<()> {
+	StdCommand::new("kill").arg("-9").arg(pid).output()?;
+	Ok(())
 }
 
 #[cfg(test)]
@@ -340,5 +485,16 @@ mod tests {
 			files.iter().map(|f| (f.to_string(), cache.join(f), 0)).collect::<Vec<_>>()
 		);
 		Ok(())
+	}
+
+	#[test]
+	fn clean_nodes_handles_no_processes() -> Result<()> {
+		let mut cli = MockCli::new()
+			.expect_intro("Remove running nodes")
+			.expect_outro("ℹ️ No running nodes found.");
+
+		CleanNodesCommand { cli: &mut cli, all: false }.execute()?;
+
+		cli.verify()
 	}
 }

@@ -53,6 +53,8 @@ pub enum Dependencies {
 	Rustup,
 	#[strum(serialize = "unzip")]
 	Unzip,
+	#[strum(serialize = "lsof")]
+	Lsof,
 }
 
 /// Arguments for installing.
@@ -250,10 +252,11 @@ async fn install_ubuntu(
 		Curl.to_string(),
 		Libssl.to_string(),
 		ProtobufCompiler.to_string(),
+		Lsof.to_string(),
 	];
 
 	let mut package_names =
-		format!("{}, {}, {}, {}, {}", Git, Clang, Curl, Libssl, ProtobufCompiler);
+		format!("{}, {}, {}, {}, {}, {}", Git, Clang, Curl, Libssl, ProtobufCompiler, Lsof);
 
 	if install_frontend {
 		packages.push(Unzip.to_string());
@@ -290,6 +293,7 @@ async fn install_debian(
 		Libssl.to_string(),
 		Git.to_string(),
 		ProtobufCompiler.to_string(),
+		Lsof.to_string(),
 		Clang.to_string(),
 		LibClang.to_string(),
 		Curl.to_string(),
@@ -299,8 +303,8 @@ async fn install_debian(
 	];
 
 	let mut package_names = format!(
-		"{}, {}, {}, {}, {}, {}, {}, {}",
-		Git, Clang, Curl, Libssl, Llvm, LibUdevDev, Make, ProtobufCompiler
+		"{}, {}, {}, {}, {}, {}, {}, {}, {}",
+		Git, Clang, Curl, Libssl, Llvm, LibUdevDev, Make, ProtobufCompiler, Lsof
 	);
 
 	if install_frontend {
@@ -332,8 +336,8 @@ async fn install_redhat(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> 
 	if !skip_confirm {
 		prompt_for_confirmation(
 			&format!(
-				"{}, {}, {}, {}, {}, {} and {}",
-				Clang, Curl, Git, OpenSslDevel, Make, ProtobufCompiler, Rustup,
+				"{}, {}, {}, {}, {}, {}, {} and {}",
+				Clang, Curl, Git, OpenSslDevel, Make, ProtobufCompiler, Lsof, Rustup,
 			),
 			cli,
 		)?
@@ -356,6 +360,7 @@ async fn install_redhat(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> 
 			&Curl.to_string(),
 			&Git.to_string(),
 			&ProtobufCompiler.to_string(),
+			&Lsof.to_string(),
 			&OpenSslDevel.to_string(),
 			&Make.to_string(),
 		],

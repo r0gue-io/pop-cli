@@ -200,15 +200,14 @@ impl Command {
 			Self::Clean(args) => {
 				env_logger::init();
 				match &args.command {
-					clean::Command::Cache(cmd_args) => {
-						// Initialize command and execute
-						clean::CleanCacheCommand {
-							cli: &mut Cli,
-							cache: cache()?,
-							all: cmd_args.all,
-						}
-						.execute()
-					},
+					clean::Command::Cache(cmd_args) => clean::CleanCacheCommand {
+						cli: &mut Cli,
+						cache: cache()?,
+						all: cmd_args.all,
+					}
+					.execute(),
+					clean::Command::Nodes(cmd_args) =>
+						clean::CleanNodesCommand { cli: &mut Cli, all: cmd_args.all }.execute(),
 				}
 			},
 			Command::Convert(args) => {
