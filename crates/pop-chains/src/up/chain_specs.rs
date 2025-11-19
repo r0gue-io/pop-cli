@@ -16,7 +16,7 @@ use pop_common::{
 	},
 	target,
 };
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use strum::{EnumProperty as _, VariantArray as _};
 use strum_macros::{AsRefStr, EnumProperty, VariantArray};
 
@@ -35,7 +35,7 @@ pub enum Runtime {
 	/// Paseo.
 	#[strum(props(
 		Repository = "https://github.com/paseo-network/runtimes",
-		File = "local",
+		File = "paseo-local",
 		Chain = "paseo-local",
 		Fallback = "v2.0.1"
 	))]
@@ -85,10 +85,10 @@ impl SourceT for Runtime {
 				prerelease: false,
 				version_comparator: sort_by_latest_semantic_version,
 				fallback: self.fallback().into(),
-                archive: format!("{name}-{file}.json"),
+                archive: format!("{file}.json"),
 				contents: vec![ArchiveFileSpec::new(
-					format!("{name}-{file}.json"),
-					Some(format!("{name}-{file}").into()),
+					format!("{file}.json"),
+					Some(format!("{file}").into()),
 					true,
 				)],
 				latest: None,
@@ -152,6 +152,7 @@ pub(super) async fn chain_spec_generator(
 			// Westend runtimes included with binary.
 			return Ok(None);
 		}
+
 		let binary_name = if let Ok(binary) = runtime.binary() {
 			binary
 		} else {
@@ -185,35 +186,42 @@ pub(super) async fn chain_spec_file(
 		} else {
 			return Ok(None);
 		};
-		let name = format!("{}-{}", runtime.name().to_lowercase(), file);
-		let source: Box<Source> = runtime
-			.source()?
-			.resolve(&name, version, cache, |f| prefix(f, &name))
-			.await
-			.into();
 
-		let name = if let Source::GitHub(ReleaseArchive { ref contents, .. }) = *source {
-			if let Some(file_extension) = Path::new(
-				&contents
-					.first()
-					.unwrap_or(&ArchiveFileSpec {
-						name: name.clone(),
-						target: None,
-						required: false,
-					})
-					.name,
-			)
-			.extension()
-			.map(|ext| ext.to_str())
-			.flatten()
-			{
-				name + "." + &file_extension
-			} else {
-				name
-			}
+		// The file name is just a help only valid for the relay chains, we need to use the right
+		// parachain name for parachains chain specs (differently of chain-spec-generator which was
+		// unique for all the chains)
+		let mut name = if chain.contains(&file) {
+			chain.to_owned()
 		} else {
-			name
+			format!("{}-{}", runtime.name().to_lowercase(), file)
 		};
+
+		let mut source = runtime.source()?;
+
+		// In case the File prop isn't the source archive to download (parachain case), we need to
+		// update the source.
+		if let Source::GitHub(ReleaseArchive { ref mut archive, ref mut contents, .. }) = source {
+			if let Some(&mut ArchiveFileSpec {
+				name: ref mut contents_name, ref mut target, ..
+			}) = contents.first_mut()
+			{
+				*target = Some(PathBuf::from(name.clone()));
+				if let Some(file_extension) =
+					Path::new(&contents_name.clone()).extension().map(|ext| ext.to_str()).flatten()
+				{
+					*archive = name.clone() + "." + &file_extension;
+					*contents_name = name.clone() + "." + &file_extension;
+					name = name.clone() + "." + &file_extension;
+				} else {
+					*archive = name.clone();
+					*contents_name = name.clone();
+				}
+			}
+		}
+
+		let source: Box<Source> =
+			source.resolve(&name, version, cache, |f| prefix(f, &name)).await.into();
+
 		let chain_spec_file = SourcedArchive::Source {
 			name,
 			source,

@@ -448,7 +448,7 @@ impl NetworkConfiguration {
 				"{{chainName}}"
 			)),
 		};
-		let chain_spec_file = match &relay_chain.chain_spec_file {
+		let relay_chain_spec_file = match &relay_chain.chain_spec_file {
 			None => None,
 			Some(file) => Some(NetworkConfiguration::resolve_path(&file.path())?),
 		};
@@ -482,7 +482,7 @@ impl NetworkConfiguration {
 						builder.with_chain_spec_command_output_path(chain_spec_command_output_path);
 				}
 				// Configure chain spec generator or file
-				if let Some(ref path) = chain_spec_file {
+				if let Some(ref path) = relay_chain_spec_file {
 					builder = builder.with_chain_spec_path(path.as_str());
 				} else if let Some(command) = chain_spec_generator {
 					builder = builder.with_chain_spec_command(command);
@@ -531,6 +531,10 @@ impl NetworkConfiguration {
 					"{{chainName}}"
 				)),
 			};
+			let parachain_chain_spec_file = match &para.chain_spec_file {
+				None => None,
+				Some(file) => Some(NetworkConfiguration::resolve_path(&file.path())?),
+			};
 
 			builder = builder.with_parachain(|builder| {
 				let mut builder = builder
@@ -570,7 +574,7 @@ impl NetworkConfiguration {
 					builder = builder.with_chain_spec_path(location.clone());
 				}
 				// Configure chain spec generator or file
-				if let Some(ref path) = chain_spec_file {
+				if let Some(ref path) = parachain_chain_spec_file {
 					builder = builder.with_chain_spec_path(path.as_str());
 				} else if let Some(command) = chain_spec_generator {
 					builder = builder.with_chain_spec_command(command);
