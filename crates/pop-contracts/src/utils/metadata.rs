@@ -100,6 +100,8 @@ pub struct ContractStorage {
 	pub storage_key: u32,
 	/// The type ID from the metadata registry, used for decoding storage values.
 	pub type_id: u32,
+	/// The type name of the mapping key, when this storage is a mapping. None otherwise.
+	pub key_type_name: Option<String>,
 }
 
 /// Specifies the type of contract function, either a constructor or a message.
@@ -159,6 +161,7 @@ async fn decode_mapping(
 	trie_id: &TrieId,
 	ty: &Type<PortableForm>,
 	transcoder: &ContractMessageTranscoder,
+	key_filter: Option<&str>,
 ) -> anyhow::Result<String> {
 	// Fetch ALL contract keys, then filter to those belonging to this mapping's root_key.
 	// This mirrors contract-extrinsics behavior and is robust across hashing strategies.
@@ -206,7 +209,6 @@ async fn decode_mapping(
 
 	// Fetch values for all keys in a single batch
 	let values = rpc.fetch_storage_entries(trie_id, &keys, None).await?;
-	let total = values.len();
 
 	// Determine K and V type ids from the Mapping<K, V> type
 	let (key_type_id, value_type_id) = match (param_type_id(ty, "K"), param_type_id(ty, "V")) {
@@ -218,20 +220,36 @@ async fn decode_mapping(
 	};
 
 	// Decode each pair and format output similar to contract-extrinsics
-	let mut out = String::new();
-	for (i, (key, val_opt)) in keys.into_iter().zip(values.into_iter()).enumerate() {
+	// Prepare optional filter string (trimmed) for comparison with decoded key rendering
+	let key_filter = key_filter.map(|s| s.trim()).filter(|s| !s.is_empty());
+
+	let mut rendered_pairs: Vec<String> = Vec::new();
+	for (key, val_opt) in keys.into_iter().zip(values.into_iter()) {
 		if let Some(val) = val_opt {
 			// Extract the SCALE-encoded mapping key bytes following the 20-byte prefix
 			let key_bytes = if key.0.len() > 20 { &key.0[20..] } else { &[] };
 			let k_decoded = transcoder.decode(key_type_id, &mut &key_bytes[..])?;
 			let v_decoded = transcoder.decode(value_type_id, &mut &val.0[..])?;
-			out.push_str(&format!("{{ {k_decoded} => {v_decoded} }}"));
-			if i + 1 < total {
-				out.push('\n');
+			let k_str = k_decoded.to_string();
+			if let Some(filter) = key_filter {
+				if k_str == filter {
+					rendered_pairs.push(format!("{{ {k_str} => {v_decoded} }}"));
+					break; // Found the requested key; stop early
+				}
+			} else {
+				rendered_pairs.push(format!("{{ {k_str} => {v_decoded} }}"));
 			}
 		}
 	}
-	Ok(out)
+	if rendered_pairs.is_empty() {
+		if key_filter.is_some() {
+			Ok("No value found for the provided key".to_string())
+		} else {
+			Ok("Mapping is empty".to_string())
+		}
+	} else {
+		Ok(rendered_pairs.join("\n"))
+	}
 }
 
 /// Fetches and decodes a storage value from a deployed smart contract.
@@ -251,6 +269,17 @@ pub async fn fetch_contract_storage(
 	rpc_url: &Url,
 	path: &Path,
 ) -> anyhow::Result<String> {
+	fetch_contract_storage_with_param(storage, account, rpc_url, path, None).await
+}
+
+/// Variant of fetch_contract_storage that optionally filters Mapping<K,V> by a provided key string.
+pub async fn fetch_contract_storage_with_param(
+	storage: &ContractStorage,
+	account: &str,
+	rpc_url: &Url,
+	path: &Path,
+	mapping_key: Option<&str>,
+) -> anyhow::Result<String> {
 	// Get the transcoder to decode the storage value
 	let transcoder = get_contract_transcoder(path)?;
 
@@ -269,7 +298,7 @@ pub async fn fetch_contract_storage(
 	if let Some(ty) = registry.resolve(storage.type_id) {
 		let path = ty.path.to_string();
 		if path == MAPPING_TYPE_PATH {
-			return decode_mapping(storage, &rpc, trie_id, ty, &transcoder).await;
+			return decode_mapping(storage, &rpc, trie_id, ty, &transcoder, mapping_key).await;
 		}
 	}
 
@@ -407,6 +436,7 @@ fn extract_field(
 					type_name,
 					storage_key: root_key,
 					type_id: type_id.id,
+					key_type_name: None,
 				});
 			}
 		},
@@ -465,11 +495,16 @@ fn extract_field(
 				ty.path.to_string() == MAPPING_TYPE_PATH
 			{
 				let type_name = format_type(ty, registry);
+				// Determine mapping key type name if available
+				let key_type_name = param_type_id(ty, "K")
+					.and_then(|kid| registry.resolve(kid))
+					.map(|kty| format_type(kty, registry));
 				storage_items.push(ContractStorage {
 					name: name.to_string(),
 					type_name,
 					storage_key: root_key,
 					type_id: tid,
+					key_type_name,
 				});
 				return;
 			}
@@ -493,11 +528,16 @@ fn extract_field(
 				ty.path.to_string() == MAPPING_TYPE_PATH
 			{
 				let type_name = format_type(ty, registry);
+				// Determine mapping key type name if available
+				let key_type_name = param_type_id(ty, "K")
+					.and_then(|kid| registry.resolve(kid))
+					.map(|kty| format_type(kty, registry));
 				storage_items.push(ContractStorage {
 					name: name.to_string(),
 					type_name,
 					storage_key: new_root_key,
 					type_id: tid,
+					key_type_name,
 				});
 				return;
 			}
