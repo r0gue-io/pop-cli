@@ -17,8 +17,12 @@ use contract_extrinsics::{
 	extrinsic_calls::{Instantiate, InstantiateWithCode},
 };
 use pop_common::{DefaultConfig, Keypair, account_id::parse_h160_account, create_signer};
+use scale_info::scale::Encode;
 use sp_core::bytes::{from_hex, to_hex};
-use std::path::{Path, PathBuf};
+use std::{
+	path::{Path, PathBuf},
+	time::{SystemTime, UNIX_EPOCH},
+};
 use subxt::{
 	OnlineClient, SubstrateConfig, backend,
 	blocks::ExtrinsicEvents,
@@ -40,9 +44,6 @@ pub struct UpOpts {
 	pub gas_limit: Option<u64>,
 	/// Maximum proof size for the instantiation.
 	pub proof_size: Option<u64>,
-	/// A salt used in the address derivation of the new contract. Use to create multiple
-	/// instances of the same contract code from the same account.
-	pub salt: Option<Bytes>,
 	/// Websocket endpoint of a node.
 	pub url: url::Url,
 	/// Secret key URI for the account deploying the contract.
@@ -80,10 +81,17 @@ pub async fn set_up_deployment(
 			.value(value.denominate_balance(&token_metadata)?)
 			.gas_limit(up_opts.gas_limit)
 			.proof_size(up_opts.proof_size)
-			.salt(up_opts.salt.clone())
+			.salt(generate_random_bytes())
 			.done()
 			.await?;
 	Ok(instantiate_exec)
+}
+
+fn generate_random_bytes() -> Option<Bytes> {
+	SystemTime::now()
+		.duration_since(UNIX_EPOCH)
+		.ok()
+		.map(|time| time.as_millis().encode().into())
 }
 
 /// Prepare `UploadExec` data to upload a contract.
