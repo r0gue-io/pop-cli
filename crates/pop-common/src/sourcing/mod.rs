@@ -841,7 +841,7 @@ pub(super) mod tests {
 		let temp_dir = tempdir()?;
 
 		Source::Archive { url, contents: contents.clone() }
-			.source(temp_dir.path(), true, &Output, true)
+			.source(temp_dir.path(), true, &Output, true, ArchiveType::Binary)
 			.await?;
 		for item in contents {
 			assert!(temp_dir.path().join(item).exists());
@@ -878,7 +878,7 @@ pub(super) mod tests {
 			package: package.clone(),
 			artifacts: vec![package.clone()],
 		}
-		.source(temp_dir.path(), true, &Output, true)
+		.source(temp_dir.path(), true, &Output, true, ArchiveType::Binary)
 		.await?;
 		assert!(temp_dir.path().join(package).exists());
 		Ok(())
@@ -921,7 +921,7 @@ pub(super) mod tests {
 			package: package.clone(),
 			artifacts: vec![package.clone()],
 		}
-		.source(temp_dir.path(), true, &Output, true)
+		.source(temp_dir.path(), true, &Output, true, ArchiveType::Binary)
 		.await?;
 		assert!(temp_dir.path().join(format!("{package}-{initial_commit}")).exists());
 		Ok(())
@@ -950,7 +950,7 @@ pub(super) mod tests {
 			contents: contents.map(|n| ArchiveFileSpec::new(n.into(), None, true)).to_vec(),
 			latest: None,
 		})
-		.source(temp_dir.path(), true, &Output, true)
+		.source(temp_dir.path(), true, &Output, true, ArchiveType::Binary)
 		.await?;
 		for item in contents {
 			assert!(temp_dir.path().join(format!("{item}-{version}")).exists());
@@ -1058,7 +1058,7 @@ pub(super) mod tests {
 				.to_vec(),
 			latest: None,
 		})
-		.source(temp_dir.path(), true, &Output, true)
+		.source(temp_dir.path(), true, &Output, true, ArchiveType::Binary)
 		.await?;
 		for item in contents {
 			assert!(temp_dir.path().join(format!("{prefix}-{item}-{version}")).exists());
@@ -1089,7 +1089,7 @@ pub(super) mod tests {
 			contents: contents.map(|n| ArchiveFileSpec::new(n.into(), None, true)).to_vec(),
 			latest: None,
 		})
-		.source(temp_dir.path(), true, &Output, true)
+		.source(temp_dir.path(), true, &Output, true, ArchiveType::Binary)
 		.await?;
 		for item in contents {
 			assert!(temp_dir.path().join(item).exists());
@@ -1114,7 +1114,7 @@ pub(super) mod tests {
 			package: package.clone(),
 			artifacts: vec![package.clone()],
 		})
-		.source(temp_dir.path(), true, &Output, true)
+		.source(temp_dir.path(), true, &Output, true, ArchiveType::Binary)
 		.await?;
 		assert!(temp_dir.path().join(format!("{package}-{initial_commit}")).exists());
 		Ok(())
@@ -1159,7 +1159,7 @@ pub(super) mod tests {
 			package: package.clone(),
 			artifacts: vec![package.clone()],
 		})
-		.source(temp_dir.path(), true, &Output, true)
+		.source(temp_dir.path(), true, &Output, true, ArchiveType::Binary)
 		.await?;
 		assert!(temp_dir.path().join(package).exists());
 		Ok(())
@@ -1174,7 +1174,7 @@ pub(super) mod tests {
 		let temp_dir = tempdir()?;
 
 		Source::Url { url, name: name.into() }
-			.source(temp_dir.path(), false, &Output, true)
+			.source(temp_dir.path(), false, &Output, true, ArchiveType::Binary)
 			.await?;
 		assert!(temp_dir.path().join(name).exists());
 		Ok(())
@@ -1205,7 +1205,7 @@ pub(super) mod tests {
 			.map(|b| ArchiveFileSpec::new(b.into(), Some(temp_dir.path().join(b)), true))
 			.collect();
 
-		from_archive(url, &contents, &Output).await?;
+		from_archive(url, &contents, &Output, ArchiveType::Binary).await?;
 		for ArchiveFileSpec { target, .. } in contents {
 			assert!(target.unwrap().exists());
 		}
@@ -1304,9 +1304,44 @@ pub(super) mod tests {
 		let temp_dir = tempdir()?;
 		let path = temp_dir.path().join("polkadot");
 
-		from_url(url, &path, &Output).await?;
+		from_url(url, &path, &Output, ArchiveType::Binary).await?;
 		assert!(path.exists());
 		assert_ne!(metadata(path)?.permissions().mode() & 0o755, 0);
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn from_url_file_works() -> anyhow::Result<()> {
+		let url =
+			"https://github.com/paseo-network/runtimes/releases/download/v2.0.1/paseo-local.json";
+		let temp_dir = tempdir()?;
+		let path = temp_dir.path().join("paseo-local.json");
+
+		from_url(url, &path, &Output, ArchiveType::File).await?;
+		assert!(path.exists());
+		// Files should not have executable permissions
+		assert_eq!(metadata(&path)?.permissions().mode() & 0o111, 0);
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn from_archive_file_works() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let url =
+			"https://github.com/paseo-network/runtimes/releases/download/v2.0.1/paseo-local.json";
+		let contents: Vec<_> = vec![ArchiveFileSpec::new(
+			"paseo-local.json".into(),
+			Some(temp_dir.path().join("paseo-local.json")),
+			true,
+		)];
+
+		from_archive(url, &contents, &Output, ArchiveType::File).await?;
+		for ArchiveFileSpec { target, .. } in contents {
+			let target_path = target.unwrap();
+			assert!(target_path.exists());
+			// Files should not have executable permissions
+			assert_eq!(metadata(&target_path)?.permissions().mode() & 0o111, 0);
+		}
 		Ok(())
 	}
 
