@@ -9093,6 +9093,7 @@ dependencies = [
  "assert_cmd",
  "bytes",
  "cargo_toml 0.20.5",
+ "clap",
  "contract-build",
  "contract-extrinsics",
  "derivative",
