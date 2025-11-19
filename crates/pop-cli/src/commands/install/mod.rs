@@ -374,7 +374,7 @@ async fn install_redhat(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> 
 fn prompt_for_confirmation(message: &str, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 	if !cli
 		.confirm(format!(
-			"📦 Do you want to proceed with the installation of the following packages: {} ?",
+			"📦 Do you want to proceed with the installation of the following packages: {}?",
 			message
 		))
 		.initial_value(true)
@@ -468,7 +468,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn install_mac_works() -> anyhow::Result<()> {
-		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#macos").expect_confirm("📦 Do you want to proceed with the installation of the following packages: homebrew, protobuf, openssl, rustup and cmake ?", false);
+		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#macos").expect_confirm("📦 Do you want to proceed with the installation of the following packages: homebrew, protobuf, openssl, rustup and cmake?", false);
 		assert!(matches!(
 			install_mac(false, &mut cli)
 				.await,
@@ -478,7 +478,7 @@ mod tests {
 	}
 	#[tokio::test]
 	async fn install_arch_works() -> anyhow::Result<()> {
-		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#linux").expect_confirm("📦 Do you want to proceed with the installation of the following packages: curl, git, clang, make, protobuf and rustup ?", false);
+		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#linux").expect_confirm("📦 Do you want to proceed with the installation of the following packages: curl, git, clang, make, protobuf and rustup?", false);
 		assert!(matches!(
 			install_arch(false, false, &mut cli)
 				.await,
@@ -488,7 +488,7 @@ mod tests {
 	}
 	#[tokio::test]
 	async fn install_ubuntu_works() -> anyhow::Result<()> {
-		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#linux").expect_confirm("📦 Do you want to proceed with the installation of the following packages: git, clang, curl, libssl-dev, protobuf-compiler and rustup ?", false);
+		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#linux").expect_confirm("📦 Do you want to proceed with the installation of the following packages: git, clang, curl, libssl-dev, protobuf-compiler, lsof and rustup?", false);
 		assert!(matches!(
 			install_ubuntu(false, false, &mut cli)
 				.await,
@@ -498,7 +498,7 @@ mod tests {
 	}
 	#[tokio::test]
 	async fn install_debian_works() -> anyhow::Result<()> {
-		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#linux").expect_confirm("📦 Do you want to proceed with the installation of the following packages: git, clang, curl, libssl-dev, llvm, libudev-dev, make, protobuf-compiler and rustup ?", false);
+		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#linux").expect_confirm("📦 Do you want to proceed with the installation of the following packages: git, clang, curl, libssl-dev, llvm, libudev-dev, make, protobuf-compiler, lsof and rustup?", false);
 		assert!(matches!(
 			install_debian(false, false, &mut cli)
 				.await,
@@ -508,7 +508,7 @@ mod tests {
 	}
 	#[tokio::test]
 	async fn install_redhat_works() -> anyhow::Result<()> {
-		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#linux").expect_confirm("📦 Do you want to proceed with the installation of the following packages: clang, curl, git, openssl-devel, make, protobuf-compiler and rustup ?", false);
+		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#linux").expect_confirm("📦 Do you want to proceed with the installation of the following packages: clang, curl, git, openssl-devel, make, protobuf-compiler, lsof and rustup?", false);
 		assert!(matches!(
 			install_redhat(false, &mut cli)
 				.await,
@@ -522,7 +522,7 @@ mod tests {
 		let deps = "test1, test2";
 		let mut cli = MockCli::new().expect_confirm(
 			format!(
-				"📦 Do you want to proceed with the installation of the following packages: {} ?",
+				"📦 Do you want to proceed with the installation of the following packages: {}?",
 				deps
 			),
 			true,
