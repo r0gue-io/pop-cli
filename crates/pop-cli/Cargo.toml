@@ -39,21 +39,21 @@ toml.workspace = true
 url.workspace = true
 
 # contracts
-pop-contracts = { path = "../pop-contracts", version = "0.12.0", default-features = false, optional = true }
+pop-contracts = { path = "../pop-contracts", version = "0.12.1", default-features = false, optional = true }
 sp-core = { workspace = true }
 
 # parachains
-pop-chains = { path = "../pop-chains", version = "0.12.0", optional = true }
+pop-chains = { path = "../pop-chains", version = "0.12.1", optional = true }
 git2 = { workspace = true, optional = true }
 regex.workspace = true
 tracing-subscriber = { workspace = true, optional = true }
 scale-value = { workspace = true, optional = true }
 
 # telemetry
-pop-telemetry = { path = "../pop-telemetry", version = "0.12.0", optional = true }
+pop-telemetry = { path = "../pop-telemetry", version = "0.12.1", optional = true }
 
 # common
-pop-common = { path = "../pop-common", version = "0.12.0" }
+pop-common = { path = "../pop-common", version = "0.12.1" }
 
 # wallet-integration
 axum = { workspace = true, optional = true }
@@ -71,4 +71,4 @@ chain = ["dep:pop-chains", "dep:git2", "dep:tracing-subscriber", "dep:scale-valu
 contract = ["dep:pop-contracts", "wallet-integration"]
 telemetry = ["dep:pop-telemetry"]
 wallet-integration = ["dep:axum", "dep:open", "dep:tower-http"]
-integration-tests = []
+integration-tests = ["pop-common/integration-tests"]

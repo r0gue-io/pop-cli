@@ -2,22 +2,17 @@
 
 use crate::{
 	cli::{self},
-	common::{
-		builds::{ensure_node_binary_exists, guide_user_to_select_profile},
-		prompt::display_message,
-		runtime::Feature,
-	},
+	common::{bench::check_omni_bencher_and_prompt, prompt::display_message},
 };
 use clap::Args;
-use pop_chains::{BenchmarkingCliCommand, bench::BlockCmd, generate_binary_benchmarks};
-use pop_common::Profile;
-use serde::Serialize;
-use std::{
-	env::current_dir,
-	path::{Path, PathBuf},
+use cliclack::spinner;
+use pop_chains::{
+	BenchmarkingCliCommand,
+	bench::{BlockCmd, generate_binary_benchmarks},
 };
+use serde::Serialize;
 
-const EXCLUDED_ARGS: [&str; 1] = ["--profile"];
+const EXCLUDED_ARGS: [&str; 2] = ["--skip-confirm", "-y"];
 
 #[derive(Args, Serialize)]
 pub(crate) struct BenchmarkBlock {
@@ -25,33 +20,22 @@ pub(crate) struct BenchmarkBlock {
 	#[serde(skip_serializing)]
 	#[clap(flatten)]
 	pub command: BlockCmd,
-	/// Build profile.
-	#[clap(long, value_enum)]
-	pub(crate) profile: Option<Profile>,
+	/// Skip confirmation prompt when sourcing the `frame-omni-bencher` binary.
+	#[clap(short = 'y', long)]
+	pub(crate) skip_confirm: bool,
 }
 
 impl BenchmarkBlock {
-	pub(crate) fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		self.benchmark(cli, &current_dir().unwrap_or(PathBuf::from("./")))
+	pub(crate) async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+		self.benchmark(cli).await
 	}
 
-	fn benchmark(
-		&mut self,
-		cli: &mut impl cli::traits::Cli,
-		target_path: &Path,
-	) -> anyhow::Result<()> {
+	async fn benchmark(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		cli.intro("Benchmarking the execution time of historic blocks")?;
 
-		if self.profile.is_none() {
-			self.profile = Some(guide_user_to_select_profile(cli)?);
-		};
-		let binary_path = ensure_node_binary_exists(
-			cli,
-			target_path,
-			self.profile.as_ref().ok_or_else(|| anyhow::anyhow!("No profile provided"))?,
-			&[Feature::Benchmark.as_ref().to_string()],
-		)?;
-
+		let spinner = spinner();
+		let binary_path = check_omni_bencher_and_prompt(cli, &spinner, self.skip_confirm).await?;
+		spinner.clear();
 		cli.warning("NOTE: this may take some time...")?;
 
 		let result = generate_binary_benchmarks(
@@ -80,38 +64,31 @@ impl BenchmarkBlock {
 				!matches!(arg.as_str(), "--show-output" | "--nocapture" | "--ignored")
 			});
 		}
-		if !argument_exists(&arguments, "--profile") &&
-			let Some(ref profile) = self.profile
-		{
-			arguments.push(format!("--profile={}", profile));
+		if self.skip_confirm {
+			arguments.push("--skip-confirm".to_string());
 		}
 		args.extend(arguments);
 		args.join(" ")
 	}
 }
 
-fn argument_exists(args: &[String], arg: &str) -> bool {
-	args.iter().any(|a| a.contains(arg))
-}
-
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use clap::Parser;
-	use pop_common::Profile;
 
 	#[test]
 	fn display_works() -> anyhow::Result<()> {
 		let mut command_info = BenchmarkBlock {
 			command: BlockCmd::try_parse_from(vec!["", "--from=0", "--to=1"])?,
-			profile: Some(Profile::Debug),
+			skip_confirm: true,
 		}
 		.display();
-		assert_eq!(command_info, "pop bench block --profile=debug");
+		assert_eq!(command_info, "pop bench block --skip-confirm");
 
 		command_info = BenchmarkBlock {
 			command: BlockCmd::try_parse_from(vec!["", "--from=0", "--to=1"])?,
-			profile: None,
+			skip_confirm: false,
 		}
 		.display();
 		assert_eq!(command_info, "pop bench block");
