@@ -149,8 +149,8 @@ async fn parachain_lifecycle() -> Result<()> {
 	assert!(working_dir.join("target/pop/genesis-code.wasm").exists());
 	assert!(working_dir.join("target/pop/genesis-state").exists());
 
-	let content = fs::read_to_string(working_dir.join("target/pop/test-spec-raw.json"))
-		.expect("Could not read file");
+	let chain_spec_path = working_dir.join("target/pop/test-spec.json");
+	let content = fs::read_to_string(&chain_spec_path).expect("Could not read file");
 	// Assert custom values have been set properly
 	assert!(content.contains("\"para_id\": 2222"));
 	// assert!(content.contains("\"tokenDecimals\": 6"));
@@ -183,19 +183,21 @@ validator = true
 
 [[parachains]]
 id = 2000
-default_command = "./target/release/parachain-template-node"
+default_command = "polkadot-omni-node"
+chain_spec_path = "{}"
 
 [[parachains.collators]]
 name = "collator-01"
 rpc_port = {random_port}
-"#
+"#,
+			chain_spec_path.as_os_str().to_str().unwrap(),
 		),
 	)?;
 
 	// `pop up network ./network.toml --skip-confirm`
 	let mut command = pop(
 		&working_dir,
-		["up", "network", "./network.toml", "-r", "stable2412", "--verbose", "--skip-confirm"],
+		["up", "network", "./network.toml", "-r", "stable2506-2", "--verbose", "--skip-confirm"],
 	);
 	let mut up = TestChildProcess(command.spawn()?);
 
