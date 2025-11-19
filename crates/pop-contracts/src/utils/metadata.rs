@@ -669,6 +669,8 @@ mod tests {
 	use super::*;
 	use crate::{mock_build_process, new_environment};
 	use anyhow::Result;
+	use scale_info::{Registry, TypeDef, TypeDefPrimitive, TypeInfo};
+	use std::marker::PhantomData;
 
 	const CONTRACT_FILE: &str = "./tests/files/testing.contract";
 
@@ -901,6 +903,39 @@ mod tests {
 		assert_eq!(storage[0].name, "value");
 		assert_eq!(storage[0].type_name, "bool");
 
+		Ok(())
+	}
+
+	#[derive(TypeInfo)]
+	struct DummyKV<K, V>(PhantomData<(K, V)>);
+
+	#[test]
+	fn param_type_id_resolves_generic_k_v() -> Result<()> {
+		// Build a registry that includes a dummy generic type with params named K and V
+		let mut reg = Registry::new();
+		let _ = reg.register_type(&scale_info::meta_type::<DummyKV<u32, bool>>());
+		let portable: PortableRegistry = reg.into();
+		// Find our dummy type by its last path segment
+		let type_id = portable
+			.types
+			.iter()
+			.find(|t| t.ty.path.segments.last().map(|s| s == "DummyKV").unwrap_or(false))
+			.map(|t| t.id)
+			.expect("dummy type must exist");
+		let ty = portable.resolve(type_id).unwrap();
+		// Ensure helper extracts K and V type ids
+		let k_id = super::param_type_id(ty, "K").expect("K param must exist");
+		let v_id = super::param_type_id(ty, "V").expect("V param must exist");
+		let k_ty = portable.resolve(k_id).unwrap();
+		let v_ty = portable.resolve(v_id).unwrap();
+		match &k_ty.type_def {
+			TypeDef::Primitive(p) => assert_eq!(*p, TypeDefPrimitive::U32),
+			other => panic!("Expected primitive u32 for K, got {:?}", other),
+		}
+		match &v_ty.type_def {
+			TypeDef::Primitive(p) => assert_eq!(*p, TypeDefPrimitive::Bool),
+			other => panic!("Expected primitive bool for V, got {:?}", other),
+		}
 		Ok(())
 	}
 }
