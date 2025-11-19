@@ -294,10 +294,10 @@ fn get_node_processes() -> Result<Vec<(String, String, String)>> {
 			for line in lsof_lines.lines().skip(1) {
 				if line.contains("127.0.0.1") {
 					let parts: Vec<&str> = line.split_whitespace().collect();
-					if let Some(addr) = parts.get(8) {
-						if let Some(port) = addr.split(':').last() {
-							ports.push(port.to_string());
-						}
+					if let Some(addr) = parts.get(8) &&
+						let Some(port) = addr.split(':').next_back()
+					{
+						ports.push(port.to_string());
 					}
 				}
 			}
@@ -652,7 +652,7 @@ mod tests {
 		cmd.execute()?;
 		assert_eq!(
 			&*killed.borrow(),
-			&vec!["111", "222", "333"].iter().map(|s| s.to_string()).collect::<Vec<_>>()
+			&["111", "222", "333"].iter().map(|s| s.to_string()).collect::<Vec<_>>()
 		);
 		cli.verify()
 	}
