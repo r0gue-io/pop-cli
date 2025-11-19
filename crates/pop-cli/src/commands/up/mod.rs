@@ -174,7 +174,6 @@ mod tests {
 				value: "0".to_string(),
 				gas_limit: None,
 				proof_size: None,
-				salt: None,
 				url: None,
 				suri: Some("//Alice".to_string()),
 				use_wallet: false,
