@@ -449,6 +449,10 @@ impl UpContractCommand {
 			cmd.contract = Some(address);
 			cmd.url = self.url.clone();
 			cmd.deployed = true;
+			cmd.execute = self.execute;
+			cmd.use_wallet = self.use_wallet;
+			cmd.suri = self.suri.clone();
+			cmd.skip_confirm = self.skip_confirm;
 			cmd.execute(cli).await?;
 		}
 		Ok(())
