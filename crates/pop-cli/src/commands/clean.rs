@@ -153,6 +153,12 @@ pub(crate) struct CleanNodesCommand<'a, CLI: Cli> {
 	pub(crate) cli: &'a mut CLI,
 	/// Whether to clean all nodes.
 	pub(crate) all: bool,
+	/// Test hook: override process lister.
+	#[cfg(test)]
+	pub(crate) list_nodes: Option<Box<dyn Fn() -> Result<Vec<(String, String, String)>>>>,
+	/// Test hook: override killer.
+	#[cfg(test)]
+	pub(crate) kill_fn: Option<Box<dyn Fn(&str) -> Result<()>>>,
 }
 
 impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
@@ -161,7 +167,16 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 		self.cli.intro("Remove running nodes")?;
 
 		// Get running processes for both ink-node and eth-rpc
-		let processes = get_node_processes()?;
+		let processes = {
+			#[cfg(test)]
+			{
+				if let Some(ref f) = self.list_nodes { f()? } else { get_node_processes()? }
+			}
+			#[cfg(not(test))]
+			{
+				get_node_processes()?
+			}
+		};
 
 		if processes.is_empty() {
 			self.cli.outro("ℹ️ No running nodes found.")?;
@@ -183,7 +198,14 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 			self.cli.info(format!("Killing the following processes...\n {list} \n"))?;
 
 			for (_, pid, _) in &processes {
-				kill_process(pid)?;
+				#[cfg(test)]
+				{
+					if let Some(ref f) = self.kill_fn { f(pid)? } else { kill_process(pid)? }
+				}
+				#[cfg(not(test))]
+				{
+					kill_process(pid)?
+				}
 			}
 
 			self.cli.outro(format!("ℹ️ {} processes killed", processes.len()))?;
@@ -222,7 +244,14 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 
 			// Finally kill selected processes
 			for pid in &selected {
-				kill_process(pid)?;
+				#[cfg(test)]
+				{
+					if let Some(ref f) = self.kill_fn { f(pid)? } else { kill_process(pid)? }
+				}
+				#[cfg(not(test))]
+				{
+					kill_process(pid)?
+				}
 			}
 
 			self.cli.outro(format!("ℹ️ {} processes killed", selected.len()))?;
@@ -493,8 +522,138 @@ mod tests {
 			.expect_intro("Remove running nodes")
 			.expect_outro("ℹ️ No running nodes found.");
 
-		CleanNodesCommand { cli: &mut cli, all: false }.execute()?;
+		let cmd = CleanNodesCommand {
+			cli: &mut cli,
+			all: false,
+			#[cfg(test)]
+			list_nodes: Some(Box::new(|| Ok(vec![]))),
+			#[cfg(test)]
+			kill_fn: None,
+		};
 
+		cmd.execute()?;
+
+		cli.verify()
+	}
+
+	#[test]
+	fn clean_nodes_all_kills_processes() -> Result<()> {
+		use std::{cell::RefCell, rc::Rc};
+		let processes = vec![
+			("ink-node".to_string(), "111".to_string(), "30333, 9944".to_string()),
+			("eth-rpc".to_string(), "222".to_string(), "8545".to_string()),
+		];
+
+		let list = style(format!(
+			"\n{}",
+			&processes
+				.iter()
+				.map(|(name, pid, ports)| format!("{} (PID {}) : ports {}", name, pid, ports))
+				.collect::<Vec<_>>()
+				.join("; \n")
+		))
+		.to_string();
+
+		let mut cli = MockCli::new()
+			.expect_intro("Remove running nodes")
+			.expect_info(format!("Killing the following processes...\n {list} \n"))
+			.expect_outro("ℹ️ 2 processes killed");
+
+		let killed: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
+		let killed2 = killed.clone();
+		let cmd = CleanNodesCommand {
+			cli: &mut cli,
+			all: true,
+			list_nodes: Some(Box::new(move || Ok(processes.clone()))),
+			kill_fn: Some(Box::new(move |pid: &str| {
+				killed2.borrow_mut().push(pid.to_string());
+				Ok(())
+			})),
+		};
+
+		cmd.execute()?;
+		assert_eq!(&*killed.borrow(), &vec!["111".to_string(), "222".to_string()]);
+		cli.verify()
+	}
+
+	#[test]
+	fn clean_nodes_multiselect_no_selection() -> Result<()> {
+		let processes = vec![("ink-node".to_string(), "111".to_string(), "30333".to_string())];
+		let items = vec![("ink-node (PID 111)".to_string(), "ports: 30333".to_string())];
+		let mut cli = MockCli::new()
+			.expect_intro("Remove running nodes")
+			.expect_multiselect(
+				"Select the processes you wish to kill:",
+				Some(false),
+				false,
+				Some(items),
+				None,
+			)
+			.expect_outro("ℹ️ No processes killed");
+
+		let cmd = CleanNodesCommand {
+			cli: &mut cli,
+			all: false,
+			list_nodes: Some(Box::new(move || Ok(processes.clone()))),
+			kill_fn: Some(Box::new(|_| unreachable!("kill should not be called"))),
+		};
+
+		cmd.execute()?;
+		cli.verify()
+	}
+
+	#[test]
+	fn clean_nodes_multiselect_confirm_false() -> Result<()> {
+		let processes = vec![("ink-node".to_string(), "111".to_string(), "30333".to_string())];
+		let mut cli = MockCli::new()
+			.expect_intro("Remove running nodes")
+			.expect_multiselect("Select the processes you wish to kill:", None, true, None, None)
+			.expect_confirm("Are you sure you want to kill the selected process?", false)
+			.expect_outro("ℹ️ No processes killed");
+
+		let cmd = CleanNodesCommand {
+			cli: &mut cli,
+			all: false,
+			list_nodes: Some(Box::new(move || Ok(processes.clone()))),
+			kill_fn: Some(Box::new(|_| unreachable!("kill should not be called"))),
+		};
+
+		cmd.execute()?;
+		cli.verify()
+	}
+
+	#[test]
+	fn clean_nodes_multiselect_confirm_true() -> Result<()> {
+		use std::{cell::RefCell, rc::Rc};
+		let processes = vec![
+			("ink-node".to_string(), "111".to_string(), "30333".to_string()),
+			("eth-rpc".to_string(), "222".to_string(), "8545".to_string()),
+			("ink-node".to_string(), "333".to_string(), "30334".to_string()),
+		];
+		let mut cli = MockCli::new()
+			.expect_intro("Remove running nodes")
+			.expect_multiselect("Select the processes you wish to kill:", None, true, None, None)
+			.expect_confirm("Are you sure you want to kill the 3 selected processes?", true)
+			.expect_outro("ℹ️ 3 processes killed");
+
+		let killed: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
+		let killed2 = killed.clone();
+
+		let cmd = CleanNodesCommand {
+			cli: &mut cli,
+			all: false,
+			list_nodes: Some(Box::new(move || Ok(processes.clone()))),
+			kill_fn: Some(Box::new(move |pid: &str| {
+				killed2.borrow_mut().push(pid.to_string());
+				Ok(())
+			})),
+		};
+
+		cmd.execute()?;
+		assert_eq!(
+			&*killed.borrow(),
+			&vec!["111", "222", "333"].iter().map(|s| s.to_string()).collect::<Vec<_>>()
+		);
 		cli.verify()
 	}
 }

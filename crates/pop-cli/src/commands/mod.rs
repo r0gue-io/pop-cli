@@ -206,8 +206,15 @@ impl Command {
 						all: cmd_args.all,
 					}
 					.execute(),
-					clean::Command::Nodes(cmd_args) =>
-						clean::CleanNodesCommand { cli: &mut Cli, all: cmd_args.all }.execute(),
+					clean::Command::Nodes(cmd_args) => clean::CleanNodesCommand {
+						cli: &mut Cli,
+						all: cmd_args.all,
+						#[cfg(test)]
+						list_nodes: None,
+						#[cfg(test)]
+						kill_fn: None,
+					}
+					.execute(),
 				}
 			},
 			Command::Convert(args) => {
