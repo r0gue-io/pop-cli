@@ -12,7 +12,7 @@ use crate::{
 use std::path::{Path, PathBuf};
 
 /// File extensions we allow in our sourcing
-pub static ALLOWED_FILE_EXTENSIONS: [&'static str; 1] = [".json"];
+pub static ALLOWED_FILE_EXTENSIONS: [&str; 1] = [".json"];
 
 /// The type of the Archive
 #[derive(Debug, PartialEq, Clone, Copy)]
@@ -237,7 +237,10 @@ mod tests {
 	};
 	use anyhow::Result;
 	use duct::cmd;
-	use std::fs::{File, create_dir_all};
+	use std::{
+		fs::{File, create_dir_all},
+		os::unix::fs::PermissionsExt,
+	};
 	use tempfile::tempdir;
 	use url::Url;
 
@@ -593,8 +596,6 @@ mod tests {
 	#[test]
 	fn file_archive_path_with_version_works() -> Result<()> {
 		let name = "paseo-local.json";
-		let url =
-			"https://github.com/paseo-network/runtimes/releases/download/v2.0.1/paseo-local.json";
 		let temp_dir = tempdir()?;
 		let version = "v2.0.1";
 

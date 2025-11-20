@@ -1457,7 +1457,7 @@ pub mod traits {
 		use super::enums::{Repository, Source};
 		use strum_macros::{EnumProperty, VariantArray};
 
-		#[derive(EnumProperty, VariantArray)]
+		#[derive(EnumProperty, VariantArray, Debug)]
 		pub(super) enum Chain {
 			#[strum(props(
 				Repository = "https://github.com/paritytech/polkadot-sdk",

@@ -265,7 +265,7 @@ mod tests {
 			let cache = temp_dir.path().join("cache");
 			let binary = ink_node_generator(cache.clone(), Some(version)).await?;
 
-			assert!(matches!(binary, Binary::Source { name, source, cache}
+			assert!(matches!(binary, SourcedArchive::Source { name, source, cache, archive_type}
 				if name == expected.binary() &&
 					*source == Source::GitHub(ReleaseArchive {
 						owner: owner.to_string(),
@@ -280,7 +280,7 @@ mod tests {
 							latest: None,
 						})
 					&&
-				cache == cache
+				cache == cache && archive_type==ArchiveType::Binary
 			));
 		}
 		Ok(())
