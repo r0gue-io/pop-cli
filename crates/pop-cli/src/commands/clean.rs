@@ -21,7 +21,7 @@ pub(crate) struct CleanArgs {
 #[derive(Subcommand, Serialize)]
 pub(crate) enum Command {
 	/// Remove all processes running.
-	#[clap(alias = "p")]
+	#[clap(alias = "n")]
 	Node(CleanCommandArgs),
 	/// Remove cached artifacts.
 	#[clap(alias = "c")]
