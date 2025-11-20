@@ -631,7 +631,9 @@ pub(crate) mod tests {
 	struct MockInput {
 		prompt: String,
 		input: String,
+		#[allow(unused)]
 		placeholder: String,
+		#[allow(unused)]
 		required: bool,
 		validate_fn: Option<Box<dyn Fn(&String) -> std::result::Result<(), &'static str>>>,
 	}

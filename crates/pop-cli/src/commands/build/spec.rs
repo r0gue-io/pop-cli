@@ -145,10 +145,12 @@ pub(crate) enum RelayChain {
 #[derive(Args, Default, Serialize)]
 pub struct BuildSpecCommand {
 	/// Directory path for your project [default: current directory]
+	#[serde(skip_serializing)]
 	#[arg(long, default_value = "./")]
 	pub(crate) path: PathBuf,
 	/// File name for the resulting spec. If a path is given,
 	/// the necessary directories will be created
+	#[serde(skip_serializing)]
 	#[arg(short, long = "output")]
 	pub(crate) output_file: Option<PathBuf>,
 	/// Build profile for the binary to generate the chain specification.
@@ -204,6 +206,7 @@ pub struct BuildSpecCommand {
 	#[arg(short, long)]
 	pub(crate) deterministic: Option<bool>,
 	/// Define the directory path where the runtime is located.
+	#[serde(skip_serializing)]
 	#[clap(name = "runtime", long)]
 	pub runtime_dir: Option<PathBuf>,
 	/// Specify the runtime package name. If not specified, it will be automatically determined

@@ -95,6 +95,7 @@ pub(crate) struct BenchmarkPallet {
 	json_output: bool,
 
 	/// Write the raw results in JSON format into the given file.
+	#[serde(skip_serializing)]
 	#[arg(long, conflicts_with = "json_output")]
 	json_file: Option<PathBuf>,
 
@@ -107,10 +108,12 @@ pub(crate) struct BenchmarkPallet {
 	no_min_squares: bool,
 
 	/// Output the benchmarks to a Rust file at the given path.
+	#[serde(skip_serializing)]
 	#[arg(long)]
 	output: Option<PathBuf>,
 
 	/// Path to Handlebars template file used for outputting benchmark results. (Optional)
+	#[serde(skip_serializing)]
 	#[arg(long)]
 	template: Option<PathBuf>,
 
@@ -140,6 +143,7 @@ pub(crate) struct BenchmarkPallet {
 	extra: bool,
 
 	/// Path to the runtime project or binary.
+	#[serde(skip_serializing)]
 	#[arg(long)]
 	runtime: Option<PathBuf>,
 

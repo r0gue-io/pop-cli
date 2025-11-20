@@ -15,9 +15,11 @@ use pop_contracts::{
 	AccountMapper, ContractFunction, DefaultEnvironment, ExtrinsicOpts, eth_rpc_generator,
 	ink_node_generator,
 };
+use regex::{Captures, Regex};
 use std::{
 	path::{Path, PathBuf},
 	process::{Child, Command},
+	sync::LazyLock,
 };
 use tempfile::NamedTempFile;
 
@@ -26,6 +28,13 @@ impl_binary_generator!(EthRpcGenerator, eth_rpc_generator);
 
 const CONTRACTS_NODE_BINARY: &str = "ink-node";
 const ETH_RPC_BINARY: &str = "eth-rpc";
+
+// Precompiled regex for hex byte strings (optional 0x prefix, any even number of hex chars)
+static HEX_BYTES: LazyLock<Regex> =
+	LazyLock::new(|| Regex::new(r"^(?:0x)?[0-9a-fA-F]*$").expect("Valid hex regex"));
+// Regex for fixed-size byte arrays like [u8; 32]
+static FIXED_U8_ARRAY: LazyLock<Regex> =
+	LazyLock::new(|| Regex::new(r"^\[\s*u8\s*;\s*(\d+)\s*]$").expect("Valid fixed u8 array regex"));
 
 ///  Checks the status of the contracts node binary, sources it if necessary, and
 /// prompts the user to update it if the existing binary is not the latest version.
@@ -108,6 +117,82 @@ pub fn has_contract_been_built(path: &Path) -> bool {
 		.unwrap_or_default()
 }
 
+fn validate_fixed_u8_array(value: &str, caps: &Captures) -> Result<(), &'static str> {
+	let len: usize = caps.get(1).unwrap().as_str().parse().unwrap_or(0);
+	if HEX_BYTES.is_match(value) {
+		let hex = value.strip_prefix("0x").unwrap_or(value);
+		if !hex.len().is_multiple_of(2) {
+			return Err(
+				"Invalid hex bytes. Provide an even-length hex string (optional 0x prefix).",
+			);
+		}
+		let expected = len.saturating_mul(2);
+		if hex.len() == expected {
+			Ok(())
+		} else {
+			Err("Invalid hex bytes length. Expected N bytes (2*N hex chars, optional 0x prefix).")
+		}
+	} else {
+		Err("Invalid hex bytes. Provide an even-length hex string (optional 0x prefix).")
+	}
+}
+
+fn validate_basic_type(value: &str, base_type: &str) -> Result<(), &'static str> {
+	match base_type {
+		"bool" => value
+			.parse::<bool>()
+			.map(|_| ())
+			.map_err(|_| "Invalid boolean. Use 'true' or 'false'."),
+		"u8" | "u16" | "u32" | "u64" | "u128" =>
+			value.parse::<u128>().map(|_| ()).map_err(|_| "Invalid unsigned integer."),
+		"i8" | "i16" | "i32" | "i64" | "i128" =>
+			value.parse::<i128>().map(|_| ()).map_err(|_| "Invalid signed integer."),
+		"Vec<u8>" | "[u8]" => {
+			// Validate hex string for bytes
+			if HEX_BYTES.is_match(value) {
+				let hex = value.strip_prefix("0x").unwrap_or(value);
+				if hex.len().is_multiple_of(2) {
+					Ok(())
+				} else {
+					Err(
+						"Invalid hex bytes. Provide an even-length hex string (optional 0x prefix).",
+					)
+				}
+			} else {
+				Err("Invalid hex bytes. Provide an even-length hex string (optional 0x prefix).")
+			}
+		},
+		"str" | "String" => Ok(()),
+		_ => Ok(()), // For complex types, skip validation
+	}
+}
+
+fn validate_type(value: &str, type_name: &str, is_optional: bool) -> Result<(), &'static str> {
+	// Empty is valid for Optional types
+	if is_optional && value.trim().is_empty() {
+		return Ok(());
+	}
+
+	// Extract base type for Option<T>
+	let base_type = if is_optional {
+		type_name
+			.strip_prefix("Option<")
+			.and_then(|s| s.strip_suffix('>'))
+			.unwrap_or(type_name)
+			.split(':')
+			.next()
+			.unwrap_or(type_name)
+	} else {
+		type_name
+	};
+
+	if let Some(caps) = FIXED_U8_ARRAY.captures(base_type) {
+		validate_fixed_u8_array(value, &caps)
+	} else {
+		validate_basic_type(value, base_type)
+	}
+}
+
 /// Resolves function arguments by reusing provided values and prompting for any missing entries.
 ///
 /// # Arguments
@@ -134,12 +219,15 @@ pub fn resolve_function_args(
 		if skip_confirm {
 			anyhow::bail!("When skipping confirmation, all arguments must be provided.")
 		}
+		let is_optional = arg.type_name.starts_with("Option<");
+		let type_name = arg.type_name.clone();
 		let mut input = cli
 			.input(format!("Enter the value for the parameter: {}", arg.label))
-			.placeholder(&format!("Type required: {}", arg.type_name));
+			.placeholder(&format!("Type required: {}", arg.type_name))
+			.validate(move |value: &String| validate_type(value, &type_name, is_optional));
 
 		// Set default input only if the parameter type is `Option` (Not mandatory)
-		if arg.type_name.starts_with("Option<") {
+		if is_optional {
 			input = input.default_input("");
 		}
 		args.push(input.interact()?);
@@ -239,6 +327,179 @@ mod tests {
 	use pop_contracts::{Param, is_chain_alive, run_eth_rpc_node, run_ink_node};
 	use std::fs::{self, File};
 	use url::Url;
+
+	#[test]
+	fn validate_type_optional_empty_is_ok() {
+		// Empty (or whitespace) is valid for Option<T>
+		assert!(validate_type("", "Option<u32>", true).is_ok());
+		assert!(validate_type("   ", "Option<bool>", true).is_ok());
+	}
+
+	#[test]
+	fn validate_type_bool_parsing() {
+		// Valid booleans
+		assert!(validate_type("true", "bool", false).is_ok());
+		assert!(validate_type("false", "bool", false).is_ok());
+		// Invalid boolean (case sensitive)
+		let err = validate_type("TRUE", "bool", false).unwrap_err();
+		assert_eq!(err, "Invalid boolean. Use 'true' or 'false'.");
+	}
+
+	#[test]
+	fn validate_type_unsigned_integers() {
+		// All unsigned map to u128 parsing internally
+		assert!(validate_type("0", "u8", false).is_ok());
+		assert!(validate_type("255", "u8", false).is_ok());
+		assert!(validate_type("42", "u32", false).is_ok());
+		// Invalid values
+		let err = validate_type("-1", "u32", false).unwrap_err();
+		assert_eq!(err, "Invalid unsigned integer.");
+		let err = validate_type("abc", "u128", false).unwrap_err();
+		assert_eq!(err, "Invalid unsigned integer.");
+	}
+
+	#[test]
+	fn validate_type_signed_integers() {
+		assert!(validate_type("0", "i32", false).is_ok());
+		assert!(validate_type("-42", "i64", false).is_ok());
+		let err = validate_type("not-a-number", "i128", false).unwrap_err();
+		assert_eq!(err, "Invalid signed integer.");
+	}
+
+	#[test]
+	fn validate_type_string_types_are_ok() {
+		assert!(validate_type("hello", "str", false).is_ok());
+		assert!(validate_type("hello", "String", false).is_ok());
+		// Optional string: empty is allowed, non-empty is also allowed
+		assert!(validate_type("", "Option<str>", true).is_ok());
+		assert!(validate_type("world", "Option<String>", true).is_ok());
+	}
+
+	#[test]
+	fn validate_type_unknown_types_are_accepted() {
+		// Unknown/complex types are skipped by validation and accepted
+		assert!(validate_type("{complex}", "MyCrate::module::Type", false).is_ok());
+	}
+
+	#[test]
+	fn validate_type_vec_u8_and_slice_hex_ok() {
+		// Accept both with and without 0x, case-insensitive, any even length (including zero)
+		for ty in ["Vec<u8>", "[u8]"] {
+			assert!(validate_type("", ty, false).is_ok());
+			assert!(validate_type("0x", ty, false).is_ok());
+			assert!(validate_type("00", ty, false).is_ok());
+			assert!(validate_type("0x00", ty, false).is_ok());
+			assert!(validate_type("00ff", ty, false).is_ok());
+			assert!(validate_type("ABcd", ty, false).is_ok());
+			assert!(validate_type("0xdeadBEEF", ty, false).is_ok());
+		}
+	}
+
+	#[test]
+	fn validate_type_vec_u8_and_slice_hex_invalid() {
+		for ty in ["Vec<u8>", "[u8]"] {
+			let err = validate_type("0x0", ty, false).unwrap_err();
+			assert_eq!(
+				err,
+				"Invalid hex bytes. Provide an even-length hex string (optional 0x prefix)."
+			);
+			let err = validate_type("abc", ty, false).unwrap_err(); // odd length
+			assert_eq!(
+				err,
+				"Invalid hex bytes. Provide an even-length hex string (optional 0x prefix)."
+			);
+			let err = validate_type("0xz1", ty, false).unwrap_err(); // non-hex char
+			assert_eq!(
+				err,
+				"Invalid hex bytes. Provide an even-length hex string (optional 0x prefix)."
+			);
+			let err = validate_type("gh", ty, false).unwrap_err(); // non-hex chars
+			assert_eq!(
+				err,
+				"Invalid hex bytes. Provide an even-length hex string (optional 0x prefix)."
+			);
+		}
+	}
+
+	#[test]
+	fn validate_type_option_vec_u8_empty_and_non_empty() {
+		// Empty is accepted for Option<Vec<u8>>
+		assert!(validate_type("", "Option<Vec<u8>>", true).is_ok());
+		// Non-empty must be valid hex
+		assert!(validate_type("0x00ff", "Option<Vec<u8>>", true).is_ok());
+		let err = validate_type("zz", "Option<Vec<u8>>", true).unwrap_err();
+		assert_eq!(
+			err,
+			"Invalid hex bytes. Provide an even-length hex string (optional 0x prefix)."
+		);
+	}
+
+	#[test]
+	fn validate_type_fixed_u8_array_ok() {
+		// [u8;20] => 20 bytes => 40 hex chars
+		assert!(validate_type(&"00".repeat(20), "[u8;20]", false).is_ok());
+		assert!(validate_type(&format!("0x{}", "ab".repeat(20)), "[u8;20]", false).is_ok());
+		// [u8;32] => 64 hex chars
+		assert!(validate_type(&"ff".repeat(32), "[u8;32]", false).is_ok());
+		assert!(validate_type(&format!("0x{}", "DE".repeat(32)), "[u8;32]", false).is_ok());
+		// [u8;64] => 128 hex chars
+		assert!(validate_type(&"01".repeat(64), "[u8;64]", false).is_ok());
+		assert!(validate_type(&format!("0x{}", "Cd".repeat(64)), "[u8;64]", false).is_ok());
+	}
+
+	#[test]
+	fn validate_type_fixed_u8_array_invalid_length() {
+		// Too short
+		let err = validate_type("00", "[u8;20]", false).unwrap_err();
+		assert_eq!(
+			err,
+			"Invalid hex bytes length. Expected N bytes (2*N hex chars, optional 0x prefix)."
+		);
+		// Too long
+		let err = validate_type(&"00".repeat(21), "[u8;20]", false).unwrap_err();
+		assert_eq!(
+			err,
+			"Invalid hex bytes length. Expected N bytes (2*N hex chars, optional 0x prefix)."
+		);
+	}
+
+	#[test]
+	fn validate_type_fixed_u8_array_invalid_hex() {
+		// Odd length after 0x
+		let err = validate_type("0x0", "[u8;20]", false).unwrap_err();
+		assert_eq!(
+			err,
+			"Invalid hex bytes. Provide an even-length hex string (optional 0x prefix)."
+		);
+		// Non-hex characters
+		let err = validate_type("zz", "[u8;20]", false).unwrap_err();
+		assert_eq!(
+			err,
+			"Invalid hex bytes. Provide an even-length hex string (optional 0x prefix)."
+		);
+	}
+
+	#[test]
+	fn validate_type_option_fixed_u8_array() {
+		// Empty accepted for Option<[u8;N]>
+		assert!(validate_type("", "Option<[u8;20]>", true).is_ok());
+		// Correct length hex
+		assert!(validate_type(&"aa".repeat(20), "Option<[u8;20]>", true).is_ok());
+		// Wrong length
+		let err = validate_type(&"aa".repeat(19), "Option<[u8;20]>", true).unwrap_err();
+		assert_eq!(
+			err,
+			"Invalid hex bytes length. Expected N bytes (2*N hex chars, optional 0x prefix)."
+		);
+	}
+
+	#[test]
+	fn validate_type_option_numeric_non_empty_validated() {
+		// When Option<T> has a non-empty value, it should validate against base type
+		assert!(validate_type("5", "Option<u32>", true).is_ok());
+		let err = validate_type("oops", "Option<u64>", true).unwrap_err();
+		assert_eq!(err, "Invalid unsigned integer.");
+	}
 
 	#[test]
 	fn has_contract_been_built_works() -> anyhow::Result<()> {

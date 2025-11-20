@@ -13,6 +13,7 @@ anyhow.workspace = true
 assert_cmd = { workspace = true, optional = true }
 bytes.workspace = true
 cargo_toml.workspace = true
+clap.workspace = true
 contract-build.workspace = true
 contract-extrinsics.workspace = true
 duct.workspace = true

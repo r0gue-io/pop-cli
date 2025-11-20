@@ -7,11 +7,10 @@
 use anyhow::Result;
 use pop_common::{DefaultConfig, Keypair, parse_h160_account, test_env::TestNode};
 use pop_contracts::{
-	AccountMapper, Bytes, CallOpts, DefaultEnvironment, Error, UpOpts, call_smart_contract,
-	dry_run_call, dry_run_gas_estimate_call, dry_run_gas_estimate_instantiate, dry_run_upload,
-	get_contract_code, get_upload_payload, instantiate_smart_contract, is_chain_alive,
-	mock_build_process, new_environment, set_up_call, set_up_deployment, set_up_upload,
-	upload_smart_contract,
+	AccountMapper, CallOpts, DefaultEnvironment, Error, UpOpts, call_smart_contract, dry_run_call,
+	dry_run_gas_estimate_call, dry_run_gas_estimate_instantiate, dry_run_upload, get_contract_code,
+	get_upload_payload, instantiate_smart_contract, is_chain_alive, mock_build_process,
+	new_environment, set_up_call, set_up_deployment, set_up_upload, upload_smart_contract,
 };
 use sp_core::bytes::from_hex;
 use std::{env, path::PathBuf};
@@ -99,7 +98,7 @@ async fn set_up_deployment_works(temp_dir: &TempDir, localhost_url: &str) -> Res
 		value: "1000".to_string(),
 		gas_limit: None,
 		proof_size: None,
-		salt: None,
+
 		url: Url::parse(localhost_url)?,
 		suri: "//Alice".to_string(),
 	};
@@ -115,7 +114,7 @@ async fn set_up_upload_works(temp_dir: &TempDir, localhost_url: &str) -> Result<
 		value: "1000".to_string(),
 		gas_limit: None,
 		proof_size: None,
-		salt: None,
+
 		url: Url::parse(localhost_url)?,
 		suri: "//Alice".to_string(),
 	};
@@ -131,7 +130,7 @@ async fn get_payload_works(temp_dir: &TempDir, localhost_url: &str) -> Result<()
 		value: "1000".to_string(),
 		gas_limit: None,
 		proof_size: None,
-		salt: None,
+
 		url: Url::parse(localhost_url)?,
 		suri: "//Alice".to_string(),
 	};
@@ -165,7 +164,7 @@ async fn dry_run_gas_estimate_instantiate_works(
 		value: "0".to_string(),
 		gas_limit: None,
 		proof_size: None,
-		salt: None,
+
 		url: Url::parse(localhost_url)?,
 		suri: "//Alice".to_string(),
 	};
@@ -187,7 +186,7 @@ async fn dry_run_gas_estimate_instantiate_throw_custom_error(
 		value: "10000".to_string(),
 		gas_limit: None,
 		proof_size: None,
-		salt: None,
+
 		url: Url::parse(localhost_url)?,
 		suri: "//Alice".to_string(),
 	};
@@ -207,7 +206,7 @@ async fn dry_run_upload_throw_custom_error(temp_dir: &TempDir, localhost_url: &s
 		value: "1000".to_string(),
 		gas_limit: None,
 		proof_size: None,
-		salt: None,
+
 		url: Url::parse(localhost_url)?,
 		suri: "//Alice".to_string(),
 	};
@@ -226,7 +225,7 @@ async fn instantiate_and_upload(temp_dir: &TempDir, localhost_url: &str) -> Resu
 		value: "1000".to_string(),
 		gas_limit: None,
 		proof_size: None,
-		salt: None,
+
 		url: Url::parse(localhost_url)?,
 		suri: "//Alice".to_string(),
 	})
@@ -244,7 +243,6 @@ async fn instantiate_and_upload(temp_dir: &TempDir, localhost_url: &str) -> Resu
 		value: "0".to_string(),
 		gas_limit: None,
 		proof_size: None,
-		salt: Some(Bytes::from(vec![0x00])),
 		url: Url::parse(localhost_url)?,
 		suri: "//Alice".to_string(),
 	})
