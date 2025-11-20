@@ -1331,13 +1331,15 @@ pub(super) mod tests {
 			"https://github.com/paseo-network/runtimes/releases/download/v2.0.1/paseo-local.json";
 		let contents: Vec<_> = vec![ArchiveFileSpec::new(
 			"paseo-local.json".into(),
-			Some(temp_dir.path().join("paseo-local.json")),
+			Some(temp_dir.path().join("paseo-local")),
 			true,
 		)];
 
 		from_archive(url, &contents, &Output, ArchiveType::File).await?;
 		for ArchiveFileSpec { target, .. } in contents {
-			let target_path = target.unwrap();
+			let mut target_path = target.unwrap();
+			// The extension is appended to the target path
+			target_path.set_extension("json");
 			assert!(target_path.exists());
 			// Files should not have executable permissions
 			assert_eq!(metadata(&target_path)?.permissions().mode() & 0o111, 0);
@@ -1387,7 +1389,7 @@ pub mod traits {
 
 		/// The source of a binary.
 		pub trait Source {
-            /// An error ocurred on these trait calls.
+			/// An error ocurred on these trait calls.
 			type Error;
 
 			/// The name of the binary.

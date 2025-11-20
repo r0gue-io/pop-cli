@@ -215,26 +215,26 @@ mod tests {
 			None,
 			Some(runtime_version),
 			RELAY_BINARY_VERSION,
-			Some("asset-hub-paseo-local"),
+			Some("asset-hub-polkadot-local"),
 			temp_dir.path(),
 		)
 		.await?
 		.unwrap();
 		assert_eq!(parachain.id, para_id);
-		assert_eq!(parachain.chain.unwrap(), "asset-hub-paseo-local");
+		assert_eq!(parachain.chain.unwrap(), "asset-hub-polkadot-local");
 		let chain_spec_generator = parachain.chain_spec_generator.unwrap();
 		assert!(
 			matches!(chain_spec_generator, SourcedArchive::Source { name, source, cache, archive_type }
-				if name == "paseo-chain-spec-generator" && source == Source::GitHub(ReleaseArchive {
+				if name == "polkadot-chain-spec-generator" && source == Source::GitHub(ReleaseArchive {
 						owner: "r0gue-io".to_string(),
-						repository: "paseo-runtimes".to_string(),
+						repository: "polkadot-runtimes".to_string(),
 						tag: Some(runtime_version.to_string()),
 						tag_pattern: None,
 						prerelease: false,
 						version_comparator: sort_by_latest_semantic_version,
 						fallback: "v1.4.1".into(),
 						archive: format!("chain-spec-generator-{}.tar.gz", target()?),
-						contents: [ArchiveFileSpec::new("chain-spec-generator".into(), Some("paseo-chain-spec-generator".into()), true)].to_vec(),
+						contents: [ArchiveFileSpec::new("chain-spec-generator".into(), Some("polkadot-chain-spec-generator".into()), true)].to_vec(),
 						latest: chain_spec_generator.latest().map(|l| l.to_string()),
 					}).into() && cache == temp_dir.path() && archive_type == ArchiveType::Binary
 			)

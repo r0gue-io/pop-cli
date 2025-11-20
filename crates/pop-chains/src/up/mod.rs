@@ -1029,6 +1029,50 @@ chain = "paseo-local"
 				config.as_file(),
 				r#"
 [relaychain]
+chain = "polkadot-local"
+"#
+			)?;
+			let version = "v1.3.3";
+
+			let zombienet = Zombienet::new(
+				&cache,
+				config.path().try_into()?,
+				None,
+				Some(version),
+				None,
+				None,
+				None,
+			)
+			.await?;
+
+			assert_eq!(zombienet.relay_chain.chain, "polkadot-local");
+			let chain_spec_generator = &zombienet.relay_chain.chain_spec_generator.unwrap();
+			assert_eq!(chain_spec_generator.name(), "polkadot-chain-spec-generator");
+			assert_eq!(
+				chain_spec_generator.path(),
+				temp_dir.path().join(format!("polkadot-chain-spec-generator-{version}"))
+			);
+			assert_eq!(chain_spec_generator.version().unwrap(), version);
+			assert!(matches!(
+				chain_spec_generator,
+				SourcedArchive::Source { source, archive_type, .. }
+					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
+						if *tag == Some(version.to_string())
+					) && *archive_type==ArchiveType::Binary
+			));
+			assert!(zombienet.parachains.is_empty());
+			Ok(())
+		}
+
+		#[tokio::test]
+		async fn new_with_relay_chain_spec_file_works() -> Result<()> {
+			let temp_dir = tempdir()?;
+			let cache = PathBuf::from(temp_dir.path());
+			let config = Builder::new().suffix(".toml").tempfile()?;
+			writeln!(
+				config.as_file(),
+				r#"
+[relaychain]
 chain = "paseo-local"
 "#
 			)?;
@@ -1046,19 +1090,19 @@ chain = "paseo-local"
 			.await?;
 
 			assert_eq!(zombienet.relay_chain.chain, "paseo-local");
-			let chain_spec_generator = &zombienet.relay_chain.chain_spec_generator.unwrap();
-			assert_eq!(chain_spec_generator.name(), "paseo-chain-spec-generator");
+			let chain_spec_file = &zombienet.relay_chain.chain_spec_file.unwrap();
+			assert_eq!(chain_spec_file.name(), "paseo-local.json");
 			assert_eq!(
-				chain_spec_generator.path(),
-				temp_dir.path().join(format!("paseo-chain-spec-generator-{version}"))
+				chain_spec_file.path(),
+				temp_dir.path().join(format!("paseo-local-{}.json", version))
 			);
-			assert_eq!(chain_spec_generator.version().unwrap(), version);
+			assert_eq!(chain_spec_file.version().unwrap(), version);
 			assert!(matches!(
-				chain_spec_generator,
+				chain_spec_file,
 				SourcedArchive::Source { source, archive_type, .. }
 					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
 						if *tag == Some(version.to_string())
-					) && *archive_type==ArchiveType::Binary
+					) && *archive_type==ArchiveType::File
 			));
 			assert!(zombienet.parachains.is_empty());
 			Ok(())
@@ -1330,6 +1374,56 @@ chain = "asset-hub-paseo-local"
 				config.as_file(),
 				r#"
 [relaychain]
+chain = "polkadot-local"
+
+[[parachains]]
+id = 1000
+chain = "asset-hub-polkadot-local"
+"#
+			)?;
+
+			let zombienet = Zombienet::new(
+				&cache,
+				config.path().try_into()?,
+				None,
+				None,
+				None,
+				Some(SYSTEM_PARA_RUNTIME_VERSION),
+				None,
+			)
+			.await?;
+
+			assert_eq!(zombienet.parachains.len(), 1);
+			let system_parachain = &zombienet.parachains.get(&1000).unwrap();
+			assert_eq!(system_parachain.chain.as_ref().unwrap(), "asset-hub-polkadot-local");
+			let chain_spec_generator = system_parachain.chain_spec_generator.as_ref().unwrap();
+			assert_eq!(chain_spec_generator.name(), "polkadot-chain-spec-generator");
+			assert_eq!(
+				chain_spec_generator.path(),
+				temp_dir
+					.path()
+					.join(format!("polkadot-chain-spec-generator-{SYSTEM_PARA_RUNTIME_VERSION}"))
+			);
+			assert_eq!(chain_spec_generator.version().unwrap(), SYSTEM_PARA_RUNTIME_VERSION);
+			assert!(matches!(
+				chain_spec_generator,
+				SourcedArchive::Source { source, archive_type, .. }
+					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
+						if *tag == Some(SYSTEM_PARA_RUNTIME_VERSION.to_string())
+					) && *archive_type==ArchiveType::Binary
+			));
+			Ok(())
+		}
+
+		#[tokio::test]
+		async fn new_with_system_chain_spec_file_works() -> Result<()> {
+			let temp_dir = tempdir()?;
+			let cache = PathBuf::from(temp_dir.path());
+			let config = Builder::new().suffix(".toml").tempfile()?;
+			writeln!(
+				config.as_file(),
+				r#"
+[relaychain]
 chain = "paseo-local"
 
 [[parachains]]
@@ -1352,21 +1446,21 @@ chain = "asset-hub-paseo-local"
 			assert_eq!(zombienet.parachains.len(), 1);
 			let system_parachain = &zombienet.parachains.get(&1000).unwrap();
 			assert_eq!(system_parachain.chain.as_ref().unwrap(), "asset-hub-paseo-local");
-			let chain_spec_generator = system_parachain.chain_spec_generator.as_ref().unwrap();
-			assert_eq!(chain_spec_generator.name(), "paseo-chain-spec-generator");
+			let chain_spec_file = system_parachain.chain_spec_file.as_ref().unwrap();
+			assert_eq!(chain_spec_file.name(), "asset-hub-paseo-local.json");
 			assert_eq!(
-				chain_spec_generator.path(),
+				chain_spec_file.path(),
 				temp_dir
 					.path()
-					.join(format!("paseo-chain-spec-generator-{SYSTEM_PARA_RUNTIME_VERSION}"))
+					.join(format!("asset-hub-paseo-local-{SYSTEM_PARA_RUNTIME_VERSION}.json"))
 			);
-			assert_eq!(chain_spec_generator.version().unwrap(), SYSTEM_PARA_RUNTIME_VERSION);
+			assert_eq!(chain_spec_file.version().unwrap(), SYSTEM_PARA_RUNTIME_VERSION);
 			assert!(matches!(
-				chain_spec_generator,
-				SourcedArchive::Source { source, .. }
+				chain_spec_file,
+				SourcedArchive::Source { source, archive_type, .. }
 					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
 						if *tag == Some(SYSTEM_PARA_RUNTIME_VERSION.to_string())
-					)
+					) && *archive_type==ArchiveType::File
 			));
 			Ok(())
 		}

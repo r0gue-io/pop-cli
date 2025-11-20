@@ -170,23 +170,49 @@ mod tests {
 	async fn default_with_chain_spec_generator_works() -> anyhow::Result<()> {
 		let runtime_version = "v1.3.3";
 		let temp_dir = tempdir()?;
-		let relay = default(None, Some(runtime_version), "paseo-local", temp_dir.path()).await?;
-		assert_eq!(relay.chain, "paseo-local");
+		let relay = default(None, Some(runtime_version), "polkadot-local", temp_dir.path()).await?;
+		assert_eq!(relay.chain, "polkadot-local");
 		let chain_spec_generator = relay.chain_spec_generator.unwrap();
 		assert!(
 			matches!(chain_spec_generator, SourcedArchive::Source { name, source, cache, archive_type }
-				if name == "paseo-chain-spec-generator" && source == Source::GitHub(ReleaseArchive {
+				if name == "polkadot-chain-spec-generator" && source == Source::GitHub(ReleaseArchive {
 						owner: "r0gue-io".to_string(),
-						repository: "paseo-runtimes".to_string(),
+						repository: "polkadot-runtimes".to_string(),
 						tag: Some(runtime_version.to_string()),
 						tag_pattern: None,
 						prerelease: false,
 						version_comparator: sort_by_latest_semantic_version,
 						fallback: "v1.4.1".into(),
 						archive: format!("chain-spec-generator-{}.tar.gz", target()?),
-						contents: [ArchiveFileSpec::new("chain-spec-generator".into(), Some("paseo-chain-spec-generator".into()), true)].to_vec(),
+						contents: [ArchiveFileSpec::new("chain-spec-generator".into(), Some("polkadot-chain-spec-generator".into()), true)].to_vec(),
 						latest: chain_spec_generator.latest().map(|l| l.to_string()),
 					}).into() && cache == temp_dir.path() && archive_type==ArchiveType::Binary
+			)
+		);
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn default_with_chain_spec_file_works() -> anyhow::Result<()> {
+		let runtime_version = "v1.3.3";
+		let temp_dir = tempdir()?;
+		let relay = default(None, Some(runtime_version), "paseo-local", temp_dir.path()).await?;
+		assert_eq!(relay.chain, "paseo-local");
+		let chain_spec_file = relay.chain_spec_file.unwrap();
+		assert!(
+			matches!(chain_spec_file, SourcedArchive::Source { name, source, cache, archive_type }
+				if name == "paseo-local.json" && source == Source::GitHub(ReleaseArchive {
+						owner: "paseo-network".to_string(),
+						repository: "runtimes".to_string(),
+						tag: Some(runtime_version.to_string()),
+						tag_pattern: None,
+						prerelease: false,
+						version_comparator: sort_by_latest_semantic_version,
+						fallback: "v2.0.1".into(),
+						archive: format!("paseo-local.json"),
+						contents: [ArchiveFileSpec::new("paseo-local.json".into(), Some("paseo-local".into()), true)].to_vec(),
+						latest: chain_spec_file.latest().map(|l| l.to_string()),
+					}).into() && cache == temp_dir.path() && archive_type==ArchiveType::File
 			)
 		);
 		Ok(())
