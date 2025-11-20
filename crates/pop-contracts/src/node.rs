@@ -266,7 +266,7 @@ mod tests {
 			let binary = ink_node_generator(cache.clone(), Some(version)).await?;
 
 			assert!(matches!(binary, SourcedArchive::Source { name, source, cache, archive_type}
-				if name == expected.binary() &&
+				if name == expected.binary().unwrap() &&
 					*source == Source::GitHub(ReleaseArchive {
 						owner: owner.to_string(),
 						repository: BIN_NAME.to_string(),

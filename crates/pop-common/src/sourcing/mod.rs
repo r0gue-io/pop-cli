@@ -1473,7 +1473,7 @@ pub mod traits {
 
 		#[test]
 		fn binary_works() {
-			assert_eq!("polkadot", Chain::Polkadot.binary())
+			assert_eq!("polkadot", Chain::Polkadot.binary().unwrap())
 		}
 
 		#[test]

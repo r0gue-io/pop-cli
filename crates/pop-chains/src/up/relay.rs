@@ -102,13 +102,7 @@ pub(super) async fn from(
 ) -> Result<super::RelayChain, Error> {
 	if let Some(relay) = RelayChain::VARIANTS.iter().find(|r| {
 		let binary = r.binary();
-		if binary.is_ok() {
-			command
-				.to_lowercase()
-				.ends_with(binary.expect("The assertion guarantees it's Ok; qed;"))
-		} else {
-			false
-		}
+		if let Ok(binary) = binary { command.to_lowercase().ends_with(binary) } else { false }
 	}) {
 		let name = relay.binary()?.to_string();
 		let source = relay
@@ -154,7 +148,7 @@ mod tests {
 			default(Some(RELAY_BINARY_VERSION), None, "paseo-local", temp_dir.path()).await?;
 		assert!(
 			matches!(relay.binary, SourcedArchive::Source { name, source, cache, archive_type }
-				if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
+				if name == expected.binary().unwrap() && source == Source::GitHub(ReleaseArchive {
 						owner: "r0gue-io".to_string(),
 						repository: "polkadot".to_string(),
 						tag: Some(format!("polkadot-{RELAY_BINARY_VERSION}")),
@@ -220,7 +214,7 @@ mod tests {
 		)
 		.await?;
 		assert!(matches!(relay.binary, SourcedArchive::Source { name, source, cache, archive_type}
-			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
+			if name == expected.binary().unwrap() && source == Source::GitHub(ReleaseArchive {
 					owner: "r0gue-io".to_string(),
 					repository: "polkadot".to_string(),
 					tag: Some(format!("polkadot-{RELAY_BINARY_VERSION}")),

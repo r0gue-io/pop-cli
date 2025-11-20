@@ -146,20 +146,22 @@ mod tests {
 		.await?
 		.unwrap();
 		assert_eq!(para_id, parachain.id);
-		assert!(matches!(parachain.binary, Binary::Source { name, source, cache }
-			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
-					owner: "r0gue-io".to_string(),
-					repository: "polkadot".to_string(),
-					tag: Some(format!("polkadot-{RELAY_BINARY_VERSION}")),
-					tag_pattern: Some("polkadot-{version}".into()),
-					prerelease: false,
-					version_comparator: sort_by_latest_stable_version,
-					fallback: FALLBACK.into(),
-					archive: format!("{name}-{}.tar.gz", target()?),
-					contents: vec![ArchiveFileSpec::new(expected.binary().into(), None, true)],
-					latest: parachain.binary.latest().map(|l| l.to_string()),
-				}).into() && cache == temp_dir.path()
-		));
+		assert!(
+			matches!(parachain.binary, SourcedArchive::Source { name, source, cache, archive_type }
+				if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
+						owner: "r0gue-io".to_string(),
+						repository: "polkadot".to_string(),
+						tag: Some(format!("polkadot-{RELAY_BINARY_VERSION}")),
+						tag_pattern: Some("polkadot-{version}".into()),
+						prerelease: false,
+						version_comparator: sort_by_latest_stable_version,
+						fallback: FALLBACK.into(),
+						archive: format!("{name}-{}.tar.gz", target()?),
+						contents: vec![ArchiveFileSpec::new(expected.binary().into(), None, true)],
+						latest: parachain.binary.latest().map(|l| l.to_string()),
+					}).into() && cache == temp_dir.path() && archive_type == ArchiveType::Binary
+			)
+		);
 		Ok(())
 	}
 
@@ -181,20 +183,22 @@ mod tests {
 		.await?
 		.unwrap();
 		assert_eq!(para_id, parachain.id);
-		assert!(matches!(parachain.binary, Binary::Source { name, source, cache }
-			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
-					owner: "r0gue-io".to_string(),
-					repository: "polkadot".to_string(),
-					tag: Some(format!("polkadot-{SYSTEM_PARA_BINARY_VERSION}")),
-					tag_pattern: Some("polkadot-{version}".into()),
-					prerelease: false,
-					version_comparator: sort_by_latest_stable_version,
-					fallback: FALLBACK.into(),
-					archive: format!("{name}-{}.tar.gz", target()?),
-					contents: vec![ArchiveFileSpec::new(expected.binary().into(), None, true)],
-					latest: parachain.binary.latest().map(|l| l.to_string()),
-				}).into() && cache == temp_dir.path()
-		));
+		assert!(
+			matches!(parachain.binary, SourcedArchive::Source { name, source, cache, archive_type }
+				if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
+						owner: "r0gue-io".to_string(),
+						repository: "polkadot".to_string(),
+						tag: Some(format!("polkadot-{SYSTEM_PARA_BINARY_VERSION}")),
+						tag_pattern: Some("polkadot-{version}".into()),
+						prerelease: false,
+						version_comparator: sort_by_latest_stable_version,
+						fallback: FALLBACK.into(),
+						archive: format!("{name}-{}.tar.gz", target()?),
+						contents: vec![ArchiveFileSpec::new(expected.binary().into(), None, true)],
+						latest: parachain.binary.latest().map(|l| l.to_string()),
+					}).into() && cache == temp_dir.path() && archive_type == ArchiveType::Binary
+			)
+		);
 		Ok(())
 	}
 
@@ -219,20 +223,76 @@ mod tests {
 		assert_eq!(parachain.id, para_id);
 		assert_eq!(parachain.chain.unwrap(), "asset-hub-paseo-local");
 		let chain_spec_generator = parachain.chain_spec_generator.unwrap();
-		assert!(matches!(chain_spec_generator, Binary::Source { name, source, cache }
-			if name == "paseo-chain-spec-generator" && source == Source::GitHub(ReleaseArchive {
-					owner: "r0gue-io".to_string(),
-					repository: "paseo-runtimes".to_string(),
-					tag: Some(runtime_version.to_string()),
-					tag_pattern: None,
-					prerelease: false,
-					version_comparator: sort_by_latest_semantic_version,
-					fallback: "v1.4.1".into(),
-					archive: format!("chain-spec-generator-{}.tar.gz", target()?),
-					contents: [ArchiveFileSpec::new("chain-spec-generator".into(), Some("paseo-chain-spec-generator".into()), true)].to_vec(),
-					latest: chain_spec_generator.latest().map(|l| l.to_string()),
-				}).into() && cache == temp_dir.path()
-		));
+		assert!(
+			matches!(chain_spec_generator, SourcedArchive::Source { name, source, cache, archive_type }
+				if name == "paseo-chain-spec-generator" && source == Source::GitHub(ReleaseArchive {
+						owner: "r0gue-io".to_string(),
+						repository: "paseo-runtimes".to_string(),
+						tag: Some(runtime_version.to_string()),
+						tag_pattern: None,
+						prerelease: false,
+						version_comparator: sort_by_latest_semantic_version,
+						fallback: "v1.4.1".into(),
+						archive: format!("chain-spec-generator-{}.tar.gz", target()?),
+						contents: [ArchiveFileSpec::new("chain-spec-generator".into(), Some("paseo-chain-spec-generator".into()), true)].to_vec(),
+						latest: chain_spec_generator.latest().map(|l| l.to_string()),
+					}).into() && cache == temp_dir.path() && archive_type == ArchiveType::Binary
+			)
+		);
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn system_with_chain_spec_file_works() -> anyhow::Result<()> {
+		let expected = System;
+		let runtime_version = "v2.0.1";
+		let para_id = 1000;
+
+		let temp_dir = tempdir()?;
+		let parachain = system(
+			para_id,
+			expected.binary(),
+			None,
+			Some(runtime_version),
+			RELAY_BINARY_VERSION,
+			Some("asset-hub-paseo-local"),
+			temp_dir.path(),
+		)
+		.await?
+		.unwrap();
+		assert_eq!(parachain.id, para_id);
+		assert_eq!(parachain.chain.unwrap(), "asset-hub-paseo-local");
+		let chain_spec_file = parachain.chain_spec_file.unwrap();
+		assert!(
+			matches!(chain_spec_file, SourcedArchive::Source { name, source, cache, archive_type }
+				if name == "asset-hub-paseo-local.json" &&
+					archive_type == ArchiveType::File &&
+					matches!(*source, Source::GitHub(ReleaseArchive {
+						ref owner,
+						ref repository,
+						ref tag,
+						ref tag_pattern,
+						prerelease,
+						ref fallback,
+						ref archive,
+						ref contents,
+						..
+					}) if owner == "paseo-network" &&
+						repository == "runtimes" &&
+						tag == &Some(runtime_version.to_string()) &&
+						tag_pattern.is_none() &&
+						!prerelease &&
+						fallback == "v2.0.1" &&
+						archive == "asset-hub-paseo-local.json" &&
+						contents == &vec![ArchiveFileSpec::new(
+							"asset-hub-paseo-local.json".to_string(),
+							Some("asset-hub-paseo-local".into()),
+							true
+						)]
+					) &&
+					cache == temp_dir.path()
+			)
+		);
 		Ok(())
 	}
 
@@ -248,20 +308,22 @@ mod tests {
 				.await?
 				.unwrap();
 		assert_eq!(para_id, parachain.id);
-		assert!(matches!(parachain.binary, Binary::Source { name, source, cache }
-			if name == expected && source == Source::GitHub(ReleaseArchive {
-					owner: "r0gue-io".to_string(),
-					repository: "pop-node".to_string(),
-					tag: Some(format!("node-{version}")),
-					tag_pattern: Some("node-{version}".into()),
-					prerelease: false,
-					version_comparator: sort_by_latest_semantic_version,
-					fallback: "v0.3.0".into(),
-					archive: format!("{name}-{}.tar.gz", target()?),
-					contents: vec![ArchiveFileSpec::new(expected.into(), None, true)],
-					latest: parachain.binary.latest().map(|l| l.to_string()),
-				}).into() && cache == temp_dir.path()
-		));
+		assert!(
+			matches!(parachain.binary, SourcedArchive::Source { name, source, cache, archive_type }
+				if name == expected && source == Source::GitHub(ReleaseArchive {
+						owner: "r0gue-io".to_string(),
+						repository: "pop-node".to_string(),
+						tag: Some(format!("node-{version}")),
+						tag_pattern: Some("node-{version}".into()),
+						prerelease: false,
+						version_comparator: sort_by_latest_semantic_version,
+						fallback: "v0.3.0".into(),
+						archive: format!("{name}-{}.tar.gz", target()?),
+						contents: vec![ArchiveFileSpec::new(expected.into(), None, true)],
+						latest: parachain.binary.latest().map(|l| l.to_string()),
+					}).into() && cache == temp_dir.path() && archive_type == ArchiveType::Binary
+			)
+		);
 		Ok(())
 	}
 

@@ -351,6 +351,7 @@ mod tests {
 		assert_eq!(binary.version(), None);
 		binary.use_latest();
 		assert_eq!(binary.version(), None);
+		assert_eq!(binary.archive_type(), ArchiveType::Binary);
 		Ok(())
 	}
 
@@ -390,6 +391,7 @@ mod tests {
 			assert_eq!(binary.version(), reference.as_deref());
 			binary.use_latest();
 			assert_eq!(binary.version(), reference.as_deref());
+			assert_eq!(binary.archive_type(), ArchiveType::Binary);
 		}
 
 		Ok(())
@@ -446,6 +448,7 @@ mod tests {
 				if latest.is_some() {
 					assert_eq!(binary.version(), latest.as_deref());
 				}
+				assert_eq!(binary.archive_type(), ArchiveType::Binary);
 			}
 		}
 		Ok(())
@@ -487,6 +490,7 @@ mod tests {
 			assert_eq!(binary.version(), reference.as_deref());
 			binary.use_latest();
 			assert_eq!(binary.version(), reference.as_deref());
+			assert_eq!(binary.archive_type(), ArchiveType::Binary);
 		}
 		Ok(())
 	}
@@ -516,6 +520,7 @@ mod tests {
 		assert_eq!(binary.version(), None);
 		binary.use_latest();
 		assert_eq!(binary.version(), None);
+		assert_eq!(binary.archive_type(), ArchiveType::Binary);
 		Ok(())
 	}
 
@@ -552,7 +557,7 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn sourcing_from_url_works() -> Result<()> {
+	async fn sourcing_binary_from_url_works() -> Result<()> {
 		let name = "polkadot";
 		let url =
 			"https://github.com/paritytech/polkadot-sdk/releases/latest/download/polkadot.asc";
