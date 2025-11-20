@@ -66,11 +66,11 @@ impl Command {
 			.init();
 		let mut cli = cli::Cli;
 		match &mut args.command {
-			Command::Block(cmd) => cmd.execute(&mut cli),
-			Command::Machine(cmd) => cmd.execute(&mut cli),
+			Command::Block(cmd) => cmd.execute(&mut cli).await,
+			Command::Machine(cmd) => cmd.execute(&mut cli).await,
 			Command::Overhead(cmd) => cmd.execute(&mut cli).await,
 			Command::Pallet(cmd) => cmd.execute(&mut cli).await,
-			Command::Storage(cmd) => cmd.execute(&mut cli),
+			Command::Storage(cmd) => cmd.execute(&mut cli).await,
 		}
 	}
 }

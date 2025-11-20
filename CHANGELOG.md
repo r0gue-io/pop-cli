@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.1] - 2025-11-15
+
+### 🐛 Fixes
+
+- Call txs feedback after inclusion (#755)
+- Ask to execute deployment of contract in interactive flow (#759)
+
 ## [0.12.0] - 2025-11-14
 
 ### 🚀 Features

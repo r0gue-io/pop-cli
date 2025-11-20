@@ -4,9 +4,13 @@ use crate::cli::traits::{Cli, Select};
 use anyhow::{Context, Result};
 use clap::Args;
 use cliclack::spinner;
+#[cfg(not(test))]
+use pop_common::{GitHub, polkadot_sdk::sort_by_latest_stable_version};
 use serde::Serialize;
 use std::{env, path::PathBuf};
 
+#[cfg(not(test))]
+const POLKADOT_SDK_GIT_SERVER: &str = "https://github.com/paritytech/polkadot-sdk";
 const DEFAULT_GIT_SERVER: &str = "https://raw.githubusercontent.com";
 const CARGO_TOML_FILE: &str = "Cargo.toml";
 
@@ -38,9 +42,11 @@ async fn fetch_polkadot_sdk_versions() -> Result<Vec<String>, anyhow::Error> {
 
 #[cfg(not(test))]
 async fn fetch_polkadot_sdk_versions() -> Result<Vec<String>, anyhow::Error> {
-	psvm::get_polkadot_sdk_versions()
-		.await
-		.map_err(|e| anyhow::anyhow!("Failed to get available Polkadot SDK versions: {}", e))
+	let repo = GitHub::parse(POLKADOT_SDK_GIT_SERVER)?;
+	let mut releases =
+		repo.releases(false).await?.into_iter().map(|r| r.tag_name).collect::<Vec<_>>();
+	sort_by_latest_stable_version(releases.as_mut_slice());
+	Ok(releases)
 }
 
 /// Upgrade command executor.
@@ -71,10 +77,9 @@ impl Command {
 		} else {
 			let spinner = spinner();
 			spinner.start("Fetching available Polkadot SDK versions...");
-			let mut available_versions = fetch_polkadot_sdk_versions().await?;
-			available_versions.sort();
+			let available_versions = fetch_polkadot_sdk_versions().await?;
 			spinner.clear();
-			let mut prompt = cli.select("Select the Polkadot SDK version");
+			let mut prompt = cli.select("Select the Polkadot SDK version (type to filter)");
 			for version in &available_versions {
 				prompt = prompt.item(version, version, "");
 			}
@@ -192,24 +197,24 @@ mod tests {
 		let cargo_path = write_minimal_cargo_toml(tmp.path());
 		let info_msg = format!("Using Cargo.toml file at {}", cargo_path.display());
 
-		// Expected items after sorting
+		// Expected items
 		let items = vec![
-			("polkadot-stable2407-6".to_string(), "".to_string()),
-			("polkadot-stable2407-7".to_string(), "".to_string()),
-			("polkadot-stable2407-8".to_string(), "".to_string()),
-			("polkadot-stable2509".to_string(), "".to_string()),
 			("polkadot-stable2509-1".to_string(), "".to_string()),
+			("polkadot-stable2509".to_string(), "".to_string()),
+			("polkadot-stable2407-8".to_string(), "".to_string()),
+			("polkadot-stable2407-7".to_string(), "".to_string()),
+			("polkadot-stable2407-6".to_string(), "".to_string()),
 		];
 
 		let mut cli = MockCli::new()
 			.expect_intro("Upgrade Polkadot SDK version")
 			.expect_info(info_msg)
 			.expect_select(
-				"Select the Polkadot SDK version",
+				"Select the Polkadot SDK version (type to filter)",
 				None,
 				true,
 				Some(items.clone()),
-				4, // choose the last item after sorting
+				0, // choose the first item
 				Some(true),
 			);
 

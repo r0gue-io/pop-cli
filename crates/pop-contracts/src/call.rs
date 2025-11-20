@@ -151,8 +151,11 @@ pub async fn call_smart_contract(
 		.call(Some(gas_limit), storage_deposit_limit)
 		.await
 		.map_err(|error_variant| Error::CallContractError(format!("{:?}", error_variant)))?;
-	let display_events =
-		DisplayEvents::from_events::<DefaultConfig, DefaultEnvironment>(&events, None, &metadata)?;
+	let display_events = DisplayEvents::from_events::<DefaultConfig, DefaultEnvironment>(
+		&events,
+		Some(call_exec.transcoder()),
+		&metadata,
+	)?;
 
 	let output =
 		display_events.display_events::<DefaultEnvironment>(Verbosity::Default, &token_metadata)?;

@@ -38,11 +38,11 @@ contract-transcode.workspace = true
 scale-info.workspace = true
 
 # pop
-pop-common = { path = "../pop-common", version = "0.12.0" }
+pop-common = { path = "../pop-common", version = "0.12.1" }
 
 [dev-dependencies]
 # Used in doc tests.
 tokio-test.workspace = true
 
 [features]
-integration-tests = []
+integration-tests = ["pop-common/integration-tests"]

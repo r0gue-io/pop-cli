@@ -64,7 +64,6 @@ tokio_test::block_on(async {
             proof_size: None,
             url: Url::parse("ws://localhost:9944").unwrap(),
             suri: "//Alice".to_string(),
-            salt: None,
     };
     let instantiate_exec = set_up_deployment(up_opts).await.unwrap();
 
@@ -95,7 +94,6 @@ tokio_test::block_on(async {
             proof_size: None,
             url: Url::parse("ws://localhost:9944").unwrap(),
             suri: "//Alice".to_string(),
-            salt: None,
     };
     let upload_exec = set_up_upload(up_opts).await.unwrap();
     // to perform only a dry-run

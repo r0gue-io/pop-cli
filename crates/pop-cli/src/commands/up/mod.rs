@@ -154,12 +154,12 @@ mod tests {
 	use super::*;
 	use cli::MockCli;
 	use duct::cmd;
-	use url::Url;
 	#[cfg(feature = "chain")]
 	use {
 		crate::style::format_url,
 		pop_chains::{ChainTemplate, Config, DeploymentProvider, instantiate_template_dir},
 		strum::VariantArray,
+		url::Url,
 	};
 
 	fn create_up_args(project_path: PathBuf) -> anyhow::Result<UpArgs> {
@@ -174,7 +174,6 @@ mod tests {
 				value: "0".to_string(),
 				gas_limit: None,
 				proof_size: None,
-				salt: None,
 				url: None,
 				suri: Some("//Alice".to_string()),
 				use_wallet: false,
