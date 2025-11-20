@@ -121,7 +121,7 @@ fn validate_fixed_u8_array(value: &str, caps: &Captures) -> Result<(), &'static 
 	let len: usize = caps.get(1).unwrap().as_str().parse().unwrap_or(0);
 	if HEX_BYTES.is_match(value) {
 		let hex = value.strip_prefix("0x").unwrap_or(value);
-		if hex.len() % 2 != 0 {
+		if !hex.len().is_multiple_of(2) {
 			return Err(
 				"Invalid hex bytes. Provide an even-length hex string (optional 0x prefix).",
 			);
@@ -151,7 +151,7 @@ fn validate_basic_type(value: &str, base_type: &str) -> Result<(), &'static str>
 			// Validate hex string for bytes
 			if HEX_BYTES.is_match(value) {
 				let hex = value.strip_prefix("0x").unwrap_or(value);
-				if hex.len() % 2 == 0 {
+				if hex.len().is_multiple_of(2) {
 					Ok(())
 				} else {
 					Err(
