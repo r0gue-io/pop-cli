@@ -60,7 +60,7 @@ impl InkNodeCommand {
 	pub(crate) async fn execute(&self, cli: &mut Cli) -> anyhow::Result<()> {
 		cli.intro("Launch a local Ink! node")?;
 		let url = Url::parse(&format!("ws://localhost:{}", self.ink_node_port))?;
-		let ((mut ink_node_process, _), (mut eth_rpc_process, _)) =
+		let ((mut ink_node_process, ink_node_log), (mut eth_rpc_process, eth_rpc_log)) =
 			start_ink_node(&url, self.skip_confirm, self.ink_node_port, self.eth_rpc_port).await?;
 
 		if !self.detach {
@@ -74,6 +74,8 @@ impl InkNodeCommand {
 			cli.plain("\n")?;
 			cli.outro("✅ Ink! node terminated")?;
 		} else {
+			ink_node_log.keep()?;
+			eth_rpc_log.keep()?;
 			cli.outro(format!(
 				"✅ Ink! node bootstrapped successfully. Run `kill -9 {} {}` to terminate it.",
 				ink_node_process.id(),
