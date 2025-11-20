@@ -208,9 +208,7 @@ impl UpContractCommand {
 					.initial_value(true)
 					.interact()?
 				{
-					Cli.info(
-						"The default endpoint is unreachable. Fetching and launching a local ink! node",
-					)?;
+					Cli.info("Fetching and launching a local ink! node")?;
 					Some(
 						start_ink_node(&url, self.skip_confirm, DEFAULT_PORT, DEFAULT_ETH_RPC_PORT)
 							.await?,
@@ -419,6 +417,7 @@ impl UpContractCommand {
 			if !self.skip_confirm {
 				Cli.success(COMPLETE)?;
 				self.keep_interacting_with_node(&mut Cli, contract_address).await?;
+				terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
 			} else {
 				terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
 				Cli.outro(COMPLETE)?;
