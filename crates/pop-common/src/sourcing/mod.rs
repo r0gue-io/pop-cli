@@ -1313,7 +1313,7 @@ pub(super) mod tests {
 	#[tokio::test]
 	async fn from_url_file_works() -> anyhow::Result<()> {
 		let url =
-			"https://github.com/paseo-network/runtimes/releases/download/v2.0.1/paseo-local.json";
+			"https://github.com/paseo-network/runtimes/releases/download/v2.0.2/paseo-local.json";
 		let temp_dir = tempdir()?;
 		let path = temp_dir.path().join("paseo-local.json");
 
@@ -1328,7 +1328,7 @@ pub(super) mod tests {
 	async fn from_archive_file_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 		let url =
-			"https://github.com/paseo-network/runtimes/releases/download/v2.0.1/paseo-local.json";
+			"https://github.com/paseo-network/runtimes/releases/download/v2.0.2/paseo-local.json";
 		let contents: Vec<_> = vec![ArchiveFileSpec::new(
 			"paseo-local.json".into(),
 			Some(temp_dir.path().join("paseo-local")),

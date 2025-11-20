@@ -245,7 +245,7 @@ mod tests {
 	#[tokio::test]
 	async fn system_with_chain_spec_file_works() -> anyhow::Result<()> {
 		let expected = System;
-		let runtime_version = "v2.0.1";
+		let runtime_version = "v2.0.2";
 		let para_id = 1000;
 
 		let temp_dir = tempdir()?;
@@ -282,7 +282,7 @@ mod tests {
 						tag == &Some(runtime_version.to_string()) &&
 						tag_pattern.is_none() &&
 						!prerelease &&
-						fallback == "v2.0.1" &&
+						fallback == "v2.0.2" &&
 						archive == "asset-hub-paseo-local.json" &&
 						contents == &vec![ArchiveFileSpec::new(
 							"asset-hub-paseo-local.json".to_string(),

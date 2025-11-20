@@ -37,7 +37,7 @@ pub enum Runtime {
 		Repository = "https://github.com/paseo-network/runtimes",
 		File = "paseo-local",
 		Chain = "paseo-local",
-		Fallback = "v2.0.1"
+		Fallback = "v2.0.2"
 	))]
 	Paseo = 1,
 	/// Polkadot.
@@ -268,7 +268,7 @@ mod tests {
 	#[tokio::test]
 	async fn paseo_works() -> anyhow::Result<()> {
 		let expected = Runtime::Paseo;
-		let version = "v2.0.1";
+		let version = "v2.0.2";
 		let temp_dir = tempdir()?;
 		let file = chain_spec_file("paseo-local", Some(version), temp_dir.path()).await?.unwrap();
 		assert!(matches!(file, SourcedArchive::Source { name, source, cache, archive_type }
@@ -387,7 +387,7 @@ mod tests {
 	#[tokio::test]
 	async fn chain_spec_file_paseo_relay_works() -> anyhow::Result<()> {
 		let expected = Runtime::Paseo;
-		let version = "v2.0.1";
+		let version = "v2.0.2";
 		let chain = "paseo-local";
 		let temp_dir = tempdir()?;
 
@@ -427,7 +427,7 @@ mod tests {
 	#[tokio::test]
 	async fn chain_spec_file_paseo_parachain_works() -> anyhow::Result<()> {
 		let expected = Runtime::Paseo;
-		let version = "v2.0.1";
+		let version = "v2.0.2";
 		let chain = "asset-hub-paseo-local";
 		let temp_dir = tempdir()?;
 

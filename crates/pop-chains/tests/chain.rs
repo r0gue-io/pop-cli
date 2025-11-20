@@ -43,7 +43,7 @@ async fn launch_paseo() -> Result<()> {
 		&cache,
 		Path::new("../../tests/networks/paseo.toml").try_into()?,
 		Some(BINARY_VERSION),
-		Some("v1.2.4"),
+		Some("v2.0.2"),
 		None,
 		None,
 		None,
@@ -117,7 +117,7 @@ async fn launch_paseo_and_system_parachain() -> Result<()> {
 		Some(BINARY_VERSION),
 		None,
 		Some(BINARY_VERSION),
-		Some("v1.3.3"), // 1.3.3 is where coretime-paseo-local was introduced.
+		Some("v2.0.2"), 
 		None,
 	)
 	.await?;

@@ -580,7 +580,7 @@ mod tests {
 	async fn sourcing_file_from_url_works() -> Result<()> {
 		let name = "paseo-local.json";
 		let url =
-			"https://github.com/paseo-network/runtimes/releases/download/v2.0.1/paseo-local.json";
+			"https://github.com/paseo-network/runtimes/releases/download/v2.0.2/paseo-local.json";
 		let temp_dir = tempdir()?;
 		let path = temp_dir.path().join(name);
 
@@ -602,7 +602,7 @@ mod tests {
 	fn file_archive_path_with_version_works() -> Result<()> {
 		let name = "paseo-local.json";
 		let temp_dir = tempdir()?;
-		let version = "v2.0.1";
+		let version = "v2.0.2";
 
 		// Create a versioned file
 		let expected_path = temp_dir.path().join(format!("paseo-local-{}.json", version));
@@ -617,7 +617,7 @@ mod tests {
 				tag_pattern: None,
 				prerelease: false,
 				version_comparator: crate::polkadot_sdk::sort_by_latest_semantic_version,
-				fallback: "v2.0.1".to_string(),
+				fallback: "v2.0.2".to_string(),
 				archive: format!("{}.json", name),
 				contents: vec![],
 				latest: None,
@@ -769,7 +769,7 @@ mod tests {
 	#[test]
 	fn path_for_file_with_version_and_extension_works() -> Result<()> {
 		let name = "paseo-local.json";
-		let version = "v2.0.1";
+		let version = "v2.0.2";
 		let temp_dir = tempdir()?;
 
 		let file = SourcedArchive::Source {
@@ -781,7 +781,7 @@ mod tests {
 				tag_pattern: None,
 				prerelease: false,
 				version_comparator: crate::polkadot_sdk::sort_by_latest_semantic_version,
-				fallback: "v2.0.1".to_string(),
+				fallback: "v2.0.2".to_string(),
 				archive: "paseo-local.json".to_string(),
 				contents: vec![],
 				latest: None,
@@ -792,7 +792,7 @@ mod tests {
 		};
 
 		// With version and extension, path should be cache/name-version.ext
-		// e.g., paseo-local-v2.0.1.json
+		// e.g., paseo-local-v2.0.2.json
 		assert_eq!(file.path(), temp_dir.path().join(format!("paseo-local-{}.json", version)));
 		Ok(())
 	}

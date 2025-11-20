@@ -208,7 +208,7 @@ mod tests {
 						tag_pattern: None,
 						prerelease: false,
 						version_comparator: sort_by_latest_semantic_version,
-						fallback: "v2.0.1".into(),
+						fallback: "v2.0.2".into(),
 						archive: "paseo-local.json".to_string(),
 						contents: [ArchiveFileSpec::new("paseo-local.json".into(), Some("paseo-local".into()), true)].to_vec(),
 						latest: chain_spec_file.latest().map(|l| l.to_string()),
