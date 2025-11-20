@@ -16,9 +16,15 @@ use contract_extrinsics::{
 	events::ContractInstantiated,
 	extrinsic_calls::{Instantiate, InstantiateWithCode},
 };
-use pop_common::{DefaultConfig, Keypair, account_id::parse_h160_account, create_signer};
+use pop_common::{
+	AnySigner, DefaultConfig, Keypair, account_id::parse_h160_account, create_local_signer,
+	signer::create_remote_signer,
+};
 use scale_info::scale::Encode;
-use sp_core::bytes::{from_hex, to_hex};
+use sp_core::{
+	bytes::{from_hex, to_hex},
+	sr25519::Signature,
+};
 use std::{
 	path::{Path, PathBuf},
 	time::{SystemTime, UNIX_EPOCH},
@@ -30,7 +36,7 @@ use subxt::{
 };
 
 /// Attributes for the `up` command
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct UpOpts {
 	/// Path to the contract build directory.
 	pub path: PathBuf,
@@ -47,7 +53,29 @@ pub struct UpOpts {
 	/// Websocket endpoint of a node.
 	pub url: url::Url,
 	/// Secret key URI for the account deploying the contract.
-	pub suri: String,
+	pub suri: Option<String>,
+	/// Signer function for the account deploying the contract.
+	pub sign_fn: fn(&str, &[u8]) -> Signature,
+}
+
+impl UpOpts {
+	pub(crate) fn create_dyn_signer(&self) -> anyhow::Result<AnySigner> {
+		if let Some(suri) = &self.suri {
+			// Local keypair implements Signer<DefaultConfig>.
+			let local_signer = create_local_signer(suri.as_str())?;
+			Ok(AnySigner::Local(local_signer))
+		} else {
+			let remote_signer = create_remote_signer(self.url.as_str(), self.sign_fn);
+			Ok(AnySigner::Remote(remote_signer))
+		}
+	}
+}
+
+fn generate_random_bytes() -> Option<Bytes> {
+	SystemTime::now()
+		.duration_since(UNIX_EPOCH)
+		.ok()
+		.map(|time| time.as_millis().encode().into())
 }
 
 /// Prepare `InstantiateExec` data to upload and instantiate a contract.
@@ -57,13 +85,13 @@ pub struct UpOpts {
 /// * `up_opts` - options for the `up` command.
 pub async fn set_up_deployment(
 	up_opts: UpOpts,
-) -> anyhow::Result<InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>> {
+) -> anyhow::Result<InstantiateExec<DefaultConfig, DefaultEnvironment, AnySigner>> {
 	let manifest_path = get_manifest_path(&up_opts.path)?;
 
 	let token_metadata = TokenMetadata::query::<DefaultConfig>(&up_opts.url).await?;
 
-	let signer = create_signer(&up_opts.suri)?;
-	let extrinsic_opts = ExtrinsicOptsBuilder::new(signer)
+	let signer = up_opts.create_dyn_signer()?;
+	let extrinsic_opts = ExtrinsicOptsBuilder::new(signer.clone())
 		.manifest_path(Some(manifest_path))
 		.url(up_opts.url.clone())
 		.done();
@@ -74,24 +102,16 @@ pub async fn set_up_deployment(
 	// Process the provided argument values.
 	let function = extract_function(up_opts.path, &up_opts.constructor, FunctionType::Constructor)?;
 	let args = process_function_args(&function, up_opts.args)?;
-	let instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair> =
-		InstantiateCommandBuilder::new(extrinsic_opts)
-			.constructor(up_opts.constructor.clone())
-			.args(args)
-			.value(value.denominate_balance(&token_metadata)?)
-			.gas_limit(up_opts.gas_limit)
-			.proof_size(up_opts.proof_size)
-			.salt(generate_random_bytes())
-			.done()
-			.await?;
+	let instantiate_exec = InstantiateCommandBuilder::new(extrinsic_opts)
+		.constructor(up_opts.constructor.clone())
+		.args(args)
+		.value(value.denominate_balance(&token_metadata)?)
+		.gas_limit(up_opts.gas_limit)
+		.proof_size(up_opts.proof_size)
+		.salt(generate_random_bytes())
+		.done()
+		.await?;
 	Ok(instantiate_exec)
-}
-
-fn generate_random_bytes() -> Option<Bytes> {
-	SystemTime::now()
-		.duration_since(UNIX_EPOCH)
-		.ok()
-		.map(|time| time.as_millis().encode().into())
 }
 
 /// Prepare `UploadExec` data to upload a contract.
@@ -101,36 +121,31 @@ fn generate_random_bytes() -> Option<Bytes> {
 /// * `up_opts` - options for the `up` command.
 pub async fn set_up_upload(
 	up_opts: UpOpts,
-) -> anyhow::Result<UploadExec<DefaultConfig, DefaultEnvironment, Keypair>> {
+) -> anyhow::Result<UploadExec<DefaultConfig, DefaultEnvironment, AnySigner>> {
 	let manifest_path = get_manifest_path(&up_opts.path)?;
 
-	let signer = create_signer(&up_opts.suri)?;
-	let extrinsic_opts = ExtrinsicOptsBuilder::new(signer)
+	let signer = up_opts.create_dyn_signer()?;
+	let extrinsic_opts = ExtrinsicOptsBuilder::new(signer.clone())
 		.manifest_path(Some(manifest_path))
 		.url(up_opts.url.clone())
 		.done();
 
 	#[allow(unused_mut)]
-	let mut upload_exec: UploadExec<DefaultConfig, DefaultEnvironment, Keypair> =
-		UploadCommandBuilder::new(extrinsic_opts).done().await?;
-
-	{
-		let storage_deposit_limit = match upload_exec.opts().storage_deposit_limit() {
-			Some(deposit_limit) => deposit_limit,
-			None =>
-				upload_exec
-					.upload_code_rpc()
-					.await?
-					.map_err(|_| {
-						Error::DryRunUploadContractError(
-							"No storage limit returned from dry-run".to_string(),
-						)
-					})?
-					.deposit,
-		};
-		upload_exec.set_storage_deposit_limit(Some(storage_deposit_limit));
-	}
-
+	let mut upload_exec = UploadCommandBuilder::new(extrinsic_opts).done().await?;
+	let storage_deposit_limit = match upload_exec.opts().storage_deposit_limit() {
+		Some(deposit_limit) => deposit_limit,
+		None =>
+			upload_exec
+				.upload_code_rpc()
+				.await?
+				.map_err(|_| {
+					Error::DryRunUploadContractError(
+						"No storage limit returned from dry-run".to_string(),
+					)
+				})?
+				.deposit,
+	};
+	upload_exec.set_storage_deposit_limit(Some(storage_deposit_limit));
 	Ok(upload_exec)
 }
 
@@ -140,7 +155,7 @@ pub async fn set_up_upload(
 /// * `code` - contract code to upload.
 /// * `url` - the rpc of the chain node.
 pub async fn get_upload_payload(
-	upload_exec: UploadExec<DefaultConfig, DefaultEnvironment, Keypair>,
+	upload_exec: UploadExec<DefaultConfig, DefaultEnvironment, AnySigner>,
 	code: ContractBinary,
 	url: &str,
 ) -> anyhow::Result<Vec<u8>> {
@@ -170,7 +185,7 @@ pub async fn get_upload_payload(
 /// * `instantiate_exec` - arguments for contract instantiate.
 /// * `gas_limit` - max amount of gas to be used for instantiation.
 pub async fn get_instantiate_payload(
-	instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
+	instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, AnySigner>,
 	gas_limit: Weight,
 ) -> anyhow::Result<Vec<u8>> {
 	let storage_deposit_limit = instantiate_exec.estimate_limits().await?.1;
@@ -209,12 +224,13 @@ pub async fn get_instantiate_payload(
 pub fn get_contract_code(path: &Path) -> anyhow::Result<ContractBinary> {
 	let manifest_path = get_manifest_path(path)?;
 
-	// signer does not matter for this
-	let signer = create_signer("//Alice")?;
-	let extrinsic_opts =
-		ExtrinsicOptsBuilder::<DefaultConfig, DefaultEnvironment, Keypair>::new(signer)
-			.manifest_path(Some(manifest_path))
-			.done();
+	// create a temporary local signer for reading artifacts (signer not used)
+	let signer = create_local_signer("//Alice")?;
+	let extrinsic_opts: contract_extrinsics::ExtrinsicOpts<
+		DefaultConfig,
+		DefaultEnvironment,
+		Keypair,
+	> = ExtrinsicOptsBuilder::new(signer).manifest_path(Some(manifest_path)).done();
 	let artifacts = extrinsic_opts.contract_artifacts()?;
 
 	let artifacts_path = artifacts.artifact_path().to_path_buf();
@@ -318,7 +334,7 @@ pub async fn submit_signed_payload(
 /// # Arguments
 /// * `instantiate_exec` - the preprocessed data to instantiate a contract.
 pub async fn dry_run_gas_estimate_instantiate(
-	instantiate_exec: &InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
+	instantiate_exec: &InstantiateExec<DefaultConfig, DefaultEnvironment, AnySigner>,
 ) -> Result<Weight, Error> {
 	let instantiate_result = instantiate_exec.instantiate_dry_run().await?;
 	match instantiate_result.result {
@@ -355,7 +371,7 @@ pub struct UploadDryRunResult {
 /// # Arguments
 /// * `upload_exec` - the preprocessed data to upload a contract.
 pub async fn dry_run_upload(
-	upload_exec: &UploadExec<DefaultConfig, DefaultEnvironment, Keypair>,
+	upload_exec: &UploadExec<DefaultConfig, DefaultEnvironment, AnySigner>,
 ) -> Result<UploadDryRunResult, Error> {
 	match upload_exec.upload_code_rpc().await? {
 		Ok(result) => {
@@ -387,7 +403,7 @@ pub struct ContractInfo {
 /// * `instantiate_exec` - the preprocessed data to instantiate a contract.
 /// * `gas_limit` - maximum amount of gas to be used for this call.
 pub async fn instantiate_smart_contract(
-	instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
+	instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, AnySigner>,
 	gas_limit: Weight,
 ) -> anyhow::Result<ContractInfo, Error> {
 	let instantiate_result = instantiate_exec
@@ -407,7 +423,7 @@ pub async fn instantiate_smart_contract(
 /// # Arguments
 /// * `upload_exec` - the preprocessed data to upload a contract.
 pub async fn upload_smart_contract(
-	upload_exec: &UploadExec<DefaultConfig, DefaultEnvironment, Keypair>,
+	upload_exec: &UploadExec<DefaultConfig, DefaultEnvironment, AnySigner>,
 ) -> anyhow::Result<String, Error> {
 	#[allow(unused_variables)]
 	let upload_result = upload_exec

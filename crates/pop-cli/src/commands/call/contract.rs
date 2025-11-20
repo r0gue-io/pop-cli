@@ -11,13 +11,13 @@ use crate::{
 		prompt::display_message,
 		rpc::prompt_to_select_chain_rpc,
 		urls,
-		wallet::request_signature,
+		wallet::{request_remote_signature, request_signature},
 	},
 };
 use anyhow::{Result, anyhow};
 use clap::Args;
 use cliclack::spinner;
-use pop_common::{DefaultConfig, Keypair, parse_h160_account};
+use pop_common::{AnySigner, DefaultConfig, parse_h160_account};
 use pop_contracts::{
 	CallExec, CallOpts, ContractCallable, ContractFunction, ContractStorage, DefaultEnvironment,
 	Verbosity, Weight, build_smart_contract, call_smart_contract,
@@ -27,7 +27,6 @@ use pop_contracts::{
 use serde::Serialize;
 use std::path::PathBuf;
 
-const DEFAULT_URI: &str = "//Alice";
 const DEFAULT_PAYABLE_VALUE: &str = "0";
 
 #[derive(Args, Clone, Serialize)]
@@ -450,7 +449,8 @@ impl CallContractCommand {
 			gas_limit,
 			proof_size,
 			url: self.url()?,
-			suri: self.suri.clone().unwrap_or(DEFAULT_URI.to_string()),
+			suri: self.suri.clone(),
+			sign_fn: request_remote_signature,
 			execute: self.execute,
 		})
 		.await
@@ -547,7 +547,7 @@ impl CallContractCommand {
 	/// Execute the smart contract call using wallet integration.
 	async fn execute_with_wallet(
 		&self,
-		call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
+		call_exec: CallExec<DefaultConfig, DefaultEnvironment, AnySigner>,
 		cli: &mut impl Cli,
 	) -> Result<()> {
 		let storage_deposit_limit = match call_exec.opts().storage_deposit_limit() {
@@ -582,7 +582,7 @@ impl CallContractCommand {
 	#[allow(deprecated)]
 	fn get_contract_data(
 		&self,
-		call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
+		call_exec: &CallExec<DefaultConfig, DefaultEnvironment, AnySigner>,
 		storage_deposit_limit: u128,
 	) -> anyhow::Result<Vec<u8>> {
 		let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {

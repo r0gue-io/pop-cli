@@ -11,19 +11,23 @@ use crate::{
 	},
 };
 use anyhow::Context;
-use pop_common::{DefaultConfig, Keypair, account_id::parse_h160_account, create_signer};
+use pop_common::{
+	AnySigner, DefaultConfig, account_id::parse_h160_account, create_local_signer,
+	create_remote_signer,
+};
 use sp_weights::Weight;
 
 use contract_extrinsics::{
 	BalanceVariant, CallCommandBuilder, ContractArtifacts, DisplayEvents, ErrorVariant,
 	ExtrinsicOptsBuilder, TokenMetadata, extrinsic_calls::Call,
 };
+use sp_core::sr25519::Signature;
 use std::path::PathBuf;
 use subxt::{SubstrateConfig, tx::Payload};
 use url::Url;
 
 /// Attributes for the `call` command.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct CallOpts {
 	/// Path to the contract build directory.
 	pub path: PathBuf,
@@ -42,9 +46,24 @@ pub struct CallOpts {
 	/// Websocket endpoint of a node.
 	pub url: Url,
 	/// Secret key URI for the account deploying the contract.
-	pub suri: String,
+	pub suri: Option<String>,
+	/// Signer function for the account deploying the contract.
+	pub sign_fn: fn(&str, &[u8]) -> Signature,
 	/// Submit an extrinsic for on-chain execution.
 	pub execute: bool,
+}
+
+impl CallOpts {
+	pub(crate) fn create_dyn_signer(&self) -> anyhow::Result<AnySigner> {
+		if let Some(suri) = &self.suri {
+			// Local keypair implements Signer<DefaultConfig>.
+			let local_signer = create_local_signer(suri.as_str())?;
+			Ok(AnySigner::Local(local_signer))
+		} else {
+			let remote_signer = create_remote_signer(self.url.as_str(), self.sign_fn);
+			Ok(AnySigner::Remote(remote_signer))
+		}
+	}
 }
 
 /// Prepare the preprocessed data for a contract `call`.
@@ -54,8 +73,8 @@ pub struct CallOpts {
 /// * `call_opts` - options for the `call` command.
 pub async fn set_up_call(
 	call_opts: CallOpts,
-) -> Result<CallExec<DefaultConfig, DefaultEnvironment, Keypair>, Error> {
-	let signer = create_signer(&call_opts.suri)?;
+) -> Result<CallExec<DefaultConfig, DefaultEnvironment, AnySigner>, Error> {
+	let signer = call_opts.create_dyn_signer()?;
 	let extrinsic_opts = if call_opts.path.is_file() {
 		// If path is a file construct the ExtrinsicOptsBuilder from the file.
 		let artifacts = ContractArtifacts::from_manifest_or_file(None, Some(&call_opts.path))?;
@@ -79,14 +98,13 @@ pub async fn set_up_call(
 	let token_metadata = TokenMetadata::query::<DefaultConfig>(&call_opts.url).await?;
 	let contract = parse_h160_account(&call_opts.contract)?;
 
-	let call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair> =
-		CallCommandBuilder::new(contract, &call_opts.message, extrinsic_opts)
-			.args(args)
-			.value(value.denominate_balance(&token_metadata)?)
-			.gas_limit(call_opts.gas_limit)
-			.proof_size(call_opts.proof_size)
-			.done()
-			.await?;
+	let call_exec = CallCommandBuilder::new(contract, &call_opts.message, extrinsic_opts)
+		.args(args)
+		.value(value.denominate_balance(&token_metadata)?)
+		.gas_limit(call_opts.gas_limit)
+		.proof_size(call_opts.proof_size)
+		.done()
+		.await?;
 	Ok(call_exec)
 }
 
@@ -96,7 +114,7 @@ pub async fn set_up_call(
 ///
 /// * `call_exec` - struct with the call to be executed.
 pub async fn dry_run_call(
-	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
+	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, AnySigner>,
 ) -> Result<String, Error> {
 	dry_run_gas_estimate_call(call_exec).await.map(|(value, _)| value)
 }
@@ -107,7 +125,7 @@ pub async fn dry_run_call(
 ///
 /// * `call_exec` - the preprocessed data to call a contract.
 pub async fn dry_run_gas_estimate_call(
-	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
+	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, AnySigner>,
 ) -> Result<(String, Weight), Error> {
 	let call_result = call_exec.call_dry_run().await?;
 	match call_result.result {
@@ -140,7 +158,7 @@ pub async fn dry_run_gas_estimate_call(
 /// * `gas_limit` - maximum amount of gas to be used for this call.
 /// * `url` - endpoint of the node which to send the call to.
 pub async fn call_smart_contract(
-	call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
+	call_exec: CallExec<DefaultConfig, DefaultEnvironment, AnySigner>,
 	gas_limit: Weight,
 	url: &Url,
 ) -> anyhow::Result<String, Error> {
@@ -170,7 +188,7 @@ pub async fn call_smart_contract(
 /// * `payload` - The signed payload string to be submitted for executing the call.
 /// * `url` - The endpoint of the node where the call is executed.
 pub async fn call_smart_contract_from_signed_payload(
-	call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
+	call_exec: CallExec<DefaultConfig, DefaultEnvironment, AnySigner>,
 	payload: String,
 	url: &Url,
 ) -> anyhow::Result<String, Error> {
@@ -192,7 +210,7 @@ pub async fn call_smart_contract_from_signed_payload(
 /// * `call_exec` - A struct containing the details of the contract call.
 /// * `gas_limit` - The maximum amount of gas allocated for executing the contract call.
 pub fn get_call_payload(
-	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
+	call_exec: &CallExec<DefaultConfig, DefaultEnvironment, AnySigner>,
 	gas_limit: Weight,
 	storage_deposit_limit: u128,
 ) -> anyhow::Result<Vec<u8>> {

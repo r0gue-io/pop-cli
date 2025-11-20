@@ -7,6 +7,7 @@ use crate::{
 	},
 };
 use cliclack::{log, spinner};
+use sp_core::{bytes::from_hex, sr25519::Signature};
 #[cfg(feature = "chain")]
 use {
 	anyhow::{Result, anyhow},
@@ -27,7 +28,7 @@ pub const USE_WALLET_PROMPT: &str = "Do you want to use your browser wallet to s
 /// * `url` - Chain rpc.
 /// # Returns
 /// * The signed payload and the associated contract address, if provided by the wallet.
-pub async fn request_signature(call_data: Vec<u8>, rpc: String) -> anyhow::Result<SubmitRequest> {
+pub async fn request_signature(call_data: Vec<u8>, rpc: String) -> Result<SubmitRequest> {
 	let ui = FrontendFromString::new(include_str!("../assets/index.html").to_string());
 
 	let transaction_data = TransactionData::new(rpc, call_data);
@@ -64,13 +65,34 @@ pub async fn request_signature(call_data: Vec<u8>, rpc: String) -> anyhow::Resul
 	Ok(SubmitRequest { signed_payload, contract_address })
 }
 
+pub async fn request_remote_signature_inner(url: &str, payload: &[u8]) -> Result<Signature> {
+	let signature_hex = request_signature(payload.to_vec(), url.to_string())
+		.await?
+		.signed_payload
+		.ok_or_else(|| anyhow::anyhow!("No signed payload received"))?;
+	let signature_bytes = from_hex(&signature_hex)?;
+
+	let array: [u8; 64] = signature_bytes[..64].try_into()?;
+	Ok(Signature::from_raw(array))
+}
+
+pub fn request_remote_signature(url: &str, payload: &[u8]) -> Signature {
+	let url_str = url.to_string();
+	let payload = payload.to_vec();
+	tokio::task::block_in_place(|| {
+		tokio::runtime::Handle::current()
+			.block_on(request_remote_signature_inner(&url_str, &payload))
+			.expect("remote signature creation failed")
+	})
+}
+
 /// Prompts the user to use the wallet for signing.
 /// # Arguments
 /// * `cli` - The CLI instance.
 /// * `skip_confirm` - Whether to skip the confirmation prompt.
 /// # Returns
 /// * `true` if the user wants to use the wallet, `false` otherwise.
-pub fn prompt_to_use_wallet(cli: &mut impl Cli, skip_confirm: bool) -> anyhow::Result<bool> {
+pub fn prompt_to_use_wallet(cli: &mut impl Cli, skip_confirm: bool) -> Result<bool> {
 	if skip_confirm {
 		return Ok(true);
 	}

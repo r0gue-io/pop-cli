@@ -2,12 +2,12 @@
 
 use crate::{DefaultEnvironment, errors::Error};
 use contract_extrinsics::{ExtrinsicOpts, MapAccountCommandBuilder, MapAccountExec};
-use pop_common::{DefaultConfig, Keypair};
+use pop_common::{AnySigner, DefaultConfig};
 use subxt::{ext::scale_encode::EncodeAsType, utils::H160};
 
 /// A helper struct for performing account mapping operations.
 pub struct AccountMapper {
-	map_exec: MapAccountExec<DefaultConfig, DefaultEnvironment, Keypair>,
+	map_exec: MapAccountExec<DefaultConfig, DefaultEnvironment, AnySigner>,
 }
 
 impl AccountMapper {
@@ -16,7 +16,7 @@ impl AccountMapper {
 	/// # Arguments
 	/// * `extrinsic_opts` - Options used to build and submit a contract extrinsic.
 	pub async fn new(
-		extrinsic_opts: &ExtrinsicOpts<DefaultConfig, DefaultEnvironment, Keypair>,
+		extrinsic_opts: &ExtrinsicOpts<DefaultConfig, DefaultEnvironment, AnySigner>,
 	) -> Result<Self, Error> {
 		let map_exec = MapAccountCommandBuilder::new(extrinsic_opts.clone()).done().await?;
 		Ok(Self { map_exec })

@@ -13,7 +13,7 @@ use crate::{
 		},
 		rpc::prompt_to_select_chain_rpc,
 		urls,
-		wallet::request_signature,
+		wallet::request_remote_signature,
 	},
 	style::style,
 };
@@ -23,12 +23,10 @@ use console::Emoji;
 use pop_contracts::{
 	FunctionType, UpOpts, Verbosity, Weight, build_smart_contract,
 	dry_run_gas_estimate_instantiate, dry_run_upload, extract_function, get_contract_code,
-	get_instantiate_payload, get_upload_payload, instantiate_contract_signed,
-	instantiate_smart_contract, is_chain_alive, run_eth_rpc_node, run_ink_node, set_up_deployment,
-	set_up_upload, upload_contract_signed, upload_smart_contract,
+	get_instantiate_payload, get_upload_payload, instantiate_smart_contract, is_chain_alive,
+	run_eth_rpc_node, run_ink_node, set_up_deployment, set_up_upload, upload_smart_contract,
 };
 use serde::Serialize;
-use sp_core::bytes::to_hex;
 use std::{path::PathBuf, process::Child};
 use tempfile::NamedTempFile;
 use url::Url;
@@ -234,182 +232,90 @@ impl UpContractCommand {
 		// Track the deployed contract address across both deployment flows.
 		let mut deployed_contract_address: Option<String> = None;
 
-		// Run steps for signing with wallet integration.
-		if self.use_wallet {
-			let (call_data, hash) = match self.get_contract_data().await {
-				Ok(data) => data,
+		// Check for upload only.
+		if self.upload_only {
+			let result = self.upload_contract().await;
+			match result {
+				Ok(_) => {},
+				Err(_) => {
+					terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
+					Cli.outro_cancel(FAILED)?;
+					return Ok(());
+				},
+			}
+		} else {
+			let function =
+				extract_function(self.path.clone(), &self.constructor, FunctionType::Constructor)?;
+			if !function.args.is_empty() {
+				resolve_function_args(&function, &mut Cli, &mut self.args, self.skip_confirm)?;
+			}
+			normalize_call_args(&mut self.args, &function);
+			// Otherwise instantiate.
+			let instantiate_exec = match set_up_deployment(self.clone().into()).await {
+				Ok(i) => i,
 				Err(e) => {
-					Cli.error(format!("An error occurred getting the call data: {e}"))?;
+					Cli.error(format!("An error occurred instantiating the contract: {e}"))?;
+					terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
+					Cli.outro_cancel(FAILED)?;
+					return Ok(());
+				},
+			};
+			// Check if the account is already mapped, and prompt the user to perform the
+			// mapping if it's required.
+			map_account(instantiate_exec.opts(), &mut Cli).await?;
+
+			// Perform the dry run before attempting to execute the deployment, and since we are
+			// on it also to calculate the weight.
+			let spinner_1 = spinner();
+			spinner_1.start("Doing a dry run...");
+			let calculated_weight = match dry_run_gas_estimate_instantiate(&instantiate_exec).await
+			{
+				Ok(w) => {
+					spinner_1.stop(format!("Gas limit estimate: {:?}", w));
+					w
+				},
+				Err(e) => {
+					spinner_1.error(format!("{e}"));
 					terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
 					Cli.outro_cancel(FAILED)?;
 					return Ok(());
 				},
 			};
 
-			let maybe_signature_request = request_signature(call_data, url.to_string()).await?;
-			if let Some(payload) = maybe_signature_request.signed_payload {
-				Cli.success("Signed payload received.")?;
-				let spinner = spinner();
-				spinner.start(
-					"Uploading the contract and waiting for finalization, please be patient...",
-				);
+			let weight_limit = if self.gas_limit.is_some() & self.proof_size.is_some() {
+				Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
+			} else {
+				calculated_weight
+			};
 
-				if self.upload_only {
-					#[allow(unused_variables)]
-					let upload_result = match upload_contract_signed(url.as_str(), payload).await {
-						Err(e) => {
-							spinner
-								.error(format!("An error occurred uploading your contract: {e}"));
-							terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
-							Cli.outro_cancel(FAILED)?;
-							return Ok(());
-						},
-						Ok(result) => {
-							spinner.stop(format!(
-								"Contract uploaded: The code hash is {:?}",
-								to_hex(&hash, false)
-							));
-							result
-						},
-					};
+			// Confirm whether to execute if not specified via flag.
+			if !self.execute {
+				if self.skip_confirm {
 					Cli.warning("NOTE: The contract has not been instantiated.")?;
-				} else {
-					let instantiate_exec = match set_up_deployment(self.clone().into()).await {
-						Ok(i) => i,
-						Err(e) => {
-							Cli.error(format!(
-								"An error occurred instantiating the contract: {e}"
-							))?;
-							terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
-							Cli.outro_cancel(FAILED)?;
-							return Ok(());
-						},
-					};
-					// Check if the account is already mapped, and prompt the user to perform the
-					// mapping if it's required.
-					map_account(instantiate_exec.opts(), &mut Cli).await?;
-					let contract_info = match instantiate_contract_signed(
-						maybe_signature_request.contract_address,
-						url.as_str(),
-						payload,
+				} else if Cli
+					.confirm(
+						"Do you want to deploy the contract? (Selecting 'No' will keep this as a dry run)",
 					)
-					.await
-					{
-						Err(e) => {
-							spinner
-								.error(format!("An error occurred uploading your contract: {e}"));
-							terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
-							Cli.outro_cancel(FAILED)?;
-							return Ok(());
-						},
-						Ok(result) => result,
-					};
-
-					let contract_address = format!("{:?}", contract_info.contract_address);
-					let hash = contract_info.code_hash.map(|code_hash| format!("{:?}", code_hash));
-					spinner.clear();
-					display_contract_info(&mut Cli, contract_address.clone(), hash)?;
-					// Store the contract address for later interaction prompt.
-					deployed_contract_address = Some(contract_address);
-				};
-			} else {
-				Cli.outro_cancel("Signed payload doesn't exist.")?;
-				terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
-				return Ok(());
-			}
-		} else {
-			// Check for upload only.
-			if self.upload_only {
-				let result = self.upload_contract().await;
-				match result {
-					Ok(_) => {},
-					Err(_) => {
-						terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
-						Cli.outro_cancel(FAILED)?;
-						return Ok(());
-					},
-				}
-			} else {
-				let function = extract_function(
-					self.path.clone(),
-					&self.constructor,
-					FunctionType::Constructor,
-				)?;
-				if !function.args.is_empty() {
-					resolve_function_args(&function, &mut Cli, &mut self.args, self.skip_confirm)?;
-				}
-				normalize_call_args(&mut self.args, &function);
-				// Otherwise instantiate.
-				let instantiate_exec = match set_up_deployment(self.clone().into()).await {
-					Ok(i) => i,
-					Err(e) => {
-						Cli.error(format!("An error occurred instantiating the contract: {e}"))?;
-						terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
-						Cli.outro_cancel(FAILED)?;
-						return Ok(());
-					},
-				};
-				// Check if the account is already mapped, and prompt the user to perform the
-				// mapping if it's required.
-				map_account(instantiate_exec.opts(), &mut Cli).await?;
-
-				// Perform the dry run before attempting to execute the deployment, and since we are
-				// on it also to calculate the weight.
-				let spinner_1 = spinner();
-				spinner_1.start("Doing a dry run...");
-				let calculated_weight =
-					match dry_run_gas_estimate_instantiate(&instantiate_exec).await {
-						Ok(w) => {
-							spinner_1.stop(format!("Gas limit estimate: {:?}", w));
-							w
-						},
-						Err(e) => {
-							spinner_1.error(format!("{e}"));
-							terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
-							Cli.outro_cancel(FAILED)?;
-							return Ok(());
-						},
-					};
-
-				let weight_limit = if self.gas_limit.is_some() & self.proof_size.is_some() {
-					Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
+					.initial_value(true)
+					.interact()?
+				{
+					self.execute = true;
 				} else {
-					calculated_weight
-				};
-
-				// Confirm whether to execute if not specified via flag.
-				if !self.execute {
-					if self.skip_confirm {
-						Cli.warning("NOTE: The contract has not been instantiated.")?;
-					} else if Cli
-						.confirm(
-							"Do you want to deploy the contract? (Selecting 'No' will keep this as a dry run)",
-						)
-						.initial_value(true)
-						.interact()?
-					{
-						self.execute = true;
-					} else {
-						Cli.warning("NOTE: The contract has not been instantiated.")?;
-					}
+					Cli.warning("NOTE: The contract has not been instantiated.")?;
 				}
+			}
 
-				// Finally upload and instantiate.
-				if self.execute {
-					let spinner_2 = spinner();
-					spinner_2.start("Uploading and instantiating the contract...");
-					let contract_info =
-						instantiate_smart_contract(instantiate_exec, weight_limit).await?;
-					let contract_address = contract_info.address.to_string();
-					spinner_2.clear();
-					display_contract_info(
-						&mut Cli,
-						contract_address.clone(),
-						contract_info.code_hash,
-					)?;
-					// Store the contract address for later interaction prompt.
-					deployed_contract_address = Some(contract_address);
-				}
+			// Finally upload and instantiate.
+			if self.execute {
+				let spinner_2 = spinner();
+				spinner_2.start("Uploading and instantiating the contract...");
+				let contract_info =
+					instantiate_smart_contract(instantiate_exec, weight_limit).await?;
+				let contract_address = contract_info.address.to_string();
+				spinner_2.clear();
+				display_contract_info(&mut Cli, contract_address.clone(), contract_info.code_hash)?;
+				// Store the contract address for later interaction prompt.
+				deployed_contract_address = Some(contract_address);
 			}
 		}
 
@@ -490,6 +396,7 @@ impl UpContractCommand {
 	}
 
 	// get the call data and contract code hash
+	#[allow(dead_code)]
 	async fn get_contract_data(&self) -> anyhow::Result<(Vec<u8>, [u8; 32])> {
 		let contract_code = get_contract_code(&self.path)?;
 		let hash = contract_code.code_hash();
@@ -528,7 +435,8 @@ impl From<UpContractCommand> for UpOpts {
 			gas_limit: cmd.gas_limit,
 			proof_size: cmd.proof_size,
 			url: cmd.url.expect("url must be set"),
-			suri: cmd.suri.unwrap_or_else(|| "//Alice".to_string()),
+			suri: cmd.suri,
+			sign_fn: request_remote_signature,
 		}
 	}
 }
@@ -645,17 +553,18 @@ mod tests {
 		let command =
 			UpContractCommand { url: Some(Url::parse(urls::LOCAL)?), ..Default::default() };
 		let opts: UpOpts = command.into();
-		assert_eq!(
+		matches!(
 			opts,
 			UpOpts {
 				path: PathBuf::from("./"),
-				constructor: "new".to_string(),
+				constructor: String::new("new"),
 				args: vec![],
-				value: "0".to_string(),
+				value: String::new("0"),
 				gas_limit: None,
 				proof_size: None,
 				url: Url::parse(urls::LOCAL)?,
-				suri: "//Alice".to_string(),
+				suri: None,
+				..
 			}
 		);
 		Ok(())

@@ -10,7 +10,7 @@ use crate::{
 	style::style,
 };
 use cliclack::ProgressBar;
-use pop_common::{DefaultConfig, Keypair, manifest::from_path};
+use pop_common::{AnySigner, DefaultConfig, manifest::from_path};
 use pop_contracts::{
 	AccountMapper, ContractFunction, DefaultEnvironment, ExtrinsicOpts, eth_rpc_generator,
 	ink_node_generator,
@@ -177,7 +177,7 @@ fn ensure_double_quoted(s: &str) -> String {
 }
 
 pub(crate) async fn map_account(
-	extrinsic_opts: &ExtrinsicOpts<DefaultConfig, DefaultEnvironment, Keypair>,
+	extrinsic_opts: &ExtrinsicOpts<DefaultConfig, DefaultEnvironment, AnySigner>,
 	cli: &mut impl Cli,
 ) -> anyhow::Result<()> {
 	let mapper = AccountMapper::new(extrinsic_opts).await?;

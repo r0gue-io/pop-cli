@@ -11,7 +11,7 @@ pub use errors::Error;
 pub use git::{Git, GitHub, Release};
 pub use helpers::{get_project_name_from_path, get_relative_or_absolute_path, replace_in_file};
 pub use metadata::format_type;
-pub use signer::create_signer;
+pub use signer::{AnySigner, create_local_signer, create_remote_signer};
 pub use sourcing::set_executable_permission;
 use std::{cmp::Ordering, net::TcpListener, ops::Deref};
 #[cfg(feature = "integration-tests")]

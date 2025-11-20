@@ -3,7 +3,7 @@
 use crate::{Function, Pallet, Param, errors::Error, find_callable_by_name};
 use pop_common::{
 	call::{DefaultEnvironment, DisplayEvents, TokenMetadata, Verbosity},
-	create_signer,
+	create_local_signer,
 };
 use sp_core::bytes::{from_hex, to_hex};
 use subxt::{
@@ -90,7 +90,7 @@ pub async fn sign_and_submit_extrinsic<Xt: Payload>(
 	xt: Xt,
 	suri: &str,
 ) -> Result<String, Error> {
-	let signer = create_signer(suri)?;
+	let signer = create_local_signer(suri)?;
 	let mut tx = client
 		.tx()
 		.sign_and_submit_then_watch_default(&xt, &signer)
