@@ -22,7 +22,7 @@ pub(crate) struct CleanArgs {
 pub(crate) enum Command {
 	/// Remove all processes running.
 	#[clap(alias = "p")]
-	Nodes(CleanCommandArgs),
+	Node(CleanCommandArgs),
 	/// Remove cached artifacts.
 	#[clap(alias = "c")]
 	Cache(CleanCommandArgs),

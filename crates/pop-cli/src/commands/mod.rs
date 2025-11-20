@@ -206,7 +206,7 @@ impl Command {
 						all: cmd_args.all,
 					}
 					.execute(),
-					clean::Command::Nodes(cmd_args) => clean::CleanNodesCommand {
+					clean::Command::Node(cmd_args) => clean::CleanNodesCommand {
 						cli: &mut Cli,
 						all: cmd_args.all,
 						#[cfg(test)]
