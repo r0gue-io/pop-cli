@@ -209,7 +209,7 @@ mod tests {
 						prerelease: false,
 						version_comparator: sort_by_latest_semantic_version,
 						fallback: "v2.0.1".into(),
-						archive: format!("paseo-local.json"),
+						archive: "paseo-local.json".to_string(),
 						contents: [ArchiveFileSpec::new("paseo-local.json".into(), Some("paseo-local".into()), true)].to_vec(),
 						latest: chain_spec_file.latest().map(|l| l.to_string()),
 					}).into() && cache == temp_dir.path() && archive_type==ArchiveType::File
