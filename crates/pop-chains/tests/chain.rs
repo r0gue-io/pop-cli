@@ -117,7 +117,7 @@ async fn launch_paseo_and_system_parachain() -> Result<()> {
 		Some(BINARY_VERSION),
 		None,
 		Some(BINARY_VERSION),
-		Some("v2.0.2"), 
+		Some("v2.0.2"),
 		None,
 	)
 	.await?;
