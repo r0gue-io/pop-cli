@@ -3,17 +3,19 @@
 //! Functionality for processing and extracting metadata from ink! smart contracts.
 
 use crate::{DefaultEnvironment, errors::Error};
-use contract_extrinsics::{ContractArtifacts, ContractStorageRpc};
+use contract_extrinsics::{ContractArtifacts, ContractStorageRpc, TrieId};
 use contract_transcode::{
 	ContractMessageTranscoder,
 	ink_metadata::{MessageParamSpec, layout::Layout},
 };
 use ink_env::call::utils::EncodeArgsWith;
 use pop_common::{DefaultConfig, format_type, parse_h160_account};
-use scale_info::{PortableRegistry, form::PortableForm};
+use scale_info::{PortableRegistry, Type, form::PortableForm};
 use sp_core::blake2_128;
 use std::path::Path;
 use url::Url;
+
+const MAPPING_TYPE_PATH: &str = "ink_storage::lazy::mapping::Mapping";
 
 /// Represents a callable entity within a smart contract, either a function or storage item.
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -98,6 +100,8 @@ pub struct ContractStorage {
 	pub storage_key: u32,
 	/// The type ID from the metadata registry, used for decoding storage values.
 	pub type_id: u32,
+	/// The type name of the mapping key, when this storage is a mapping. None otherwise.
+	pub key_type_name: Option<String>,
 }
 
 /// Specifies the type of contract function, either a constructor or a message.
@@ -151,6 +155,103 @@ fn get_contract_transcoder(path: &Path) -> anyhow::Result<ContractMessageTransco
 	contract_artifacts.contract_transcoder()
 }
 
+async fn decode_mapping(
+	storage: &ContractStorage,
+	rpc: &ContractStorageRpc<DefaultConfig>,
+	trie_id: &TrieId,
+	ty: &Type<PortableForm>,
+	transcoder: &ContractMessageTranscoder,
+	key_filter: Option<&str>,
+) -> anyhow::Result<String> {
+	// Fetch ALL contract keys, then filter to those belonging to this mapping's root_key.
+	// This mirrors contract-extrinsics behavior and is robust across hashing strategies.
+	let mut all_keys = Vec::new();
+	let mut start_key: Option<Vec<u8>> = None;
+	const PAGE: u32 = 1000;
+	loop {
+		let page_keys = rpc
+			.fetch_storage_keys_paged(
+				trie_id,
+				None, // no prefix: page through entire child trie
+				PAGE,
+				start_key.as_deref(),
+				None,
+			)
+			.await?;
+		let count = page_keys.len();
+		if count == 0 {
+			break;
+		}
+		start_key = page_keys.last().map(|b| b.0.clone());
+		all_keys.extend(page_keys);
+		if (count as u32) < PAGE {
+			break;
+		}
+	}
+
+	// Filter keys by matching the embedded root key at bytes [16..20]
+	let keys: Vec<_> = all_keys
+		.into_iter()
+		.filter(|k| {
+			if k.0.len() < 20 {
+				return false;
+			}
+			let mut rk = [0u8; 4];
+			rk.copy_from_slice(&k.0[16..20]);
+			let root = u32::from_le_bytes(rk);
+			root == storage.storage_key
+		})
+		.collect();
+
+	if keys.is_empty() {
+		return Ok("Mapping is empty".to_string());
+	}
+
+	// Fetch values for all keys in a single batch
+	let values = rpc.fetch_storage_entries(trie_id, &keys, None).await?;
+
+	// Determine K and V type ids from the Mapping<K, V> type
+	let (key_type_id, value_type_id) = match (param_type_id(ty, "K"), param_type_id(ty, "V")) {
+		(Some(k), Some(v)) => (k, v),
+		_ => {
+			// Fallback: cannot determine generics; show raw count
+			return Ok(format!("Mapping {{ {} entries }}", values.len()));
+		},
+	};
+
+	// Decode each pair and format output similar to contract-extrinsics
+	// Prepare optional filter string (trimmed) for comparison with decoded key rendering
+	let key_filter = key_filter.map(|s| s.trim()).filter(|s| !s.is_empty());
+
+	let mut rendered_pairs: Vec<String> = Vec::new();
+	for (key, val_opt) in keys.into_iter().zip(values.into_iter()) {
+		if let Some(val) = val_opt {
+			// Extract the SCALE-encoded mapping key bytes following the 20-byte prefix
+			let key_bytes = if key.0.len() > 20 { &key.0[20..] } else { &[] };
+			let k_decoded = transcoder.decode(key_type_id, &mut &key_bytes[..])?;
+			let v_decoded = transcoder.decode(value_type_id, &mut &val.0[..])?;
+			let k_str = k_decoded.to_string();
+			if let Some(filter) = key_filter {
+				if k_str == filter {
+					rendered_pairs.push(format!("{{ {k_str} => {v_decoded} }}"));
+					break; // Found the requested key; stop early
+				}
+			} else {
+				rendered_pairs.push(format!("{{ {k_str} => {v_decoded} }}"));
+			}
+		}
+	}
+	if rendered_pairs.is_empty() {
+		if key_filter.is_some() {
+			Ok("No value found for the provided key".to_string())
+		} else {
+			Ok("Mapping is empty".to_string())
+		}
+	} else {
+		Ok(rendered_pairs.join("\n"))
+	}
+}
+
 /// Fetches and decodes a storage value from a deployed smart contract.
 ///
 /// # Arguments
@@ -168,6 +269,17 @@ pub async fn fetch_contract_storage(
 	rpc_url: &Url,
 	path: &Path,
 ) -> anyhow::Result<String> {
+	fetch_contract_storage_with_param(storage, account, rpc_url, path, None).await
+}
+
+/// Variant of fetch_contract_storage that optionally filters Mapping<K,V> by a provided key string.
+pub async fn fetch_contract_storage_with_param(
+	storage: &ContractStorage,
+	account: &str,
+	rpc_url: &Url,
+	path: &Path,
+	mapping_key: Option<&str>,
+) -> anyhow::Result<String> {
 	// Get the transcoder to decode the storage value
 	let transcoder = get_contract_transcoder(path)?;
 
@@ -181,9 +293,17 @@ pub async fn fetch_contract_storage(
 	let contract_info = rpc.fetch_contract_info::<DefaultEnvironment>(&account_id).await?;
 	let trie_id = contract_info.trie_id();
 
-	// Encode the storage key as bytes
-	// The storage key needs to be properly formatted:
-	// blake2_128 hash (16 bytes) + root_key (4 bytes)
+	// Detect if this storage item is a Mapping<K, V> from its type information
+	let registry = transcoder.metadata().registry();
+	if let Some(ty) = registry.resolve(storage.type_id) {
+		let path = ty.path.to_string();
+		if path == MAPPING_TYPE_PATH {
+			return decode_mapping(storage, &rpc, trie_id, ty, &transcoder, mapping_key).await;
+		}
+	}
+
+	// Non-mapping storage: fetch a single value by its root key
+	// Encode the storage key as bytes: blake2_128 hash (16 bytes) + root_key (4 bytes)
 	let root_key_bytes = storage.storage_key.encode();
 	let mut full_key = blake2_128(&root_key_bytes).to_vec();
 	full_key.extend_from_slice(&root_key_bytes);
@@ -233,6 +353,7 @@ fn extract_storage_fields(
 				registry,
 				storage_items,
 				root_key,
+				Some(root_layout.ty().id),
 			);
 		},
 		Layout::Struct(struct_layout) => {
@@ -259,6 +380,7 @@ fn extract_storage_fields_with_key(
 	registry: &PortableRegistry,
 	storage_items: &mut Vec<ContractStorage>,
 	root_key: u32,
+	root_type_id: Option<u32>,
 ) {
 	match layout {
 		Layout::Root(root_layout) => {
@@ -269,12 +391,20 @@ fn extract_storage_fields_with_key(
 				registry,
 				storage_items,
 				new_root_key,
+				Some(root_layout.ty().id),
 			);
 		},
 		Layout::Struct(struct_layout) => {
 			// For struct layout, extract all fields with the current root key
 			for field in struct_layout.fields() {
-				extract_field(field.name(), field.layout(), registry, storage_items, root_key);
+				extract_field(
+					field.name(),
+					field.layout(),
+					registry,
+					storage_items,
+					root_key,
+					root_type_id,
+				);
 			}
 		},
 		Layout::Leaf(_) => {
@@ -293,6 +423,7 @@ fn extract_field(
 	registry: &PortableRegistry,
 	storage_items: &mut Vec<ContractStorage>,
 	root_key: u32,
+	root_type_id: Option<u32>,
 ) {
 	match layout {
 		Layout::Leaf(leaf_layout) => {
@@ -305,6 +436,7 @@ fn extract_field(
 					type_name,
 					storage_key: root_key,
 					type_id: type_id.id,
+					key_type_name: None,
 				});
 			}
 		},
@@ -312,14 +444,123 @@ fn extract_field(
 			// Nested struct - recursively extract its fields with qualified names
 			for field in struct_layout.fields() {
 				let qualified_name = format!("{}.{}", name, field.name());
-				extract_field(&qualified_name, field.layout(), registry, storage_items, root_key);
+				extract_field(
+					&qualified_name,
+					field.layout(),
+					registry,
+					storage_items,
+					root_key,
+					root_type_id,
+				);
 			}
 		},
-		Layout::Hash(_) | Layout::Array(_) | Layout::Enum(_) | Layout::Root(_) => {
-			// For complex nested types, we could add more detailed handling
-			// For now, we'll skip or handle them simply
+		Layout::Array(array_layout) => {
+			// For arrays, iterate over indices and recurse into element layout
+			let len = array_layout.len();
+			for i in 0..len {
+				let qualified_name = format!("{}[{}]", name, i);
+				extract_field(
+					&qualified_name,
+					array_layout.layout(),
+					registry,
+					storage_items,
+					root_key,
+					root_type_id,
+				);
+			}
+		},
+		Layout::Enum(enum_layout) => {
+			// For enums, iterate over variants and their fields
+			for variant_layout in enum_layout.variants().values() {
+				let variant_prefix = format!("{}::{}", name, variant_layout.name());
+				for field in variant_layout.fields() {
+					let qualified_name = format!("{}.{}", variant_prefix, field.name());
+					extract_field(
+						&qualified_name,
+						field.layout(),
+						registry,
+						storage_items,
+						root_key,
+						root_type_id,
+					);
+				}
+			}
+		},
+		Layout::Hash(hash_layout) => {
+			// Hash maps (e.g., Mapping) don't have statically enumerable keys.
+			// If this Root represents a Mapping<K,V>, create a single storage entry for the mapping
+			// itself.
+			if let Some(tid) = root_type_id &&
+				let Some(ty) = registry.resolve(tid) &&
+				ty.path.to_string() == MAPPING_TYPE_PATH
+			{
+				let type_name = format_type(ty, registry);
+				// Determine mapping key type name if available
+				let key_type_name = param_type_id(ty, "K")
+					.and_then(|kid| registry.resolve(kid))
+					.map(|kty| format_type(kty, registry));
+				storage_items.push(ContractStorage {
+					name: name.to_string(),
+					type_name,
+					storage_key: root_key,
+					type_id: tid,
+					key_type_name,
+				});
+				return;
+			}
+			// Otherwise, recurse into the value layout to capture leaf type information.
+			extract_field(
+				name,
+				hash_layout.layout(),
+				registry,
+				storage_items,
+				root_key,
+				root_type_id,
+			);
+		},
+		Layout::Root(root_layout) => {
+			// Nested root updates the storage key; keep the same field name prefix
+			let new_root_key = *root_layout.root_key().key();
+			let tid = root_layout.ty().id;
+			// Some contracts represent Mapping as a Root whose inner layout is a Leaf (value type).
+			// Detect Mapping here and emit a single storage entry for the mapping container.
+			if let Some(ty) = registry.resolve(tid) &&
+				ty.path.to_string() == MAPPING_TYPE_PATH
+			{
+				let type_name = format_type(ty, registry);
+				// Determine mapping key type name if available
+				let key_type_name = param_type_id(ty, "K")
+					.and_then(|kid| registry.resolve(kid))
+					.map(|kty| format_type(kty, registry));
+				storage_items.push(ContractStorage {
+					name: name.to_string(),
+					type_name,
+					storage_key: new_root_key,
+					type_id: tid,
+					key_type_name,
+				});
+				return;
+			}
+			extract_field(
+				name,
+				root_layout.layout(),
+				registry,
+				storage_items,
+				new_root_key,
+				Some(tid),
+			);
 		},
 	}
+}
+
+// Helper to extract a generic parameter type id by name (e.g., "K" or "V")
+fn param_type_id(type_def: &Type<PortableForm>, param_name: &str) -> Option<u32> {
+	type_def
+		.type_params
+		.iter()
+		.find(|p| p.name == param_name)
+		.and_then(|p| p.ty.as_ref())
+		.map(|pt| pt.id)
 }
 
 /// Extracts a list of smart contract functions (messages or constructors) parsing the contract
@@ -468,6 +709,8 @@ mod tests {
 	use super::*;
 	use crate::{mock_build_process, new_environment};
 	use anyhow::Result;
+	use scale_info::{Registry, TypeDef, TypeDefPrimitive, TypeInfo};
+	use std::marker::PhantomData;
 
 	const CONTRACT_FILE: &str = "./tests/files/testing.contract";
 
@@ -700,6 +943,39 @@ mod tests {
 		assert_eq!(storage[0].name, "value");
 		assert_eq!(storage[0].type_name, "bool");
 
+		Ok(())
+	}
+
+	#[derive(TypeInfo)]
+	struct DummyKV<K, V>(PhantomData<(K, V)>);
+
+	#[test]
+	fn param_type_id_resolves_generic_k_v() -> Result<()> {
+		// Build a registry that includes a dummy generic type with params named K and V
+		let mut reg = Registry::new();
+		let _ = reg.register_type(&scale_info::meta_type::<DummyKV<u32, bool>>());
+		let portable: PortableRegistry = reg.into();
+		// Find our dummy type by its last path segment
+		let type_id = portable
+			.types
+			.iter()
+			.find(|t| t.ty.path.segments.last().map(|s| s == "DummyKV").unwrap_or(false))
+			.map(|t| t.id)
+			.expect("dummy type must exist");
+		let ty = portable.resolve(type_id).unwrap();
+		// Ensure helper extracts K and V type ids
+		let k_id = super::param_type_id(ty, "K").expect("K param must exist");
+		let v_id = super::param_type_id(ty, "V").expect("V param must exist");
+		let k_ty = portable.resolve(k_id).unwrap();
+		let v_ty = portable.resolve(v_id).unwrap();
+		match &k_ty.type_def {
+			TypeDef::Primitive(p) => assert_eq!(*p, TypeDefPrimitive::U32),
+			other => panic!("Expected primitive u32 for K, got {:?}", other),
+		}
+		match &v_ty.type_def {
+			TypeDef::Primitive(p) => assert_eq!(*p, TypeDefPrimitive::Bool),
+			other => panic!("Expected primitive bool for V, got {:?}", other),
+		}
 		Ok(())
 	}
 }
