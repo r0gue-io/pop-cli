@@ -60,7 +60,7 @@ impl InkNodeCommand {
 	pub(crate) async fn execute(&self, cli: &mut Cli) -> anyhow::Result<()> {
 		cli.intro("Launch a local Ink! node")?;
 		let url = Url::parse(&format!("ws://localhost:{}", self.ink_node_port))?;
-		let ((mut ink_node_process, _), (mut eth_rpc_process, _)) =
+		let ((mut ink_node_process, ink_node_log), (mut eth_rpc_process, eth_rpc_log)) =
 			start_ink_node(&url, self.skip_confirm, self.ink_node_port, self.eth_rpc_port).await?;
 
 		if !self.detach {
@@ -74,6 +74,8 @@ impl InkNodeCommand {
 			cli.plain("\n")?;
 			cli.outro("✅ Ink! node terminated")?;
 		} else {
+			ink_node_log.keep()?;
+			eth_rpc_log.keep()?;
 			cli.outro(format!(
 				"✅ Ink! node bootstrapped successfully. Run `kill -9 {} {}` to terminate it.",
 				ink_node_process.id(),
@@ -208,9 +210,7 @@ impl UpContractCommand {
 					.initial_value(true)
 					.interact()?
 				{
-					Cli.info(
-						"The default endpoint is unreachable. Fetching and launching a local ink! node",
-					)?;
+					Cli.info("Fetching and launching a local ink! node")?;
 					Some(
 						start_ink_node(&url, self.skip_confirm, DEFAULT_PORT, DEFAULT_ETH_RPC_PORT)
 							.await?,
@@ -419,6 +419,7 @@ impl UpContractCommand {
 			if !self.skip_confirm {
 				Cli.success(COMPLETE)?;
 				self.keep_interacting_with_node(&mut Cli, contract_address).await?;
+				terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
 			} else {
 				terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
 				Cli.outro(COMPLETE)?;
@@ -508,8 +509,9 @@ impl UpContractCommand {
 			let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
 				Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
 			} else {
-				// Frontend will do dry run and update call data.
-				Weight::zero()
+				dry_run_gas_estimate_instantiate(&instantiate_exec)
+					.await
+					.unwrap_or_else(|_| Weight::zero())
 			};
 			let call_data = get_instantiate_payload(instantiate_exec, weight_limit).await?;
 			Ok((call_data, hash))
