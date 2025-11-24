@@ -97,9 +97,7 @@ pub struct CallContractCommand {
 	#[arg(short = 'y', long)]
 	pub(crate) skip_confirm: bool,
 	/// Optional key to query in case the selected storage is a mapping.
-	/// This is managed internally (via prompts) and must not be a CLI argument.
-	#[serde(skip_serializing)]
-	#[arg(skip)]
+	#[arg(short = 'k', long)]
 	storage_mapping_key: Option<String>,
 }
 
@@ -252,18 +250,20 @@ impl CallContractCommand {
 		// Display storage field information
 		self.use_wallet = false;
 		self.suri = None;
-		self.storage_mapping_key = if let Some(key_type_name) = &storage.key_type_name &&
-			!self.skip_confirm
-		{
-			let key: String = cli
-				.input("Provide the mapping key to query (leave blank to fetch all)")
-				.placeholder(key_type_name)
-				.default_input("")
-				.interact()?;
-			if key.trim().is_empty() { None } else { Some(key) }
-		} else {
-			None
-		};
+		if self.storage_mapping_key.is_none() {
+			self.storage_mapping_key = if let Some(key_type_name) = &storage.key_type_name &&
+				!self.skip_confirm
+			{
+				let key: String = cli
+					.input("Provide the mapping key to query (leave blank to fetch all)")
+					.placeholder(key_type_name)
+					.default_input("")
+					.interact()?;
+				if key.trim().is_empty() { None } else { Some(key) }
+			} else {
+				None
+			};
+		}
 		Ok(())
 	}
 

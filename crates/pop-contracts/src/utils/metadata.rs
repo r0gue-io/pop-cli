@@ -167,6 +167,7 @@ async fn decode_mapping(
 	// This mirrors contract-extrinsics behavior and is robust across hashing strategies.
 	let mut all_keys = Vec::new();
 	let mut start_key: Option<Vec<u8>> = None;
+	// Page size is chosen to be large enough to cover all mappings in a single trie.
 	const PAGE: u32 = 1000;
 	loop {
 		let page_keys = rpc
@@ -233,8 +234,8 @@ async fn decode_mapping(
 			let k_str = k_decoded.to_string();
 			if let Some(filter) = key_filter {
 				if k_str == filter {
-					rendered_pairs.push(format!("{{ {k_str} => {v_decoded} }}"));
-					break; // Found the requested key; stop early
+					// Found the requested key; stop early and return only the value
+					return Ok(v_decoded.to_string());
 				}
 			} else {
 				rendered_pairs.push(format!("{{ {k_str} => {v_decoded} }}"));
@@ -272,7 +273,28 @@ pub async fn fetch_contract_storage(
 	fetch_contract_storage_with_param(storage, account, rpc_url, path, None).await
 }
 
-/// Variant of fetch_contract_storage that optionally filters Mapping<K,V> by a provided key string.
+/// Fetches and decodes a storage value from a deployed smart contract,
+/// with optional filtering for mappings.
+///
+/// This function retrieves the value of a storage item from a deployed smart contract.
+/// For regular storage items, it returns the decoded value.
+/// For mapping types (Mapping<K,V>), it can either return all key-value pairs or filter for a
+/// specific key if provided.
+///
+/// # Arguments
+/// * `storage` - Storage item descriptor containing key and type information
+/// * `account` - Contract address as string (typically in H160 format)
+/// * `rpc_url` - URL of the RPC endpoint to connect to
+/// * `path` - Path to contract artifacts for metadata access
+/// * `mapping_key` - Optional key string for filtering mapping entries. Only used if the storage
+///   item is a Mapping<K,V>. The key string must be compatible with the mapping's key type K.
+///
+/// # Returns
+/// * `Ok(String)` - The decoded storage value as a string. For mappings, this may be:
+///   - A single "key => value" pair if a matching key was found
+///   - Multiple "key => value" pairs if no key filter was provided
+///   - "No value found for the provided key" if the key wasn't found
+///   - "Mapping is empty" if there are no entries
 pub async fn fetch_contract_storage_with_param(
 	storage: &ContractStorage,
 	account: &str,
@@ -416,6 +438,32 @@ fn extract_storage_fields_with_key(
 	}
 }
 
+fn try_extract_mapping(
+	name: &str,
+	tid: u32,
+	root_key: u32,
+	registry: &PortableRegistry,
+	storage_items: &mut Vec<ContractStorage>,
+) -> bool {
+	if let Some(ty) = registry.resolve(tid) &&
+		ty.path.to_string() == MAPPING_TYPE_PATH
+	{
+		let type_name = format_type(ty, registry);
+		let key_type_name = param_type_id(ty, "K")
+			.and_then(|kid| registry.resolve(kid))
+			.map(|kty| format_type(kty, registry));
+		storage_items.push(ContractStorage {
+			name: name.to_string(),
+			type_name,
+			storage_key: root_key,
+			type_id: tid,
+			key_type_name,
+		});
+		return true;
+	}
+	false
+}
+
 // Extracts a single field and recursively processes nested layouts
 fn extract_field(
 	name: &str,
@@ -491,21 +539,8 @@ fn extract_field(
 			// If this Root represents a Mapping<K,V>, create a single storage entry for the mapping
 			// itself.
 			if let Some(tid) = root_type_id &&
-				let Some(ty) = registry.resolve(tid) &&
-				ty.path.to_string() == MAPPING_TYPE_PATH
+				try_extract_mapping(name, tid, root_key, registry, storage_items)
 			{
-				let type_name = format_type(ty, registry);
-				// Determine mapping key type name if available
-				let key_type_name = param_type_id(ty, "K")
-					.and_then(|kid| registry.resolve(kid))
-					.map(|kty| format_type(kty, registry));
-				storage_items.push(ContractStorage {
-					name: name.to_string(),
-					type_name,
-					storage_key: root_key,
-					type_id: tid,
-					key_type_name,
-				});
 				return;
 			}
 			// Otherwise, recurse into the value layout to capture leaf type information.
@@ -524,21 +559,7 @@ fn extract_field(
 			let tid = root_layout.ty().id;
 			// Some contracts represent Mapping as a Root whose inner layout is a Leaf (value type).
 			// Detect Mapping here and emit a single storage entry for the mapping container.
-			if let Some(ty) = registry.resolve(tid) &&
-				ty.path.to_string() == MAPPING_TYPE_PATH
-			{
-				let type_name = format_type(ty, registry);
-				// Determine mapping key type name if available
-				let key_type_name = param_type_id(ty, "K")
-					.and_then(|kid| registry.resolve(kid))
-					.map(|kty| format_type(kty, registry));
-				storage_items.push(ContractStorage {
-					name: name.to_string(),
-					type_name,
-					storage_key: new_root_key,
-					type_id: tid,
-					key_type_name,
-				});
+			if try_extract_mapping(name, tid, new_root_key, registry, storage_items) {
 				return;
 			}
 			extract_field(
