@@ -26,6 +26,7 @@ pub enum State {
 	))]
 	Snap {
 		/// Path to the snapshot file.
+		#[serde(skip_serializing)]
 		#[clap(short = 'p', long = "path", alias = "snapshot-path")]
 		path: Option<PathBuf>,
 	},
