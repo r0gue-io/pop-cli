@@ -33,9 +33,11 @@ const DEFAULT_PAYABLE_VALUE: &str = "0";
 #[derive(Args, Clone, Serialize)]
 pub struct CallContractCommand {
 	/// Path to the contract build directory or a contract artifact.
+	#[serde(skip_serializing)]
 	#[arg(short, long)]
 	path: Option<PathBuf>,
 	/// Directory path without flag for your project [default: current directory]
+	#[serde(skip_serializing)]
 	#[arg(value_name = "PATH", index = 1, conflicts_with = "path")]
 	pub(crate) path_pos: Option<PathBuf>,
 	/// The address of the contract to call.
