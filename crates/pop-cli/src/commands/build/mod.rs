@@ -89,6 +89,10 @@ pub(crate) struct BuildArgs {
 	#[clap(long, help_heading = CONTRACT_HELP_HEADER)]
 	#[cfg(feature = "contract")]
 	pub(crate) metadata: Option<MetadataSpec>,
+    /// Whether to build in a way that the contract is verifiable
+    ///#[clap(long, help_heading = CONTRACT_HELP_HEADER)]
+    ///#[cfg(feature = "contract")]
+    ///pub(crate) verifiable: bool
 }
 
 impl BuildArgs {
