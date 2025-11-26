@@ -179,6 +179,9 @@ impl CallContractCommand {
 			let args: Vec<_> = self.args.iter().map(|a| format!("\"{a}\"")).collect();
 			full_message.push_str(&format!(" --args {}", args.join(" ")));
 		}
+		if let Some(storage_mapping_key) = &self.storage_mapping_key {
+			full_message.push_str(&format!(" --storage-mapping-key {}", storage_mapping_key));
+		}
 		if self.value != DEFAULT_PAYABLE_VALUE {
 			full_message.push_str(&format!(" --value {}", self.value));
 		}
