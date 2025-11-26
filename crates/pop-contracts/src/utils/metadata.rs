@@ -190,13 +190,23 @@ async fn decode_mapping(
 		}
 	}
 
-	// Filter keys by matching the embedded root key at bytes [16..20]
+	// Filter keys by matching the embedded root key at bytes [16..20].
+	//
+	// Storage key format in ink!:
+	// - Bytes [0..16]:  Blake2-128 hash of the root key (used for key distribution)
+	// - Bytes [16..20]: Root key as u32 in little-endian format (identifies the storage field)
+	// - Bytes [20..]:   SCALE-encoded mapping key (the user's key for this mapping entry)
+	//
+	// This format is defined by ink!'s storage layout and is stable across ink! v4 and v5.
+	// If future versions change this format, this validation check should catch it.
 	let keys: Vec<_> = all_keys
 		.into_iter()
 		.filter(|k| {
+			// Validate minimum key length: must contain hash (16) + root_key (4) = 20 bytes minimum
 			if k.0.len() < 20 {
 				return false;
 			}
+			// Extract the root key from bytes [16..20] and compare with expected storage key
 			let mut rk = [0u8; 4];
 			rk.copy_from_slice(&k.0[16..20]);
 			let root = u32::from_le_bytes(rk);
@@ -288,13 +298,6 @@ pub async fn fetch_contract_storage(
 /// * `path` - Path to contract artifacts for metadata access
 /// * `mapping_key` - Optional key string for filtering mapping entries. Only used if the storage
 ///   item is a Mapping<K,V>. The key string must be compatible with the mapping's key type K.
-///
-/// # Returns
-/// * `Ok(String)` - The decoded storage value as a string. For mappings, this may be:
-///   - A single "key => value" pair if a matching key was found
-///   - Multiple "key => value" pairs if no key filter was provided
-///   - "No value found for the provided key" if the key wasn't found
-///   - "Mapping is empty" if there are no entries
 pub async fn fetch_contract_storage_with_param(
 	storage: &ContractStorage,
 	account: &str,
