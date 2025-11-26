@@ -230,17 +230,39 @@ async fn decode_mapping(
 		},
 	};
 
-	// Decode each pair and format output similar to contract-extrinsics
+	// Zip keys and values into a simple Vec for decoding/formatting
+	let pairs: Vec<(Vec<u8>, Option<Vec<u8>>)> = keys
+		.into_iter()
+		.zip(values.into_iter())
+		.map(|(k, v)| (k.0, v.map(|b| b.0)))
+		.collect();
+
+	decode_mapping_impl(pairs, key_type_id, value_type_id, transcoder, key_filter)
+}
+
+// A small helper to make mapping decoding logic unit-testable without RPC.
+// It expects full storage keys (including the 20-byte prefix) paired with optional values.
+pub(crate) fn decode_mapping_impl(
+	pairs: Vec<(Vec<u8>, Option<Vec<u8>>)>,
+	key_type_id: u32,
+	value_type_id: u32,
+	transcoder: &ContractMessageTranscoder,
+	key_filter: Option<&str>,
+) -> anyhow::Result<String> {
 	// Prepare optional filter string (trimmed) for comparison with decoded key rendering
 	let key_filter = key_filter.map(|s| s.trim()).filter(|s| !s.is_empty());
 
+	if pairs.is_empty() {
+		return Ok("Mapping is empty".to_string());
+	}
+
 	let mut rendered_pairs: Vec<String> = Vec::new();
-	for (key, val_opt) in keys.into_iter().zip(values.into_iter()) {
+	for (key, val_opt) in pairs.into_iter() {
 		if let Some(val) = val_opt {
 			// Extract the SCALE-encoded mapping key bytes following the 20-byte prefix
-			let key_bytes = if key.0.len() > 20 { &key.0[20..] } else { &[] };
+			let key_bytes = if key.len() > 20 { &key[20..] } else { &[] };
 			let k_decoded = transcoder.decode(key_type_id, &mut &key_bytes[..])?;
-			let v_decoded = transcoder.decode(value_type_id, &mut &val.0[..])?;
+			let v_decoded = transcoder.decode(value_type_id, &mut &val[..])?;
 			let k_str = k_decoded.to_string();
 			if let Some(filter) = key_filter {
 				if k_str == filter {
@@ -735,6 +757,8 @@ mod tests {
 	use anyhow::Result;
 	use scale_info::{Registry, TypeDef, TypeDefPrimitive, TypeInfo};
 	use std::marker::PhantomData;
+	// No need for SCALE encoding helpers in tests; for u8 values the SCALE encoding is the byte
+	// itself.
 
 	const CONTRACT_FILE: &str = "./tests/files/testing.contract";
 
@@ -1000,6 +1024,103 @@ mod tests {
 			TypeDef::Primitive(p) => assert_eq!(*p, TypeDefPrimitive::Bool),
 			other => panic!("Expected primitive bool for V, got {:?}", other),
 		}
+		Ok(())
+	}
+
+	// Helper to build a transcoder from the bundled testing.contract file
+	fn test_transcoder() -> Result<ContractMessageTranscoder> {
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		get_contract_transcoder(current_dir.join("./tests/files/testing.contract").as_path())
+			.map_err(Into::into)
+	}
+
+	// Helper to find the type id for a primitive in the registry
+	fn find_primitive(reg: &PortableRegistry, prim: TypeDefPrimitive) -> u32 {
+		reg.types
+			.iter()
+			.find_map(|t| match &t.ty.type_def {
+				TypeDef::Primitive(p) if *p == prim => Some(t.id),
+				_ => None,
+			})
+			.expect("primitive type must exist in registry")
+	}
+
+	#[test]
+	fn decode_mapping_impl_empty_returns_message() -> Result<()> {
+		let transcoder = test_transcoder()?;
+		let reg = transcoder.metadata().registry();
+		let u8_id = find_primitive(reg, TypeDefPrimitive::U8);
+
+		let out = super::decode_mapping_impl(Vec::new(), u8_id, u8_id, &transcoder, None)?;
+		assert_eq!(out, "Mapping is empty");
+		Ok(())
+	}
+
+	#[test]
+	fn decode_mapping_impl_renders_single_entry() -> Result<()> {
+		let transcoder = test_transcoder()?;
+		let reg = transcoder.metadata().registry();
+		let u8_id = find_primitive(reg, TypeDefPrimitive::U8);
+
+		// Build a full storage key: 16-byte hash + 4-byte root + SCALE(key)
+		let mut full_key = vec![0u8; 16];
+		full_key.extend_from_slice(&1u32.to_le_bytes());
+		full_key.push(4u8); // SCALE encoding of u8 is itself
+		let value_bytes = vec![8u8];
+
+		let out = super::decode_mapping_impl(
+			vec![(full_key, Some(value_bytes))],
+			u8_id,
+			u8_id,
+			&transcoder,
+			None,
+		)?;
+
+		assert_eq!(out, "{ 4 => 8 }");
+		Ok(())
+	}
+
+	#[test]
+	fn decode_mapping_impl_filter_match_returns_value_only() -> Result<()> {
+		let transcoder = test_transcoder()?;
+		let reg = transcoder.metadata().registry();
+		let u8_id = find_primitive(reg, TypeDefPrimitive::U8);
+
+		let mut full_key = vec![0u8; 16];
+		full_key.extend_from_slice(&1u32.to_le_bytes());
+		full_key.push(4u8);
+		let value_bytes = vec![8u8];
+
+		let out = super::decode_mapping_impl(
+			vec![(full_key, Some(value_bytes))],
+			u8_id,
+			u8_id,
+			&transcoder,
+			Some("4"),
+		)?;
+		assert_eq!(out, "8");
+		Ok(())
+	}
+
+	#[test]
+	fn decode_mapping_impl_filter_no_match() -> Result<()> {
+		let transcoder = test_transcoder()?;
+		let reg = transcoder.metadata().registry();
+		let u8_id = find_primitive(reg, TypeDefPrimitive::U8);
+
+		let mut full_key = vec![0u8; 16];
+		full_key.extend_from_slice(&1u32.to_le_bytes());
+		full_key.push(4u8);
+		let value_bytes = vec![8u8];
+
+		let out = super::decode_mapping_impl(
+			vec![(full_key, Some(value_bytes))],
+			u8_id,
+			u8_id,
+			&transcoder,
+			Some("5"),
+		)?;
+		assert_eq!(out, "No value found for the provided key");
 		Ok(())
 	}
 }
