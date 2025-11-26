@@ -2,7 +2,7 @@
 
 use crate::{
 	cli::{self, traits::*},
-	install::frontend::{ensure_bun, ensure_node_v20, ensure_npx},
+	install::frontend::{ensure_bun, ensure_node_v20, has},
 };
 use anyhow::Result;
 use duct::cmd;
@@ -51,28 +51,26 @@ pub async fn create_frontend(
 	cli: &mut impl cli::traits::Cli,
 ) -> Result<()> {
 	ensure_node_v20(false, cli).await?;
-	ensure_npx()?;
 	let project_dir = target.canonicalize()?;
 	let command = template
 		.command()
 		.ok_or_else(|| anyhow::anyhow!("no command configured for {:?}", template))?;
+
 	match template {
 		// Inkathon requires Bun installed.
 		FrontendTemplate::Inkathon => {
 			let bun = ensure_bun(false, cli).await?;
 			cmd(&bun, &["add", "polkadot-api"]).dir(&project_dir).unchecked().run()?;
-			cmd("npx", &[command, "frontend", "--yes"])
+			cmd(&bun, &["x", command, "frontend", "--yes"])
 				.dir(&project_dir)
 				.env("SKIP_INSTALL_SIMPLE_GIT_HOOKS", "1")
 				.unchecked()
 				.run()?;
 		},
 		FrontendTemplate::Typink => {
-			cmd(
-				"npx",
-				vec![
-					"-y",
-					command,
+			let args = build_command(
+				command,
+				&[
 					"--name",
 					"frontend",
 					"--template",
@@ -81,17 +79,48 @@ pub async fn create_frontend(
 					"Passet Hub",
 					"--no-git",
 				],
-			)
-			.dir(&project_dir)
-			.run()?;
+			)?;
+
+			cmd(&args[0], &args[1..]).dir(&project_dir).run()?;
 		},
 		FrontendTemplate::CreateDotApp => {
-			cmd("npx", vec!["-y", command, "frontend", "--template", "react-papi"])
-				.dir(&project_dir)
-				.run()?;
+			let args = build_command(command, &["frontend", "--template", "react-papi"])?;
+
+			cmd(&args[0], &args[1..]).dir(&project_dir).run()?;
 		},
 	}
 	Ok(())
+}
+
+/// Build the complete command to create the frontend.
+///
+/// # Arguments
+/// * `package` - The package to execute.
+/// * `args` - Additional arguments to pass to the package
+fn build_command(package: &str, args: &[&str]) -> Result<Vec<String>> {
+	let mut result = Vec::new();
+
+	if has("pnpm") {
+		result.push("pnpm".to_string());
+		result.push("dlx".to_string());
+	} else if has("bun") {
+		result.push("bunx".to_string());
+	} else if has("yarn") {
+		result.push("yarn".to_string());
+		result.push("dlx".to_string());
+	} else if has("npx") {
+		result.push("npx".to_string());
+		result.push("-y".to_string());
+	} else {
+		return Err(anyhow::anyhow!(
+			"No supported package manager found. Please install pnpm, bun, yarn, or npm."
+		));
+	}
+
+	result.push(package.to_string());
+	result.extend(args.iter().map(|s| s.to_string()));
+
+	Ok(result)
 }
 
 #[cfg(test)]
@@ -130,5 +159,33 @@ mod tests {
 		assert_eq!(user_input, FrontendTemplate::Typink);
 
 		cli.verify()
+	}
+
+	#[test]
+	fn build_command_works() {
+		let result = build_command("create-typink", &["--name", "frontend"]);
+		assert!(result.is_ok());
+
+		let args = result.unwrap();
+		assert!(args.len() >= 3);
+
+		match args[0].as_str() {
+			"pnpm" => {
+				assert_eq!(args[1], "dlx");
+				assert_eq!(args[2], "create-typink");
+			},
+			"bunx" => {
+				assert_eq!(args[1], "create-typink");
+			},
+			"yarn" => {
+				assert_eq!(args[1], "dlx");
+				assert_eq!(args[2], "create-typink");
+			},
+			"npx" => {
+				assert_eq!(args[1], "-y");
+				assert_eq!(args[2], "create-typink");
+			},
+			_ => panic!("Unexpected runner: {}", args[0]),
+		}
 	}
 }

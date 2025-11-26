@@ -100,17 +100,11 @@ pub async fn ensure_bun(skip_confirm: bool, cli: &mut impl cli::traits::Cli) -> 
 	Ok(bun_abs)
 }
 
-/// Require `npx` to be available.
-pub fn ensure_npx() -> Result<()> {
-	if !has("npx") && !has("npm") {
-		return Err(anyhow!(
-			"`npx` (or npm with npx) not found on PATH. Install NodeJS from https://nodejs.org and re-run."
-		));
-	}
-	Ok(())
-}
-
-fn has(bin: &str) -> bool {
+/// Check if a command is available on the system.
+///
+/// # Arguments
+/// * `bin` - The binary name to check.
+pub fn has(bin: &str) -> bool {
 	which(bin).is_some()
 }
 
