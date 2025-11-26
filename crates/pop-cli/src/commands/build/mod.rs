@@ -84,10 +84,10 @@ pub(crate) struct BuildArgs {
 	#[clap(long, help_heading = CONTRACT_HELP_HEADER)]
 	#[cfg(feature = "contract")]
 	pub(crate) metadata: Option<MetadataSpec>,
-    /// Whether to build in a way that the contract is verifiable
-    ///#[clap(long, help_heading = CONTRACT_HELP_HEADER)]
-    ///#[cfg(feature = "contract")]
-    ///pub(crate) verifiable: bool
+	/// Whether to build in a way that the contract is verifiable
+	#[clap(long, help_heading = CONTRACT_HELP_HEADER)]
+	#[cfg(feature = "contract")]
+	pub(crate) verifiable: bool,
 }
 
 /// Subcommand for building chain artifacts.
@@ -361,6 +361,8 @@ mod tests {
 					only_runtime: false,
 					#[cfg(feature = "contract")]
 					metadata: None,
+					#[cfg(feature = "contract")]
+					verifiable: false
 				},
 				project_path,
 				&mut cli,
@@ -429,6 +431,8 @@ mod tests {
 			only_runtime: false,
 			#[cfg(feature = "contract")]
 			metadata: None,
+			#[cfg(feature = "contract")]
+			verifiable: false,
 		})?;
 
 		Ok(())
@@ -474,6 +478,8 @@ mod tests {
 			only_runtime: false,
 			#[cfg(feature = "contract")]
 			metadata: None,
+			#[cfg(feature = "contract")]
+			verifiable: false,
 		})?;
 
 		// Test 2: Execute with production profile
@@ -496,6 +502,8 @@ mod tests {
 			only_runtime: false,
 			#[cfg(feature = "contract")]
 			metadata: None,
+			#[cfg(feature = "contract")]
+			verifiable: false,
 		})?;
 
 		// Test 3: Execute with custom features
@@ -515,6 +523,8 @@ mod tests {
 				only_runtime: false,
 				#[cfg(feature = "contract")]
 				metadata: None,
+				#[cfg(feature = "contract")]
+				verifiable: false,
 			})?;
 		}
 
@@ -538,6 +548,8 @@ mod tests {
 			only_runtime: false,
 			#[cfg(feature = "contract")]
 			metadata: None,
+			#[cfg(feature = "contract")]
+			verifiable: false,
 		})?;
 
 		// Test 5: Execute with path_pos instead of path
@@ -560,6 +572,8 @@ mod tests {
 			only_runtime: false,
 			#[cfg(feature = "contract")]
 			metadata: None,
+			#[cfg(feature = "contract")]
+			verifiable: false,
 		})?;
 
 		// Test 6: Execute with benchmark and try_runtime flags
@@ -579,6 +593,8 @@ mod tests {
 				only_runtime: false,
 				#[cfg(feature = "contract")]
 				metadata: None,
+				#[cfg(feature = "contract")]
+				verifiable: false,
 			})?;
 		}
 
