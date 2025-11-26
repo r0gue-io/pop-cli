@@ -10,7 +10,69 @@ use pop_common::{
 	FrontendTemplate, FrontendType,
 	templates::{Template, Type},
 };
-use std::path::Path;
+use std::{path::Path, str::FromStr};
+
+/// Supported package managers for frontend projects.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PackageManager {
+	Pnpm,
+	Bun,
+	Yarn,
+	Npm,
+}
+
+impl PackageManager {
+	/// Get the command name for this package manager.
+	fn command(&self) -> &'static str {
+		match self {
+			Self::Pnpm => "pnpm",
+			Self::Bun => "bunx",
+			Self::Yarn => "yarn",
+			Self::Npm => "npx",
+		}
+	}
+
+	/// Get the flag for executing packages (if any).
+	fn flag(&self) -> Option<&'static str> {
+		match self {
+			Self::Pnpm => Some("dlx"),
+			Self::Bun => None,
+			Self::Yarn => Some("dlx"),
+			Self::Npm => Some("-y"),
+		}
+	}
+
+	/// Auto-detect which package manager is available.
+	fn detect() -> Result<Self> {
+		if has("pnpm") {
+			Ok(Self::Pnpm)
+		} else if has("bun") {
+			Ok(Self::Bun)
+		} else if has("yarn") {
+			Ok(Self::Yarn)
+		} else if has("npm") {
+			Ok(Self::Npm)
+		} else {
+			Err(anyhow::anyhow!(
+				"No supported package manager found. Please install pnpm, bun, yarn, or npm."
+			))
+		}
+	}
+}
+
+impl FromStr for PackageManager {
+	type Err = anyhow::Error;
+
+	fn from_str(s: &str) -> Result<Self> {
+		match s {
+			"pnpm" => Ok(Self::Pnpm),
+			"bun" => Ok(Self::Bun),
+			"yarn" => Ok(Self::Yarn),
+			"npm" => Ok(Self::Npm),
+			_ => Err(anyhow::anyhow!("Unsupported package manager: {}", s)),
+		}
+	}
+}
 
 /// Prompts the user to pick a frontend template for the given frontend type (Chain or Contract).
 /// If only one template is available, it is automatically selected without prompting.
@@ -44,10 +106,12 @@ pub fn prompt_frontend_template(
 /// # Arguments
 /// * `target` - Location where the frontend will be created.
 /// * `template` - Frontend template to generate the contract from.
+/// * `package_manager` - Optional package manager to use. If None, auto-detects.
 /// * `cli`: Command line interface.
 pub async fn create_frontend(
 	target: &Path,
 	template: &FrontendTemplate,
+	package_manager: Option<&str>,
 	cli: &mut impl cli::traits::Cli,
 ) -> Result<()> {
 	ensure_node_v20(false, cli).await?;
@@ -79,12 +143,14 @@ pub async fn create_frontend(
 					"Passet Hub",
 					"--no-git",
 				],
+				package_manager,
 			)?;
 
 			cmd(&args[0], &args[1..]).dir(&project_dir).run()?;
 		},
 		FrontendTemplate::CreateDotApp => {
-			let args = build_command(command, &["frontend", "--template", "react-papi"])?;
+			let args =
+				build_command(command, &["frontend", "--template", "react-papi"], package_manager)?;
 
 			cmd(&args[0], &args[1..]).dir(&project_dir).run()?;
 		},
@@ -97,26 +163,30 @@ pub async fn create_frontend(
 /// # Arguments
 /// * `package` - The package to execute.
 /// * `args` - Additional arguments to pass to the package
-fn build_command(package: &str, args: &[&str]) -> Result<Vec<String>> {
-	let mut result = Vec::new();
-
-	if has("pnpm") {
-		result.push("pnpm".to_string());
-		result.push("dlx".to_string());
-	} else if has("bun") {
-		result.push("bunx".to_string());
-	} else if has("yarn") {
-		result.push("yarn".to_string());
-		result.push("dlx".to_string());
-	} else if has("npx") {
-		result.push("npx".to_string());
-		result.push("-y".to_string());
+/// * `package_manager` - Optional package manager to use. If None, auto-detects.
+fn build_command(
+	package: &str,
+	args: &[&str],
+	package_manager: Option<&str>,
+) -> Result<Vec<String>> {
+	let manager = if let Some(pm_str) = package_manager {
+		let pm = PackageManager::from_str(pm_str)?;
+		if !has(pm_str) {
+			return Err(anyhow::anyhow!(
+				"Specified package manager '{}' not found. Please install it first.",
+				pm_str
+			));
+		}
+		pm
 	} else {
-		return Err(anyhow::anyhow!(
-			"No supported package manager found. Please install pnpm, bun, yarn, or npm."
-		));
-	}
+		PackageManager::detect()?
+	};
 
+	// Build command
+	let mut result = vec![manager.command().to_string()];
+	if let Some(flag) = manager.flag() {
+		result.push(flag.to_string());
+	}
 	result.push(package.to_string());
 	result.extend(args.iter().map(|s| s.to_string()));
 
@@ -163,7 +233,7 @@ mod tests {
 
 	#[test]
 	fn build_command_works() {
-		let result = build_command("create-typink", &["--name", "frontend"]);
+		let result = build_command("create-typink", &["--name", "frontend"], None);
 		assert!(result.is_ok());
 
 		let args = result.unwrap();

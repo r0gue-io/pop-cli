@@ -46,6 +46,15 @@ pub struct NewContractCommand {
 		value_parser = ["typink", "inkathon"]
 	)]
 	pub(crate) with_frontend: Option<String>,
+	/// Package manager to use for frontend. If not specified, auto-detects based on what's
+	/// installed.
+	#[arg(
+		long = "package-manager",
+		value_name = "MANAGER",
+		value_parser = ["pnpm", "bun", "yarn", "npm"],
+		requires = "with_frontend"
+	)]
+	pub(crate) package_manager: Option<String>,
 }
 
 impl NewContractCommand {
@@ -82,9 +91,15 @@ impl NewContractCommand {
 					})?)
 				};
 		}
-		let contract_path =
-			generate_contract_from_template(name, path, &template, frontend_template, &mut cli)
-				.await?;
+		let contract_path = generate_contract_from_template(
+			name,
+			path,
+			&template,
+			frontend_template,
+			self.package_manager.as_deref(),
+			&mut cli,
+		)
+		.await?;
 
 		// If the contract is part of a workspace, add it to that workspace
 		if let Some(workspace_toml) = rustilities::manifest::find_workspace_manifest(path) {
@@ -152,6 +167,7 @@ async fn generate_contract_from_template(
 	path: &Path,
 	template: &Contract,
 	frontend_template: Option<FrontendTemplate>,
+	package_manager: Option<&str>,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<PathBuf> {
 	cli.intro(format!("Generating \"{}\" using {}!", name, template.name(),))?;
@@ -181,7 +197,7 @@ async fn generate_contract_from_template(
 	next_steps.push("Use `pop up` to deploy your contract to a live network.".to_string());
 
 	if let Some(frontend_template) = &frontend_template {
-		create_frontend(contract_path.as_path(), frontend_template, cli).await?;
+		create_frontend(contract_path.as_path(), frontend_template, package_manager, cli).await?;
 		next_steps.push(format!(
 			"Frontend template created inside {}. To run it locally, use: `pop up frontend`. Navigate to the `frontend` folder to start customizing it for your contract. ", contract_path.display()
 		))
@@ -288,6 +304,7 @@ mod tests {
 			"my_contract",
 			&contract_path,
 			&ContractTemplate::ERC20,
+			None,
 			None,
 			&mut cli,
 		)
