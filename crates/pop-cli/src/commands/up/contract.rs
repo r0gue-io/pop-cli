@@ -573,8 +573,9 @@ pub(crate) async fn start_ink_node(
 	Cli.info(format!(
 		"Local node started successfully:{}",
 		style(format!(
-			"\n{}\n{}",
+			"\n{}\n{}\n{}",
 			style(format!("portal: https://polkadot.js.org/apps/?rpc={}#/explorer", url)).dim(),
+			style(format!("url: {}", url)).dim(),
 			style(format!("logs: tail -f {}", log_ink_node.path().display())).dim(),
 		))
 		.dim()
