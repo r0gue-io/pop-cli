@@ -29,7 +29,7 @@ pub async fn source_polkadot_omni_node_binary(
 	check_and_prompt::<PolkadotOmniNodeGenerator>(
 		cli,
 		spinner,
-		PolkadotOmniNodeCli::PolkadotOmniNode.binary(),
+		PolkadotOmniNodeCli::PolkadotOmniNode.binary()?,
 		cache_path,
 		skip_confirm,
 	)
@@ -45,7 +45,7 @@ mod tests {
 	#[tokio::test]
 	async fn source_polkadot_omni_node_binary_works() -> anyhow::Result<()> {
 		let cache_path = tempfile::tempdir()?;
-		let binary_name = PolkadotOmniNodeCli::PolkadotOmniNode.binary();
+		let binary_name = PolkadotOmniNodeCli::PolkadotOmniNode.binary().unwrap();
 		let mut cli = MockCli::new()
 			.expect_warning(format!("⚠️ The {binary_name} binary is not found."))
 			.expect_confirm("📦 Would you like to source it automatically now?", true)
@@ -68,7 +68,7 @@ mod tests {
 	#[tokio::test]
 	async fn source_polkadot_omni_node_binary_handles_skip_confirm() -> anyhow::Result<()> {
 		let cache_path = tempfile::tempdir()?;
-		let binary_name = PolkadotOmniNodeCli::PolkadotOmniNode.binary();
+		let binary_name = PolkadotOmniNodeCli::PolkadotOmniNode.binary().unwrap();
 		let mut cli =
 			MockCli::new().expect_warning(format!("⚠️ The {binary_name} binary is not found."));
 

@@ -62,7 +62,7 @@ pub(crate) struct ConfigFileCommand {
 	/// Whether the output should be verbose.
 	#[arg(short, long, action)]
 	pub(crate) verbose: bool,
-	/// Automatically source all necessary binaries required without prompting for confirmation.
+	/// Automatically source all necessary archives required without prompting for confirmation.
 	#[clap(short = 'y', long)]
 	pub(crate) skip_confirm: bool,
 	/// Automatically remove the state upon tearing down the network.
@@ -129,7 +129,7 @@ pub(crate) struct BuildCommand<const FILTER: u8> {
 	/// Whether the output should be verbose.
 	#[arg(short, long, action)]
 	verbose: bool,
-	/// Automatically source all necessary binaries required without prompting for confirmation.
+	/// Automatically source all necessary archives required without prompting for confirmation.
 	#[clap(short = 'y', long)]
 	skip_confirm: bool,
 	/// Automatically remove the state upon tearing down the network.
@@ -296,7 +296,7 @@ pub(crate) async fn spawn(
 					Ok(())
 				},
 				Error::MissingBinary(name) => {
-					cli.outro_cancel(format!("🚫 The `{name}` binary is specified in the network configuration file, but cannot be resolved to a source. Are you missing a `--parachain` argument?"))?;
+					cli.outro_cancel(format!("🚫 The `{name}` archive is specified in the network configuration file, but cannot be resolved to a source. Are you missing a `--parachain` argument?"))?;
 					Ok(())
 				},
 				_ => Err(e.into()),
@@ -304,15 +304,15 @@ pub(crate) async fn spawn(
 		},
 	};
 
-	// Source any missing/stale binaries
-	if source_binaries(&mut zombienet, &cache, verbose, skip_confirm, cli).await? {
+	// Source any missing/stale archive
+	if source_archives(&mut zombienet, &cache, verbose, skip_confirm, cli).await? {
 		return Ok(());
 	}
 
-	// Output the binaries and versions used if verbose logging enabled.
+	// Output the archives and versions used if verbose logging enabled.
 	if verbose {
-		let binaries = zombienet
-			.binaries()
+		let archives = zombienet
+			.archives()
 			.map(|b| {
 				format!(
 					"{}{}",
@@ -320,13 +320,13 @@ pub(crate) async fn spawn(
 					b.version().map(|v| format!(" ({v})")).unwrap_or_default()
 				)
 			})
-			.fold(Vec::new(), |mut set, binary| {
-				if !set.contains(&binary) {
-					set.push(binary);
+			.fold(Vec::new(), |mut set, archive| {
+				if !set.contains(&archive) {
+					set.push(archive);
 				}
 				set
 			});
-		cli.info(format!("Binaries used: {}", binaries.join(", ")))?;
+		cli.info(format!("Binaries used: {}", archives.join(", ")))?;
 	}
 
 	// Finally, spawn the network and wait for a signal to terminate
@@ -438,29 +438,29 @@ pub(crate) async fn spawn(
 	Ok(())
 }
 
-async fn source_binaries(
+async fn source_archives(
 	zombienet: &mut Zombienet,
 	cache: &Path,
 	verbose: bool,
 	skip_confirm: bool,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<bool> {
-	// Check for any missing or stale binaries
-	let binaries = zombienet.binaries().filter(|b| !b.exists() || b.stale()).fold(
+	// Check for any missing or stale archives
+	let archives = zombienet.archives().filter(|b| !b.exists() || b.stale()).fold(
 		Vec::new(),
-		|mut set, binary| {
-			if !set.contains(&binary) {
-				set.push(binary);
+		|mut set, archive| {
+			if !set.contains(&archive) {
+				set.push(archive);
 			}
 			set
 		},
 	);
-	if binaries.is_empty() {
+	if archives.is_empty() {
 		return Ok(false);
 	}
 
-	// Check if any missing binaries
-	let missing: IndexSet<_> = binaries
+	// Check if any missing archives
+	let missing: IndexSet<_> = archives
 		.iter()
 		.filter_map(|b| (!b.exists()).then_some((b.name(), b.version())))
 		.collect();
@@ -472,10 +472,10 @@ async fn source_binaries(
 		.dim()
 		.to_string();
 		cli.warning(format!(
-			"⚠️ The following binaries required to launch the network cannot be found locally:\n   {list}"
+			"⚠️ The following archives required to launch the network cannot be found locally:\n   {list}"
 		))?;
 
-		// Prompt for automatic sourcing of binaries
+		// Prompt for automatic sourcing of archives
 		let list = style(format!(
 			"> {}",
 			missing
@@ -500,14 +500,14 @@ async fn source_binaries(
 			.interact()?
 		{
 			cli.outro_cancel(
-				"🚫 Cannot launch the specified network until all required binaries are available.",
+				"🚫 Cannot launch the specified network until all required archives are available.",
 			)?;
 			return Ok(true);
 		}
 	}
 
-	// Check if any stale binaries
-	let stale: IndexSet<_> = binaries
+	// Check if any stale archives
+	let stale: IndexSet<_> = archives
 		.iter()
 		.filter_map(|b| b.stale().then_some((b.name(), b.version(), b.latest())))
 		.collect();
@@ -526,7 +526,7 @@ async fn source_binaries(
 		.dim()
 		.to_string();
 		cli.warning(format!(
-			"ℹ️ The following binaries have newer versions available:\n   {list}"
+			"ℹ️ The following archives have newer versions available:\n   {list}"
 		))?;
 		if !skip_confirm {
 			latest = cli
@@ -542,7 +542,7 @@ async fn source_binaries(
 	}
 
 	#[allow(clippy::manual_inspect)]
-	let binaries: Vec<_> = binaries
+	let archives: Vec<_> = archives
 		.into_iter()
 		.filter(|b| !b.exists() || (latest && b.stale()))
 		.map(|b| {
@@ -553,29 +553,29 @@ async fn source_binaries(
 		})
 		.collect();
 
-	if binaries.is_empty() {
+	if archives.is_empty() {
 		return Ok(false);
 	}
 
-	if binaries.iter().any(|b| !b.local()) {
+	if archives.iter().any(|b| !b.local()) {
 		cli.info(format!(
-			"ℹ️ Binaries will be cached at {}",
+			"ℹ️ Archives will be cached at {}",
 			&cache.to_str().expect("expected local cache is invalid")
 		))?;
 	}
 
-	// Source binaries
+	// Source archives
 	let release = true;
 	match verbose {
 		true => {
 			let reporter = VerboseReporter;
-			for binary in binaries {
-				cli.info(format!("📦 Sourcing {}...", binary.name()))?;
+			for archive in archives {
+				cli.info(format!("📦 Sourcing {}...", archive.name()))?;
 				Term::stderr().clear_last_lines(1)?;
-				if let Err(e) = binary.source(release, &reporter, verbose).await {
+				if let Err(e) = archive.source(release, &reporter, verbose).await {
 					reporter.update(&format!("Sourcing failed: {e}"));
 					cli.outro_cancel(
-						"🚫 Cannot launch the network until all required binaries are available.",
+						"🚫 Cannot launch the network until all required archives are available.",
 					)?;
 					return Ok(true);
 				}
@@ -583,29 +583,29 @@ async fn source_binaries(
 			reporter.update("");
 		},
 		false => {
-			let multi = multi_progress("📦 Sourcing binaries...".to_string());
-			let queue: Vec<_> = binaries
+			let multi = multi_progress("📦 Sourcing archives...".to_string());
+			let queue: Vec<_> = archives
 				.into_iter()
-				.map(|binary| {
+				.map(|archive| {
 					let progress = multi.add(spinner());
-					progress.start(format!("{}: waiting...", binary.name()));
-					(binary, progress)
+					progress.start(format!("{}: waiting...", archive.name()));
+					(archive, progress)
 				})
 				.collect();
 			let mut error = false;
-			for (binary, progress) in queue {
-				let prefix = format!("{}: ", binary.name());
+			for (archive, progress) in queue {
+				let prefix = format!("{}: ", archive.name());
 				let progress_reporter = ProgressReporter(prefix, progress);
-				if let Err(e) = binary.source(release, &progress_reporter, verbose).await {
-					progress_reporter.1.error(format!("🚫 {}: {e}", binary.name()));
+				if let Err(e) = archive.source(release, &progress_reporter, verbose).await {
+					progress_reporter.1.error(format!("🚫 {}: {e}", archive.name()));
 					error = true;
 				}
-				progress_reporter.1.stop(format!("✅  {}", binary.name()));
+				progress_reporter.1.stop(format!("✅  {}", archive.name()));
 			}
 			multi.stop();
 			if error {
 				cli.outro_cancel(
-					"🚫 Cannot launch the network until all required binaries are available.",
+					"🚫 Cannot launch the network until all required archives are available.",
 				)?;
 				return Ok(true);
 			}
