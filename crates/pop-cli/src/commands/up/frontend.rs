@@ -102,7 +102,7 @@ pub fn run_frontend(target: &Path) -> Result<()> {
 			pm
 		)),
 		None => Err(anyhow::anyhow!(
-			"No supported package manager found. Please install pnpm, bun, yarn, or npm."
+			"No package manager lock file detected. Please ensure the project has been initialized with npm, pnpm, bun, or yarn (e.g., run 'npm install' to create package-lock.json)."
 		)),
 	}
 }
