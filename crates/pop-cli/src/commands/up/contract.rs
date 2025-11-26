@@ -21,7 +21,7 @@ use clap::Args;
 use cliclack::spinner;
 use console::Emoji;
 use pop_contracts::{
-	FunctionType, UpOpts, Verbosity, Weight, build_smart_contract,
+	BuildMode, FunctionType, UpOpts, Verbosity, Weight, build_smart_contract,
 	dry_run_gas_estimate_instantiate, dry_run_upload, extract_function, get_contract_code,
 	get_instantiate_payload, get_upload_payload, instantiate_contract_signed,
 	instantiate_smart_contract, is_chain_alive, run_eth_rpc_node, run_ink_node, set_up_deployment,
@@ -160,7 +160,12 @@ impl UpContractCommand {
 			}
 			let spinner = spinner();
 			spinner.start("Building contract in RELEASE mode...");
-			let result = match build_smart_contract(&self.path, true, Verbosity::Quiet, None) {
+			let result = match build_smart_contract(
+				&self.path,
+				BuildMode::Release,
+				Verbosity::Quiet,
+				None,
+			) {
 				Ok(result) => result,
 				Err(e) => {
 					Cli.outro_cancel(format!("🚫 An error occurred building your contract: {e}\nUse `pop build` to retry with build output."))?;

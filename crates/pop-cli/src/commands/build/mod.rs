@@ -7,7 +7,7 @@ use contract::BuildContract;
 use duct::cmd;
 use pop_common::Profile;
 #[cfg(feature = "contract")]
-use pop_contracts::MetadataSpec;
+use pop_contracts::{BuildMode, MetadataSpec};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 #[cfg(feature = "chain")]
@@ -85,7 +85,7 @@ pub(crate) struct BuildArgs {
 	#[cfg(feature = "contract")]
 	pub(crate) metadata: Option<MetadataSpec>,
 	/// Whether to build in a way that the contract is verifiable
-	#[clap(long, help_heading = CONTRACT_HELP_HEADER)]
+	#[clap(long, conflicts_with_all = ["profile", "release"], help_heading = CONTRACT_HELP_HEADER)]
 	#[cfg(feature = "contract")]
 	pub(crate) verifiable: bool,
 }
@@ -121,11 +121,15 @@ impl Command {
 		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(&project_path)? {
 			// All commands originating from root command are valid
-			let release = match &args.profile {
-				Some(profile) => (*profile).into(),
-				None => args.release,
+			let build_mode = match (&args.profile, &args.verifiable) {
+				(Some(Profile::Release), false) | (Some(Profile::Production), false) =>
+					BuildMode::Release,
+				(None, true) => BuildMode::Verifiable,
+				(None, false) if args.release => BuildMode::Release,
+				// Fallback to debug mode
+				_ => BuildMode::Debug,
 			};
-			BuildContract { path: project_path, release, metadata: args.metadata }.execute()?;
+			BuildContract { path: project_path, build_mode, metadata: args.metadata }.execute()?;
 			return Ok(());
 		}
 
