@@ -1012,8 +1012,8 @@ mod tests {
 			.expect("dummy type must exist");
 		let ty = portable.resolve(type_id).unwrap();
 		// Ensure helper extracts K and V type ids
-		let k_id = super::param_type_id(ty, "K").expect("K param must exist");
-		let v_id = super::param_type_id(ty, "V").expect("V param must exist");
+		let k_id = param_type_id(ty, "K").expect("K param must exist");
+		let v_id = param_type_id(ty, "V").expect("V param must exist");
 		let k_ty = portable.resolve(k_id).unwrap();
 		let v_ty = portable.resolve(v_id).unwrap();
 		match &k_ty.type_def {
@@ -1051,7 +1051,7 @@ mod tests {
 		let reg = transcoder.metadata().registry();
 		let u8_id = find_primitive(reg, TypeDefPrimitive::U8);
 
-		let out = super::decode_mapping_impl(Vec::new(), u8_id, u8_id, &transcoder, None)?;
+		let out = decode_mapping_impl(Vec::new(), u8_id, u8_id, &transcoder, None)?;
 		assert_eq!(out, "Mapping is empty");
 		Ok(())
 	}
@@ -1068,7 +1068,7 @@ mod tests {
 		full_key.push(4u8); // SCALE encoding of u8 is itself
 		let value_bytes = vec![8u8];
 
-		let out = super::decode_mapping_impl(
+		let out = decode_mapping_impl(
 			vec![(full_key, Some(value_bytes))],
 			u8_id,
 			u8_id,
@@ -1091,7 +1091,7 @@ mod tests {
 		full_key.push(4u8);
 		let value_bytes = vec![8u8];
 
-		let out = super::decode_mapping_impl(
+		let out = decode_mapping_impl(
 			vec![(full_key, Some(value_bytes))],
 			u8_id,
 			u8_id,
@@ -1113,7 +1113,7 @@ mod tests {
 		full_key.push(4u8);
 		let value_bytes = vec![8u8];
 
-		let out = super::decode_mapping_impl(
+		let out = decode_mapping_impl(
 			vec![(full_key, Some(value_bytes))],
 			u8_id,
 			u8_id,
