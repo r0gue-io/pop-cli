@@ -90,6 +90,7 @@ impl InkNodeCommand {
 #[clap(next_help_heading = HELP_HEADER)]
 pub struct UpContractCommand {
 	/// Path to the contract build directory.
+	#[serde(skip_serializing)]
 	#[clap(skip)]
 	pub(crate) path: PathBuf,
 	/// The name of the contract constructor to call.
@@ -118,6 +119,7 @@ pub struct UpContractCommand {
 	/// e.g.
 	/// - for a dev account "//Alice"
 	/// - with a password "//Alice///SECRET_PASSWORD"
+	#[serde(skip_serializing)]
 	#[clap(short, long)]
 	pub(crate) suri: Option<String>,
 	/// Use a browser extension wallet to sign the extrinsic.
@@ -571,8 +573,9 @@ pub(crate) async fn start_ink_node(
 	Cli.info(format!(
 		"Local node started successfully:{}",
 		style(format!(
-			"\n{}\n{}",
+			"\n{}\n{}\n{}",
 			style(format!("portal: https://polkadot.js.org/apps/?rpc={}#/explorer", url)).dim(),
+			style(format!("url: {}", url)).dim(),
 			style(format!("logs: tail -f {}", log_ink_node.path().display())).dim(),
 		))
 		.dim()

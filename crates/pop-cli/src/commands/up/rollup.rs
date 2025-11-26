@@ -41,6 +41,7 @@ const PDP_API_KEY: &str = "PDP_API_KEY";
 #[clap(next_help_heading = HELP_HEADER)]
 pub struct UpCommand {
 	/// Path to the project.
+	#[serde(skip_serializing)]
 	#[clap(skip)]
 	pub(crate) path: PathBuf,
 	/// ID to use. If not specified, a new ID will be reserved.
@@ -50,12 +51,15 @@ pub struct UpCommand {
 	#[arg(long, requires = "id")]
 	pub(crate) skip_registration: bool,
 	/// Path to the chain spec file. If provided, it will be used to generate genesis artifacts.
+	#[serde(skip_serializing)]
 	#[arg(long = "chain-spec")]
 	pub(crate) chain_spec: Option<PathBuf>,
 	/// Path to the genesis state file. If not specified, it will be generated.
+	#[serde(skip_serializing)]
 	#[arg(short = 'G', long = "genesis-state")]
 	pub(crate) genesis_state: Option<StatePathBuf>,
 	/// Path to the genesis code file.  If not specified, it will be generated.
+	#[serde(skip_serializing)]
 	#[arg(short = 'C', long = "genesis-code")]
 	pub(crate) genesis_code: Option<CodePathBuf>,
 	/// Websocket endpoint of the relay chain.

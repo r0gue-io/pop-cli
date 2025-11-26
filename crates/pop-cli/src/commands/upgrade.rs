@@ -19,6 +19,7 @@ const CARGO_TOML_FILE: &str = "Cargo.toml";
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct UpgradeArgs {
 	/// Path to the Cargo.toml file. If not provided, the current directory will be used.
+	#[serde(skip_serializing)]
 	#[arg(short, long)]
 	pub(crate) path: Option<PathBuf>,
 	/// Target Polkadot SDK version to switch to.

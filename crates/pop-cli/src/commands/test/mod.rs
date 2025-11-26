@@ -29,6 +29,7 @@ pub(crate) struct TestArgs {
 	#[command(subcommand)]
 	pub(crate) command: Option<Command>,
 	/// Directory path for your project [default: current directory]
+	#[serde(skip_serializing)]
 	#[arg(short, long)]
 	pub(crate) path: Option<PathBuf>,
 	/// Directory path without flag for your project [default: current directory]
