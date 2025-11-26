@@ -232,30 +232,24 @@ mod tests {
 	}
 
 	#[test]
-	fn build_command_works() {
-		let result = build_command("create-typink", &["--name", "frontend"], None);
-		assert!(result.is_ok());
+	fn build_command_works() -> anyhow::Result<()>{
+		let package = "create-typink";
+        let args = &["--name", "frontend"];
 
-		let args = result.unwrap();
-		assert!(args.len() >= 3);
+        let result = build_command(package, args, Some("npm"))?;
 
-		match args[0].as_str() {
-			"pnpm" => {
-				assert_eq!(args[1], "dlx");
-				assert_eq!(args[2], "create-typink");
-			},
-			"bunx" => {
-				assert_eq!(args[1], "create-typink");
-			},
-			"yarn" => {
-				assert_eq!(args[1], "dlx");
-				assert_eq!(args[2], "create-typink");
-			},
-			"npx" => {
-				assert_eq!(args[1], "-y");
-				assert_eq!(args[2], "create-typink");
-			},
-			_ => panic!("Unexpected runner: {}", args[0]),
-		}
+        assert_eq!(result[0], "npx");
+        assert_eq!(result[1], "-y");
+        assert_eq!(result[2], package);
+        assert_eq!(result.last().unwrap(), "frontend");
+
+        Ok(())
 	}
+
+	#[test]
+    fn build_command_invalid_manager_fails() {
+        let result = build_command("create-typink", &[], Some("invalid"));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Unsupported package manager"));
+    }
 }
