@@ -85,33 +85,23 @@ pub fn resolve_frontend_dir(
 }
 
 /// Decide which command to use to run locally the frontend and run it.
+/// Detection priority: pnpm -> bun -> yarn -> npm
 ///
 /// # Arguments
 /// * `target` - Path to the frontend project.
 pub fn run_frontend(target: &Path) -> Result<()> {
 	let package_manager = detect_package_manager(target);
 	match package_manager.as_deref() {
-		Some("pnpm") if has("pnpm") => {
-			cmd("pnpm", &["install"]).dir(target).run()?;
-			cmd("pnpm", &["run", "dev"]).dir(target).run()?;
+		Some(pm) if has(pm) => {
+			cmd(pm, &["install"]).dir(target).run()?;
+			cmd(pm, &["run", "dev"]).dir(target).run()?;
 			Ok(())
 		},
-		Some("bun") if has("bun") => {
-			cmd("bun", &["install"]).dir(target).run()?;
-			cmd("bun", &["run", "dev"]).dir(target).run()?;
-			Ok(())
-		},
-		Some("yarn") if has("yarn") => {
-			cmd("yarn", &["install"]).dir(target).run()?;
-			cmd("yarn", &["run", "dev"]).dir(target).run()?;
-			Ok(())
-		},
-		Some("npm") if has("npm") => {
-			cmd("npm", &["install"]).dir(target).run()?;
-			cmd("npm", &["run", "dev"]).dir(target).run()?;
-			Ok(())
-		},
-		_ => Err(anyhow::anyhow!(
+		Some(pm) => Err(anyhow::anyhow!(
+			"Detected package manager '{}' from lock files, but it's not installed. Please install it first.",
+			pm
+		)),
+		None => Err(anyhow::anyhow!(
 			"No supported package manager found. Please install pnpm, bun, yarn, or npm."
 		)),
 	}

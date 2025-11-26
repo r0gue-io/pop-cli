@@ -42,7 +42,8 @@ impl PackageManager {
 		}
 	}
 
-	/// Auto-detect which package manager is available.
+	/// Auto-detect which package manager is available. Detection priority: pnpm -> bun -> yarn ->
+	/// npm
 	fn detect() -> Result<Self> {
 		if has("pnpm") {
 			Ok(Self::Pnpm)
@@ -123,6 +124,9 @@ pub async fn create_frontend(
 	match template {
 		// Inkathon requires Bun installed.
 		FrontendTemplate::Inkathon => {
+			if package_manager.is_some() && package_manager != Some("bun") {
+				cli.warning("Inkathon template requires bun. Ignoring specified package manager.")?;
+			}
 			let bun = ensure_bun(false, cli).await?;
 			cmd(&bun, &["add", "polkadot-api"]).dir(&project_dir).unchecked().run()?;
 			cmd(&bun, &["x", command, "frontend", "--yes"])
@@ -232,24 +236,24 @@ mod tests {
 	}
 
 	#[test]
-	fn build_command_works() -> anyhow::Result<()>{
+	fn build_command_works() -> anyhow::Result<()> {
 		let package = "create-typink";
-        let args = &["--name", "frontend"];
+		let args = &["--name", "frontend"];
 
-        let result = build_command(package, args, Some("npm"))?;
+		let result = build_command(package, args, Some("npm"))?;
 
-        assert_eq!(result[0], "npx");
-        assert_eq!(result[1], "-y");
-        assert_eq!(result[2], package);
-        assert_eq!(result.last().unwrap(), "frontend");
+		assert_eq!(result[0], "npx");
+		assert_eq!(result[1], "-y");
+		assert_eq!(result[2], package);
+		assert_eq!(result.last().unwrap(), "frontend");
 
-        Ok(())
+		Ok(())
 	}
 
 	#[test]
-    fn build_command_invalid_manager_fails() {
-        let result = build_command("create-typink", &[], Some("invalid"));
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Unsupported package manager"));
-    }
+	fn build_command_invalid_manager_fails() {
+		let result = build_command("create-typink", &[], Some("invalid"));
+		assert!(result.is_err());
+		assert!(result.unwrap_err().to_string().contains("Unsupported package manager"));
+	}
 }
