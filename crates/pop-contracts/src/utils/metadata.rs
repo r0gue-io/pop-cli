@@ -1031,7 +1031,6 @@ mod tests {
 	fn test_transcoder() -> Result<ContractMessageTranscoder> {
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 		get_contract_transcoder(current_dir.join("./tests/files/testing.contract").as_path())
-			.map_err(Into::into)
 	}
 
 	// Helper to find the type id for a primitive in the registry
