@@ -7,7 +7,7 @@ use contract::BuildContract;
 use duct::cmd;
 use pop_common::Profile;
 #[cfg(feature = "contract")]
-use pop_contracts::{BuildMode, MetadataSpec};
+use pop_contracts::MetadataSpec;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 #[cfg(feature = "chain")]
@@ -121,14 +121,7 @@ impl Command {
 		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(&project_path)? {
 			// All commands originating from root command are valid
-			let build_mode = match (&args.profile, &args.verifiable) {
-				(Some(Profile::Release), false) | (Some(Profile::Production), false) =>
-					BuildMode::Release,
-				(None, true) => BuildMode::Verifiable,
-				(None, false) if args.release => BuildMode::Release,
-				// Fallback to debug mode
-				_ => BuildMode::Debug,
-			};
+			let build_mode = contract::resolve_build_mode(&args);
 			BuildContract { path: project_path, build_mode, metadata: args.metadata }.execute()?;
 			return Ok(());
 		}
