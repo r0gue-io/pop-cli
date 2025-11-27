@@ -79,7 +79,7 @@ jobs:
 
       - name: Setup Docker (macOS)
         if: matrix.os == 'macos-latest'
-        uses: douglascamata/setup-docker-macos-action@v1-alpha
+        uses: docker/setup-docker-action@v4
 
       - name: Ensure Docker is running
         run: |
