@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{errors::Error, utils::get_manifest_path};
-pub use contract_build::{BuildMode, MetadataSpec, Verbosity};
+pub use contract_build::{BuildMode, ImageVariant, MetadataSpec, Verbosity};
 use contract_build::{BuildResult, ExecuteArgs, execute};
 use std::path::Path;
 
@@ -18,11 +18,16 @@ pub fn build_smart_contract(
 	build_mode: BuildMode,
 	verbosity: Verbosity,
 	metadata_spec: Option<MetadataSpec>,
+	image: Option<ImageVariant>,
 ) -> anyhow::Result<BuildResult> {
 	let manifest_path = get_manifest_path(path)?;
 
-	let args =
+	let mut args =
 		ExecuteArgs { manifest_path, build_mode, verbosity, metadata_spec, ..Default::default() };
+
+	if let Some(image) = image {
+		args.image = image;
+	}
 
 	// Execute the build and log the output of the build
 	match build_mode {

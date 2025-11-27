@@ -47,7 +47,7 @@ pub(crate) struct BuildArgs {
 	#[cfg(feature = "chain")]
 	pub command: Option<Command>,
 	/// Directory path with flag for your project [default: current directory]
-	#[arg(long)]
+	#[arg(long, visible_alias = "manifest-path")]
 	pub(crate) path: Option<PathBuf>,
 	/// Directory path without flag for your project [default: current directory]
 	#[arg(value_name = "PATH", index = 1, conflicts_with = "path")]
@@ -84,10 +84,15 @@ pub(crate) struct BuildArgs {
 	#[clap(long, help_heading = CONTRACT_HELP_HEADER)]
 	#[cfg(feature = "contract")]
 	pub(crate) metadata: Option<MetadataSpec>,
-	/// Whether to build in a way that the contract is verifiable
-	#[clap(long, conflicts_with_all = ["profile", "release"], help_heading = CONTRACT_HELP_HEADER)]
+	/// Whether to build in a way that the contract is verifiable. For verifiable contracts, use
+	/// --manifest-path instead of --path to directly point to your contracts Cargo.toml
+	#[clap(long, conflicts_with_all = ["release", "profile"], help_heading = CONTRACT_HELP_HEADER)]
 	#[cfg(feature = "contract")]
 	pub(crate) verifiable: bool,
+	/// Custom image for verifiable builds
+	#[clap(long, help_heading = CONTRACT_HELP_HEADER)]
+	#[cfg(feature = "contract")]
+	pub(crate) image: Option<String>,
 }
 
 /// Subcommand for building chain artifacts.
@@ -120,9 +125,10 @@ impl Command {
 
 		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(&project_path)? {
-			// All commands originating from root command are valid
 			let build_mode = contract::resolve_build_mode(&args);
-			BuildContract { path: project_path, build_mode, metadata: args.metadata }.execute()?;
+			let image = contract::resolve_image(&args)?;
+			BuildContract { path: project_path, build_mode, metadata: args.metadata, image }
+				.execute()?;
 			return Ok(());
 		}
 
@@ -359,7 +365,9 @@ mod tests {
 					#[cfg(feature = "contract")]
 					metadata: None,
 					#[cfg(feature = "contract")]
-					verifiable: false
+					verifiable: false,
+					#[cfg(feature = "contract")]
+					image: None,
 				},
 				project_path,
 				&mut cli,
@@ -430,6 +438,8 @@ mod tests {
 			metadata: None,
 			#[cfg(feature = "contract")]
 			verifiable: false,
+			#[cfg(feature = "contract")]
+			image: None,
 		})?;
 
 		Ok(())
@@ -477,6 +487,8 @@ mod tests {
 			metadata: None,
 			#[cfg(feature = "contract")]
 			verifiable: false,
+			#[cfg(feature = "contract")]
+			image: None,
 		})?;
 
 		// Test 2: Execute with production profile
@@ -501,6 +513,8 @@ mod tests {
 			metadata: None,
 			#[cfg(feature = "contract")]
 			verifiable: false,
+			#[cfg(feature = "contract")]
+			image: None,
 		})?;
 
 		// Test 3: Execute with custom features
@@ -522,6 +536,8 @@ mod tests {
 				metadata: None,
 				#[cfg(feature = "contract")]
 				verifiable: false,
+				#[cfg(feature = "contract")]
+				image: None,
 			})?;
 		}
 
@@ -547,6 +563,8 @@ mod tests {
 			metadata: None,
 			#[cfg(feature = "contract")]
 			verifiable: false,
+			#[cfg(feature = "contract")]
+			image: None,
 		})?;
 
 		// Test 5: Execute with path_pos instead of path
@@ -571,6 +589,8 @@ mod tests {
 			metadata: None,
 			#[cfg(feature = "contract")]
 			verifiable: false,
+			#[cfg(feature = "contract")]
+			image: None,
 		})?;
 
 		// Test 6: Execute with benchmark and try_runtime flags
@@ -592,6 +612,8 @@ mod tests {
 				metadata: None,
 				#[cfg(feature = "contract")]
 				verifiable: false,
+				#[cfg(feature = "contract")]
+				image: None,
 			})?;
 		}
 

@@ -207,6 +207,7 @@ impl CallContractCommand {
 			BuildMode::Release,
 			Verbosity::Quiet,
 			None,
+			None,
 		) {
 			Ok(result) => result,
 			Err(e) => {
