@@ -37,6 +37,10 @@ impl BuildContract {
 	}
 }
 
+/// Resolve the `BuildMode` to use in a contract build depending on the specified args
+///
+/// # Arguments
+/// * `args` - The `BuildArgs` needed to resolve the `BuildMode`
 pub(super) fn resolve_build_mode(args: &BuildArgs) -> BuildMode {
 	match (&args.profile, &args.verifiable) {
 		(Some(Profile::Release), false) | (Some(Profile::Production), false) => BuildMode::Release,

@@ -77,6 +77,14 @@ jobs:
           brew install protobuf
           protoc --version
 
+      - name: Setup Docker (macOS)
+        if: matrix.os == 'macos-latest'
+        uses: douglascamata/setup-docker-macos-action@v1-alpha
+
+      - name: Ensure Docker is running
+        run: |
+          docker info || (sudo systemctl start docker && docker info)
+
       - name: Install cargo-nextest
         uses: taiki-e/install-action@v2
         with:
