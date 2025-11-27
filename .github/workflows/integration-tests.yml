@@ -74,16 +74,19 @@ jobs:
       - name: Install packages (macOS)
         if: matrix.os == 'macos-13'
         run: |
-          brew install protobuf
+          brew install protobuf qemu
           protoc --version
 
       - name: Setup Docker (macOS)
         if: matrix.os == 'macos-13'
-        uses: docker/setup-docker-action@v4
-
-      - name: Ensure Docker is running
         run: |
-          docker info || (sudo systemctl start docker && docker info)
+          brew install colima docker
+          # Use qemu with 9p mount type (more reliable for writes than vz/virtiofs)
+          colima start --vm-type qemu --mount-type 9p --mount ~:w
+          # Create symlink to default Docker socket location for compatibility
+          sudo ln -sf $HOME/.colima/default/docker.sock /var/run/docker.sock
+          # Verify Docker is working
+          docker info
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@v2
@@ -93,7 +96,10 @@ jobs:
       - name: Run integration tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: cargo nextest run --locked --no-default-features --features "contract,integration-tests" --test contract --no-fail-fast --nocapture --status-level all
+        run: |
+          # On macOS, Docker can only access certain paths. We use $HOME which is shared with Docker.
+          [[ "${{ matrix.os }}" == "macos-13" ]] && export TMPDIR=$HOME/tmp && mkdir -p $TMPDIR
+          cargo nextest run --locked --no-default-features --features "contract,integration-tests" --test contract --no-fail-fast --nocapture --status-level all
 
   chain-integration-tests:
     strategy:
