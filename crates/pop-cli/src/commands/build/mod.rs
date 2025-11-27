@@ -125,8 +125,8 @@ impl Command {
 
 		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(&project_path)? {
-			let build_mode = contract::resolve_build_mode(&args);
-			let image = contract::resolve_image(&args)?;
+			let build_mode = contract::resolve_build_mode(args);
+			let image = contract::resolve_image(args)?;
 			BuildContract { path: project_path, build_mode, metadata: args.metadata, image }
 				.execute()?;
 			return Ok(());
