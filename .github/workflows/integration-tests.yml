@@ -35,7 +35,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-latest
+          - macos-13
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -57,7 +57,7 @@ jobs:
           shared-key: shared-linux-contract${{ github.head_ref || github.ref_name }}
 
       - name: Rust Cache MacOS
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-13'
         uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
@@ -72,13 +72,13 @@ jobs:
           protoc --version
 
       - name: Install packages (macOS)
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-13'
         run: |
           brew install protobuf
           protoc --version
 
       - name: Setup Docker (macOS)
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-13'
         uses: docker/setup-docker-action@v4
 
       - name: Ensure Docker is running
