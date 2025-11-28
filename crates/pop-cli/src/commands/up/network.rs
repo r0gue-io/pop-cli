@@ -32,6 +32,7 @@ use tokio::time::sleep;
 #[derive(Args, Clone, Default, Serialize)]
 pub(crate) struct ConfigFileCommand {
 	/// The Zombienet network configuration file to be used.
+	#[serde(skip_serializing)]
 	#[arg(value_name = "FILE")]
 	pub path: PathBuf,
 	/// The version of the binary to be used for the relay chain, as per the release tag (e.g.

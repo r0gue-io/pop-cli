@@ -21,11 +21,11 @@ use clap::Args;
 use cliclack::spinner;
 use console::Emoji;
 use pop_contracts::{
-	Bytes, FunctionType, UpOpts, Verbosity, Weight, build_smart_contract,
+	FunctionType, UpOpts, Verbosity, Weight, build_smart_contract,
 	dry_run_gas_estimate_instantiate, dry_run_upload, extract_function, get_contract_code,
 	get_instantiate_payload, get_upload_payload, instantiate_contract_signed,
-	instantiate_smart_contract, is_chain_alive, parse_hex_bytes, run_eth_rpc_node, run_ink_node,
-	set_up_deployment, set_up_upload, upload_contract_signed, upload_smart_contract,
+	instantiate_smart_contract, is_chain_alive, run_eth_rpc_node, run_ink_node, set_up_deployment,
+	set_up_upload, upload_contract_signed, upload_smart_contract,
 };
 use serde::Serialize;
 use sp_core::bytes::to_hex;
@@ -60,7 +60,7 @@ impl InkNodeCommand {
 	pub(crate) async fn execute(&self, cli: &mut Cli) -> anyhow::Result<()> {
 		cli.intro("Launch a local Ink! node")?;
 		let url = Url::parse(&format!("ws://localhost:{}", self.ink_node_port))?;
-		let ((mut ink_node_process, _), (mut eth_rpc_process, _)) =
+		let ((mut ink_node_process, ink_node_log), (mut eth_rpc_process, eth_rpc_log)) =
 			start_ink_node(&url, self.skip_confirm, self.ink_node_port, self.eth_rpc_port).await?;
 
 		if !self.detach {
@@ -74,6 +74,8 @@ impl InkNodeCommand {
 			cli.plain("\n")?;
 			cli.outro("✅ Ink! node terminated")?;
 		} else {
+			ink_node_log.keep()?;
+			eth_rpc_log.keep()?;
 			cli.outro(format!(
 				"✅ Ink! node bootstrapped successfully. Run `kill -9 {} {}` to terminate it.",
 				ink_node_process.id(),
@@ -88,6 +90,7 @@ impl InkNodeCommand {
 #[clap(next_help_heading = HELP_HEADER)]
 pub struct UpContractCommand {
 	/// Path to the contract build directory.
+	#[serde(skip_serializing)]
 	#[clap(skip)]
 	pub(crate) path: PathBuf,
 	/// The name of the contract constructor to call.
@@ -108,10 +111,6 @@ pub struct UpContractCommand {
 	/// If not specified it will perform a dry-run to estimate the proof size required.
 	#[clap(short = 'P', long, requires = "gas")]
 	pub(crate) proof_size: Option<u64>,
-	/// A salt used in the address derivation of the new contract. Use to create multiple
-	/// instances of the same contract code from the same account.
-	#[clap(short = 'S', long, value_parser = parse_hex_bytes)]
-	pub(crate) salt: Option<Bytes>,
 	/// Websocket endpoint of a chain.
 	#[clap(short, long, value_parser)]
 	pub(crate) url: Option<Url>,
@@ -120,6 +119,7 @@ pub struct UpContractCommand {
 	/// e.g.
 	/// - for a dev account "//Alice"
 	/// - with a password "//Alice///SECRET_PASSWORD"
+	#[serde(skip_serializing)]
 	#[clap(short, long)]
 	pub(crate) suri: Option<String>,
 	/// Use a browser extension wallet to sign the extrinsic.
@@ -212,9 +212,7 @@ impl UpContractCommand {
 					.initial_value(true)
 					.interact()?
 				{
-					Cli.info(
-						"The default endpoint is unreachable. Fetching and launching a local ink! node",
-					)?;
+					Cli.info("Fetching and launching a local ink! node")?;
 					Some(
 						start_ink_node(&url, self.skip_confirm, DEFAULT_PORT, DEFAULT_ETH_RPC_PORT)
 							.await?,
@@ -423,6 +421,7 @@ impl UpContractCommand {
 			if !self.skip_confirm {
 				Cli.success(COMPLETE)?;
 				self.keep_interacting_with_node(&mut Cli, contract_address).await?;
+				terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
 			} else {
 				terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
 				Cli.outro(COMPLETE)?;
@@ -449,6 +448,10 @@ impl UpContractCommand {
 			cmd.contract = Some(address);
 			cmd.url = self.url.clone();
 			cmd.deployed = true;
+			cmd.execute = self.execute;
+			cmd.use_wallet = self.use_wallet;
+			cmd.suri = self.suri.clone();
+			cmd.skip_confirm = self.skip_confirm;
 			cmd.execute(cli).await?;
 		}
 		Ok(())
@@ -508,8 +511,9 @@ impl UpContractCommand {
 			let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
 				Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
 			} else {
-				// Frontend will do dry run and update call data.
-				Weight::zero()
+				dry_run_gas_estimate_instantiate(&instantiate_exec)
+					.await
+					.unwrap_or_else(|_| Weight::zero())
 			};
 			let call_data = get_instantiate_payload(instantiate_exec, weight_limit).await?;
 			Ok((call_data, hash))
@@ -526,7 +530,6 @@ impl From<UpContractCommand> for UpOpts {
 			value: cmd.value,
 			gas_limit: cmd.gas_limit,
 			proof_size: cmd.proof_size,
-			salt: cmd.salt,
 			url: cmd.url.expect("url must be set"),
 			suri: cmd.suri.unwrap_or_else(|| "//Alice".to_string()),
 		}
@@ -570,8 +573,9 @@ pub(crate) async fn start_ink_node(
 	Cli.info(format!(
 		"Local node started successfully:{}",
 		style(format!(
-			"\n{}\n{}",
+			"\n{}\n{}\n{}",
 			style(format!("portal: https://polkadot.js.org/apps/?rpc={}#/explorer", url)).dim(),
+			style(format!("url: {}", url)).dim(),
 			style(format!("logs: tail -f {}", log_ink_node.path().display())).dim(),
 		))
 		.dim()
@@ -623,7 +627,6 @@ impl Default for UpContractCommand {
 			value: "0".to_string(),
 			gas_limit: None,
 			proof_size: None,
-			salt: None,
 			url: None,
 			suri: Some("//Alice".to_string()),
 			use_wallet: false,
@@ -655,7 +658,6 @@ mod tests {
 				value: "0".to_string(),
 				gas_limit: None,
 				proof_size: None,
-				salt: None,
 				url: Url::parse(urls::LOCAL)?,
 				suri: "//Alice".to_string(),
 			}

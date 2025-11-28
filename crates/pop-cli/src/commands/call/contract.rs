@@ -21,8 +21,9 @@ use pop_common::{DefaultConfig, Keypair, parse_h160_account};
 use pop_contracts::{
 	CallExec, CallOpts, ContractCallable, ContractFunction, ContractStorage, DefaultEnvironment,
 	Verbosity, Weight, build_smart_contract, call_smart_contract,
-	call_smart_contract_from_signed_payload, dry_run_gas_estimate_call, fetch_contract_storage,
-	get_call_payload, get_contract_storage_info, get_messages, set_up_call,
+	call_smart_contract_from_signed_payload, dry_run_gas_estimate_call,
+	fetch_contract_storage_with_param, get_call_payload, get_contract_storage_info, get_messages,
+	set_up_call,
 };
 use serde::Serialize;
 use std::path::PathBuf;
@@ -33,9 +34,11 @@ const DEFAULT_PAYABLE_VALUE: &str = "0";
 #[derive(Args, Clone, Serialize)]
 pub struct CallContractCommand {
 	/// Path to the contract build directory or a contract artifact.
+	#[serde(skip_serializing)]
 	#[arg(short, long)]
 	path: Option<PathBuf>,
 	/// Directory path without flag for your project [default: current directory]
+	#[serde(skip_serializing)]
 	#[arg(value_name = "PATH", index = 1, conflicts_with = "path")]
 	pub(crate) path_pos: Option<PathBuf>,
 	/// The address of the contract to call.
@@ -69,7 +72,7 @@ pub struct CallContractCommand {
 	/// - with a password "//Alice///SECRET_PASSWORD"
 	#[serde(skip_serializing)]
 	#[arg(short, long)]
-	suri: Option<String>,
+	pub(crate) suri: Option<String>,
 	/// Use a browser extension wallet to sign the extrinsic.
 	#[arg(
 		name = "use-wallet",
@@ -78,10 +81,10 @@ pub struct CallContractCommand {
 		default_value = "false",
 		conflicts_with = "suri"
 	)]
-	use_wallet: bool,
+	pub(crate) use_wallet: bool,
 	/// Submit an extrinsic for on-chain execution.
 	#[arg(short = 'x', long)]
-	execute: bool,
+	pub(crate) execute: bool,
 	/// Enables developer mode, bypassing certain user prompts for faster testing.
 	/// Recommended for testing and local development only.
 	#[deprecated(since = "0.12.0", note = "Use `--skip-confirm`, will be removed in v0.13.0")]
@@ -92,7 +95,10 @@ pub struct CallContractCommand {
 	pub(crate) deployed: bool,
 	/// Automatically submits the call without prompting for confirmation.
 	#[arg(short = 'y', long)]
-	skip_confirm: bool,
+	pub(crate) skip_confirm: bool,
+	/// Optional key to query in case the selected storage is a mapping.
+	#[arg(short = 'k', long)]
+	storage_mapping_key: Option<String>,
 }
 
 #[allow(deprecated)]
@@ -114,6 +120,7 @@ impl Default for CallContractCommand {
 			dev_mode: false,
 			deployed: false,
 			skip_confirm: false,
+			storage_mapping_key: None,
 		}
 	}
 }
@@ -171,6 +178,9 @@ impl CallContractCommand {
 		if !self.args.is_empty() {
 			let args: Vec<_> = self.args.iter().map(|a| format!("\"{a}\"")).collect();
 			full_message.push_str(&format!(" --args {}", args.join(" ")));
+		}
+		if let Some(storage_mapping_key) = &self.storage_mapping_key {
+			full_message.push_str(&format!(" --storage-mapping-key {}", storage_mapping_key));
 		}
 		if self.value != DEFAULT_PAYABLE_VALUE {
 			full_message.push_str(&format!(" --value {}", self.value));
@@ -239,10 +249,24 @@ impl CallContractCommand {
 			.unwrap_or_default()
 	}
 
-	fn configure_storage(&mut self) -> Result<()> {
+	fn configure_storage(&mut self, cli: &mut impl Cli, storage: &ContractStorage) -> Result<()> {
 		// Display storage field information
 		self.use_wallet = false;
 		self.suri = None;
+		if self.storage_mapping_key.is_none() {
+			self.storage_mapping_key = if let Some(key_type_name) = &storage.key_type_name &&
+				!self.skip_confirm
+			{
+				let key: String = cli
+					.input("Provide the mapping key to query (leave blank to fetch all)")
+					.placeholder(key_type_name)
+					.default_input("")
+					.interact()?;
+				if key.trim().is_empty() { None } else { Some(key) }
+			} else {
+				None
+			};
+		}
 		Ok(())
 	}
 
@@ -396,7 +420,7 @@ impl CallContractCommand {
 
 		match &callable {
 			ContractCallable::Function(f) => self.configure_message(f, cli)?,
-			ContractCallable::Storage(_) => self.configure_storage()?,
+			ContractCallable::Storage(s) => self.configure_storage(cli, s)?,
 		}
 
 		cli.info(self.display())?;
@@ -404,11 +428,12 @@ impl CallContractCommand {
 	}
 
 	async fn read_storage(&mut self, cli: &mut impl Cli, storage: ContractStorage) -> Result<()> {
-		let value = fetch_contract_storage(
+		let value = fetch_contract_storage_with_param(
 			&storage,
 			self.contract.as_ref().expect("no contract address specified"),
 			&self.url()?,
 			&ensure_project_path(self.path.clone(), self.path_pos.clone()),
+			self.storage_mapping_key.as_deref(),
 		)
 		.await?;
 		cli.success(value)?;
@@ -672,6 +697,7 @@ mod tests {
 			dev_mode: false,
 			deployed: false,
 			skip_confirm: false,
+			storage_mapping_key: None,
 		};
 		call_config.configure(&mut cli, false).await?;
 		assert_eq!(
@@ -841,6 +867,7 @@ mod tests {
 			dev_mode: false,
 			deployed: false,
 			skip_confirm: false,
+			storage_mapping_key: None,
 		};
 		call_config.configure(&mut cli, false).await?;
 		assert_eq!(
@@ -925,6 +952,7 @@ mod tests {
 			dev_mode: false,
 			deployed: false,
 			skip_confirm: true,
+			storage_mapping_key: None,
 		};
 		call_config.configure(&mut cli, false).await?;
 		assert_eq!(
@@ -990,6 +1018,7 @@ mod tests {
 			dev_mode: false,
 			deployed: false,
 			skip_confirm: false,
+			storage_mapping_key: None,
 		};
 		let mut cli = MockCli::new();
 		assert!(
@@ -1050,6 +1079,7 @@ mod tests {
 			dev_mode: false,
 			deployed: false,
 			skip_confirm: false,
+			storage_mapping_key: None,
 		}
 		.execute(&mut cli)
 		.await;
@@ -1078,6 +1108,7 @@ mod tests {
 			dev_mode: false,
 			deployed: false,
 			skip_confirm: false,
+			storage_mapping_key: None,
 		};
 		// Contract is not deployed.
 		let mut cli =
@@ -1112,6 +1143,7 @@ mod tests {
 			dev_mode: false,
 			deployed: false,
 			skip_confirm: false,
+			storage_mapping_key: None,
 		};
 		// Contract not build. Build is required.
 		assert!(call_config.is_contract_build_required());
@@ -1160,6 +1192,7 @@ mod tests {
 			dev_mode: false,
 			deployed: false,
 			skip_confirm: false,
+			storage_mapping_key: None,
 		};
 
 		// We can't check the exact error message because it includes dynamic temp paths,
@@ -1206,6 +1239,7 @@ mod tests {
 			dev_mode: false,
 			deployed: false,
 			skip_confirm: false,
+			storage_mapping_key: None,
 		};
 
 		let mut cli = MockCli::new()
@@ -1256,6 +1290,7 @@ mod tests {
 			dev_mode: false,
 			deployed: true,
 			skip_confirm: false,
+			storage_mapping_key: None,
 		};
 
 		let mut cli = MockCli::new()
@@ -1311,6 +1346,7 @@ mod tests {
 			dev_mode: false,
 			deployed: true,
 			skip_confirm: false,
+			storage_mapping_key: None,
 		};
 
 		let mut cli = MockCli::new().expect_intro("Call a contract").expect_info(format!(

@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 #[derive(Args, Clone, Default, Serialize)]
 pub(crate) struct FrontendCommand {
 	/// Path to the frontend directory
+	#[serde(skip_serializing)]
 	#[arg(long, short)]
 	pub(crate) path: Option<PathBuf>,
 }
