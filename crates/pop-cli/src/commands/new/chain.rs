@@ -3,7 +3,7 @@
 use crate::{
 	cli::{self, traits::*},
 	common::helpers::check_destination_path,
-	new::frontend::{create_frontend, prompt_frontend_template},
+	new::frontend::{PackageManager, create_frontend, prompt_frontend_template},
 };
 use anyhow::Result;
 use clap::{
@@ -82,13 +82,8 @@ pub struct NewChainCommand {
 	pub(crate) with_frontend: Option<String>,
 	/// Package manager to use for frontend. If not specified, auto-detects based on what's
 	/// installed.
-	#[arg(
-		long = "package-manager",
-		value_name = "MANAGER",
-		value_parser = ["pnpm", "bun", "yarn", "npm"],
-		requires = "with_frontend"
-	)]
-	pub(crate) package_manager: Option<String>,
+	#[arg(long = "package-manager", value_name = "MANAGER", requires = "with_frontend")]
+	pub(crate) package_manager: Option<PackageManager>,
 }
 
 impl NewChainCommand {
@@ -144,7 +139,7 @@ impl NewChainCommand {
 			config,
 			parachain_config.verify,
 			frontend_template,
-			parachain_config.package_manager.as_deref(),
+			parachain_config.package_manager,
 			&mut cli::Cli,
 		)
 		.await?;
@@ -235,7 +230,7 @@ async fn generate_parachain_from_template(
 	config: Config,
 	verify: bool,
 	frontend_template: Option<FrontendTemplate>,
-	package_manager: Option<&str>,
+	package_manager: Option<PackageManager>,
 	cli: &mut impl Cli,
 ) -> Result<()> {
 	cli.intro(format!(

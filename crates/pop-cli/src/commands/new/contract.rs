@@ -6,7 +6,7 @@ use crate::{
 		traits::{Cli as _, *},
 	},
 	common::helpers::check_destination_path,
-	new::frontend::{create_frontend, prompt_frontend_template},
+	new::frontend::{PackageManager, create_frontend, prompt_frontend_template},
 };
 
 use anyhow::Result;
@@ -48,13 +48,8 @@ pub struct NewContractCommand {
 	pub(crate) with_frontend: Option<String>,
 	/// Package manager to use for frontend. If not specified, auto-detects based on what's
 	/// installed.
-	#[arg(
-		long = "package-manager",
-		value_name = "MANAGER",
-		value_parser = ["pnpm", "bun", "yarn", "npm"],
-		requires = "with_frontend"
-	)]
-	pub(crate) package_manager: Option<String>,
+	#[arg(long = "package-manager", value_name = "MANAGER", requires = "with_frontend")]
+	pub(crate) package_manager: Option<PackageManager>,
 }
 
 impl NewContractCommand {
@@ -96,7 +91,7 @@ impl NewContractCommand {
 			path,
 			&template,
 			frontend_template,
-			self.package_manager.as_deref(),
+			self.package_manager,
 			&mut cli,
 		)
 		.await?;
@@ -167,7 +162,7 @@ async fn generate_contract_from_template(
 	path: &Path,
 	template: &Contract,
 	frontend_template: Option<FrontendTemplate>,
-	package_manager: Option<&str>,
+	package_manager: Option<PackageManager>,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<PathBuf> {
 	cli.intro(format!("Generating \"{}\" using {}!", name, template.name(),))?;

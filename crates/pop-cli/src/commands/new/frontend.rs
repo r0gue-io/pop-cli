@@ -10,11 +10,12 @@ use pop_common::{
 	FrontendTemplate, FrontendType,
 	templates::{Template, Type},
 };
-use std::{path::Path, str::FromStr};
+use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 /// Supported package managers for frontend projects.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum PackageManager {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum, Serialize, Deserialize)]
+pub enum PackageManager {
 	Pnpm,
 	Bun,
 	Yarn,
@@ -22,8 +23,18 @@ enum PackageManager {
 }
 
 impl PackageManager {
-	/// Get the command name for this package manager.
-	fn command(&self) -> &'static str {
+	/// Get the package manager binary name. Used for checking if installed.
+	pub fn name(&self) -> &'static str {
+		match self {
+			Self::Pnpm => "pnpm",
+			Self::Bun => "bun",
+			Self::Yarn => "yarn",
+			Self::Npm => "npm",
+		}
+	}
+
+	/// Get the executor command for running packages.
+	pub fn command(&self) -> &'static str {
 		match self {
 			Self::Pnpm => "pnpm",
 			Self::Bun => "bunx",
@@ -33,7 +44,7 @@ impl PackageManager {
 	}
 
 	/// Get the flag for executing packages (if any).
-	fn flag(&self) -> Option<&'static str> {
+	pub fn flag(&self) -> Option<&'static str> {
 		match self {
 			Self::Pnpm => Some("dlx"),
 			Self::Bun => None,
@@ -44,7 +55,7 @@ impl PackageManager {
 
 	/// Auto-detect which package manager is available. Detection priority: pnpm -> bun -> yarn ->
 	/// npm
-	fn detect() -> Result<Self> {
+	pub fn detect() -> Result<Self> {
 		if has("pnpm") {
 			Ok(Self::Pnpm)
 		} else if has("bun") {
@@ -57,20 +68,6 @@ impl PackageManager {
 			Err(anyhow::anyhow!(
 				"No supported package manager found. Please install pnpm, bun, yarn, or npm."
 			))
-		}
-	}
-}
-
-impl FromStr for PackageManager {
-	type Err = anyhow::Error;
-
-	fn from_str(s: &str) -> Result<Self> {
-		match s {
-			"pnpm" => Ok(Self::Pnpm),
-			"bun" => Ok(Self::Bun),
-			"yarn" => Ok(Self::Yarn),
-			"npm" => Ok(Self::Npm),
-			_ => Err(anyhow::anyhow!("Unsupported package manager: {}", s)),
 		}
 	}
 }
@@ -112,7 +109,7 @@ pub fn prompt_frontend_template(
 pub async fn create_frontend(
 	target: &Path,
 	template: &FrontendTemplate,
-	package_manager: Option<&str>,
+	package_manager: Option<PackageManager>,
 	cli: &mut impl cli::traits::Cli,
 ) -> Result<()> {
 	ensure_node_v20(false, cli).await?;
@@ -124,7 +121,7 @@ pub async fn create_frontend(
 	match template {
 		// Inkathon requires Bun installed.
 		FrontendTemplate::Inkathon => {
-			if package_manager.is_some() && package_manager != Some("bun") {
+			if matches!(package_manager, Some(pm) if pm != PackageManager::Bun) {
 				cli.warning("Inkathon template requires bun. Ignoring specified package manager.")?;
 			}
 			let bun = ensure_bun(false, cli).await?;
@@ -171,14 +168,13 @@ pub async fn create_frontend(
 fn build_command(
 	package: &str,
 	args: &[&str],
-	package_manager: Option<&str>,
+	package_manager: Option<PackageManager>,
 ) -> Result<Vec<String>> {
-	let manager = if let Some(pm_str) = package_manager {
-		let pm = PackageManager::from_str(pm_str)?;
-		if !has(pm_str) {
+	let manager = if let Some(pm) = package_manager {
+		if !has(pm.name()) {
 			return Err(anyhow::anyhow!(
 				"Specified package manager '{}' not found. Please install it first.",
-				pm_str
+				pm.name()
 			));
 		}
 		pm
@@ -240,7 +236,7 @@ mod tests {
 		let package = "create-typink";
 		let args = &["--name", "frontend"];
 
-		let result = build_command(package, args, Some("npm"))?;
+		let result = build_command(package, args, Some(PackageManager::Npm))?;
 
 		assert_eq!(result[0], "npx");
 		assert_eq!(result[1], "-y");
@@ -248,12 +244,5 @@ mod tests {
 		assert_eq!(result.last().unwrap(), "frontend");
 
 		Ok(())
-	}
-
-	#[test]
-	fn build_command_invalid_manager_fails() {
-		let result = build_command("create-typink", &[], Some("invalid"));
-		assert!(result.is_err());
-		assert!(result.unwrap_err().to_string().contains("Unsupported package manager"));
 	}
 }
