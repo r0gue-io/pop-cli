@@ -81,7 +81,16 @@ async fn contract_lifecycle() -> Result<()> {
 	// pop new contract test_contract (default)
 	let mut command = pop(
 		temp_dir,
-		["new", "contract", "test_contract", "--template", "standard", "--with-frontend=typink"],
+		[
+			"new",
+			"contract",
+			"test_contract",
+			"--template",
+			"standard",
+			"--with-frontend=typink",
+			"--package-manager",
+			"npm",
+		],
 	);
 	assert!(command.spawn()?.wait().await?.success());
 	assert!(temp_dir.join("test_contract").exists());
