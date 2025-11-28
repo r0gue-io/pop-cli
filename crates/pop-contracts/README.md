@@ -23,8 +23,8 @@ use std::path::Path;
 pub use contract_build::{Verbosity, MetadataSpec, BuildMode};
 
 let contract_path = Path::new("./");
-let build_mode = BuildMode::Release; // `true` for release mode, `false` for debug mode, `verifiable` for verifiable contract.
-let result = build_smart_contract(&contract_path, build_mode, Verbosity::Default, Some(MetadataSpec::Ink), None); // You can build your contract with Solidity metadata using `Some(Metadata::Solidity)`
+let build_mode = BuildMode::Release; // `Release` for release mode, `Debug` for debug mode, `Verifiable` for verifiable contract.
+let result = build_smart_contract(&contract_path, build_mode, Verbosity::Default, Some(MetadataSpec::Ink), None); // You can build your contract with Solidity metadata using `Some(MetadataSpec::Solidity)`
 ```
 
 

@@ -275,7 +275,8 @@ async fn contract_lifecycle() -> Result<()> {
 
 #[tokio::test]
 async fn verifiable_contract_lifecycle() -> Result<()> {
-	// TODO: Incomplete test, we'll be adding more steps as the development of the feature advance
+	// TODO: Incomplete test, we'll be adding more steps as the development of the feature
+	// progresses
 	let temp = tempfile::tempdir()?;
 	let temp_dir = temp.path();
 	//let temp_dir = Path::new("./"); //For testing locally

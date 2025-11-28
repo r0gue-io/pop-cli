@@ -31,7 +31,7 @@ pub fn build_smart_contract(
 
 	// Execute the build and log the output of the build
 	match build_mode {
-		// For verifiable contracts, execute calls docker_build (https://github.com/use-ink/cargo-contract/blob/master/crates/build/src/lib.rs#L595) which launchs a blocking tokio runtime to handle the async operations (https://github.com/use-ink/cargo-contract/blob/master/crates/build/src/docker.rs#L135). The issue is that pop is itself a tokio runtime, launching another blocking one isn't allowed by tokio. So for verifiable contracts we need to first block the main pop tokio runtime before calling execute
+		// For verifiable contracts, execute calls docker_build (https://github.com/use-ink/cargo-contract/blob/master/crates/build/src/lib.rs#L595) which launches a blocking tokio runtime to handle the async operations (https://github.com/use-ink/cargo-contract/blob/master/crates/build/src/docker.rs#L135). The issue is that pop is itself a tokio runtime, launching another blocking one isn't allowed by tokio. So for verifiable contracts we need to first block the main pop tokio runtime before calling execute
 		BuildMode::Verifiable => tokio::task::block_in_place(|| execute(args)),
 		_ => execute(args),
 	}

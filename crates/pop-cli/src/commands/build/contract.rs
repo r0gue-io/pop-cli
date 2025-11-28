@@ -9,7 +9,7 @@ use std::path::PathBuf;
 pub struct BuildContract {
 	/// Path of the contract project.
 	pub(crate) path: PathBuf,
-	/// Build profile: `true` for release mode, `false` for debug mode, `verifiable` for
+	/// Build profile: `Release` for release mode, `Debug` for debug mode, `Verifiable` for
 	/// deterministic, release mode.
 	pub(crate) build_mode: BuildMode,
 	/// Which specification to use for contract metadata.
