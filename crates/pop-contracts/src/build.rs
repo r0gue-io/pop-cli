@@ -157,6 +157,25 @@ abi = "all"
 	}
 
 	#[test]
+	fn resolve_metadata_spec_handles_explicit_ink_abi() -> anyhow::Result<()> {
+		let temp_dir = tempfile::tempdir()?;
+		let manifest_path = temp_dir.path().join("Cargo.toml");
+		fs::write(
+			&manifest_path,
+			r#"[package]
+name = "dummy"
+version = "0.1.0"
+[package.metadata.ink-lang]
+abi = "ink"
+"#,
+		)?;
+
+		let spec = resolve_metadata_spec(&manifest_path, None)?;
+		assert!(spec.is_none());
+		Ok(())
+	}
+
+	#[test]
 	fn resolve_metadata_spec_defaults_for_ink() -> anyhow::Result<()> {
 		let temp_dir = tempfile::tempdir()?;
 		let manifest_path = temp_dir.path().join("Cargo.toml");
