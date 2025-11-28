@@ -13,7 +13,7 @@ mod testing;
 mod up;
 mod utils;
 
-pub use build::{Verbosity, build_smart_contract, is_supported};
+pub use build::{BuildMode, ImageVariant, Verbosity, build_smart_contract, is_supported};
 pub use call::{
 	CallOpts, call_smart_contract, call_smart_contract_from_signed_payload, dry_run_call,
 	dry_run_gas_estimate_call, get_call_payload, set_up_call,
