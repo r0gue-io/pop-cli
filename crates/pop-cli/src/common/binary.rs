@@ -8,7 +8,7 @@ use std::path::PathBuf;
 #[cfg(any(feature = "contract", feature = "chain"))]
 use {
 	crate::cli::traits::*,
-	pop_common::sourcing::{Binary, set_executable_permission},
+	pop_common::sourcing::{SourcedArchive, set_executable_permission},
 	std::path::Path,
 };
 
@@ -23,7 +23,7 @@ pub(crate) trait BinaryGenerator {
 	async fn generate(
 		cache_path: PathBuf,
 		version: Option<&str>,
-	) -> Result<Binary, pop_common::Error>;
+	) -> Result<SourcedArchive, pop_common::Error>;
 }
 
 /// Checks the status of the provided binary, sources it if necessary, and
@@ -112,7 +112,7 @@ macro_rules! impl_binary_generator {
 			async fn generate(
 				cache_path: std::path::PathBuf,
 				version: Option<&str>,
-			) -> Result<pop_common::sourcing::Binary, pop_common::Error> {
+			) -> Result<pop_common::sourcing::SourcedArchive, pop_common::Error> {
 				$generate_fn(cache_path, version).await
 			}
 		}
