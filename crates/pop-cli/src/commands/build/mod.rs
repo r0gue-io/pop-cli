@@ -90,7 +90,7 @@ pub(crate) struct BuildArgs {
 	#[cfg(feature = "contract")]
 	pub(crate) verifiable: bool,
 	/// Custom image for verifiable builds
-	#[clap(long, help_heading = CONTRACT_HELP_HEADER)]
+	#[clap(long, requires = "verifiable", help_heading = CONTRACT_HELP_HEADER)]
 	#[cfg(feature = "contract")]
 	pub(crate) image: Option<String>,
 }
