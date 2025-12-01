@@ -7,7 +7,7 @@ pub use account_id::{parse_account, parse_h160_account};
 #[allow(deprecated)]
 use assert_cmd::cargo::cargo_bin;
 pub use build::Profile;
-pub use docker::DockerStatus;
+pub use docker::Docker;
 pub use errors::Error;
 pub use git::{Git, GitHub, Release};
 pub use helpers::{get_project_name_from_path, get_relative_or_absolute_path, replace_in_file};

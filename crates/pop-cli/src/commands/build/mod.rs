@@ -5,9 +5,9 @@ use clap::{Args, Subcommand};
 #[cfg(feature = "contract")]
 use contract::BuildContract;
 use duct::cmd;
-use pop_common::Profile;
+use pop_common::{Docker, Profile};
 #[cfg(feature = "contract")]
-use pop_contracts::MetadataSpec;
+use pop_contracts::{BuildMode, MetadataSpec};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 #[cfg(feature = "chain")]
@@ -126,6 +126,9 @@ impl Command {
 		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(&project_path)? {
 			let build_mode = contract::resolve_build_mode(args);
+			if let BuildMode::Verifiable = build_mode {
+				Docker::ensure_running()?;
+			}
 			let image = contract::resolve_image(args)?;
 			BuildContract { path: project_path, build_mode, metadata: args.metadata, image }
 				.execute()?;
