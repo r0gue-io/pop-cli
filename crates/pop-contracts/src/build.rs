@@ -22,7 +22,10 @@ pub fn build_smart_contract(
 ) -> anyhow::Result<BuildResult> {
 	let manifest_path = get_manifest_path(path)?;
 
-	let metadata_spec = resolve_metadata_spec(manifest_path.as_ref(), metadata_spec)?;
+	let metadata_spec = match metadata_spec {
+		s @ Some(_) => s,
+		None => resolve_metadata_spec(manifest_path.as_ref())?,
+	};
 
 	let build_mode = match release {
 		true => BuildMode::Release,
@@ -35,16 +38,9 @@ pub fn build_smart_contract(
 	execute(args)
 }
 
-/// Determine the metadata spec to use, preferring CLI input, otherwise inferring from the
+/// Determine the metadata spec to use inferring from the
 /// `[package.metadata.ink-lang]` `abi` setting in `Cargo.toml`.
-fn resolve_metadata_spec(
-	manifest_path: &Path,
-	metadata_spec: Option<MetadataSpec>,
-) -> anyhow::Result<Option<MetadataSpec>> {
-	if metadata_spec.is_some() {
-		return Ok(metadata_spec);
-	}
-
+fn resolve_metadata_spec(manifest_path: &Path) -> anyhow::Result<Option<MetadataSpec>> {
 	let manifest_contents = fs::read_to_string(manifest_path)?;
 	let manifest: Value = toml::from_str(&manifest_contents)?;
 
@@ -100,25 +96,6 @@ mod tests {
 	}
 
 	#[test]
-	fn resolve_metadata_spec_prefers_cli_value() -> anyhow::Result<()> {
-		let temp_dir = tempfile::tempdir()?;
-		let manifest_path = temp_dir.path().join("Cargo.toml");
-		fs::write(
-			&manifest_path,
-			r#"[package]
-name = "dummy"
-version = "0.1.0"
-[package.metadata.ink-lang]
-abi = "sol"
-"#,
-		)?;
-
-		let spec = resolve_metadata_spec(&manifest_path, Some(MetadataSpec::Ink))?;
-		assert_eq!(spec, Some(MetadataSpec::Ink));
-		Ok(())
-	}
-
-	#[test]
 	fn resolve_metadata_spec_infers_solidity_for_sol_abi() -> anyhow::Result<()> {
 		let temp_dir = tempfile::tempdir()?;
 		let manifest_path = temp_dir.path().join("Cargo.toml");
@@ -132,7 +109,7 @@ abi = "sol"
 "#,
 		)?;
 
-		let spec = resolve_metadata_spec(&manifest_path, None)?;
+		let spec = resolve_metadata_spec(&manifest_path)?;
 		assert_eq!(spec, Some(MetadataSpec::Solidity));
 		Ok(())
 	}
@@ -151,7 +128,7 @@ abi = "all"
 "#,
 		)?;
 
-		let spec = resolve_metadata_spec(&manifest_path, None)?;
+		let spec = resolve_metadata_spec(&manifest_path)?;
 		assert_eq!(spec, Some(MetadataSpec::Solidity));
 		Ok(())
 	}
@@ -170,7 +147,7 @@ abi = "ink"
 "#,
 		)?;
 
-		let spec = resolve_metadata_spec(&manifest_path, None)?;
+		let spec = resolve_metadata_spec(&manifest_path)?;
 		assert!(spec.is_none());
 		Ok(())
 	}
@@ -187,7 +164,7 @@ version = "0.1.0"
 "#,
 		)?;
 
-		let spec = resolve_metadata_spec(&manifest_path, None)?;
+		let spec = resolve_metadata_spec(&manifest_path)?;
 		assert!(spec.is_none());
 		Ok(())
 	}
