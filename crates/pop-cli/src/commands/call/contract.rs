@@ -19,11 +19,10 @@ use clap::Args;
 use cliclack::spinner;
 use pop_common::{DefaultConfig, Keypair, parse_h160_account};
 use pop_contracts::{
-	CallExec, CallOpts, ContractCallable, ContractFunction, ContractStorage, DefaultEnvironment,
-	Verbosity, Weight, build_smart_contract, call_smart_contract,
-	call_smart_contract_from_signed_payload, dry_run_gas_estimate_call,
-	fetch_contract_storage_with_param, get_call_payload, get_contract_storage_info, get_messages,
-	set_up_call,
+	BuildMode, CallExec, CallOpts, ContractCallable, ContractFunction, ContractStorage,
+	DefaultEnvironment, Verbosity, Weight, build_smart_contract, call_smart_contract,
+	call_smart_contract_from_signed_payload, dry_run_gas_estimate_call, fetch_contract_storage,
+	get_call_payload, get_contract_storage_info, get_messages, set_up_call,
 };
 use serde::Serialize;
 use std::path::PathBuf;
@@ -212,7 +211,13 @@ impl CallContractCommand {
 		cli.warning("NOTE: contract has not yet been built.")?;
 		let spinner = spinner();
 		spinner.start("Building contract in RELEASE mode...");
-		let results = match build_smart_contract(&project_path, true, Verbosity::Quiet, None) {
+		let result = match build_smart_contract(
+			&project_path,
+			BuildMode::Release,
+			Verbosity::Quiet,
+			None,
+			None,
+		) {
 			Ok(results) => results,
 			Err(e) => {
 				return Err(anyhow!(format!(

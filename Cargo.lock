@@ -2156,9 +2156,14 @@ dependencies = [
 
 [[package]]
 name = "contract-extrinsics"
+<<<<<<< HEAD
 version = "6.0.0-beta.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ee3cb66b8c72b9eea8fea50a0ff80a842a39beba79732a71eab78bd83cf48d3"
+=======
+version = "6.0.0-beta.1"
+source = "git+https://github.com/use-ink/cargo-contract?rev=ceb7b89#ceb7b89f807b0e446dce68c007511d5dbc171277"
+>>>>>>> d37ca383 (feat: Build verifiable contracts (#800))
 dependencies = [
  "anyhow",
  "colored",
@@ -2187,9 +2192,14 @@ dependencies = [
 
 [[package]]
 name = "contract-metadata"
+<<<<<<< HEAD
 version = "6.0.0-beta.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b78d13c6145694e728812aae3d511a8c19daa50fbcf420d8df8aeb1f2f02a2f"
+=======
+version = "6.0.0-beta.1"
+source = "git+https://github.com/use-ink/cargo-contract?rev=ceb7b89#ceb7b89f807b0e446dce68c007511d5dbc171277"
+>>>>>>> d37ca383 (feat: Build verifiable contracts (#800))
 dependencies = [
  "anyhow",
  "impl-serde",
@@ -2201,9 +2211,14 @@ dependencies = [
 
 [[package]]
 name = "contract-transcode"
+<<<<<<< HEAD
 version = "6.0.0-beta.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "24a7f4e4c1ea1efa1bcd2a9bc15a96e0cf6f7466015a89c2d7fcdedd495e0ce3"
+=======
+version = "6.0.0-beta.1"
+source = "git+https://github.com/use-ink/cargo-contract?rev=ceb7b89#ceb7b89f807b0e446dce68c007511d5dbc171277"
+>>>>>>> d37ca383 (feat: Build verifiable contracts (#800))
 dependencies = [
  "anyhow",
  "base58",

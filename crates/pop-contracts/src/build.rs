@@ -8,6 +8,7 @@ pub use contract_build::{MetadataSpec, Verbosity};
 use pop_common::manifest::Manifest;
 use std::{fs, path::Path};
 use toml::Value;
+pub use contract_build::{BuildMode, ImageVariant, MetadataSpec, Verbosity};
 
 /// POST processing build arguments.
 struct NoPostProcessing;
@@ -28,20 +29,16 @@ impl ComposeBuildArgs for NoPostProcessing {
 /// * `metadata_spec` - Optionally specify the contract metadata format/version.
 pub fn build_smart_contract(
 	path: &Path,
-	release: bool,
+	build_mode: BuildMode,
 	verbosity: Verbosity,
 	metadata_spec: Option<MetadataSpec>,
+    image: Option<ImageVariant>
 ) -> anyhow::Result<Vec<BuildResult>> {
 	let manifest_path = get_manifest_path(path)?;
 
 	let metadata_spec = match metadata_spec {
 		s @ Some(_) => s,
 		None => resolve_metadata_spec(manifest_path.as_ref())?,
-	};
-
-	let build_mode = match release {
-		true => BuildMode::Release,
-		false => BuildMode::Debug,
 	};
 
 	let mut manifest_paths = vec![];
@@ -64,15 +61,19 @@ pub fn build_smart_contract(
 	manifest_paths
 		.into_iter()
 		.map(|manifest_path| {
-			let args = ExecuteArgs {
-				manifest_path,
-				build_mode,
-				verbosity,
-				metadata_spec,
-				..Default::default()
-			};
-			// Execute the build and log the output of the build
-			execute::<NoPostProcessing>(args)
+            	let mut args =
+		ExecuteArgs { manifest_path, build_mode, verbosity, metadata_spec, ..Default::default() };
+
+	if let Some(image) = image {
+		args.image = image;
+	}
+
+	// Execute the build and log the output of the build
+	match build_mode {
+		// For verifiable contracts, execute calls docker_build (https://github.com/use-ink/cargo-contract/blob/master/crates/build/src/lib.rs#L595) which launches a blocking tokio runtime to handle the async operations (https://github.com/use-ink/cargo-contract/blob/master/crates/build/src/docker.rs#L135). The issue is that pop is itself a tokio runtime, launching another blocking one isn't allowed by tokio. So for verifiable contracts we need to first block the main pop tokio runtime before calling execute
+		BuildMode::Verifiable => tokio::task::block_in_place(|| execute(args)),
+		_ => execute(args),
+	}
 		})
 		.collect()
 }

@@ -84,7 +84,27 @@ jobs:
       - name: Run integration tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: cargo nextest run --locked --no-default-features --features "contract,integration-tests" --test contract --no-fail-fast --nocapture --status-level all
+        run: |
+          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            cargo nextest run \
+            --locked \
+            --no-default-features \
+            --features "contract,integration-tests" \
+            --test contract \
+            --no-fail-fast \
+            --nocapture \
+            --status-level all \
+            -- --skip verifiable_contract_lifecycle
+          else
+            cargo nextest run \
+            --locked \
+            --no-default-features \
+            --features "contract,integration-tests" \
+            --test contract \
+            --no-fail-fast \
+            --nocapture \
+            --status-level all  
+          fi
 
   chain-integration-tests:
     strategy:

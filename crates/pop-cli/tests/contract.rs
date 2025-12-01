@@ -12,6 +12,7 @@ use pop_contracts::{
 	set_up_call, set_up_deployment,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::{path::Path, time::Duration};
 use strum::VariantArray;
 use subxt::{
@@ -287,6 +288,41 @@ async fn contract_lifecycle() -> Result<()> {
 
 	// Stop the process ink-node
 	process.kill()?;
+
+	Ok(())
+}
+
+#[tokio::test]
+async fn verifiable_contract_lifecycle() -> Result<()> {
+	// TODO: Incomplete test, we'll be adding more steps as the development of the feature
+	// progresses
+	let temp = tempfile::tempdir()?;
+	let temp_dir = temp.path();
+	//let temp_dir = Path::new("./"); //For testing locally
+	// pop new contract test_contract (default)
+	let mut command = pop(temp_dir, ["new", "contract", "test_contract", "--template", "standard"]);
+	assert!(command.spawn()?.wait().await?.success());
+	let contract_dir = temp_dir.join("test_contract");
+	assert!(contract_dir.exists());
+
+	// pop build --verifiable
+	command =
+		pop(&temp_dir, ["build", "--manifest-path", "./test_contract/Cargo.toml", "--verifiable"]);
+	assert!(command.spawn()?.wait().await?.success());
+
+	let ink_target_path = contract_dir.join("target").join("ink");
+	assert!(ink_target_path.join("test_contract.contract").exists());
+	assert!(ink_target_path.join("test_contract.polkavm").exists());
+	let metadata_path = ink_target_path.join("test_contract.json");
+	assert!(metadata_path.exists());
+	let metadata_contents: Value = serde_json::from_str(&std::fs::read_to_string(&metadata_path)?)?;
+	// Verifiable builds include the used image (useink/contracts-verifiable:{tag} if not custom
+	// specified) in the metadata so that they can be exactly reproduced
+	let image_key = metadata_contents.get("image");
+	match image_key {
+		Some(Value::String(value)) if value.starts_with("useink/contracts-verifiable") => (),
+		_ => return Err(anyhow::anyhow!("Verifiable build doesn't include the expected image")),
+	}
 
 	Ok(())
 }
