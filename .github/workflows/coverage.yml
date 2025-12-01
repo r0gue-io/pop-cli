@@ -68,6 +68,10 @@ jobs:
       - name: Generate code coverage
         run: |
           cargo llvm-cov nextest --locked --workspace --lib --bins --codecov --output-path codecov.json --no-fail-fast --nocapture --status-level all
+
+          ## Test that cannot run in parallel:
+          ## - Docker tests in pop-common
+          cargo llvm-cov nextest --locked -p pop-common --features single-threaded-tests docker --test-threads=1 --output-path codecov_single_thread.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -75,7 +79,7 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: codecov.json
+          files: codecov.json, codecov_single_thread.json
           fail_ci_if_error: true
 
       - name: Clean up
