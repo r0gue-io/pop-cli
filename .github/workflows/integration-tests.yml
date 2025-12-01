@@ -86,20 +86,26 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          FILTER=""
           if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            FILTER="--filter-expr 'not test("verifiable_contract_lifecycle")'"
+            cargo nextest run \
+            --locked \
+            --no-default-features \
+            --features "contract,integration-tests" \
+            --test contract \
+            --no-fail-fast \
+            --nocapture \
+            --status-level all \
+            -- --skip verifiable_contract_lifecycle
+          else
+            cargo nextest run \
+            --locked \
+            --no-default-features \
+            --features "contract,integration-tests" \
+            --test contract \
+            --no-fail-fast \
+            --nocapture \
+            --status-level all  
           fi
-
-          cargo nextest run \
-          --locked \
-          --no-default-features \
-          --features "contract,integration-tests" \
-          --test contract \
-          --no-fail-fast \
-          --nocapture \
-          --status-level all \
-          $FILTER
 
   chain-integration-tests:
     strategy:
