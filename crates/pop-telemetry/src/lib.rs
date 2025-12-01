@@ -82,7 +82,11 @@ impl Telemetry {
 	/// `endpoint`: the API endpoint that telemetry will call
 	/// `website_id`: the website ID for telemetry tracking
 	/// `config_path`: the path to the configuration file (used for opt-out checks)
-	pub fn init_with_website_id(endpoint: String, website_id: String, config_path: &PathBuf) -> Self {
+	pub fn init_with_website_id(
+		endpoint: String,
+		website_id: String,
+		config_path: &PathBuf,
+	) -> Self {
 		let opt_out = Self::is_opt_out(config_path);
 
 		Telemetry { endpoint, website_id, opt_out, client: Client::new() }
@@ -289,7 +293,11 @@ mod tests {
 
 		let _: Config = read_json_file(&config_path).unwrap();
 
-		let tel = Telemetry::init_with_website_id("127.0.0.1".to_string(), "test-website-id".to_string(), &config_path);
+		let tel = Telemetry::init_with_website_id(
+			"127.0.0.1".to_string(),
+			"test-website-id".to_string(),
+			&config_path,
+		);
 		let expected_telemetry = Telemetry {
 			endpoint: "127.0.0.1".to_string(),
 			website_id: "test-website-id".to_string(),
@@ -303,8 +311,12 @@ mod tests {
 
 		let tel = Telemetry::new(&config_path);
 
-		let expected_telemetry =
-			Telemetry { endpoint: ENDPOINT.to_string(), website_id: WEBSITE_ID.to_string(), opt_out: true, client: Default::default() };
+		let expected_telemetry = Telemetry {
+			endpoint: ENDPOINT.to_string(),
+			website_id: WEBSITE_ID.to_string(),
+			opt_out: true,
+			client: Default::default(),
+		};
 
 		assert_eq!(tel.endpoint, expected_telemetry.endpoint);
 		assert_eq!(tel.website_id, expected_telemetry.website_id);
@@ -377,7 +389,8 @@ mod tests {
 
 		let config_path = temp_dir.path().join("config.json");
 
-		let expected_payload = generate_payload("new", json!({"command": "chain"}), WEBSITE_ID).to_string();
+		let expected_payload =
+			generate_payload("new", json!({"command": "chain"}), WEBSITE_ID).to_string();
 
 		let mock = default_mock(&mut mock_server, expected_payload).await;
 
