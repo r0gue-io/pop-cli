@@ -77,6 +77,7 @@ impl Telemetry {
 
 	/// Initialize a new [Telemetry] instance with custom endpoint and website_id.
 	/// Can be used in tests to provide mock endpoints and website IDs.
+	/// in addition to making this crate useful to other projects.
 	/// parameters:
 	/// `endpoint`: the API endpoint that telemetry will call
 	/// `website_id`: the website ID for telemetry tracking
