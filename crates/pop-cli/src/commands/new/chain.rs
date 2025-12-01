@@ -3,7 +3,7 @@
 use crate::{
 	cli::{self, traits::*},
 	common::helpers::check_destination_path,
-	new::frontend::{create_frontend, prompt_frontend_template},
+	new::frontend::{PackageManager, create_frontend, prompt_frontend_template},
 };
 use anyhow::Result;
 use clap::{
@@ -80,6 +80,10 @@ pub struct NewChainCommand {
 		value_parser = ["create-dot-app"]
 	)]
 	pub(crate) with_frontend: Option<String>,
+	/// Package manager to use for frontend. If not specified, auto-detects based on what's
+	/// installed.
+	#[arg(long = "package-manager", value_name = "MANAGER", requires = "with_frontend")]
+	pub(crate) package_manager: Option<PackageManager>,
 }
 
 impl NewChainCommand {
@@ -135,6 +139,7 @@ impl NewChainCommand {
 			config,
 			parachain_config.verify,
 			frontend_template,
+			parachain_config.package_manager,
 			&mut cli::Cli,
 		)
 		.await?;
@@ -213,6 +218,7 @@ async fn guide_user_to_generate_parachain(
 		initial_endowment: Some(customizable_options.initial_endowment),
 		verify,
 		with_frontend,
+		package_manager: None,
 	})
 }
 
@@ -224,6 +230,7 @@ async fn generate_parachain_from_template(
 	config: Config,
 	verify: bool,
 	frontend_template: Option<FrontendTemplate>,
+	package_manager: Option<PackageManager>,
 	cli: &mut impl Cli,
 ) -> Result<()> {
 	cli.intro(format!(
@@ -290,7 +297,7 @@ async fn generate_parachain_from_template(
 		))
 	}
 	if let Some(frontend_template) = &frontend_template {
-		create_frontend(&destination_path, frontend_template, cli).await?;
+		create_frontend(&destination_path, frontend_template, package_manager, cli).await?;
 		next_steps.push(format!(
 			"Frontend template created inside \"{name_template}\". To run it locally, use: `pop up frontend`. Navigate to the `frontend` folder to start customizing it for your chain."
 		))
