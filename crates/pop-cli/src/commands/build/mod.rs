@@ -5,7 +5,7 @@ use clap::{Args, Subcommand};
 #[cfg(feature = "contract")]
 use contract::BuildContract;
 use duct::cmd;
-use pop_common::{Profile, Docker};
+use pop_common::{Docker, Profile};
 #[cfg(feature = "contract")]
 use pop_contracts::MetadataSpec;
 use serde::Serialize;
@@ -133,7 +133,7 @@ impl Command {
 			args.deterministic ||
 			pop_chains::runtime::is_supported(&project_path)
 		{
-            Docker::ensure_running()?;
+			Docker::ensure_running()?;
 			let profile = match &args.profile {
 				Some(profile) => *profile,
 				None => args.release.into(),

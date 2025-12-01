@@ -15,7 +15,7 @@ pub enum Error {
 	/// A configuration error occurred.
 	#[error("Configuration error: {0}")]
 	Config(String),
-    /// An error regarding Docker happened
+	/// An error regarding Docker happened
 	#[error("Docker error: {0}")]
 	Docker(String),
 	/// A Git error occurred.
