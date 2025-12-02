@@ -40,6 +40,7 @@ pub use utils::{
 };
 // External exports
 pub use contract_build::MetadataSpec;
+pub use contract_metadata::{CodeHash, ContractMetadata};
 pub use contract_extrinsics::{CallExec, ExtrinsicOpts, UploadCode};
 pub use ink_env::{DefaultEnvironment, Environment};
 pub use sp_core::Bytes;

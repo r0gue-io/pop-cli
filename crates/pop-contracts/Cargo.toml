@@ -35,6 +35,7 @@ subxt.workspace = true
 contract-build.workspace = true
 contract-extrinsics.workspace = true
 contract-transcode.workspace = true
+contract-metadata.workspace = true
 scale-info.workspace = true
 
 # pop

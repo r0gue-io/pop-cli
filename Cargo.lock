@@ -9125,6 +9125,7 @@ dependencies = [
  "anyhow",
  "contract-build",
  "contract-extrinsics",
+ "contract-metadata",
  "contract-transcode",
  "duct 0.13.7",
  "heck 0.5.0",
