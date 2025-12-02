@@ -9123,6 +9123,7 @@ name = "pop-contracts"
 version = "0.12.1"
 dependencies = [
  "anyhow",
+ "cargo_toml 0.20.5",
  "contract-build",
  "contract-extrinsics",
  "contract-metadata",
@@ -9130,9 +9131,12 @@ dependencies = [
  "duct 0.13.7",
  "heck 0.5.0",
  "ink_env",
+ "once_cell",
  "pop-common",
  "reqwest",
+ "rustilities",
  "scale-info",
+ "semver 1.0.27",
  "serde",
  "serde_json",
  "sp-core",

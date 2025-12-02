@@ -2,6 +2,11 @@
 
 #![doc = include_str!("../README.md")]
 
+use anyhow::Result;
+use cargo_toml::{Dependency,Manifest};
+use once_cell::sync::Lazy;
+use semver::Version;
+
 mod build;
 mod call;
 mod errors;
@@ -39,11 +44,33 @@ pub use utils::{
 	parse_hex_bytes,
 };
 // External exports
-pub use contract_build::MetadataSpec;
-pub use contract_metadata::{CodeHash, ContractMetadata};
+pub use contract_build::{MetadataSpec, util::rust_toolchain};
 pub use contract_extrinsics::{CallExec, ExtrinsicOpts, UploadCode};
+pub use contract_metadata::{CodeHash, ContractMetadata};
 pub use ink_env::{DefaultEnvironment, Environment};
 pub use sp_core::Bytes;
 pub use sp_weights::Weight;
 pub use up::{get_instantiate_payload, get_upload_payload};
 pub use utils::map_account::AccountMapper;
+
+const FALLBACK_CARGO_CONTRACT_VERSION: &str = "6.0.0-beta.1";
+/// cargo-contract used version
+pub static CARGO_CONTRACT_VERSION: Lazy<Version> = Lazy::new(|| {
+	let cargo_contract_version: Result<String> = || -> Result<String>{
+        let current_dir = std::env::current_dir()?;
+        let workspace_manifest = rustilities::manifest::find_workspace_manifest(current_dir).ok_or(anyhow::anyhow!("Not interesting error"))?;
+        let manifest = Manifest::from_path(workspace_manifest)?;
+
+        manifest.workspace.and_then(|workspace| {
+            if let Some(contract_build_dep) = workspace.dependencies.get("contract-build"){
+                match contract_build_dep {
+                    Dependency::Simple(version) => Some(version.clone()),
+                    Dependency::Detailed(detailed) if detailed.version.as_ref().is_some() => Some(detailed.version.as_ref().expect("The match guard protects us; qed").clone()),
+                    _ => None
+                }
+            } else { None }
+        }).ok_or(anyhow::anyhow!("Not interesting error"))
+    }();
+
+	Version::parse(cargo_contract_version.as_deref().unwrap_or(FALLBACK_CARGO_CONTRACT_VERSION)).expect("The fallback version is always valid; if cargo_contract_version is Ok it contains a valid semver as well; qed;")
+});

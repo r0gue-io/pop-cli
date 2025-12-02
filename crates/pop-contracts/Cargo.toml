@@ -13,8 +13,12 @@ rust-version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+cargo_toml.workspace = true
 duct.workspace = true
+once_cell.workspace = true
 reqwest.workspace = true
+rustilities = { workspace = true, features = ["manifest"]}
+semver.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
