@@ -3,9 +3,13 @@
 use crate::Error;
 use std::{io::ErrorKind, process::Command, thread::sleep, time::Duration};
 
+/// Represents the state of Docker in the user's machine
 pub enum Docker {
+	/// Docker isn't installed
 	NotInstalled,
+	/// Docker is installed but not running
 	Installed,
+	/// Docker is already running
 	Running,
 }
 
