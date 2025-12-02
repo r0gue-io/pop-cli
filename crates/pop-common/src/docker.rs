@@ -12,7 +12,7 @@ pub enum Docker {
 impl Docker {
 	/// Ensures Docker is running. If installed but not running, attempts to start it.
 	pub fn ensure_running() -> Result<(), Error> {
-		match Self::detect_docker_status()? {
+		match Self::detect_docker()? {
 			Docker::Running => Ok(()),
 			Docker::Installed => {
 				Self::try_start()?;
@@ -26,7 +26,7 @@ impl Docker {
 		}
 	}
 
-	fn detect_docker_status() -> Result<Self, Error> {
+	fn detect_docker() -> Result<Self, Error> {
 		match Command::new("docker").arg("info").output() {
 			Ok(output) if output.status.success() => Ok(Docker::Running),
 			Ok(_) => Ok(Docker::Installed),
@@ -54,7 +54,7 @@ impl Docker {
 	fn try_start_macos() -> Result<(), Error> {
 		// Try start docker using Docker Desktop.
 		Command::new("open").args(["-a", "Docker"]).spawn().map_err(|_err| {
-			Error::Docker(format!("Failed to start Docker. Please start it manually."))
+			Error::Docker("Failed to start Docker. Please start it manually.".to_owned())
 		})?;
 
 		Ok(())
@@ -65,9 +65,8 @@ impl Docker {
 		Command::new("cmd")
 			.args(["/C", "start", "", r"C:\Program Files\Docker\Docker\Docker Desktop.exe"])
 			.spawn()
-			.map_err(|err| {
-				println!("{:?}", err);
-				Error::Docker(format!("Failed to start Docker. Please start it manually."))
+			.map_err(|_err| {
+				Error::Docker("Failed to start Docker. Please start it manually.".to_owned())
 			})?;
 
 		Ok(())
@@ -85,7 +84,7 @@ impl Docker {
 		for _i in 0..30 {
 			sleep(Duration::from_secs(1));
 
-			if matches!(Self::detect_docker_status()?, Docker::Running) {
+			if matches!(Self::detect_docker()?, Docker::Running) {
 				return Ok(());
 			}
 		}
@@ -99,7 +98,7 @@ impl Docker {
 #[cfg(all(test, feature = "single-threaded-tests"))]
 mod tests {
 	use super::*;
-	use std::path::Path;
+	use std::{path::Path, process::Command};
 	use tempfile::TempDir;
 
 	// Helper to set executable permissions cross-platform
@@ -116,8 +115,8 @@ mod tests {
 		Ok(())
 	}
 
-	// Helper to get the correct executable name for the platform
-	fn exe_name(name: &str) -> String {
+	// Helper to get the correct executable file depending on the platform
+	fn executable_file_name(name: &str) -> String {
 		#[cfg(windows)]
 		{
 			format!("{}.exe", name)
@@ -141,7 +140,7 @@ mod tests {
 	}
 
 	// Helper to create a script that creates a file
-	fn create_file_script(file_path: &std::path::Path) -> String {
+	fn create_file_script(file_path: &Path) -> String {
 		#[cfg(windows)]
 		{
 			format!("@echo off\r\ntype nul > \"{}\"", file_path.display())
@@ -153,7 +152,7 @@ mod tests {
 	}
 
 	// Helper to create a script that checks if a file exists and exits accordingly
-	fn check_file_exists_script(file_path: &std::path::Path) -> String {
+	fn check_file_exists_script(file_path: &Path) -> String {
 		#[cfg(windows)]
 		{
 			format!("@echo off\r\nif exist \"{}\" (exit 0) else (exit 1)", file_path.display())
@@ -165,6 +164,13 @@ mod tests {
 				file_path.display()
 			)
 		}
+	}
+
+	enum FakePlatform {
+		Windows,
+		MacOs,
+		#[cfg(target_os = "linux")]
+		Linux,
 	}
 
 	struct TestBuilder {
@@ -185,26 +191,29 @@ mod tests {
 			TestBuilder { original_path, temp_dir }
 		}
 
-		fn with_fake_docker_in_path(self, exit_code: i32) -> Self {
-			let fake_docker_path = self.temp_dir.path().join(exe_name("docker"));
+		fn with_fake_docker(self, exit_code: i32) -> Self {
+			let fake_docker_path = self.temp_dir.path().join(executable_file_name("docker"));
 			let script = exit_script(exit_code);
 			std::fs::write(&fake_docker_path, script).unwrap();
 			set_executable(&fake_docker_path).unwrap();
 			self
 		}
 
-		fn with_not_permissioned_fake_docker_in_path(self) -> Self {
-			let fake_docker_path = self.temp_dir.path().join(exe_name("docker"));
+		fn with_not_permissioned_fake_docker(self) -> Self {
+			let fake_docker_path = self.temp_dir.path().join(executable_file_name("docker"));
 			let script = exit_script(0);
 			std::fs::write(&fake_docker_path, script).unwrap();
 			self
 		}
 
 		// Helper to create a fake docker + open/cmd that simulates Docker starting
-		// For macOS: creates fake docker and fake open command
-		fn with_docker_that_starts_after_open(self) -> Self {
-			let fake_docker_path = self.temp_dir.path().join(exe_name("docker"));
-			let fake_open_path = self.temp_dir.path().join(exe_name("open"));
+		fn with_fake_docker_and_start_command(self, platform: FakePlatform) -> Self {
+			let fake_docker_path = self.temp_dir.path().join(executable_file_name("docker"));
+			let fake_start_path = match platform {
+				FakePlatform::MacOs | FakePlatform::Linux =>
+					self.temp_dir.path().join(executable_file_name("open")),
+				FakePlatform::Windows => self.temp_dir.path().join(executable_file_name("cmd")),
+			};
 			let started_marker = self.temp_dir.path().join("docker_started");
 
 			// Fake docker checks if marker file exists
@@ -213,46 +222,22 @@ mod tests {
 			set_executable(&fake_docker_path).unwrap();
 
 			// Fake open creates marker file immediately (accepts any arguments)
-			let open_script = create_file_script(&started_marker);
-			std::fs::write(&fake_open_path, open_script).unwrap();
-			set_executable(&fake_open_path).unwrap();
+			let start_script = create_file_script(&started_marker);
+			std::fs::write(&fake_start_path, start_script).unwrap();
+			set_executable(&fake_start_path).unwrap();
 
 			self
 		}
 
-		// Helper to create a fake docker + cmd that simulates Docker starting
-		// For Windows: creates fake docker and fake cmd command
-		fn with_docker_that_starts_after_cmd(self) -> Self {
-			let fake_docker_path = self.temp_dir.path().join(exe_name("docker"));
-			let fake_cmd_path = self.temp_dir.path().join(exe_name("cmd"));
-			let started_marker = self.temp_dir.path().join("docker_started");
-
-			// Fake docker checks if marker file exists
-			let docker_script = check_file_exists_script(&started_marker);
-			std::fs::write(&fake_docker_path, docker_script).unwrap();
-			set_executable(&fake_docker_path).unwrap();
-
-			// Fake cmd creates marker file
-			let cmd_script = create_file_script(&started_marker);
-			std::fs::write(&fake_cmd_path, cmd_script).unwrap();
-			set_executable(&fake_cmd_path).unwrap();
-
-			self
-		}
-
-		fn with_fake_open_in_path(self) -> Self {
-			let fake_open_path = self.temp_dir.path().join(exe_name("open"));
+		fn with_fake_start_command(self, platform: FakePlatform) -> Self {
+			let fake_start_path = match platform {
+				FakePlatform::MacOs | FakePlatform::Linux =>
+					self.temp_dir.path().join(executable_file_name("open")),
+				FakePlatform::Windows => self.temp_dir.path().join(executable_file_name("cmd")),
+			};
 			let script = exit_script(0);
-			std::fs::write(&fake_open_path, script).unwrap();
-			set_executable(&fake_open_path).unwrap();
-			self
-		}
-
-		fn with_fake_cmd_in_path(self) -> Self {
-			let fake_cmd_path = self.temp_dir.path().join(exe_name("cmd"));
-			let script = exit_script(0);
-			std::fs::write(&fake_cmd_path, script).unwrap();
-			set_executable(&fake_cmd_path).unwrap();
+			std::fs::write(&fake_start_path, script).unwrap();
+			set_executable(&fake_start_path).unwrap();
 			self
 		}
 
@@ -273,36 +258,36 @@ mod tests {
 	}
 
 	#[test]
-	fn detect_docker_status_docker_running() {
-		TestBuilder::with_fake_path().with_fake_docker_in_path(0).execute(|| {
-			assert!(matches!(Docker::detect_docker_status(), Ok(Docker::Running)));
+	fn detect_docker_docker_running() {
+		TestBuilder::with_fake_path().with_fake_docker(0).execute(|| {
+			assert!(matches!(Docker::detect_docker(), Ok(Docker::Running)));
 		});
 	}
 
 	#[test]
-	fn detect_docker_status_docker_installed() {
-		TestBuilder::with_fake_path().with_fake_docker_in_path(1).execute(|| {
-			assert!(matches!(Docker::detect_docker_status(), Ok(Docker::Installed)));
+	fn detect_docker_docker_installed() {
+		TestBuilder::with_fake_path().with_fake_docker(1).execute(|| {
+			assert!(matches!(Docker::detect_docker(), Ok(Docker::Installed)));
 		});
 	}
 
 	#[test]
-	fn detect_docker_status_docker_not_installed() {
+	fn detect_docker_docker_not_installed() {
 		TestBuilder::with_fake_path().execute(|| {
-			assert!(matches!(Docker::detect_docker_status(), Ok(Docker::NotInstalled)));
+			assert!(matches!(Docker::detect_docker(), Ok(Docker::NotInstalled)));
 		});
 	}
 
 	#[test]
-	fn detect_docker_status_docker_fails() {
-		TestBuilder::with_fake_path().with_not_permissioned_fake_docker_in_path().execute(|| {
-			assert!(matches!(Docker::detect_docker_status(), Err(Error::Docker(err)) if err == "Permission denied (os error 13)"));
+	fn detect_docker_docker_fails() {
+		TestBuilder::with_fake_path().with_not_permissioned_fake_docker().execute(|| {
+			assert!(matches!(Docker::detect_docker(), Err(Error::Docker(err)) if err == "Permission denied (os error 13)"));
 		});
 	}
 
 	#[test]
 	fn ensure_running_when_already_running() {
-		TestBuilder::with_fake_path().with_fake_docker_in_path(0).execute(|| {
+		TestBuilder::with_fake_path().with_fake_docker(0).execute(|| {
 			assert!(Docker::ensure_running().is_ok());
 		});
 	}
@@ -317,37 +302,45 @@ mod tests {
 	#[test]
 	#[cfg(target_os = "macos")]
 	fn ensure_running_starts_docker_on_macos() {
-		TestBuilder::with_fake_path().with_docker_that_starts_after_open().execute(|| {
-			assert!(Docker::ensure_running().is_ok());
-		});
+		TestBuilder::with_fake_path()
+			.with_fake_docker_and_start_command(FakePlatform::MacOs)
+			.execute(|| {
+				assert!(Docker::ensure_running().is_ok());
+			});
 	}
 
 	#[test]
 	#[cfg(target_os = "windows")]
 	fn ensure_running_starts_docker_on_windows() {
-		TestBuilder::with_fake_path().with_docker_that_starts_after_cmd().execute(|| {
-			assert!(Docker::ensure_running().is_ok());
-		});
+		TestBuilder::with_fake_path()
+			.with_fake_docker_and_start_command(FakePlatform::Windows)
+			.execute(|| {
+				assert!(Docker::ensure_running().is_ok());
+			});
 	}
 
 	#[test]
 	#[cfg(target_os = "linux")]
 	fn ensure_running_fails_on_linux() {
-		TestBuilder::with_fake_path().with_fake_docker_in_path(1).execute(|| {
-			assert!(matches!(
-				Docker::ensure_running(),
-				Err(
-					Error::Docker(err) if err == "Please start Docker manually:\n  sudo systemctl start docker",
-				)
-			));
-		});
+		TestBuilder::with_fake_path()
+			.with_fake_docker_and_start_command(FakePlatform::Linux)
+			.execute(|| {
+				assert!(matches!(
+					Docker::ensure_running(),
+					Err(
+						Error::Docker(err)
+					)  if err == "Please start Docker manually:\n  sudo systemctl start docker"
+				));
+			});
 	}
 
 	#[test]
 	fn try_start_macos_succeeds_with_open_command() {
-		TestBuilder::with_fake_path().with_fake_open_in_path().execute(|| {
-			assert!(Docker::try_start_macos().is_ok());
-		});
+		TestBuilder::with_fake_path()
+			.with_fake_start_command(FakePlatform::MacOs)
+			.execute(|| {
+				assert!(Docker::try_start_macos().is_ok());
+			});
 	}
 
 	#[test]
@@ -364,15 +357,16 @@ mod tests {
 
 	#[test]
 	fn try_start_windows_succeeds_with_cmd_command() {
-		TestBuilder::with_fake_path().with_fake_cmd_in_path().execute(|| {
-			assert!(Docker::try_start_windows().is_ok());
-		});
+		TestBuilder::with_fake_path()
+			.with_fake_start_command(FakePlatform::Windows)
+			.execute(|| {
+				assert!(Docker::try_start_windows().is_ok());
+			});
 	}
 
 	#[test]
 	fn try_start_windows_fails_without_cmd_command() {
 		TestBuilder::with_fake_path().execute(|| {
-			println!("{:?}", Docker::try_start_windows());
 			assert!(matches!(
 				Docker::try_start_windows(),
 				Err(
@@ -396,27 +390,31 @@ mod tests {
 
 	#[test]
 	fn wait_for_ready_succeeds_when_docker_starts_on_macos() {
-		TestBuilder::with_fake_path().with_docker_that_starts_after_open().execute(|| {
-			// Trigger the fake open command to start docker startup
-			let _ = std::process::Command::new("open").arg("-a").arg("Docker").spawn();
+		TestBuilder::with_fake_path()
+			.with_fake_docker_and_start_command(FakePlatform::MacOs)
+			.execute(|| {
+				// Trigger the fake open command to start docker startup
+				let _ = Command::new("open").arg("-a").arg("Docker").spawn();
 
-			assert!(Docker::wait_for_ready().is_ok());
-		});
+				assert!(Docker::wait_for_ready().is_ok());
+			});
 	}
 
 	#[test]
 	fn wait_for_ready_succeeds_when_docker_starts_on_windows() {
-		TestBuilder::with_fake_path().with_docker_that_starts_after_cmd().execute(|| {
-			// Trigger the fake cmd command to start docker startup
-			let _ = std::process::Command::new("cmd").args(["/C", "start"]).spawn();
+		TestBuilder::with_fake_path()
+			.with_fake_docker_and_start_command(FakePlatform::Windows)
+			.execute(|| {
+				// Trigger the fake cmd command to start docker startup
+				let _ = Command::new("cmd").args(["/C", "start"]).spawn();
 
-			assert!(Docker::wait_for_ready().is_ok());
-		});
+				assert!(Docker::wait_for_ready().is_ok());
+			});
 	}
 
 	#[test]
 	fn wait_for_ready_times_out_when_docker_never_starts() {
-		TestBuilder::with_fake_path().with_fake_docker_in_path(1).execute(|| {
+		TestBuilder::with_fake_path().with_fake_docker(1).execute(|| {
             assert!(matches!(Docker::wait_for_ready(), Err(Error::Docker(err)) if err == "Docker failed to start within 30 seconds. Please start it manually."));
 		});
 	}
