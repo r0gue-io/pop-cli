@@ -24,6 +24,8 @@ pub(crate) mod test;
 #[cfg(any(feature = "chain", feature = "contract"))]
 pub(crate) mod up;
 pub(crate) mod upgrade;
+#[cfg(feature = "contract")]
+pub(crate) mod verify;
 
 #[derive(Subcommand, Serialize)]
 #[command(subcommand_required = true)]

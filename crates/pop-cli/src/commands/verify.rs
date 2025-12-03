@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use pop_contracts::{CodeHash, ContractMetadata, ManifestPath, BuildInfo, BuildMode};
+use pop_contracts::{CodeHash, ContractMetadata, BuildInfo, BuildMode, ExecuteArgs,CARGO_CONTRACT_VERSION, Verbosity};
 use crate::cli::traits::Cli;
+use crate::commands::build::contract::BuildContract;
 use anyhow::Result;
 use clap::Args;
 use serde::Serialize;
@@ -35,14 +36,12 @@ impl VerifyCommand{
         let project_path =
 			crate::common::builds::ensure_project_path(self.path.clone(), self.path_pos.clone());
 
-        let manifest_path = pop_contracts::utils::get_manifest_path(project_path)?;
-
-        self.verify_contract(manifest_path)?;
+        self.verify_contract(project_path)?;
 
         Ok(())
     }
 
-    fn verify_contract(&self, manifest_path: ManifestPath) -> Result<()>{
+    fn verify_contract(&self, project_path: PathBuf) -> Result<()>{
         // 1. Read the given metadata, and pull out the `BuildInfo`
         let file = File::open(self.contract_path)
             .context(format!("Failed to open contract bundle {}", self.contract_path.display()))?;
@@ -94,7 +93,6 @@ impl VerifyCommand{
             anyhow::ensure!(rust_toolchain == expected_rust_toolchain, mismatched_rustc);
 
             let expected_cargo_contract_version = build_info.cargo_contract_version;
-            let cargo_contract_version = semver::Version::parse(VERSION)?;
 
             let mismatched_cargo_contract = format!(
                 "\nYou are trying to `verify` a contract using `cargo-contract` version \
@@ -105,15 +103,14 @@ impl VerifyCommand{
                 cargo install --force --locked cargo-contract --version {expected_cargo_contract_version}",
             );
             anyhow::ensure!(
-                cargo_contract_matches,
-                mismatched_cargo_contract.bright_yellow()
+                expected_cargo_contract_version == CARGO_CONTRACT_VERSION,
+                mismatched_cargo_contract
             );
         }
 
         // 3a. Call `cargo contract build` with the `BuildInfo` from the metadata.
         let args = ExecuteArgs {
             manifest_path: manifest_path.clone(),
-            verbosity,
             build_mode,
             build_artifact: BuildArtifacts::All,
             image: ImageVariant::from(metadata.image.clone()),
@@ -121,7 +118,7 @@ impl VerifyCommand{
             ..Default::default()
         };
 
-        let build_result = execute(args)?;
+        let build_result = pop_contracts::build::build_smart_contract(&project_path, build_mode, Verbosity::default())?;
 
         // 4. Grab the code hash from the built contract and compare it with the reference
         //    code hash.
