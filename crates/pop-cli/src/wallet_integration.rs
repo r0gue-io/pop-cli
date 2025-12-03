@@ -566,7 +566,11 @@ mod tests {
 		let call_data_15mb = vec![99u8; MAX_PAYLOAD_SIZE + 1];
 		let encoded_oversized_payload: String =
 			call_data_15mb.iter().map(|b| format!("{:02x}", b)).collect();
-		let response = client.post(format!("{addr}/submit")).json(&encoded_oversized_payload).send().await;
+		let response = client
+			.post(format!("{addr}/submit"))
+			.json(&encoded_oversized_payload)
+			.send()
+			.await;
 
 		assert!(
 			response.is_err() ||

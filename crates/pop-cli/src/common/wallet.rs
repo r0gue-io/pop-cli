@@ -2,9 +2,7 @@
 
 use crate::{
 	cli::traits::{Cli, Confirm},
-	wallet_integration::{
-		FrontendFromString, TransactionData, WalletIntegrationManager,
-	},
+	wallet_integration::{FrontendFromString, TransactionData, WalletIntegrationManager},
 };
 use cliclack::{log, spinner};
 #[cfg(feature = "chain")]

@@ -290,11 +290,8 @@ impl UpContractCommand {
 					// Check if the account is already mapped, and prompt the user to perform the
 					// mapping if it's required.
 					map_account(instantiate_exec.opts(), &mut Cli).await?;
-					let contract_info = match instantiate_contract_signed(
-						url.as_str(),
-						payload,
-					)
-					.await
+					let contract_info = match instantiate_contract_signed(url.as_str(), payload)
+						.await
 					{
 						Err(e) => {
 							spinner
