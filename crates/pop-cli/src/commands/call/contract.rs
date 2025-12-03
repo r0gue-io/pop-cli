@@ -584,7 +584,7 @@ impl CallContractCommand {
 			.map_err(|err| anyhow!("An error occurred getting the call data: {err}"))?;
 
 		let maybe_payload =
-			request_signature(call_data, self.url()?.to_string()).await?.signed_payload;
+			request_signature(call_data, self.url()?.to_string()).await?;
 		if let Some(payload) = maybe_payload {
 			cli.success("Signed payload received.")?;
 			let spinner = spinner();

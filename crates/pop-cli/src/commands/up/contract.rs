@@ -248,8 +248,8 @@ impl UpContractCommand {
 				},
 			};
 
-			let maybe_signature_request = request_signature(call_data, url.to_string()).await?;
-			if let Some(payload) = maybe_signature_request.signed_payload {
+			let maybe_payload = request_signature(call_data, url.to_string()).await?;
+			if let Some(payload) = maybe_payload {
 				Cli.success("Signed payload received.")?;
 				let spinner = spinner();
 				spinner.start(
@@ -291,7 +291,6 @@ impl UpContractCommand {
 					// mapping if it's required.
 					map_account(instantiate_exec.opts(), &mut Cli).await?;
 					let contract_info = match instantiate_contract_signed(
-						maybe_signature_request.contract_address,
 						url.as_str(),
 						payload,
 					)
