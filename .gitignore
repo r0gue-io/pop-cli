@@ -11,3 +11,9 @@ debug
 .idea
 .vscode
 .envrc
+
+debian/pop-cli/
+debian/debhelper-build-stamp
+debian/files
+debian/pop-cli.substvars
+debian/.debhelper
