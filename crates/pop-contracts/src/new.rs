@@ -160,7 +160,7 @@ mod tests {
 
 	#[test]
 	fn test_is_valid_contract_name() -> Result<(), Error> {
-		assert!(is_valid_contract_name("my-contract").is_ok());
+		assert!(is_valid_contract_name("my_contract").is_ok());
 		assert!(is_valid_contract_name("normal").is_ok());
 		assert!(is_valid_contract_name("123").is_err());
 		assert!(is_valid_contract_name("my-contract").is_err());

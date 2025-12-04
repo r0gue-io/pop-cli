@@ -36,8 +36,11 @@ pub fn replace_in_file(file_path: PathBuf, replacements: HashMap<&str, &str>) ->
 /// # Arguments
 /// * `path` - Location path of the project.
 /// * `default` - The default string to return if the path has no valid last component.
-pub fn get_project_name_from_path<'a>(path: &'a Path, default: &'a str) -> &'a str {
-	path.file_name().and_then(|name| name.to_str()).unwrap_or(default)
+pub fn get_project_name_from_path<'a>(path: &'a Path, default: &'a str) -> String {
+	path.file_name()
+		.and_then(|name| name.to_str())
+		.unwrap_or(default)
+		.replace("-", "_")
 }
 
 /// Returns the relative path from `base` to `full` if `full` is inside `base`.

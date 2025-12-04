@@ -67,7 +67,7 @@ impl NewContractCommand {
 		let name = get_project_name_from_path(path, "my-contract");
 
 		// Validate contract name.
-		if let Err(e) = is_valid_contract_name(name) {
+		if let Err(e) = is_valid_contract_name(&name) {
 			cli.outro_cancel(e)?;
 			return Ok(());
 		}
@@ -87,7 +87,7 @@ impl NewContractCommand {
 				};
 		}
 		let contract_path = generate_contract_from_template(
-			name,
+			&name,
 			path,
 			&template,
 			frontend_template,
