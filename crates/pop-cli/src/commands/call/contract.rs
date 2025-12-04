@@ -576,10 +576,8 @@ impl CallContractCommand {
 		call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 		cli: &mut impl Cli,
 	) -> Result<()> {
-		let storage_deposit_limit = match call_exec.opts().storage_deposit_limit() {
-			Some(deposit_limit) => deposit_limit,
-			None => call_exec.estimate_gas().await.unwrap_or_else(|_| (Weight::zero(), 0)).1,
-		};
+		// Skip storage deposit estimation when using wallet (UI will handle it)
+		let storage_deposit_limit = call_exec.opts().storage_deposit_limit().unwrap_or(0);
 		let call_data = self
 			.get_contract_data(&call_exec, storage_deposit_limit)
 			.map_err(|err| anyhow!("An error occurred getting the call data: {err}"))?;

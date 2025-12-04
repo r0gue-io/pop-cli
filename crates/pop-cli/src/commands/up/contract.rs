@@ -511,7 +511,11 @@ impl UpContractCommand {
 					.await
 					.unwrap_or_else(|_| Weight::zero())
 			};
-			let call_data = get_instantiate_payload(instantiate_exec, weight_limit).await?;
+			// Skip storage deposit estimation when using wallet (UI will handle it)
+			let storage_deposit_limit = if self.use_wallet { Some(0) } else { None };
+			let call_data =
+				get_instantiate_payload(instantiate_exec, weight_limit, storage_deposit_limit)
+					.await?;
 			Ok((call_data, hash))
 		}
 	}
