@@ -116,14 +116,14 @@ mod tests {
 	#[test]
 	fn get_project_name_from_path_works() -> Result<(), Error> {
 		let path = Path::new("./path/to/project/my-parachain");
-		assert_eq!(get_project_name_from_path(path, "default_name"), "my-parachain");
+		assert_eq!(get_project_name_from_path(path, "default_name"), "my_parachain");
 		Ok(())
 	}
 
 	#[test]
 	fn get_project_name_from_path_default_value() -> Result<(), Error> {
 		let path = Path::new("./");
-		assert_eq!(get_project_name_from_path(path, "my-contract"), "my-contract");
+		assert_eq!(get_project_name_from_path(path, "my-contract"), "my_contract");
 		Ok(())
 	}
 
