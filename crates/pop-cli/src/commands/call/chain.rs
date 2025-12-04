@@ -15,9 +15,10 @@ use anyhow::{Result, anyhow};
 use clap::Args;
 use pop_chains::{
 	Action, CallData, CallItem, DynamicPayload, Function, OnlineClient, Pallet, Param, Payload,
-	SubstrateConfig, construct_extrinsic, construct_sudo_extrinsic, decode_call_data,
-	encode_call_data, find_callable_by_name, find_pallet_by_name, raw_value_to_string,
-	render_storage_key_values, sign_and_submit_extrinsic, supported_actions, type_to_param,
+	PortableRegistry, SubstrateConfig, construct_extrinsic, construct_sudo_extrinsic,
+	decode_call_data, encode_call_data, find_callable_by_name, find_pallet_by_name,
+	raw_value_to_string, render_storage_key_values, sign_and_submit_extrinsic, supported_actions,
+	type_to_param,
 };
 use serde::Serialize;
 use url::Url;
@@ -75,6 +76,10 @@ pub struct CallChainCommand {
 	/// Automatically signs and submits the extrinsic without prompting for confirmation.
 	#[arg(short = 'y', long)]
 	skip_confirm: bool,
+	/// Display chain metadata instead of executing a call.
+	/// Use alone to list all pallets, or with --pallet to show pallet details.
+	#[arg(short = 'm', long, conflicts_with_all = ["function", "args", "suri", "use-wallet", "call", "sudo"])]
+	metadata: bool,
 }
 
 impl CallChainCommand {
@@ -92,6 +97,12 @@ impl CallChainCommand {
 			&mut cli,
 		)
 		.await?;
+
+		// Handle metadata display mode
+		if self.metadata {
+			return self.display_metadata(&chain, &mut cli);
+		}
+
 		// Execute the call if call_data is provided.
 		if let Some(call_data) = self.call_data.as_ref() {
 			if let Err(e) = self
@@ -473,6 +484,127 @@ impl CallChainCommand {
 		self.use_wallet = false;
 	}
 
+	/// Displays chain metadata (pallets, calls, storage, constants).
+	fn display_metadata(&self, chain: &Chain, cli: &mut impl Cli) -> Result<()> {
+		match &self.pallet {
+			// No pallet specified: list all pallets
+			None => self.list_pallets(&chain.pallets, cli),
+			// Pallet specified: show pallet details
+			Some(pallet_name) => {
+				let pallet = find_pallet_by_name(&chain.pallets, pallet_name)?;
+				let metadata = chain.client.metadata();
+				let registry = metadata.types();
+				self.show_pallet(pallet, registry, cli)
+			},
+		}
+	}
+
+	/// Lists all pallets available on the chain.
+	fn list_pallets(&self, pallets: &[Pallet], cli: &mut impl Cli) -> Result<()> {
+		cli.info(format!("Available pallets ({}):\n", pallets.len()))?;
+		for pallet in pallets {
+			if pallet.docs.is_empty() {
+				cli.plain(format!("  {}", pallet.name))?;
+			} else {
+				// Truncate long docs and show first sentence or first 80 chars
+				let short_docs = truncate_docs(&pallet.docs, 80);
+				cli.plain(format!("  {} - {}", pallet.name, short_docs))?;
+			}
+		}
+		Ok(())
+	}
+
+	/// Shows details of a specific pallet (calls, storage, constants).
+	fn show_pallet(
+		&self,
+		pallet: &Pallet,
+		registry: &PortableRegistry,
+		cli: &mut impl Cli,
+	) -> Result<()> {
+		cli.info(format!("Pallet: {}\n", pallet.name))?;
+		if !pallet.docs.is_empty() {
+			cli.plain(format!("{}\n", pallet.docs))?;
+		}
+
+		// Show calls/extrinsics with parameters and docs
+		if !pallet.functions.is_empty() {
+			cli.plain(format!(
+				"\n━━━ Extrinsics ({}) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+				pallet.functions.len()
+			))?;
+			for func in &pallet.functions {
+				let status = if func.is_supported { "" } else { " [NOT SUPPORTED]" };
+				cli.plain(format!("\n  {}{}", func.name, status))?;
+
+				// Format parameters on separate lines for readability
+				if !func.params.is_empty() {
+					cli.plain("    Parameters:".to_string())?;
+					for param in &func.params {
+						cli.plain(format!(
+							"      - {}: {}",
+							param.name,
+							simplify_type(&param.type_name)
+						))?;
+					}
+				}
+
+				if !func.docs.is_empty() {
+					let short_docs = truncate_docs(&func.docs, 300);
+					cli.plain(format!("    Description: {}", short_docs))?;
+				}
+			}
+		}
+
+		// Show storage with key/value info
+		if !pallet.state.is_empty() {
+			cli.plain(format!(
+				"\n\n━━━ Storage ({}) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+				pallet.state.len()
+			))?;
+			for storage in &pallet.state {
+				cli.plain(format!("\n  {}", storage.name))?;
+
+				// Resolve and display key type for maps
+				if let Some(key_id) = storage.key_id &&
+					let Ok(key_param) = type_to_param("key", registry, key_id)
+				{
+					cli.plain(format!("    Key: {}", simplify_type(&key_param.type_name)))?;
+				}
+
+				// Resolve and display value type
+				if let Ok(value_param) = type_to_param("value", registry, storage.type_id) {
+					cli.plain(format!("    Value: {}", simplify_type(&value_param.type_name)))?;
+				}
+
+				if !storage.docs.is_empty() {
+					let short_docs = truncate_docs(&storage.docs, 300);
+					cli.plain(format!("    Description: {}", short_docs))?;
+				}
+			}
+		}
+
+		// Show constants with values and docs
+		if !pallet.constants.is_empty() {
+			cli.plain(format!(
+				"\n\n━━━ Constants ({}) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+				pallet.constants.len()
+			))?;
+			for constant in &pallet.constants {
+				let value_str = raw_value_to_string(&constant.value, "").map_err(|e| {
+					anyhow!("Failed to decode constant {}::{}: {e}", pallet.name, constant.name)
+				})?;
+				cli.plain(format!("\n  {}", constant.name))?;
+				cli.plain(format!("    Value: {}", value_str))?;
+				if !constant.docs.is_empty() {
+					let short_docs = truncate_docs(&constant.docs, 300);
+					cli.plain(format!("    Description: {}", short_docs))?;
+				}
+			}
+		}
+
+		Ok(())
+	}
+
 	/// Replaces file arguments with their contents, leaving other arguments unchanged.
 	fn expand_file_arguments(&self) -> Result<Vec<String>> {
 		self.args
@@ -814,10 +946,121 @@ fn parse_pallet_name(name: &str) -> Result<String, String> {
 	}
 }
 
+/// Simplifies a type name for display by removing variant details and complex nested types.
+/// - "Compact<u128>" -> "Compact<u128>" (keep simple generics)
+/// - "MultiAddress<AccountId32 ([u8;32]),()>: Id(...)" -> "MultiAddress" (simplify complex types)
+/// - "[AccountId32 ([u8;32])]" -> "[AccountId32]" (simplify array contents)
+/// - "(u32, AccountId32 ([u8;32]))" -> "(u32, AccountId32)" (simplify tuple contents)
+///
+/// # Safety
+/// String slicing operations assume ASCII input, which is guaranteed for Rust type names
+/// from chain metadata. Non-ASCII characters in type names would indicate malformed metadata.
+fn simplify_type(type_name: &str) -> String {
+	// Remove variant details after ":"
+	let base = type_name.split(':').next().unwrap_or(type_name).trim();
+
+	// Handle tuple types like "(u32, AccountId32 ([u8;32]))"
+	if base.starts_with('(') && base.ends_with(')') {
+		let inner = &base[1..base.len() - 1];
+		// Split by comma but respect nested parentheses
+		let simplified_parts: Vec<String> = split_tuple_elements(inner)
+			.iter()
+			.map(|part| simplify_type(part.trim()))
+			.collect();
+		return format!("({})", simplified_parts.join(", "));
+	}
+
+	// Handle array types like "[AccountId32 ([u8;32])]"
+	if base.starts_with('[') && base.ends_with(']') {
+		let inner = &base[1..base.len() - 1];
+		let simplified_inner = simplify_type(inner);
+		return format!("[{}]", simplified_inner);
+	}
+
+	// Check if this has generics
+	if let Some(pos) = base.find('<') {
+		let type_name = &base[..pos];
+		let generics = &base[pos..];
+
+		// If the generics contain spaces or parentheses, it's complex - just use type name
+		if generics.contains(' ') || generics.contains('(') {
+			return type_name.to_string();
+		}
+
+		// Simple generic like Compact<u128> or Option<bool> - keep as is
+		return base.to_string();
+	}
+
+	// Handle cases like "AccountId32 ([u8;32])" - just take the type name
+	if let Some(pos) = base.find(' ') {
+		return base[..pos].to_string();
+	}
+
+	base.to_string()
+}
+
+/// Splits tuple elements by comma, respecting nested parentheses.
+/// Uses saturating subtraction for depth to handle malformed input with unbalanced brackets.
+fn split_tuple_elements(s: &str) -> Vec<String> {
+	let mut parts = Vec::new();
+	let mut current = String::new();
+	let mut depth: usize = 0;
+
+	for c in s.chars() {
+		match c {
+			'(' | '<' | '[' => {
+				depth += 1;
+				current.push(c);
+			},
+			')' | '>' | ']' => {
+				depth = depth.saturating_sub(1);
+				current.push(c);
+			},
+			',' if depth == 0 => {
+				parts.push(current.trim().to_string());
+				current = String::new();
+			},
+			_ => current.push(c),
+		}
+	}
+
+	if !current.trim().is_empty() {
+		parts.push(current.trim().to_string());
+	}
+
+	parts
+}
+
+/// Truncates documentation to a maximum length, ending at a sentence boundary if possible.
+fn truncate_docs(docs: &str, max_len: usize) -> String {
+	// Clean up whitespace and newlines
+	let clean: String = docs.split_whitespace().collect::<Vec<_>>().join(" ");
+
+	if clean.len() <= max_len {
+		return clean;
+	}
+
+	// Try to end at a sentence boundary
+	let truncated = &clean[..max_len];
+	if let Some(pos) = truncated.rfind(". ") {
+		return clean[..=pos].to_string();
+	}
+
+	// Otherwise truncate at word boundary
+	if let Some(pos) = truncated.rfind(' ') {
+		return format!("{}...", &clean[..pos]);
+	}
+
+	format!("{}...", truncated)
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{cli::MockCli, common::wallet::USE_WALLET_PROMPT};
+	use crate::{
+		cli::MockCli,
+		common::{chain::Chain, wallet::USE_WALLET_PROMPT},
+	};
 	use pop_chains::{Function, parse_chain_metadata, set_up_client};
 	use pop_common::test_env::TestNode;
 	use tempfile::tempdir;
@@ -1075,6 +1318,7 @@ mod tests {
 			skip_confirm: false,
 			call_data: Some("0x00000411".to_string()),
 			sudo: false,
+			metadata: false,
 		};
 		let mut cli = MockCli::new()
 			.expect_confirm(USE_WALLET_PROMPT, false)
@@ -1105,6 +1349,7 @@ mod tests {
 			skip_confirm: false,
 			call_data: None,
 			sudo: true,
+			metadata: false,
 		};
 		call_config.reset_for_new_call();
 		assert_eq!(call_config.pallet, None);
@@ -1127,6 +1372,7 @@ mod tests {
 			call_data: None,
 			skip_confirm: false,
 			sudo: false,
+			metadata: false,
 		};
 		assert_eq!(
 			call_config.expand_file_arguments()?,
@@ -1333,5 +1579,143 @@ mod tests {
 		// Execute the command end-to-end; it should parse the composite key and perform the storage
 		// query
 		cmd.execute().await
+	}
+
+	#[tokio::test]
+	async fn display_metadata_works() -> Result<()> {
+		// Spawn a test node once for all metadata tests
+		let node = TestNode::spawn().await?;
+		let client = set_up_client(node.ws_url()).await?;
+		let pallets = parse_chain_metadata(&client)?;
+
+		let chain = Chain { url: Url::parse(node.ws_url())?, client, pallets: pallets.clone() };
+
+		// Test 1: List all pallets
+		{
+			let cmd = CallChainCommand { metadata: true, ..Default::default() };
+			let mut cli =
+				MockCli::new().expect_info(format!("Available pallets ({}):\n", pallets.len()));
+			cmd.display_metadata(&chain, &mut cli)?;
+			cli.verify()?;
+		}
+
+		// Test 2: Show specific pallet details
+		{
+			let cmd = CallChainCommand {
+				pallet: Some("System".to_string()),
+				metadata: true,
+				..Default::default()
+			};
+			let mut cli = MockCli::new().expect_info("Pallet: System\n".to_string());
+			cmd.display_metadata(&chain, &mut cli)?;
+			cli.verify()?;
+		}
+
+		// Test 3: Invalid pallet name should fail
+		{
+			let cmd = CallChainCommand {
+				pallet: Some("NonExistentPallet".to_string()),
+				metadata: true,
+				..Default::default()
+			};
+			let mut cli = MockCli::new();
+			let result = cmd.display_metadata(&chain, &mut cli);
+			assert!(result.is_err());
+			assert!(result.unwrap_err().to_string().contains("NonExistentPallet"));
+		}
+
+		Ok(())
+	}
+
+	#[test]
+	fn metadata_flag_conflicts_with_function() {
+		use clap::Parser;
+
+		#[derive(Parser)]
+		struct TestCmd {
+			#[command(flatten)]
+			call: CallChainCommand,
+		}
+		// --metadata should conflict with --function
+		let result = TestCmd::try_parse_from(["test", "--metadata", "--function", "transfer"]);
+		assert!(result.is_err());
+	}
+
+	#[test]
+	fn simplify_type_works() {
+		// Simple generics should be preserved
+		assert_eq!(simplify_type("Compact<u128>"), "Compact<u128>");
+		assert_eq!(simplify_type("Option<bool>"), "Option<bool>");
+
+		// Complex generics should be simplified to just the type name
+		assert_eq!(
+			simplify_type("MultiAddress<AccountId32 ([u8;32]),()>: Id(...)"),
+			"MultiAddress"
+		);
+
+		// Type names with internal details should be simplified
+		assert_eq!(simplify_type("AccountId32 ([u8;32])"), "AccountId32");
+
+		// Tuple types should have their contents simplified
+		assert_eq!(simplify_type("(u32, AccountId32 ([u8;32]))"), "(u32, AccountId32)");
+
+		// Array types should have their contents simplified
+		assert_eq!(simplify_type("[AccountId32 ([u8;32])]"), "[AccountId32]");
+
+		// Plain types should pass through unchanged
+		assert_eq!(simplify_type("u32"), "u32");
+		assert_eq!(simplify_type("bool"), "bool");
+
+		// Nested tuples
+		assert_eq!(simplify_type("((u32, u64), bool)"), "((u32, u64), bool)");
+	}
+
+	#[test]
+	fn split_tuple_elements_works() {
+		// Simple case
+		assert_eq!(split_tuple_elements("a, b"), vec!["a", "b"]);
+		assert_eq!(split_tuple_elements("a, b, c"), vec!["a", "b", "c"]);
+
+		// Nested parentheses should be respected
+		assert_eq!(split_tuple_elements("a, (b, c), d"), vec!["a", "(b, c)", "d"]);
+
+		// Nested angle brackets should be respected
+		assert_eq!(split_tuple_elements("Vec<u8>, Option<bool>"), vec!["Vec<u8>", "Option<bool>"]);
+
+		// Mixed nesting
+		assert_eq!(split_tuple_elements("Foo<(A, B)>, Bar"), vec!["Foo<(A, B)>", "Bar"]);
+
+		// Single element
+		assert_eq!(split_tuple_elements("single"), vec!["single"]);
+
+		// Empty string
+		assert!(split_tuple_elements("").is_empty());
+
+		// Handles unbalanced closing brackets gracefully (saturating_sub)
+		assert_eq!(split_tuple_elements("a), b"), vec!["a)", "b"]);
+	}
+
+	#[test]
+	fn truncate_docs_works() {
+		// Short docs should pass through unchanged
+		assert_eq!(truncate_docs("Short doc", 80), "Short doc");
+
+		// Docs with sentence boundary should truncate at sentence
+		assert_eq!(truncate_docs("First sentence. Second sentence.", 20), "First sentence.");
+
+		// Long docs without sentence boundary should truncate at word boundary with ellipsis
+		assert_eq!(truncate_docs("A very long string without periods", 15), "A very long...");
+
+		// Whitespace should be normalized
+		assert_eq!(
+			truncate_docs("Multiple   spaces\nand\nnewlines", 100),
+			"Multiple spaces and newlines"
+		);
+
+		// Exact length match
+		assert_eq!(truncate_docs("Exactly", 7), "Exactly");
+
+		// Edge case: max_len less than first word
+		assert_eq!(truncate_docs("VeryLongWord other", 5), "VeryL...");
 	}
 }
