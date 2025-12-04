@@ -173,7 +173,11 @@ pub async fn get_instantiate_payload(
 	instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,
 ) -> anyhow::Result<Vec<u8>> {
-	let storage_deposit_limit = instantiate_exec.estimate_limits().await?.1;
+	let storage_deposit_limit = instantiate_exec
+		.estimate_limits()
+		.await
+		.unwrap_or_else(|_| (Weight::zero(), 0))
+		.1;
 	let mut encoded_data = Vec::<u8>::new();
 	let args = instantiate_exec.args();
 	match args.code().clone() {
