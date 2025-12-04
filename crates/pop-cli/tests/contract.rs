@@ -257,12 +257,11 @@ async fn contract_lifecycle() -> Result<()> {
 	let ext_params = Params::new().build();
 	let signed = client.tx().create_signed(&payload, &signer, ext_params).await?;
 
-	let submit_request =
-		SubmitRequest { signed_payload: Some(to_hex(signed.encoded())), contract_address: None };
+	let signed_payload = Some(to_hex(signed.encoded()));
 	// Submit signed payload. This kills the wallet integration server.
 	let _ = reqwest::Client::new()
 		.post(format!("{}/submit", WALLET_INT_URI))
-		.json(&submit_request)
+		.json(&signed_payload)
 		.send()
 		.await
 		.expect("Failed to submit payload")

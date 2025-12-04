@@ -130,7 +130,7 @@ impl Command {
 				}
 
 				#[cfg(not(feature = "chain"))]
-				build::Command::execute(args)
+				build::Command::execute(args).await
 			},
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::Call(args) => {
