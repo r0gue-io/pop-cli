@@ -201,10 +201,12 @@ pub struct BuildSpecCommand {
 	/// Whether the genesis code file should be generated.
 	#[arg(short = 'C', long = "genesis-code")]
 	pub(crate) genesis_code: Option<bool>,
-	/// Whether to build the runtime deterministically. This requires a containerization solution
-	/// (Docker/Podman).
+	/// Whether to build the runtime deterministically. This requires Docker running.
 	#[arg(short, long)]
 	pub(crate) deterministic: Option<bool>,
+	/// Whether to use a specific tag for a deterministic build
+	#[clap(short, long, requires = "deterministic")]
+	pub(crate) tag: Option<String>,
 	/// Define the directory path where the runtime is located.
 	#[serde(skip_serializing)]
 	#[clap(name = "runtime", long)]
@@ -516,6 +518,7 @@ impl BuildSpecCommand {
 			genesis_state,
 			genesis_code,
 			deterministic,
+			tag: self.tag.clone(),
 			package,
 			runtime_dir,
 			use_existing_plain_spec: !prompt,
@@ -579,6 +582,7 @@ pub(crate) struct BuildSpec {
 	genesis_state: bool,
 	genesis_code: bool,
 	deterministic: bool,
+	tag: Option<String>,
 	package: String,
 	runtime_dir: Option<PathBuf>,
 	use_existing_plain_spec: bool,
@@ -650,7 +654,9 @@ impl BuildSpec {
 					self.runtime_dir
 						.clone()
 						.expect("Deterministic builds always contains runtime_dir"),
+					self.tag.clone(),
 				)
+				.await
 				.map_err(|e| anyhow::anyhow!("Failed to build the deterministic runtime: {e}"))?;
 				generated_files
 					.push(format!("Runtime file generated at: {}", &runtime_path.display()));
@@ -854,6 +860,7 @@ mod tests {
 		let relay = Polkadot;
 		let profile = Profile::Production;
 		let deterministic = true;
+		let tag = Some("1.88.0".to_owned());
 		let package = "runtime-name";
 		let runtime_dir = PathBuf::from("./new-runtime-dir");
 		let path = PathBuf::from("./");
@@ -885,6 +892,7 @@ mod tests {
 					genesis_state: Some(genesis_state),
 					genesis_code: Some(genesis_code),
 					deterministic: Some(deterministic),
+					tag: tag.clone(),
 					package: Some(package.to_string()),
 					runtime_dir: Some(runtime_dir.clone()),
 					raw,
@@ -912,6 +920,7 @@ mod tests {
 					genesis_state: Some(genesis_state),
 					genesis_code: Some(genesis_code),
 					deterministic: Some(deterministic),
+					tag: tag.clone(),
 					package: Some(package.to_string()),
 					runtime_dir: Some(runtime_dir.clone()),
 					raw,
@@ -981,6 +990,7 @@ mod tests {
 			assert_eq!(build_spec.genesis_state, genesis_state);
 			assert_eq!(build_spec.genesis_code, genesis_code);
 			assert_eq!(build_spec.deterministic, deterministic);
+			assert_eq!(build_spec.tag, tag);
 			assert_eq!(build_spec.package, package);
 			assert_eq!(build_spec.runtime_dir, Some(runtime_dir.clone()));
 			if flags_used {
@@ -1056,6 +1066,7 @@ mod tests {
 					genesis_state: None,
 					genesis_code: None,
 					deterministic: None,
+					tag: None,
 					package: Some(package.to_string()),
 					runtime_dir: Some(runtime_dir.clone()),
 					raw: true,
@@ -1080,6 +1091,7 @@ mod tests {
 					genesis_state: None,
 					genesis_code: None,
 					deterministic: None,
+					tag: None,
 					package: Some(package.to_string()),
 					runtime_dir: Some(runtime_dir.clone()),
 					raw: true,
@@ -1175,6 +1187,7 @@ mod tests {
 					assert_eq!(build_spec.genesis_state, genesis_state);
 					assert_eq!(build_spec.genesis_code, genesis_code);
 					assert!(!build_spec.deterministic);
+					assert_eq!(build_spec.tag, None);
 					assert_eq!(build_spec.package, DEFAULT_PACKAGE);
 					assert_eq!(build_spec.runtime_dir, None);
 				} else if changes && no_flags_used {
@@ -1189,6 +1202,7 @@ mod tests {
 					assert_eq!(build_spec.genesis_state, genesis_state);
 					assert_eq!(build_spec.genesis_code, genesis_code);
 					assert_eq!(build_spec.deterministic, deterministic);
+					assert_eq!(build_spec.tag, None);
 					assert_eq!(build_spec.package, package);
 					assert_eq!(build_spec.runtime_dir, Some(runtime_dir.clone()));
 				} else if !no_flags_used {
@@ -1208,6 +1222,7 @@ mod tests {
 					assert!(!build_spec.genesis_state);
 					assert!(!build_spec.genesis_code);
 					assert!(!build_spec.deterministic);
+					assert_eq!(build_spec.tag, None);
 					assert_eq!(build_spec.package, "parachain-template-runtime");
 					assert_eq!(build_spec.runtime_dir, Some(runtime_dir.clone()));
 				}

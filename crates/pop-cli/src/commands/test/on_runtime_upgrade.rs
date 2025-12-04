@@ -117,7 +117,9 @@ impl TestOnRuntimeUpgradeCommand {
 			&mut self.shared_params.runtime,
 			&mut self.build_params.profile,
 			self.build_params.no_build,
-		) {
+		)
+		.await
+		{
 			return display_message(&e.to_string(), false, cli);
 		}
 

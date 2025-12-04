@@ -34,7 +34,7 @@ pub(crate) mod api;
 /// Provides build profiles for usage when building Rust projects.
 pub mod build;
 /// Test utilities for mocking commands.
-#[cfg(test)]
+#[cfg(any(test, feature = "test-utils"))]
 pub mod command_mock;
 /// Provides utils to work with docker
 pub mod docker;

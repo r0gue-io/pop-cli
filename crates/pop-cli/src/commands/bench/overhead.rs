@@ -77,7 +77,9 @@ impl BenchmarkOverhead {
 					!self.no_build,
 					false,
 					&None,
-				)?;
+					None,
+				)
+				.await?;
 				cmd.params.runtime = Some(binary_path);
 			}
 

@@ -104,6 +104,116 @@ impl Docker {
 			"Docker failed to start within 30 seconds. Please start it manually.".to_string(),
 		))
 	}
+
+	/// Pulls a Docker image. Requires Docker to be running.
+	///
+	/// # Arguments
+	/// * `image` - The image name.
+	/// * `tag` - The image tag.
+	pub fn pull_image(image: &str, tag: &str) -> Result<(), Error> {
+		// Check if Docker is running
+		match Self::detect_docker()? {
+			Docker::Running => {},
+			_ => return Err(Error::Docker("Docker is not running.".to_string())),
+		}
+
+		let image_with_tag = format!("{}:{}", image, tag);
+
+		let output = Command::new("docker")
+			.args(["pull", &image_with_tag])
+			.output()
+			.map_err(|e| Error::Docker(format!("Failed to pull image: {}", e)))?;
+
+		if !output.status.success() {
+			return Err(Error::Docker(format!(
+				"Failed to pull image {}: {}",
+				image_with_tag,
+				String::from_utf8_lossy(&output.stderr)
+			)));
+		}
+
+		Ok(())
+	}
+
+	/// Gets the digest of a Docker image. Requires Docker to be running.
+	/// If the image is not available locally, it will be pulled automatically.
+	///
+	/// # Arguments
+	/// * `image` - The image name.
+	/// * `tag` - The image tag.
+	pub fn get_image_digest(image: &str, tag: &str) -> Result<String, Error> {
+		// Check if Docker is running
+		match Self::detect_docker()? {
+			Docker::Running => {},
+			_ => return Err(Error::Docker("Docker is not running.".to_string())),
+		}
+
+		let image_with_tag = format!("{}:{}", image, tag);
+
+		let mut output = Command::new("docker")
+			.args(["image", "inspect", "--format={{.RepoDigests}}", &image_with_tag])
+			.output()
+			.map_err(|e| Error::Docker(format!("Failed to inspect image: {}", e)))?;
+
+		// If inspect fails, try pulling the image first
+		if !output.status.success() {
+			Self::pull_image(image, tag)?;
+
+			// Retry inspect after pulling
+			output = Command::new("docker")
+				.args(["image", "inspect", "--format={{.RepoDigests}}", &image_with_tag])
+				.output()
+				.map_err(|e| Error::Docker(format!("Failed to inspect image: {}", e)))?;
+
+			if !output.status.success() {
+				return Err(Error::Docker(format!(
+					"Failed to inspect image {} after pulling: {}",
+					image_with_tag,
+					String::from_utf8_lossy(&output.stderr)
+				)));
+			}
+		}
+
+		let output_str = String::from_utf8(output.stdout)
+			.map_err(|e| Error::Docker(format!("Invalid UTF-8 in docker output: {}", e)))?;
+
+		// Parse the digest from the output format: [image@sha256:...]
+		let digest = output_str
+			.trim()
+			.trim_start_matches('[')
+			.trim_end_matches(']')
+			.split('@')
+			.nth(1)
+			.ok_or_else(|| Error::Docker("Could not parse digest from docker output.".to_string()))?
+			.to_string();
+
+		Ok(digest)
+	}
+}
+
+/// Fetches the latest tag for a Docker image from a URL.
+///
+/// # Arguments
+/// * `url` - The URL to fetch the tag from.
+pub async fn fetch_image_tag(url: &str) -> Result<String, Error> {
+	let response = reqwest::get(url)
+		.await
+		.map_err(|e| Error::Docker(format!("Failed to fetch image tag: {}", e)))?;
+
+	if !response.status().is_success() {
+		return Err(Error::Docker(format!(
+			"Failed to fetch image tag from {}: HTTP {}",
+			url,
+			response.status()
+		)));
+	}
+
+	let tag = response
+		.text()
+		.await
+		.map_err(|e| Error::Docker(format!("Failed to read response body: {}", e)))?;
+
+	Ok(tag.trim().to_string())
 }
 
 #[cfg(test)]
@@ -270,5 +380,220 @@ mod tests {
 		CommandMock::default().with_command("docker", 1).execute(|| {
             assert!(matches!(Docker::wait_for_ready(), Err(Error::Docker(err)) if err == "Docker failed to start within 30 seconds. Please start it manually."));
 		});
+	}
+
+	#[test]
+	fn pull_image_succeeds_when_docker_running() {
+		CommandMock::default().with_command("docker", 0).execute(|| {
+			assert!(Docker::pull_image("test/image", "latest").is_ok());
+		});
+	}
+
+	#[test]
+	fn pull_image_fails_when_docker_not_running() {
+		CommandMock::default().with_command("docker", 1).execute(|| {
+			assert!(matches!(
+				Docker::pull_image("test/image", "latest"),
+				Err(Error::Docker(err)) if err == "Docker is not running."
+			));
+		});
+	}
+
+	#[test]
+	fn pull_image_fails_when_pull_command_fails() {
+		let command_mock = CommandMock::default();
+		let docker_info_script =
+			"#!/bin/sh\nif [ \"$1\" = \"info\" ]; then exit 0; else exit 1; fi";
+
+		command_mock.with_command_script("docker", docker_info_script).execute(|| {
+			assert!(matches!(
+				Docker::pull_image("test/image", "latest"),
+				Err(Error::Docker(err)) if err.contains("Failed to pull image")
+			));
+		});
+	}
+
+	#[test]
+	fn get_image_digest_succeeds_with_local_image() {
+		let command_mock = CommandMock::default();
+		let docker_script = r#"#!/bin/sh
+if [ "$1" = "info" ]; then
+    exit 0
+elif [ "$1" = "image" ] && [ "$2" = "inspect" ]; then
+    echo "[test/image@sha256:abcd1234]"
+    exit 0
+fi
+exit 1"#;
+
+		command_mock.with_command_script("docker", docker_script).execute(|| {
+			let result = Docker::get_image_digest("test/image", "latest");
+			assert!(result.is_ok());
+			assert_eq!(result.unwrap(), "sha256:abcd1234");
+		});
+	}
+
+	#[test]
+	fn get_image_digest_pulls_and_succeeds_when_image_not_local() {
+		let command_mock = CommandMock::default();
+		let pulled_marker = command_mock.fake_path().join("image_pulled");
+		let docker_script = format!(
+			r#"#!/bin/sh
+if [ "$1" = "info" ]; then
+    exit 0
+elif [ "$1" = "pull" ]; then
+    > "{}"
+    exit 0
+elif [ "$1" = "image" ] && [ "$2" = "inspect" ]; then
+    if [ -f "{}" ]; then
+        echo "[test/image@sha256:abcd1234]"
+        exit 0
+    else
+        exit 1
+    fi
+fi
+exit 1"#,
+			pulled_marker.display(),
+			pulled_marker.display()
+		);
+
+		command_mock.with_command_script("docker", &docker_script).execute(|| {
+			let result = Docker::get_image_digest("test/image", "latest");
+			assert!(result.is_ok());
+			assert_eq!(result.unwrap(), "sha256:abcd1234");
+		});
+	}
+
+	#[test]
+	fn get_image_digest_fails_when_docker_not_running() {
+		CommandMock::default().with_command("docker", 1).execute(|| {
+			assert!(matches!(
+				Docker::get_image_digest("test/image", "latest"),
+				Err(Error::Docker(err)) if err == "Docker is not running."
+			));
+		});
+	}
+
+	#[test]
+	fn get_image_digest_fails_when_image_cannot_be_pulled() {
+		let command_mock = CommandMock::default();
+		let docker_script = r#"#!/bin/sh
+if [ "$1" = "info" ]; then
+    exit 0
+elif [ "$1" = "pull" ]; then
+    exit 1
+fi
+exit 1"#;
+
+		command_mock.with_command_script("docker", docker_script).execute(|| {
+			assert!(matches!(
+				Docker::get_image_digest("test/image", "nonexistent"),
+				Err(Error::Docker(err)) if err.contains("Failed to pull image")
+			));
+		});
+	}
+
+	#[test]
+	fn get_image_digest_pulls_and_fails_if_inspect_fails_after_pulling() {
+		let command_mock = CommandMock::default();
+		let pulled_marker = command_mock.fake_path().join("image_pulled");
+		let docker_script = format!(
+			r#"#!/bin/sh
+if [ "$1" = "info" ]; then
+    exit 0
+elif [ "$1" = "pull" ]; then
+    exit 0
+elif [ "$1" = "image" ] && [ "$2" = "inspect" ]; then
+    if [ -f "{}" ]; then
+        echo "[test/image@sha256:abcd1234]"
+        exit 0
+    else
+        exit 1
+    fi
+fi
+exit 1"#,
+			pulled_marker.display()
+		);
+
+		command_mock.with_command_script("docker", &docker_script).execute(|| {
+			assert!(matches!(Docker::get_image_digest("test/image", "latest"), Err(Error::Docker(err)) if err.contains("Failed to inspect image") && err.contains("after pulling")));
+		});
+	}
+
+	#[test]
+	fn get_image_digest_fails_when_output_has_no_at_symbol() {
+		let command_mock = CommandMock::default();
+		let docker_script = r#"#!/bin/sh
+if [ "$1" = "info" ]; then
+    exit 0
+elif [ "$1" = "image" ] && [ "$2" = "inspect" ]; then
+    echo "[test/image-no-digest]"
+    exit 0
+fi
+exit 1"#;
+
+		command_mock.with_command_script("docker", docker_script).execute(|| {
+			assert!(matches!(
+				Docker::get_image_digest("test/image", "latest"),
+				Err(Error::Docker(err)) if err == "Could not parse digest from docker output."
+			));
+		});
+	}
+
+	#[test]
+	fn get_image_digest_fails_when_output_has_invalid_utf8() {
+		let command_mock = CommandMock::default();
+		let docker_script = r#"#!/bin/sh
+if [ "$1" = "info" ]; then
+    exit 0
+elif [ "$1" = "image" ] && [ "$2" = "inspect" ]; then
+    printf '\xff\xfe'
+    exit 0
+fi
+exit 1"#;
+
+		command_mock.with_command_script("docker", docker_script).execute(|| {
+			assert!(matches!(
+				Docker::get_image_digest("test/image", "latest"),
+				Err(Error::Docker(err)) if err.contains("Invalid UTF-8 in docker output")
+			));
+		});
+	}
+
+	#[tokio::test]
+	async fn fetch_image_tag_succeeds() {
+		let mut server = mockito::Server::new_async().await;
+		let mock = server
+			.mock("GET", "/")
+			.with_status(200)
+			.with_body("1.70.0\n")
+			.create_async()
+			.await;
+
+		let result = fetch_image_tag(&server.url()).await;
+		mock.assert_async().await;
+		assert!(result.is_ok());
+		assert_eq!(result.unwrap(), "1.70.0");
+	}
+
+	#[tokio::test]
+	async fn fetch_image_tag_fails_on_http_error() {
+		let mut server = mockito::Server::new_async().await;
+		let mock = server.mock("GET", "/").with_status(404).create_async().await;
+
+		let result = fetch_image_tag(&server.url()).await;
+		mock.assert_async().await;
+		assert!(matches!(
+			result,
+			Err(Error::Docker(err)) if err.contains("Failed to fetch image tag") && err.contains("404")
+		));
+	}
+
+	#[tokio::test]
+	async fn fetch_image_tag_fails_on_network_error() {
+		let result = fetch_image_tag("http://invalid-url-that-does-not-exist-12345.com").await;
+		assert!(matches!(
+			result,
+			Err(Error::Docker(err)) if err.contains("Failed to fetch image tag")
+		));
 	}
 }
