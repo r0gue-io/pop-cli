@@ -2,12 +2,13 @@ Source: pop-cli
 Section: devel
 Priority: optional
 Maintainer: R0GUE <go@r0gue.io>
-Build-Depends: debhelper (>= 11),
+Build-Depends: debhelper-compat (= 13),
                cargo (>= 1.91.1),
                rustc (>= 1.91.1),
                libssl-dev,
-               pkg-config
-Standards-Version: 4.1.3
+               pkg-config,
+               protobuf-compiler
+Standards-Version: 4.7.0
 Homepage: https://github.com/r0gue-io/pop-cli
 Vcs-Git: https://github.com/r0gue-io/pop-cli.git
 Vcs-Browser: https://github.com/r0gue-io/pop-cli

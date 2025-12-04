@@ -108,11 +108,17 @@ jobs:
           . "$HOME/.cargo/env"
           dpkg-buildpackage -us -uc -d
 
+      - name: Upload Debian package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pop-cli-debian-package
+          path: ${{ github.workspace }}/../pop-cli_*.deb
+
       - name: Upload Debian package to release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            ../pop-cli_*.deb
+            ${{ github.workspace }}../pop-cli_*.deb
 
   publish-homebrew:
     name: Publish to Homebrew

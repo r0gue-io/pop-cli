@@ -1,10 +1,10 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: pop-cli
-Upstream-Contact: R0GUE <hello@r0gue.io>
+Upstream-Contact: R0GUE <go@r0gue.io>
 Source: https://github.com/r0gue-io/pop-cli
 
 Files: *
-Copyright: 2024 R0GUE
+Copyright: 2025 R0GUE
 License: GPL-3.0
 
 License: GPL-3.0
