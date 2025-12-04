@@ -16,7 +16,7 @@ use contract_extrinsics::{
 	events::ContractInstantiated,
 	extrinsic_calls::{Instantiate, InstantiateWithCode},
 };
-use pop_common::{DefaultConfig, Keypair, account_id::parse_h160_account, create_signer};
+use pop_common::{DefaultConfig, Keypair, create_signer};
 use scale_info::scale::Encode;
 use sp_core::bytes::{from_hex, to_hex};
 use std::{
@@ -246,27 +246,16 @@ pub async fn upload_contract_signed(
 /// * `url` - rpc for chain.
 /// * `payload` - the signed payload to submit (encoded call data).
 pub async fn instantiate_contract_signed(
-	maybe_contract_address: Option<String>,
 	url: &str,
 	payload: String,
 ) -> anyhow::Result<InstantiateExecResult<SubstrateConfig>> {
 	let events = submit_signed_payload(url, payload).await?;
 
-	let (code_hash, contract_address) = {
-		let contract_address = match maybe_contract_address {
-			Some(addr) => parse_h160_account(&addr)?,
-			None => {
-				let instantiated =
-					events.find_first::<ContractInstantiated>()?.ok_or_else(|| {
-						Error::InstantiateContractError(
-							"Failed to find Instantiated event".to_string(),
-						)
-					})?;
-				instantiated.contract
-			},
-		};
-		(None, contract_address)
-	};
+	let instantiated = events.find_first::<ContractInstantiated>()?.ok_or_else(|| {
+		Error::InstantiateContractError("Failed to find Instantiated event".to_string())
+	})?;
+	let contract_address = instantiated.contract;
+	let code_hash = None;
 
 	Ok(InstantiateExecResult { events, code_hash, contract_address })
 }
