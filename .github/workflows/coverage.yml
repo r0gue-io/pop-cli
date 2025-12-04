@@ -67,14 +67,7 @@ jobs:
 
       - name: Generate code coverage
         run: |
-          cargo llvm-cov nextest --locked --workspace --lib --bins --codecov --no-report --no-fail-fast --nocapture --status-level all
-
-          ## Test that cannot run in parallel:
-          ## - Docker tests in pop-common
-          cargo llvm-cov nextest --locked -p pop-common --features single-threaded-tests docker --test-threads=1 --codecov --no-report
-
-          ## Generate report using the artifacts generated previously
-          cargo llvm-cov report --codecov --output-path codecov.json
+          cargo llvm-cov nextest --locked --workspace --lib --bins --codecov --output-path codecov.json --no-fail-fast --nocapture --status-level all
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

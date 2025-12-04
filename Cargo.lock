@@ -9115,6 +9115,7 @@ dependencies = [
  "subxt 0.44.0",
  "subxt-signer 0.44.0",
  "tar",
+ "temp-env",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
@@ -14322,6 +14323,15 @@ name = "target-lexicon"
 version = "0.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df7f62577c25e07834649fc3b39fafdc597c0a3527dc1c60129201ccfcbaa50c"
+
+[[package]]
+name = "temp-env"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96374855068f47402c3121c6eed88d29cb1de8f3ab27090e273e420bdabcf050"
+dependencies = [
+ "parking_lot 0.12.5",
+]
 
 [[package]]
 name = "tempfile"
