@@ -205,7 +205,7 @@ pub struct BuildSpecCommand {
 	#[arg(short, long)]
 	pub(crate) deterministic: Option<bool>,
 	/// Whether to use a specific tag for a deterministic build
-	#[clap(short, long, requires = "deterministic")]
+	#[clap(long, requires = "deterministic")]
 	pub(crate) tag: Option<String>,
 	/// Define the directory path where the runtime is located.
 	#[serde(skip_serializing)]
@@ -990,15 +990,16 @@ mod tests {
 			assert_eq!(build_spec.genesis_state, genesis_state);
 			assert_eq!(build_spec.genesis_code, genesis_code);
 			assert_eq!(build_spec.deterministic, deterministic);
-			assert_eq!(build_spec.tag, tag);
 			assert_eq!(build_spec.package, package);
 			assert_eq!(build_spec.runtime_dir, Some(runtime_dir.clone()));
 			if flags_used {
 				assert_eq!(build_spec.name, Some(name.to_string()));
 				assert_eq!(build_spec.id, Some(id.to_string()));
+				assert_eq!(build_spec.tag, tag);
 			} else {
 				assert_eq!(build_spec.name, None);
 				assert_eq!(build_spec.id, None);
+				assert_eq!(build_spec.tag, None);
 			}
 
 			if build_spec.is_relay {

@@ -158,112 +158,82 @@ mod tests {
 	use super::*;
 	use anyhow::Result;
 	use fs::write;
-	use pop_common::{command_mock::CommandMock, manifest::Dependency};
+	use pop_common::manifest::Dependency;
 	use tempfile::tempdir;
+
+	const SRTOOL_TAG: &str = "1.88.0";
+	const SRTOOL_DIGEST: &str =
+		"sha256:9902e50293f55fa34bc8d83916aad3fdf9ab3c74f2c0faee6dec8cc705a3a5d7";
 
 	#[tokio::test]
 	async fn srtool_builder_new_works() {
-		let command_mock = CommandMock::default();
-		let digest = "sha256:abcd1234";
-		let docker_script = format!(
-			"#!/bin/sh
-if [ \"$1\" = \"info\" ]; then
-    exit 0
-elif [ \"$1\" = \"image\" ] && [ \"$2\" = \"inspect\" ]; then
-    echo \"[test/image@{}]\"
-    exit 0
-fi
-exit 1",
-			digest
+		Docker::ensure_running().unwrap();
+		let srtool_builder = DeterministicBuilder::new(
+			None,
+			"parachain-template-runtime",
+			Profile::Release,
+			PathBuf::from("./runtime"),
+			Some(SRTOOL_TAG.to_owned()),
+		)
+		.await
+		.unwrap();
+		assert_eq!(
+			srtool_builder.cache_mount,
+			format!("-v {}:/cargo-home", env::temp_dir().join("cargo").display())
 		);
+		assert_eq!(srtool_builder.default_features, "");
+		assert_eq!(srtool_builder.digest, SRTOOL_DIGEST);
+		assert_eq!(srtool_builder.tag, SRTOOL_TAG);
 
-		command_mock
-			.with_command_script("docker", &docker_script)
-			.execute_async(async || {
-				let srtool_builder = DeterministicBuilder::new(
-					None,
-					"parachain-template-runtime",
-					Profile::Release,
-					PathBuf::from("./runtime"),
-					Some("1.88.0".to_owned()),
-				)
-				.await
-				.unwrap();
-				assert_eq!(
-					srtool_builder.cache_mount,
-					format!("-v {}:/cargo-home", env::temp_dir().join("cargo").display())
-				);
-				assert_eq!(srtool_builder.default_features, "");
-				assert_eq!(srtool_builder.digest, digest);
-				assert_eq!(srtool_builder.tag, "1.88.0");
-
-				assert_eq!(srtool_builder.image, DEFAULT_IMAGE);
-				assert_eq!(srtool_builder.package, "parachain-template-runtime");
-				assert_eq!(srtool_builder.path, fs::canonicalize(PathBuf::from("./")).unwrap());
-				assert_eq!(srtool_builder.profile, Profile::Release);
-				assert_eq!(srtool_builder.runtime_dir, PathBuf::from("./runtime"));
-			})
-			.await;
+		assert_eq!(srtool_builder.image, DEFAULT_IMAGE);
+		assert_eq!(srtool_builder.package, "parachain-template-runtime");
+		assert_eq!(srtool_builder.path, fs::canonicalize(PathBuf::from("./")).unwrap());
+		assert_eq!(srtool_builder.profile, Profile::Release);
+		assert_eq!(srtool_builder.runtime_dir, PathBuf::from("./runtime"));
 	}
 
 	#[tokio::test]
 	async fn build_args_works() {
-		let command_mock = CommandMock::default();
-		let digest = "sha256:abcd1234";
-		let docker_script = format!(
-			"#!/bin/sh
-if [ \"$1\" = \"info\" ]; then
-    exit 0
-elif [ \"$1\" = \"image\" ] && [ \"$2\" = \"inspect\" ]; then
-    echo \"[test/image@{}]\"
-    exit 0
-fi
-exit 1",
-			digest
-		);
+		Docker::ensure_running().unwrap();
 
-		command_mock
-			.with_command_script("docker", &docker_script)
-			.execute_async(async || {
-				let temp_dir = tempdir().unwrap();
-				let path = temp_dir.path();
-				let tag = "1.88.0";
-				assert_eq!(
-					DeterministicBuilder::new(
-						Some(path.to_path_buf()),
-						"parachain-template-runtime",
-						Profile::Production,
-						PathBuf::from("./runtime"),
-						Some(tag.to_owned())
-					)
-					.await
-					.unwrap()
-					.build_args(),
-					vec!(
-						"run",
-						"--name srtool",
-						"--rm",
-						"-e",
-						"PACKAGE=parachain-template-runtime",
-						"-e",
-						"RUNTIME_DIR=./runtime",
-						"-e",
-						"DEFAULT_FEATURES=",
-						"-e",
-						"PROFILE=production",
-						"-e",
-						&format!("IMAGE={digest}"),
-						"-v",
-						&format!("{}:/build", fs::canonicalize(path).unwrap().display()),
-						"",
-						&format!("{DEFAULT_IMAGE}:{tag}"),
-						"build",
-						"--app",
-						"--json"
-					),
-				);
-			})
-			.await;
+		let temp_dir = tempdir().unwrap();
+		let path = temp_dir.path();
+		assert_eq!(
+			DeterministicBuilder::new(
+				Some(path.to_path_buf()),
+				"parachain-template-runtime",
+				Profile::Production,
+				PathBuf::from("./runtime"),
+				Some(SRTOOL_TAG.to_owned())
+			)
+			.await
+			.unwrap()
+			.build_args(),
+			vec!(
+				"run",
+				"--name",
+				"srtool",
+				"--rm",
+				"-e",
+				"PACKAGE=parachain-template-runtime",
+				"-e",
+				"RUNTIME_DIR=./runtime",
+				"-e",
+				"DEFAULT_FEATURES=",
+				"-e",
+				"PROFILE=production",
+				"-e",
+				&format!("IMAGE={SRTOOL_DIGEST}"),
+				"-v",
+				&format!("{}:/build", fs::canonicalize(path).unwrap().display()),
+				"-v",
+				&format!("{}:/cargo-home", env::temp_dir().join("cargo").display()),
+				&format!("{DEFAULT_IMAGE}:{SRTOOL_TAG}"),
+				"build",
+				"--app",
+				"--json"
+			),
+		);
 	}
 
 	#[tokio::test]

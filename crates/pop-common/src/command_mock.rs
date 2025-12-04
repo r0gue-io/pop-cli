@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use std::{future::Future, os::unix::fs::PermissionsExt, path::Path};
+use std::{os::unix::fs::PermissionsExt, path::Path};
 use tempfile::TempDir;
 
 /// Helper to create a script that exits with a given code
@@ -54,16 +54,6 @@ impl CommandMock {
 		F: FnOnce(),
 	{
 		temp_env::with_var("PATH", Some(self.temp_dir.path()), test);
-	}
-
-	/// Execute an async test with mocked commands in PATH
-	pub async fn execute_async<F, Fut>(self, test: F)
-	where
-		F: FnOnce() -> Fut,
-		Fut: Future<Output = ()>,
-	{
-		let path = self.temp_dir.path().to_owned();
-		temp_env::with_var("PATH", Some(&path), || test)().await;
 	}
 
 	fn set_executable(path: &Path) -> std::io::Result<()> {

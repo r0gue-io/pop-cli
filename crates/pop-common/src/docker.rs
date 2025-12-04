@@ -65,9 +65,11 @@ impl Docker {
 	fn try_start_linux() -> Result<(), Error> {
 		// Check if running as root
 		if !crate::helpers::is_root() {
-			return Err(Error::Docker(
-				"Docker is not running. Please run this command with sudo to allow pop to initialize it, or start it manually.".to_string(),
-			));
+			let args = std::env::args().skip(1).collect::<Vec<String>>().join(" ");
+			return Err(Error::Docker(format!(
+				"Docker is not running. Please run `sudo $(which pop) {}` to allow pop to initialize it, or start it manually.",
+				args
+			)));
 		}
 
 		// Try to start Docker with systemctl
@@ -269,10 +271,22 @@ mod tests {
 		let command_mock = CommandMock::default();
 		let started_marker = command_mock.fake_path().join("docker_started");
 		let docker_script = format!(
-			"#!/bin/sh\nif [ -f \"{}\" ]; then\n    exit 0\nelse\n    exit 1\nfi",
+			r#"
+#!/bin/sh
+if [ -f "{}" ]; then
+    exit 0
+else
+    exit 1
+fi"#,
 			started_marker.display()
 		);
-		let open_script = format!("#!/bin/sh\n> \"{}\"", started_marker.display());
+		let open_script = format!(
+			r#"
+#!/bin/sh
+> "{}"
+"#,
+			started_marker.display()
+		);
 
 		command_mock
 			.with_command_script("docker", &docker_script)
@@ -288,14 +302,30 @@ mod tests {
 		let command_mock = CommandMock::default();
 		let started_marker = command_mock.fake_path().join("docker_started");
 		let docker_script = format!(
-			"#!/bin/sh\nif [ -f \"{}\" ]; then\n    exit 0\nelse\n    exit 1\nfi",
+			r#"
+#!/bin/sh
+if [ -f "{}" ]; then
+    exit 0
+else
+    exit 1
+fi"#,
 			started_marker.display()
 		);
-		let systemctl_script = format!("#!/bin/sh\n> \"{}\"", started_marker.display());
+		let systemctl_script = format!(
+			r#"
+#!/bin/sh
+> "{}"
+"#,
+			started_marker.display()
+		);
 
 		command_mock
 			.with_command_script("docker", &docker_script)
-			.with_command_script("id", "#!/bin/sh\necho 0") // root user
+			.with_command_script(
+				"id",
+				r#"#!/bin/sh
+echo 0"#,
+			) // root user
 			.with_command_script("systemctl", &systemctl_script)
 			.execute(|| {
 				assert!(Docker::ensure_running().is_ok());
@@ -324,12 +354,16 @@ mod tests {
 	#[test]
 	fn try_start_linux_fails_when_not_root() {
 		CommandMock::default()
-			.with_command_script("id", "#!/bin/sh\necho 1000") // non-root user
+			.with_command_script("id", r#"
+#!/bin/sh
+echo 1000"#) // non-root user
 			.execute(|| {
+                // Cannot assert too much about this, depending on how tests are called, args will contain different values
+                let args = std::env::args().skip(1).collect::<Vec<String>>().join(" ");
 				assert!(matches!(
 					Docker::try_start_linux(),
 					Err(Error::Docker(err))
-					if err == "Docker is not running. Please run this command with sudo to allow pop to initialize it, or start it manually."
+					if err == format!("Docker is not running. Please run `sudo $(which pop) {}` to allow pop to initialize it, or start it manually.", args)
 				));
 			});
 	}
@@ -337,7 +371,12 @@ mod tests {
 	#[test]
 	fn try_start_linux_succeeds_as_root_with_systemctl() {
 		CommandMock::default()
-			.with_command_script("id", "#!/bin/sh\necho 0") // root user
+			.with_command_script(
+				"id",
+				r#"
+#!/bin/sh
+echo 0"#,
+			) // root user
 			.with_command("systemctl", 0) // systemctl succeeds
 			.execute(|| {
 				assert!(Docker::try_start_linux().is_ok());
@@ -347,7 +386,12 @@ mod tests {
 	#[test]
 	fn try_start_linux_fails_as_root_when_systemctl_fails() {
 		CommandMock::default()
-			.with_command_script("id", "#!/bin/sh\necho 0") // root user
+			.with_command_script(
+				"id",
+				r#"
+#!/bin/sh
+echo 0"#,
+			) // root user
 			.with_command("systemctl", 1) // systemctl fails
 			.execute(|| {
 				assert!(matches!(
@@ -363,7 +407,13 @@ mod tests {
 		let command_mock = CommandMock::default();
 		let started_marker = command_mock.fake_path().join("docker_started");
 		let docker_script = format!(
-			"#!/bin/sh\nif [ -f \"{}\" ]; then\n    exit 0\nelse\n    exit 1\nfi",
+			r#"
+#!/bin/sh
+if [ -f "{}" ]; then
+    exit 0
+else
+    exit 1
+fi"#,
 			started_marker.display()
 		);
 
@@ -402,8 +452,13 @@ mod tests {
 	#[test]
 	fn pull_image_fails_when_pull_command_fails() {
 		let command_mock = CommandMock::default();
-		let docker_info_script =
-			"#!/bin/sh\nif [ \"$1\" = \"info\" ]; then exit 0; else exit 1; fi";
+		let docker_info_script = r#"
+#!/bin/sh
+if [ "$1" = "info" ]; then 
+    exit 0; 
+else 
+    exit 1; 
+fi"#;
 
 		command_mock.with_command_script("docker", docker_info_script).execute(|| {
 			assert!(matches!(
@@ -546,7 +601,7 @@ exit 1"#;
 if [ "$1" = "info" ]; then
     exit 0
 elif [ "$1" = "image" ] && [ "$2" = "inspect" ]; then
-    printf '\xff\xfe'
+    printf '\377\376'
     exit 0
 fi
 exit 1"#;

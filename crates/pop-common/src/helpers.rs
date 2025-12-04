@@ -216,7 +216,12 @@ mod tests {
 	#[test]
 	fn is_root_detects_root_user() {
 		CommandMock::default()
-			.with_command_script("id", "#!/bin/sh\necho 0")
+			.with_command_script(
+				"id",
+				r#"
+#!/bin/sh
+echo 0"#,
+			)
 			.execute(|| {
 				assert!(is_root());
 			});
@@ -225,7 +230,12 @@ mod tests {
 	#[test]
 	fn is_root_detects_non_root_user() {
 		CommandMock::default()
-			.with_command_script("id", "#!/bin/sh\necho 1000")
+			.with_command_script(
+				"id",
+				r#"
+#!/bin/sh
+echo 1000"#,
+			)
 			.execute(|| {
 				assert!(!is_root());
 			});
