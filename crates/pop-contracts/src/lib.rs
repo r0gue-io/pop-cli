@@ -44,7 +44,7 @@ pub use utils::{
 	parse_hex_bytes,
 };
 // External exports
-pub use contract_build::{MetadataSpec, util::rust_toolchain};
+pub use contract_build::{MetadataArtifacts, BuildInfo, MetadataSpec, util::{rust_toolchain, decode_hex}, code_hash};
 pub use contract_extrinsics::{CallExec, ExtrinsicOpts, UploadCode};
 pub use contract_metadata::{CodeHash, ContractMetadata};
 pub use ink_env::{DefaultEnvironment, Environment};

@@ -1,17 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use pop_contracts::{CodeHash, ContractMetadata, BuildInfo, BuildMode, ExecuteArgs,CARGO_CONTRACT_VERSION, Verbosity};
+use pop_contracts::{MetadataArtifacts, CodeHash, ContractMetadata, BuildInfo, BuildMode, ImageVariant,CARGO_CONTRACT_VERSION, Verbosity};
 use crate::cli::traits::Cli;
-use crate::commands::build::contract::BuildContract;
-use anyhow::Result;
+use anyhow::{Result, Context};
 use clap::Args;
 use serde::Serialize;
 use std::{
 	path::PathBuf,
-	process::Command as StdCommand,
     fs::File
 };
-use semver::Version;
 use regex::Regex;
 
 
@@ -43,7 +40,7 @@ impl VerifyCommand{
 
     fn verify_contract(&self, project_path: PathBuf) -> Result<()>{
         // 1. Read the given metadata, and pull out the `BuildInfo`
-        let file = File::open(self.contract_path)
+        let file = File::open(&self.contract_path)
             .context(format!("Failed to open contract bundle {}", self.contract_path.display()))?;
 
         let metadata: ContractMetadata = serde_json::from_reader(&file).context(
@@ -62,7 +59,7 @@ impl VerifyCommand{
         let build_info: BuildInfo =
             serde_json::from_value(build_info.into()).context(format!(
                 "Failed to deserialize the build info from {}",
-                self.path.display()
+                self.contract_path.display()
             ))?;
 
         let build_mode = if metadata.image.is_some() {
@@ -94,31 +91,24 @@ impl VerifyCommand{
 
             let expected_cargo_contract_version = build_info.cargo_contract_version;
 
+
             let mismatched_cargo_contract = format!(
                 "\nYou are trying to `verify` a contract using `cargo-contract` version \
-                `{cargo_contract_version}`.\n\n\
+                `{}`.\n\n\
                 However, the original contract was built using `cargo-contract` version \
                 `{expected_cargo_contract_version}`.\n\n\
                 Please install the matching version and re-run the `verify` command:\n\
                 cargo install --force --locked cargo-contract --version {expected_cargo_contract_version}",
+                *CARGO_CONTRACT_VERSION
             );
             anyhow::ensure!(
-                expected_cargo_contract_version == CARGO_CONTRACT_VERSION,
+                expected_cargo_contract_version == *CARGO_CONTRACT_VERSION,
                 mismatched_cargo_contract
             );
         }
 
-        // 3a. Call `cargo contract build` with the `BuildInfo` from the metadata.
-        let args = ExecuteArgs {
-            manifest_path: manifest_path.clone(),
-            build_mode,
-            build_artifact: BuildArtifacts::All,
-            image: ImageVariant::from(metadata.image.clone()),
-            extra_lints: false,
-            ..Default::default()
-        };
-
-        let build_result = pop_contracts::build::build_smart_contract(&project_path, build_mode, Verbosity::default())?;
+        // 3a. Build contract with the `BuildInfo` from the metadata.
+        let build_result = pop_contracts::build_smart_contract(&project_path, build_mode, Verbosity::default(), None, Some(ImageVariant::from(metadata.image.clone())))?;
 
         // 4. Grab the code hash from the built contract and compare it with the reference
         //    code hash.
@@ -127,7 +117,7 @@ impl VerifyCommand{
         //    the `source.hash` field in the metadata. This is because the `source.hash`
         //    field could have been manipulated; we want to be sure that _the code_ of
         //    both contracts is equal.
-        let reference_polkavm_blob = decode_hex(
+        let reference_polkavm_blob = pop_contracts::decode_hex(
             &metadata
                 .source
                 .contract_binary
@@ -135,7 +125,7 @@ impl VerifyCommand{
                 .to_string(),
         )
         .expect("decoding the `source.polkavm` hex failed");
-        let reference_code_hash = CodeHash(code_hash(&reference_polkavm_blob));
+        let reference_code_hash = CodeHash(pop_contracts::code_hash(&reference_polkavm_blob));
         let built_contract_path = if let Some(MetadataArtifacts::Ink(m)) =
             build_result.metadata_result
         {
@@ -147,7 +137,6 @@ impl VerifyCommand{
                 "\nThe metadata for the workspace contract does not contain a contract binary,\n\
                 therefore we are unable to verify the contract."
                 .to_string()
-                .bright_yellow()
             )
         };
 
@@ -166,45 +155,32 @@ impl VerifyCommand{
         let target_code_hash = built_contract.source.hash;
 
         if reference_code_hash != target_code_hash {
-            verbose_eprintln!(
-                verbosity,
-                "Expected code hash from reference contract ({}): {}\nGot Code Hash: {}\n",
-                &path.display(),
-                &reference_code_hash,
-                &target_code_hash
-            );
             anyhow::bail!(format!(
                 "\nFailed to verify `{}` against the workspace at `{}`: the hashed polkavm blobs are not matching.",
-                format!("{}", &path.display()).bright_white(),
-                format!("{}", manifest_path.as_ref().display()).bright_white()
-            )
-            .bright_red());
+                format!("{}", self.contract_path.display()),
+                format!("{}", project_path.display())
+            ));
         }
 
         // check that the metadata hash is the same as reference_code_hash
         if reference_code_hash != metadata.source.hash {
-            verbose_eprintln!(
-                verbosity,
-                "Expected code hash from reference metadata ({}): {}\nGot Code Hash: {}\n",
-                &path.display(),
-                &reference_code_hash,
-                &metadata.source.hash
-            );
             anyhow::bail!(format!(
                 "\nThe reference contract `{}` metadata is corrupt: the `source.hash` does not match the `source.polkavm` hash.",
-                format!("{}", &path.display()).bright_white()
-            )
-            .bright_red());
+                format!("{}", self.contract_path.display())
+            ));
         }
 
-        Ok(VerificationResult {
+        let verification = VerificationResult {
             is_verified: true,
             image: metadata.image,
             contract: target_bundle.display().to_string(),
-            reference_contract: path.display().to_string(),
-            output_json: self.output_json,
-            verbosity,
-        })
+            reference_contract: self.contract_path.display().to_string(),
+            verbosity: Verbosity::default(),
+        };
+
+        println!("{}", verification.serialize_json()?);
+
+        Ok(())
 
     }
 }
@@ -225,4 +201,32 @@ fn validate_toolchain_name(toolchain: &str) -> Result<()> {
         return Ok(());
     }
     anyhow::bail!("Invalid toolchain name: {toolchain}")
+}
+
+/// The result of verification process
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct VerificationResult {
+    pub is_verified: bool,
+    pub image: Option<String>,
+    pub contract: String,
+    pub reference_contract: String,
+    #[serde(skip_serializing, skip_deserializing)]
+    pub verbosity: Verbosity,
+}
+
+impl VerificationResult {
+    /// Display the result in a fancy format
+    pub fn display(&self) -> String {
+        format!(
+            "\n{} `{}` against reference contract `{}`",
+            "Successfully verified contract",
+            format!("`{}`", &self.contract),
+            format!("`{}`!", &self.reference_contract)
+        )
+    }
+
+    /// Display the build results in a pretty formatted JSON string.
+    pub fn serialize_json(&self) -> Result<String> {
+        Ok(serde_json::to_string_pretty(self)?)
+    }
 }
