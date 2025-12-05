@@ -1,0 +1,6 @@
+pop-cli (0.12.1-1) unstable; urgency=medium
+
+  * Initial Debian package release
+  * Version 0.12.1 of pop-cli
+
+ -- R0GUE <go@r0gue.io>  Wed, 04 Dec 2025 00:00:00 +0000

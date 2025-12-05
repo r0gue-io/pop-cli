@@ -1,0 +1,22 @@
+Source: pop-cli
+Section: devel
+Priority: optional
+Maintainer: R0GUE <go@r0gue.io>
+Build-Depends: debhelper-compat (= 13),
+               cargo (>= 1.91.1),
+               rustc (>= 1.91.1),
+               libssl-dev,
+               pkg-config,
+               protobuf-compiler
+Standards-Version: 4.7.0
+Homepage: https://onpop.io/
+Vcs-Git: https://github.com/r0gue-io/pop-cli.git
+Vcs-Browser: https://github.com/r0gue-io/pop-cli
+
+Package: pop-cli
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: An all-in-one tool for Polkadot development
+ Pop CLI is a comprehensive command-line tool for developing on Polkadot.
+ It provides functionality for smart contract development, parachain
+ development, and other Polkadot ecosystem tools.
