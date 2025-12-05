@@ -43,6 +43,7 @@ impl DeterministicBuilder {
 	/// * `package` - The runtime package name.
 	/// * `profile` - The profile to build the runtime.
 	/// * `runtime_dir` - The directory path where the runtime is located.
+	/// * `tag` - The tag of the srtool image to be used
 	pub async fn new(
 		path: Option<PathBuf>,
 		package: &str,
@@ -55,7 +56,7 @@ impl DeterministicBuilder {
 			Some(tag) => tag,
 			_ => pop_common::docker::fetch_image_tag(SRTOOL_TAG_URL).await?,
 		};
-		let digest = Docker::get_image_digest(DEFAULT_IMAGE, &tag).unwrap_or_default();
+		let digest = Docker::get_image_digest(DEFAULT_IMAGE, &tag)?;
 		let dir = fs::canonicalize(path.unwrap_or_else(|| PathBuf::from("./")))?;
 		let tmpdir = env::temp_dir().join("cargo");
 

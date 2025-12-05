@@ -271,8 +271,7 @@ mod tests {
 		let command_mock = CommandMock::default();
 		let started_marker = command_mock.fake_path().join("docker_started");
 		let docker_script = format!(
-			r#"
-#!/bin/sh
+			r#"#!/bin/sh
 if [ -f "{}" ]; then
     exit 0
 else
@@ -281,8 +280,7 @@ fi"#,
 			started_marker.display()
 		);
 		let open_script = format!(
-			r#"
-#!/bin/sh
+			r#"#!/bin/sh
 > "{}"
 "#,
 			started_marker.display()
@@ -302,8 +300,7 @@ fi"#,
 		let command_mock = CommandMock::default();
 		let started_marker = command_mock.fake_path().join("docker_started");
 		let docker_script = format!(
-			r#"
-#!/bin/sh
+			r#"#!/bin/sh
 if [ -f "{}" ]; then
     exit 0
 else
@@ -312,8 +309,7 @@ fi"#,
 			started_marker.display()
 		);
 		let systemctl_script = format!(
-			r#"
-#!/bin/sh
+			r#"#!/bin/sh
 > "{}"
 "#,
 			started_marker.display()
@@ -354,8 +350,7 @@ echo 0"#,
 	#[test]
 	fn try_start_linux_fails_when_not_root() {
 		CommandMock::default()
-			.with_command_script("id", r#"
-#!/bin/sh
+			.with_command_script("id", r#"#!/bin/sh
 echo 1000"#) // non-root user
 			.execute(|| {
                 // Cannot assert too much about this, depending on how tests are called, args will contain different values
@@ -373,8 +368,7 @@ echo 1000"#) // non-root user
 		CommandMock::default()
 			.with_command_script(
 				"id",
-				r#"
-#!/bin/sh
+				r#"#!/bin/sh
 echo 0"#,
 			) // root user
 			.with_command("systemctl", 0) // systemctl succeeds
@@ -388,8 +382,7 @@ echo 0"#,
 		CommandMock::default()
 			.with_command_script(
 				"id",
-				r#"
-#!/bin/sh
+				r#"#!/bin/sh
 echo 0"#,
 			) // root user
 			.with_command("systemctl", 1) // systemctl fails
@@ -407,8 +400,7 @@ echo 0"#,
 		let command_mock = CommandMock::default();
 		let started_marker = command_mock.fake_path().join("docker_started");
 		let docker_script = format!(
-			r#"
-#!/bin/sh
+			r#"#!/bin/sh
 if [ -f "{}" ]; then
     exit 0
 else
@@ -452,8 +444,7 @@ fi"#,
 	#[test]
 	fn pull_image_fails_when_pull_command_fails() {
 		let command_mock = CommandMock::default();
-		let docker_info_script = r#"
-#!/bin/sh
+		let docker_info_script = r#"#!/bin/sh
 if [ "$1" = "info" ]; then 
     exit 0; 
 else 

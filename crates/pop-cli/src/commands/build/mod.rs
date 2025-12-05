@@ -77,7 +77,7 @@ pub(crate) struct BuildArgs {
 	#[clap(short, long, help_heading = RUNTIME_HELP_HEADER)]
 	#[cfg(feature = "chain")]
 	pub(crate) deterministic: bool,
-	/// Whether to use a specific tag for a deterministic build
+	/// Whether to use a specific image tag for a deterministic build (srtool image)
 	#[clap(long, requires = "deterministic", help_heading = RUNTIME_HELP_HEADER)]
 	#[cfg(feature = "chain")]
 	pub(crate) tag: Option<String>,

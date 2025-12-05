@@ -205,7 +205,7 @@ pub struct BuildSpecCommand {
 	#[arg(short, long)]
 	pub(crate) deterministic: Option<bool>,
 	/// Whether to use a specific tag for a deterministic build
-	#[clap(long, requires = "deterministic")]
+	#[arg(long, requires = "deterministic")]
 	pub(crate) tag: Option<String>,
 	/// Define the directory path where the runtime is located.
 	#[serde(skip_serializing)]

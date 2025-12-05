@@ -218,8 +218,7 @@ mod tests {
 		CommandMock::default()
 			.with_command_script(
 				"id",
-				r#"
-#!/bin/sh
+				r#"#!/bin/sh
 echo 0"#,
 			)
 			.execute(|| {
@@ -232,8 +231,7 @@ echo 0"#,
 		CommandMock::default()
 			.with_command_script(
 				"id",
-				r#"
-#!/bin/sh
+				r#"#!/bin/sh
 echo 1000"#,
 			)
 			.execute(|| {
