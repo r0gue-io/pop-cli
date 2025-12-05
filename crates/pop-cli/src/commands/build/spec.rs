@@ -648,7 +648,6 @@ impl BuildSpec {
 			if self.deterministic {
 				let (runtime_path, code) = build_deterministic_runtime(
 					cli,
-					&spinner,
 					&self.package,
 					self.profile,
 					self.runtime_dir

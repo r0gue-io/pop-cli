@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{cli::traits::*, common::builds::find_runtime_dir};
-use cliclack::{ProgressBar, spinner};
+use cliclack::spinner;
 use console::style;
 use pop_chains::utils::helpers::get_preset_names;
 #[cfg(feature = "chain")]
@@ -135,7 +135,7 @@ pub(crate) async fn build_runtime(
 		let package = manifest.package();
 		let name = package.clone().name;
 		spinner.start("Building deterministic runtime...");
-		build_deterministic_runtime(cli, &spinner, &name, *mode, runtime_path.to_path_buf(), tag)
+		build_deterministic_runtime(cli, &name, *mode, runtime_path.to_path_buf(), tag)
 			.await?
 			.0
 	} else {
@@ -176,7 +176,6 @@ fn print_build_output(cli: &mut impl Cli, binary_path: &Path) -> anyhow::Result<
 #[cfg(feature = "chain")]
 pub(crate) async fn build_deterministic_runtime(
 	cli: &mut impl Cli,
-	spinner: &ProgressBar,
 	package: &str,
 	profile: Profile,
 	runtime_dir: PathBuf,
