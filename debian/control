@@ -9,7 +9,7 @@ Build-Depends: debhelper-compat (= 13),
                pkg-config,
                protobuf-compiler
 Standards-Version: 4.7.0
-Homepage: https://github.com/r0gue-io/pop-cli
+Homepage: https://onpop.io/
 Vcs-Git: https://github.com/r0gue-io/pop-cli.git
 Vcs-Browser: https://github.com/r0gue-io/pop-cli
 
