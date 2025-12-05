@@ -77,15 +77,27 @@ impl DeterministicBuilder {
 
 	/// Executes the runtime build process and returns the path of the generated file.
 	pub fn build(&self) -> Result<PathBuf, Error> {
-		let args = self.build_args();
+		let args = self.build_args()?;
 		cmd("docker", args).stdout_null().stderr_null().run()?;
 		Ok(self.get_output_path())
 	}
 
 	// Builds the srtool runtime container command string.
-	fn build_args(&self) -> Vec<String> {
+	fn build_args(&self) -> Result<Vec<String>, Error> {
 		let package = format!("PACKAGE={}", self.package);
-		let runtime_dir = format!("RUNTIME_DIR={}", self.runtime_dir.display());
+		// Runtime dir might be the absolute path to the runtime dir if the user didn't specified
+		// it. This causes docker runs to fail, so we need to strip the prefix.
+		let absolute_workspace_path = std::fs::canonicalize(
+			rustilities::manifest::find_workspace_manifest(std::env::current_dir()?)
+				.ok_or(anyhow::anyhow!("Pop cannot determine your workspace path"))?
+				.parent()
+				.expect("A workspace manifest is a file and hence always have a parent; qed;"),
+		)?;
+		let runtime_dir = self
+			.runtime_dir
+			.strip_prefix(absolute_workspace_path)
+			.unwrap_or(&self.runtime_dir);
+		let runtime_dir = format!("RUNTIME_DIR={}", runtime_dir.display());
 		let default_features = format!("DEFAULT_FEATURES={}", self.default_features);
 		let profile = format!("PROFILE={}", self.profile);
 		let image_digest = format!("IMAGE={}", self.digest);
@@ -118,7 +130,7 @@ impl DeterministicBuilder {
 		}
 
 		args.extend([image_tag, "build".to_owned(), "--app".to_owned(), "--json".to_owned()]);
-		args
+		Ok(args)
 	}
 
 	// Returns the expected output path of the compiled runtime `.wasm` file.
@@ -209,7 +221,8 @@ mod tests {
 			)
 			.await
 			.unwrap()
-			.build_args(),
+			.build_args()
+			.unwrap(),
 			vec!(
 				"run",
 				"--name",
