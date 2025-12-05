@@ -6,6 +6,7 @@ use std::{
 	fs,
 	io::{Read, Write},
 	path::{Path, PathBuf},
+	process::Command,
 };
 
 /// Replaces occurrences of specified strings in a file with new values.
@@ -78,9 +79,24 @@ where
 	result
 }
 
+/// Check if the current process is running as root (UID 0).
+///
+/// Returns `true` if running as root, `false` otherwise.
+pub fn is_root() -> bool {
+	Command::new("id")
+		.arg("-u")
+		.output()
+		.ok()
+		.and_then(|output| String::from_utf8(output.stdout).ok())
+		.and_then(|s| s.trim().parse::<u32>().ok())
+		.map(|uid| uid == 0)
+		.unwrap_or(false)
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::command_mock::CommandMock;
 	use anyhow::Result;
 	use std::{
 		fs,
@@ -195,5 +211,31 @@ mod tests {
 		// The file should exist inside the temp dir.
 		assert!(tmp_path.join("async.txt").exists());
 		Ok(())
+	}
+
+	#[test]
+	fn is_root_detects_root_user() {
+		CommandMock::default()
+			.with_command_script(
+				"id",
+				r#"#!/bin/sh
+echo 0"#,
+			)
+			.execute(|| {
+				assert!(is_root());
+			});
+	}
+
+	#[test]
+	fn is_root_detects_non_root_user() {
+		CommandMock::default()
+			.with_command_script(
+				"id",
+				r#"#!/bin/sh
+echo 1000"#,
+			)
+			.execute(|| {
+				assert!(!is_root());
+			});
 	}
 }

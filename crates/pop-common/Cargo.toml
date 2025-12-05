@@ -43,6 +43,7 @@ derivative.workspace = true
 [dev-dependencies]
 mockito.workspace = true
 tempfile.workspace = true
+temp-env.workspace = true
 
 [features]
 integration-tests = ["dep:assert_cmd"]

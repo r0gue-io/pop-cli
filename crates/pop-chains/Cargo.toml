@@ -31,7 +31,6 @@ scale.workspace = true
 scale-info.workspace = true
 scale-value.workspace = true
 sp-core.workspace = true
-srtool-lib.workspace = true
 symlink.workspace = true
 toml_edit.workspace = true
 walkdir.workspace = true

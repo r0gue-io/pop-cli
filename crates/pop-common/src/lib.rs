@@ -7,9 +7,12 @@ pub use account_id::{parse_account, parse_h160_account};
 #[allow(deprecated)]
 use assert_cmd::cargo::cargo_bin;
 pub use build::Profile;
+pub use docker::Docker;
 pub use errors::Error;
 pub use git::{Git, GitHub, Release};
-pub use helpers::{get_project_name_from_path, get_relative_or_absolute_path, replace_in_file};
+pub use helpers::{
+	get_project_name_from_path, get_relative_or_absolute_path, is_root, replace_in_file,
+};
 pub use metadata::format_type;
 pub use signer::create_signer;
 pub use sourcing::set_executable_permission;
@@ -30,6 +33,11 @@ pub mod account_id;
 pub(crate) mod api;
 /// Provides build profiles for usage when building Rust projects.
 pub mod build;
+/// Test utilities for mocking commands.
+#[cfg(test)]
+pub mod command_mock;
+/// Provides utils to work with docker
+pub mod docker;
 /// Represents the various errors that can occur in the crate.
 pub mod errors;
 /// Provides functionality for interacting with Git, GitHub, repositories and releases.

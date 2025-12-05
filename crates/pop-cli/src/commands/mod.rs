@@ -122,7 +122,7 @@ impl Command {
 				env_logger::init();
 				#[cfg(feature = "chain")]
 				match &args.command {
-					None => build::Command::execute(args),
+					None => build::Command::execute(args).await,
 					Some(cmd) => match cmd {
 						#[cfg(feature = "chain")]
 						build::Command::Spec(cmd) => cmd.execute().await,
@@ -130,7 +130,7 @@ impl Command {
 				}
 
 				#[cfg(not(feature = "chain"))]
-				build::Command::execute(args)
+				build::Command::execute(args).await
 			},
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::Call(args) => {

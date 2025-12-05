@@ -26,13 +26,15 @@ pub struct BuildRuntime {
 	pub(crate) try_runtime: bool,
 	/// Whether to build a runtime deterministically.
 	pub(crate) deterministic: bool,
+	/// The image tag to be used when we build a runtime deterministically
+	pub(crate) tag: Option<String>,
 	/// List of features the project is built with.
 	pub(crate) features: Vec<String>,
 }
 
 impl BuildRuntime {
 	/// Executes the build process.
-	pub(crate) fn execute(self) -> anyhow::Result<()> {
+	pub(crate) async fn execute(self) -> anyhow::Result<()> {
 		let cli = &mut cli::Cli;
 		let path = self.path.canonicalize().map_err(|e| anyhow::anyhow!("Invalid path: {}", e))?;
 		let is_parachain = pop_chains::is_supported(&self.path);
@@ -45,10 +47,10 @@ impl BuildRuntime {
 				cli,
 			);
 		}
-		self.build(cli, &path, !is_runtime && is_parachain)
+		self.build(cli, &path, !is_runtime && is_parachain).await
 	}
 
-	fn build(
+	async fn build(
 		self,
 		cli: &mut impl cli::traits::Cli,
 		path: &Path,
@@ -84,7 +86,9 @@ impl BuildRuntime {
 				true,
 				self.deterministic,
 				&None,
-			)?;
+				self.tag.clone(),
+			)
+			.await?;
 		}
 		if self.profile == Profile::Debug {
 			cli.warning("NOTE: this command now defaults to DEBUG builds. Please use `--release` (or simply `-r`) for a release build...")?;
@@ -94,7 +98,16 @@ impl BuildRuntime {
 			.profile
 			.target_directory(&workspace_root.unwrap_or(self.path.to_path_buf()))
 			.join("wbuild");
-		build_runtime(cli, &self.path, &target_path, &self.profile, &features, self.deterministic)?;
+		build_runtime(
+			cli,
+			&self.path,
+			&target_path,
+			&self.profile,
+			&features,
+			self.deterministic,
+			self.tag,
+		)
+		.await?;
 		Ok(())
 	}
 }
@@ -110,8 +123,8 @@ mod tests {
 	use std::fs;
 	use strum::VariantArray;
 
-	#[test]
-	fn build_works() -> anyhow::Result<()> {
+	#[tokio::test]
+	async fn build_works() -> anyhow::Result<()> {
 		let temp_dir = tempfile::tempdir()?;
 		let path = temp_dir.path();
 		let runtime_name = "mock_runtime";
@@ -137,18 +150,18 @@ mod tests {
 			fs::create_dir_all(&binary_path)?;
 
 			// Build without features.
-			test_build(&project_path, &binary_path, profile, &[])?;
+			test_build(&project_path, &binary_path, profile, &[]).await?;
 
 			// Build with one feature.
-			test_build(&project_path, &binary_path, profile, &[Benchmark])?;
+			test_build(&project_path, &binary_path, profile, &[Benchmark]).await?;
 
 			// Build with multiple features.
-			test_build(&project_path, &binary_path, profile, features)?;
+			test_build(&project_path, &binary_path, profile, features).await?;
 		}
 		Ok(())
 	}
 
-	fn test_build(
+	async fn test_build(
 		project_path: &Path,
 		binary_path: &Path,
 		profile: &Profile,
@@ -188,8 +201,10 @@ mod tests {
 			try_runtime: features.contains(&TryRuntime),
 			deterministic: false,
 			features: raw_features,
+			tag: None,
 		}
-		.build(&mut cli, project_path, false)?;
+		.build(&mut cli, project_path, false)
+		.await?;
 		cli.verify()
 	}
 }
