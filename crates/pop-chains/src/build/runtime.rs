@@ -99,7 +99,10 @@ impl DeterministicBuilder {
 			.unwrap_or(&self.runtime_dir);
 		let runtime_dir = format!("RUNTIME_DIR={}", runtime_dir.display());
 		let default_features = format!("DEFAULT_FEATURES={}", self.default_features);
-		let profile = format!("PROFILE={}", self.profile);
+		let profile = match self.profile {
+			Profile::Debug => "PROFILE=dev".to_owned(),
+			_ => format!("PROFILE={}", self.profile),
+		};
 		let image_digest = format!("IMAGE={}", self.digest);
 		let volume = format!("{}:/build", self.path.display());
 		let cache_volume = format!("{}:/cargo-home", env::temp_dir().join("cargo").display());

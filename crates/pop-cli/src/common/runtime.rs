@@ -183,9 +183,6 @@ pub(crate) async fn build_deterministic_runtime(
 	tag: Option<String>,
 ) -> anyhow::Result<(PathBuf, Vec<u8>)> {
 	let runtime_path = {
-		spinner.set_message(
-			"NOTE: This process may take longer than 10-15 minutes. Please be patient...",
-		);
 		let builder = DeterministicBuilder::new(None, package, profile, runtime_dir, tag).await?;
 		let wasm_path = builder.build()?;
 		if !wasm_path.exists() {
