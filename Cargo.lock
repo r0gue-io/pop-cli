@@ -9148,6 +9148,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tokio-test",
+ "toml 0.5.11",
  "url",
 ]
 
@@ -9514,9 +9515,9 @@ dependencies = [
 
 [[package]]
 name = "psvm"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6dfdccfd6a3bde5850453b14562c7e9421ac6296067b351f62254224bbb2c25d"
+checksum = "ea243fe51803ab01a17366de6cd8e9eab4f216314b09075ec2212290ca7af53e"
 dependencies = [
  "clap",
  "env_logger",

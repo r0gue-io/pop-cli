@@ -36,10 +36,12 @@ const WESTEND: u8 = Relay::Westend as u8;
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct UpArgs {
 	/// Path to the project directory.
+	#[serde(skip_serializing)]
 	#[arg(long)]
 	pub path: Option<PathBuf>,
 
 	/// Directory path without flag for your project [default: current directory]
+	#[serde(skip_serializing)]
 	#[arg(value_name = "PATH", index = 1, conflicts_with = "path")]
 	pub path_pos: Option<PathBuf>,
 

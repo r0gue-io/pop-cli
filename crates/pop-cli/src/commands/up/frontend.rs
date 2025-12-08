@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::{self, traits::*};
+use crate::{
+	cli::{self, traits::*},
+	install::frontend::has,
+};
 use anyhow::Result;
 use clap::Args;
 use duct::cmd;
@@ -11,6 +14,7 @@ use std::path::{Path, PathBuf};
 #[derive(Args, Clone, Default, Serialize)]
 pub(crate) struct FrontendCommand {
 	/// Path to the frontend directory
+	#[serde(skip_serializing)]
 	#[arg(long, short)]
 	pub(crate) path: Option<PathBuf>,
 }
@@ -82,31 +86,48 @@ pub fn resolve_frontend_dir(
 }
 
 /// Decide which command to use to run locally the frontend and run it.
+/// Detection priority: pnpm -> bun -> yarn -> npm
 ///
 /// # Arguments
 /// * `target` - Path to the frontend project.
 pub fn run_frontend(target: &Path) -> Result<()> {
-	if is_cmd_available("npm") {
-		cmd("npm", &["install"]).dir(target).run()?;
-		cmd("npm", &["run", "dev"]).dir(target).run()?;
-		return Ok(());
+	let package_manager = detect_package_manager(target);
+	match package_manager.as_deref() {
+		Some(pm) if has(pm) => {
+			cmd(pm, &["install"]).dir(target).run()?;
+			cmd(pm, &["run", "dev"]).dir(target).run()?;
+			Ok(())
+		},
+		Some(pm) => Err(anyhow::anyhow!(
+			"Detected package manager '{}' from lock files, but it's not installed. Please install it first.",
+			pm
+		)),
+		None => Err(anyhow::anyhow!(
+			"No package manager lock file detected. Please ensure the project has been initialized with npm, pnpm, bun, or yarn (e.g., run 'npm install' to create package-lock.json)."
+		)),
 	}
-	if is_cmd_available("bun") {
-		cmd("bun", &["install"]).dir(target).run()?;
-		cmd("bun", &["run", "dev"]).dir(target).run()?;
-		return Ok(());
-	}
-	Err(anyhow::anyhow!("No supported package manager found. Please install bun or npm."))
 }
 
-fn is_cmd_available(bin: &str) -> bool {
-	std::process::Command::new(bin)
-		.arg("--version")
-		.stdout(std::process::Stdio::null())
-		.stderr(std::process::Stdio::null())
-		.status()
-		.map(|s| s.success())
-		.unwrap_or(false)
+/// Detect which package manager a project uses based on lock files.
+///
+/// # Arguments
+/// * `target` - Path to the frontend project.
+fn detect_package_manager(target: &Path) -> Option<String> {
+	if target.join("pnpm-lock.yaml").exists() {
+		return Some("pnpm".to_string());
+	}
+	// Bun can use either bun.lockb (binary) or bun.lock (text)
+	if target.join("bun.lockb").exists() || target.join("bun.lock").exists() {
+		return Some("bun".to_string());
+	}
+	if target.join("yarn.lock").exists() {
+		return Some("yarn".to_string());
+	}
+	if target.join("package-lock.json").exists() {
+		return Some("npm".to_string());
+	}
+
+	None
 }
 
 #[cfg(test)]
@@ -160,8 +181,70 @@ mod tests {
 	}
 
 	#[test]
-	fn is_cmd_available_works() {
-		assert!(is_cmd_available("echo"));
-		assert!(!is_cmd_available("definitely-not-a-real-command-xyz"));
+	fn detect_package_manager_pnpm_works() -> anyhow::Result<()> {
+		let temp = tempdir()?;
+		fs::write(temp.path().join("pnpm-lock.yaml"), "")?;
+
+		let result = detect_package_manager(temp.path());
+		assert_eq!(result, Some("pnpm".to_string()));
+		Ok(())
+	}
+
+	#[test]
+	fn detect_package_manager_bun_works() -> anyhow::Result<()> {
+		// Test bun.lockb (binary format)
+		let temp = tempdir()?;
+		fs::write(temp.path().join("bun.lockb"), "")?;
+		let result = detect_package_manager(temp.path());
+		assert_eq!(result, Some("bun".to_string()));
+
+		// Test bun.lock (text format)
+		let temp = tempdir()?;
+		fs::write(temp.path().join("bun.lock"), "")?;
+		let result = detect_package_manager(temp.path());
+		assert_eq!(result, Some("bun".to_string()));
+
+		Ok(())
+	}
+
+	#[test]
+	fn detect_package_manager_yarn_works() -> anyhow::Result<()> {
+		let temp = tempdir()?;
+		fs::write(temp.path().join("yarn.lock"), "")?;
+
+		let result = detect_package_manager(temp.path());
+		assert_eq!(result, Some("yarn".to_string()));
+		Ok(())
+	}
+
+	#[test]
+	fn detect_package_manager_npm_works() -> anyhow::Result<()> {
+		let temp = tempdir()?;
+		fs::write(temp.path().join("package-lock.json"), "")?;
+
+		let result = detect_package_manager(temp.path());
+		assert_eq!(result, Some("npm".to_string()));
+		Ok(())
+	}
+
+	#[test]
+	fn detect_package_manager_none_works() -> anyhow::Result<()> {
+		let temp = tempdir()?;
+
+		let result = detect_package_manager(temp.path());
+		assert_eq!(result, None);
+		Ok(())
+	}
+
+	#[test]
+	fn detect_package_manager_priority_works() -> anyhow::Result<()> {
+		let temp = tempdir()?;
+		// Create multiple lock files - pnpm should take priority
+		fs::write(temp.path().join("pnpm-lock.yaml"), "")?;
+		fs::write(temp.path().join("package-lock.json"), "")?;
+
+		let result = detect_package_manager(temp.path());
+		assert_eq!(result, Some("pnpm".to_string()));
+		Ok(())
 	}
 }

@@ -14,6 +14,7 @@ const HELP_HEADER: &str = "Smart contract testing options";
 #[clap(next_help_heading = HELP_HEADER)]
 pub(crate) struct TestContractCommand {
 	/// Path to the smart contract.
+	#[serde(skip_serializing)]
 	#[clap(skip)]
 	pub(crate) path: PathBuf,
 	/// Run end-to-end tests

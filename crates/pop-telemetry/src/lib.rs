@@ -47,6 +47,8 @@ pub struct Telemetry {
 	// Endpoint to the telemetry API.
 	// This should include the domain and api path (e.g. localhost:3000/api/send)
 	endpoint: String,
+	// Unami Website ID for telemetry tracking
+	website_id: String,
 	// Has the user opted-out to anonymous telemetry
 	opt_out: bool,
 	// Reqwest client
@@ -59,18 +61,35 @@ impl Telemetry {
 	/// parameters:
 	/// `config_path`: the path to the configuration file (used for opt-out checks)
 	pub fn new(config_path: &PathBuf) -> Self {
-		Self::init(ENDPOINT.to_string(), config_path)
+		Self::init_with_website_id(ENDPOINT.to_string(), WEBSITE_ID.to_string(), config_path)
 	}
 
-	/// Initialize a new [Telemetry] instance with parameters.
+	/// Initialize a new [Telemetry] instance with a custom endpoint.
+	/// Uses the default WEBSITE_ID constant.
 	/// Can be used in tests to provide mock endpoints.
 	/// parameters:
 	/// `endpoint`: the API endpoint that telemetry will call
 	/// `config_path`: the path to the configuration file (used for opt-out checks)
+	#[allow(dead_code)]
 	fn init(endpoint: String, config_path: &PathBuf) -> Self {
+		Self::init_with_website_id(endpoint, WEBSITE_ID.to_string(), config_path)
+	}
+
+	/// Initialize a new [Telemetry] instance with custom endpoint and website_id.
+	/// Can be used in tests to provide mock endpoints and website IDs.
+	/// in addition to making this crate useful to other projects.
+	/// parameters:
+	/// `endpoint`: the API endpoint that telemetry will call
+	/// `website_id`: the website ID for telemetry tracking
+	/// `config_path`: the path to the configuration file (used for opt-out checks)
+	pub fn init_with_website_id(
+		endpoint: String,
+		website_id: String,
+		config_path: &PathBuf,
+	) -> Self {
 		let opt_out = Self::is_opt_out(config_path);
 
-		Telemetry { endpoint, opt_out, client: Client::new() }
+		Telemetry { endpoint, website_id, opt_out, client: Client::new() }
 	}
 
 	fn is_opt_out_from_config(config_file_path: &PathBuf) -> bool {
@@ -142,7 +161,7 @@ impl Telemetry {
 /// There is explicitly no reqwest retries on failure to ensure overhead
 /// stays to a minimum.
 pub async fn record_cli_used(tel: Telemetry) -> Result<()> {
-	let payload = generate_payload("init", json!({}));
+	let payload = generate_payload("init", json!({}), &tel.website_id);
 	tel.send_json(payload).await
 }
 
@@ -152,7 +171,7 @@ pub async fn record_cli_used(tel: Telemetry) -> Result<()> {
 /// `event`: the name of the event to record (new, up, build, etc)
 /// `data`: additional data to record.
 pub async fn record_cli_command(tel: Telemetry, event: &str, data: Value) -> Result<()> {
-	let payload = generate_payload(event, data);
+	let payload = generate_payload(event, data, &tel.website_id);
 	tel.send_json(payload).await
 }
 
@@ -209,7 +228,7 @@ where
 	Ok(deserialized)
 }
 
-fn generate_payload(event: &str, data: Value) -> Value {
+fn generate_payload(event: &str, data: Value, website_id: &str) -> Value {
 	json!({
 		"payload": {
 			"hostname": "cli",
@@ -218,7 +237,7 @@ fn generate_payload(event: &str, data: Value) -> Value {
 			"screen": "1920x1080",
 			"title": CARGO_PKG_VERSION,
 			"url": "/",
-			"website": WEBSITE_ID,
+			"website": website_id,
 			"name": event,
 			"data": data,
 		},
@@ -274,22 +293,33 @@ mod tests {
 
 		let _: Config = read_json_file(&config_path).unwrap();
 
-		let tel = Telemetry::init("127.0.0.1".to_string(), &config_path);
+		let tel = Telemetry::init_with_website_id(
+			"127.0.0.1".to_string(),
+			"test-website-id".to_string(),
+			&config_path,
+		);
 		let expected_telemetry = Telemetry {
 			endpoint: "127.0.0.1".to_string(),
+			website_id: "test-website-id".to_string(),
 			opt_out: true,
 			client: Default::default(),
 		};
 
 		assert_eq!(tel.endpoint, expected_telemetry.endpoint);
+		assert_eq!(tel.website_id, expected_telemetry.website_id);
 		assert_eq!(tel.opt_out, expected_telemetry.opt_out);
 
 		let tel = Telemetry::new(&config_path);
 
-		let expected_telemetry =
-			Telemetry { endpoint: ENDPOINT.to_string(), opt_out: true, client: Default::default() };
+		let expected_telemetry = Telemetry {
+			endpoint: ENDPOINT.to_string(),
+			website_id: WEBSITE_ID.to_string(),
+			opt_out: true,
+			client: Default::default(),
+		};
 
 		assert_eq!(tel.endpoint, expected_telemetry.endpoint);
+		assert_eq!(tel.website_id, expected_telemetry.website_id);
 		assert_eq!(tel.opt_out, expected_telemetry.opt_out);
 		Ok(())
 	}
@@ -335,7 +365,7 @@ mod tests {
 		// Mock config file path function to return a temporary path
 		let temp_dir = TempDir::new().unwrap();
 		let config_path = temp_dir.path().join("config.json");
-		let expected_payload = generate_payload("init", json!({})).to_string();
+		let expected_payload = generate_payload("init", json!({}), WEBSITE_ID).to_string();
 		let mock = default_mock(&mut mock_server, expected_payload).await;
 
 		let mut tel = Telemetry::init(endpoint.clone(), &config_path);
@@ -359,7 +389,8 @@ mod tests {
 
 		let config_path = temp_dir.path().join("config.json");
 
-		let expected_payload = generate_payload("new", json!({"command": "chain"})).to_string();
+		let expected_payload =
+			generate_payload("new", json!({"command": "chain"}), WEBSITE_ID).to_string();
 
 		let mock = default_mock(&mut mock_server, expected_payload).await;
 

@@ -44,28 +44,16 @@ impl TransactionData {
 
 /// Shared state between routes. Serves two purposes:
 /// - Maintains a channel to signal shutdown to the main app.
-/// - Stores the signed payload and the contract address received from the wallet.
+/// - Stores the signed payload received from the wallet.
 #[derive(Default)]
 pub struct StateHandler {
 	/// Channel to signal shutdown to the main app.
 	shutdown_tx: Option<oneshot::Sender<()>>,
 	/// Received from UI.
 	pub signed_payload: Option<String>,
-	/// Contract address received from UI.
-	pub contract_address: Option<String>,
 	/// Holds a single error message.
 	/// Only method for consuming error removes (takes) it from state.
 	error: Option<String>,
-}
-
-/// Payload submitted by the wallet after signing a transaction.
-#[derive(serde::Deserialize, serde::Serialize, Debug)]
-pub struct SubmitRequest {
-	/// Signed transaction returned from the wallet.
-	pub signed_payload: Option<String>,
-	/// Address of the deployed contract, included only when the transaction is a contract
-	/// deployment.
-	pub contract_address: Option<String>,
 }
 
 /// Manages the wallet integration for secure signing of transactions.
@@ -115,7 +103,6 @@ impl WalletIntegrationManager {
 		let state = Arc::new(Mutex::new(StateHandler {
 			shutdown_tx: Some(tx),
 			signed_payload: None,
-			contract_address: None,
 			error: None,
 		}));
 
@@ -173,7 +160,7 @@ impl WalletIntegrationManager {
 }
 
 mod routes {
-	use super::{Arc, Mutex, StateHandler, SubmitRequest, TransactionData, terminate_helper};
+	use super::{Arc, Mutex, StateHandler, TransactionData, terminate_helper};
 	use anyhow::Error;
 	use axum::{
 		Json,
@@ -215,14 +202,13 @@ mod routes {
 	/// Will signal for shutdown on success.
 	pub(super) async fn submit_handler(
 		State(state): State<Arc<Mutex<StateHandler>>>,
-		Json(data): Json<SubmitRequest>,
+		Json(payload): Json<String>,
 	) -> Result<Json<serde_json::Value>, ApiError> {
 		// Signal shutdown.
 		let res = terminate_helper(&state).await;
 
 		let mut state_locked = state.lock().await;
-		state_locked.signed_payload = data.signed_payload;
-		state_locked.contract_address = data.contract_address;
+		state_locked.signed_payload = Some(payload);
 
 		res?;
 
@@ -301,7 +287,6 @@ impl Frontend for FrontendFromString {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::wallet_integration::SubmitRequest;
 	use serde_json::json;
 
 	const TEST_HTML: &str = "<html><body>Hello, world!</body></html>";
@@ -324,7 +309,6 @@ mod tests {
 		assert!(wim.is_running());
 		assert!(wim.state.lock().await.shutdown_tx.is_some());
 		assert!(wim.state.lock().await.signed_payload.is_none());
-		assert!(wim.state.lock().await.contract_address.is_none());
 
 		// Terminate the server and make sure result is ok.
 		wim.terminate().await.expect("Termination should not fail.");
@@ -351,7 +335,6 @@ mod tests {
 		for mut server in servers.into_iter() {
 			assert!(server.state.lock().await.shutdown_tx.is_some());
 			assert!(server.state.lock().await.signed_payload.is_none());
-			assert!(server.state.lock().await.contract_address.is_none());
 			server.terminate().await.expect("Server termination should not fail");
 
 			let task_result = server.task_handle.await;
@@ -414,13 +397,9 @@ mod tests {
 		wait().await;
 
 		let addr = format!("http://{}", wim.server_url);
-		let request = SubmitRequest {
-			signed_payload: Some("0xDEADBEEF".to_string()),
-			contract_address: Some("0x1234567890abcdef".to_string()),
-		};
 		let response = reqwest::Client::new()
 			.post(format!("{addr}/submit"))
-			.json(&request)
+			.json(&"0xDEADBEEF")
 			.send()
 			.await
 			.expect("Failed to submit payload")
@@ -430,7 +409,6 @@ mod tests {
 
 		assert_eq!(response, json!({"status": "success"}).to_string());
 		assert_eq!(wim.state.lock().await.signed_payload, Some("0xDEADBEEF".to_string()));
-		assert_eq!(wim.state.lock().await.contract_address, Some("0x1234567890abcdef".to_string()));
 		assert!(!wim.is_running());
 
 		wim.terminate().await.expect("Termination should not fail");
@@ -573,12 +551,10 @@ mod tests {
 		assert_eq!(actual_payload.call_data, call_data_5mb);
 
 		let encoded_payload: String = call_data_5mb.iter().map(|b| format!("{:02x}", b)).collect();
-		let mut submit_request =
-			SubmitRequest { signed_payload: Some(encoded_payload), contract_address: None };
 		let client = reqwest::Client::new();
 		let response = client
 			.post(format!("{addr}/submit"))
-			.json(&submit_request)
+			.json(&encoded_payload)
 			.send()
 			.await
 			.expect("Failed to send large payload");
@@ -590,8 +566,11 @@ mod tests {
 		let call_data_15mb = vec![99u8; MAX_PAYLOAD_SIZE + 1];
 		let encoded_oversized_payload: String =
 			call_data_15mb.iter().map(|b| format!("{:02x}", b)).collect();
-		submit_request.signed_payload = Some(encoded_oversized_payload);
-		let response = client.post(format!("{addr}/submit")).json(&submit_request).send().await;
+		let response = client
+			.post(format!("{addr}/submit"))
+			.json(&encoded_oversized_payload)
+			.send()
+			.await;
 
 		assert!(
 			response.is_err() ||

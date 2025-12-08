@@ -47,9 +47,11 @@ pub(crate) struct BuildArgs {
 	#[cfg(feature = "chain")]
 	pub command: Option<Command>,
 	/// Directory path with flag for your project [default: current directory]
+	#[serde(skip_serializing)]
 	#[arg(long)]
 	pub(crate) path: Option<PathBuf>,
 	/// Directory path without flag for your project [default: current directory]
+	#[serde(skip_serializing)]
 	#[arg(value_name = "PATH", index = 1, conflicts_with = "path")]
 	pub(crate) path_pos: Option<PathBuf>,
 	/// The package to be built.
