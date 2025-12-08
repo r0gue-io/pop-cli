@@ -106,9 +106,8 @@ impl SourcedArchive {
 				// Determine whether a specific version is specified
 				self.version().map_or_else(
 					|| cache.join(name),
-					|v| {
-						// For files,
-						if *archive_type == ArchiveType::File {
+					|v| match *archive_type {
+						ArchiveType::File =>
 							if let Some(ext_pos) = name.rfind('.') {
 								cache.join(format!(
 									"{}-{}{}",
@@ -118,10 +117,8 @@ impl SourcedArchive {
 								))
 							} else {
 								cache.join(format!("{name}-{v}"))
-							}
-						} else {
-							cache.join(format!("{name}-{v}"))
-						}
+							},
+						_ => cache.join(format!("{name}-{v}")),
 					},
 				)
 			},
