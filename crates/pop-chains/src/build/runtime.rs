@@ -198,7 +198,7 @@ mod tests {
 		.unwrap();
 		assert_eq!(
 			srtool_builder.cache_mount,
-			format!("-v {}:/cargo-home", env::temp_dir().join("cargo").display())
+			format!("{}:/cargo-home", env::temp_dir().join("cargo").display())
 		);
 		assert_eq!(srtool_builder.default_features, "");
 		assert_eq!(srtool_builder.digest, SRTOOL_DIGEST);
@@ -258,6 +258,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn get_output_path_works() -> Result<()> {
+		Docker::ensure_running()?;
 		let srtool_builder = DeterministicBuilder::new(
 			None,
 			"template-runtime",
@@ -268,7 +269,7 @@ mod tests {
 		.await?;
 		assert_eq!(
 			srtool_builder.get_output_path().display().to_string(),
-			"./runtime-folder/target/srtool/debug/wbuild/template-runtime/template_runtime.compact.compressed.wasm"
+			"./runtime-folder/target/srtool/debug/wbuild/template-runtime/template_runtime.wasm"
 		);
 		Ok(())
 	}
