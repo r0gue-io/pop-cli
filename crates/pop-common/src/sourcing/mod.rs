@@ -1389,7 +1389,7 @@ pub mod traits {
 
 		/// The source of a binary.
 		pub trait Source {
-			/// An error ocurred on these trait calls.
+			/// An error occurred on these trait calls.
 			type Error;
 
 			/// The name of the binary.

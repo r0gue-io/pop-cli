@@ -280,7 +280,7 @@ mod tests {
 							latest: None,
 						})
 					&&
-				cache == cache && archive_type==ArchiveType::Binary
+				cache == cache && archive_type == ArchiveType::Binary
 			));
 		}
 		Ok(())

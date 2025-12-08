@@ -969,7 +969,7 @@ chain = "paseo-local"
 				relay_chain,
 				SourcedArchive::Source { source, archive_type, .. }
 					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
-						if *tag == Some(format!("polkadot-{RELAY_BINARY_VERSION}")) && *archive_type==ArchiveType::Binary
+						if *tag == Some(format!("polkadot-{RELAY_BINARY_VERSION}")) && *archive_type == ArchiveType::Binary
 					)
 			));
 			assert!(zombienet.parachains.is_empty());
@@ -1011,7 +1011,7 @@ chain = "paseo-local"
 				relay_chain,
 				SourcedArchive::Source { source, archive_type, .. }
 					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
-						if *tag == Some(format!("polkadot-{RELAY_BINARY_VERSION}")) && *archive_type==ArchiveType::Binary
+						if *tag == Some(format!("polkadot-{RELAY_BINARY_VERSION}")) && *archive_type == ArchiveType::Binary
 					)
 			));
 			assert!(zombienet.parachains.is_empty());
@@ -1058,7 +1058,7 @@ chain = "polkadot-local"
 				SourcedArchive::Source { source, archive_type, .. }
 					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
 						if *tag == Some(version.to_string())
-					) && *archive_type==ArchiveType::Binary
+					) && *archive_type == ArchiveType::Binary
 			));
 			assert!(zombienet.parachains.is_empty());
 			Ok(())
@@ -1102,7 +1102,7 @@ chain = "paseo-local"
 				SourcedArchive::Source { source, archive_type, .. }
 					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
 						if *tag == Some(version.to_string())
-					) && *archive_type==ArchiveType::File
+					) && *archive_type == ArchiveType::File
 			));
 			assert!(zombienet.parachains.is_empty());
 			Ok(())
@@ -1144,7 +1144,7 @@ default_command = "./bin-stable2503/polkadot"
 				relay_chain,
 				SourcedArchive::Source { source, archive_type, ..}
 					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
-						if *tag == Some(format!("polkadot-{RELAY_BINARY_VERSION}")) && *archive_type==ArchiveType::Binary
+						if *tag == Some(format!("polkadot-{RELAY_BINARY_VERSION}")) && *archive_type == ArchiveType::Binary
 					)
 			));
 			assert!(zombienet.parachains.is_empty());
@@ -1410,7 +1410,7 @@ chain = "asset-hub-polkadot-local"
 				SourcedArchive::Source { source, archive_type, .. }
 					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
 						if *tag == Some(SYSTEM_PARA_RUNTIME_VERSION.to_string())
-					) && *archive_type==ArchiveType::Binary
+					) && *archive_type == ArchiveType::Binary
 			));
 			Ok(())
 		}
@@ -1460,7 +1460,7 @@ chain = "asset-hub-paseo-local"
 				SourcedArchive::Source { source, archive_type, .. }
 					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
 						if *tag == Some(SYSTEM_PARA_RUNTIME_VERSION.to_string())
-					) && *archive_type==ArchiveType::File
+					) && *archive_type == ArchiveType::File
 			));
 			Ok(())
 		}

@@ -260,7 +260,7 @@ mod tests {
 					contents: ["chain-spec-generator"].map(|b| ArchiveFileSpec::new(b.into(), Some(format!("kusama-{b}").into()), true)).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
 				}).into() &&
-				cache == temp_dir.path() && archive_type==ArchiveType::Binary
+				cache == temp_dir.path() && archive_type == ArchiveType::Binary
 		));
 		Ok(())
 	}

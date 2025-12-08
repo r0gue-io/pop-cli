@@ -159,7 +159,7 @@ mod tests {
 						archive: format!("{name}-{}.tar.gz", target()?),
 						contents: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"].map(|b| ArchiveFileSpec::new(b.into(), None, true)).to_vec(),
 						latest: relay.binary.latest().map(|l| l.to_string()),
-					}).into() && cache == temp_dir.path() && archive_type==ArchiveType::Binary
+					}).into() && cache == temp_dir.path() && archive_type == ArchiveType::Binary
 			)
 		);
 		assert_eq!(relay.workers, expected.workers());
@@ -186,7 +186,7 @@ mod tests {
 						archive: format!("chain-spec-generator-{}.tar.gz", target()?),
 						contents: [ArchiveFileSpec::new("chain-spec-generator".into(), Some("polkadot-chain-spec-generator".into()), true)].to_vec(),
 						latest: chain_spec_generator.latest().map(|l| l.to_string()),
-					}).into() && cache == temp_dir.path() && archive_type==ArchiveType::Binary
+					}).into() && cache == temp_dir.path() && archive_type == ArchiveType::Binary
 			)
 		);
 		Ok(())
@@ -212,7 +212,7 @@ mod tests {
 						archive: "paseo-local.json".to_string(),
 						contents: [ArchiveFileSpec::new("paseo-local.json".into(), Some("paseo-local".into()), true)].to_vec(),
 						latest: chain_spec_file.latest().map(|l| l.to_string()),
-					}).into() && cache == temp_dir.path() && archive_type==ArchiveType::File
+					}).into() && cache == temp_dir.path() && archive_type == ArchiveType::File
 			)
 		);
 		Ok(())
