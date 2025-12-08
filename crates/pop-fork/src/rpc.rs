@@ -88,7 +88,6 @@ pub enum RpcClientError {
 /// ```
 #[derive(Clone)]
 pub struct ForkRpcClient {
-	client: RpcClient,
 	legacy: LegacyRpcMethods<PolkadotConfig>,
 	endpoint: Url,
 }
@@ -111,9 +110,9 @@ impl ForkRpcClient {
 			}
 		})?;
 
-		let legacy = LegacyRpcMethods::new(client.clone());
+		let legacy = LegacyRpcMethods::new(client);
 
-		Ok(Self { client, legacy, endpoint: endpoint.clone() })
+		Ok(Self { legacy, endpoint: endpoint.clone() })
 	}
 
 	/// Get the endpoint URL this client is connected to.

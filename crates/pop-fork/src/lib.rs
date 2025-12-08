@@ -29,8 +29,8 @@
 //! └─────────────────────────────────────────────────────────────────┘
 //! ```
 
-//mod cache;
+mod cache;
 mod rpc;
 
-//pub use cache::{BlockInfo, CacheError, StorageCache};
+pub use cache::{BlockInfo, CacheError, StorageCache};
 pub use rpc::{ForkRpcClient, RpcClientError};
