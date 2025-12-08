@@ -73,7 +73,7 @@ pub enum RpcClientError {
 /// RPC client wrapper for fork operations.
 ///
 /// Wraps subxt's [`LegacyRpcMethods`] to provide a focused API for fetching state
-/// from live Polkadot-SDK chains. See the [module documentation](self) for why this
+/// from live Polkadot-SDK chains. See the module-level documentation for why this
 /// wrapper exists rather than using `LegacyRpcMethods` directly.
 ///
 /// # Example
