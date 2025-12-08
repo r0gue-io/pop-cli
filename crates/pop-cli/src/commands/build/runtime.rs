@@ -3,16 +3,10 @@
 pub use crate::common::runtime::Feature::{self, *};
 use crate::{
 	cli::{self},
-	common::{
-		prompt::display_message,
-		runtime::{build_runtime, ensure_runtime_binary_exists},
-	},
+	common::{prompt::display_message, runtime::build_runtime},
 };
 use pop_common::Profile;
-use std::{
-	collections::HashSet,
-	path::{Path, PathBuf},
-};
+use std::{collections::HashSet, path::PathBuf};
 
 // Configuration for building a runtime.
 pub struct BuildRuntime {
@@ -36,7 +30,6 @@ impl BuildRuntime {
 	/// Executes the build process.
 	pub(crate) async fn execute(self) -> anyhow::Result<()> {
 		let cli = &mut cli::Cli;
-		let path = self.path.canonicalize().map_err(|e| anyhow::anyhow!("Invalid path: {}", e))?;
 		let is_parachain = pop_chains::is_supported(&self.path);
 		let is_runtime = pop_chains::runtime::is_supported(&self.path);
 		// `pop build runtime` must be run inside a parachain project or a specific runtime folder.
@@ -47,15 +40,10 @@ impl BuildRuntime {
 				cli,
 			);
 		}
-		self.build(cli, &path, !is_runtime && is_parachain).await
+		self.build(cli).await
 	}
 
-	async fn build(
-		self,
-		cli: &mut impl cli::traits::Cli,
-		path: &Path,
-		is_parachain: bool,
-	) -> anyhow::Result<()> {
+	async fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		// Enable the features based on the user's input.
 		let mut features = HashSet::new();
 		self.features.iter().for_each(|f| {
@@ -77,19 +65,6 @@ impl BuildRuntime {
 			format!("Building your runtime with features: {joined}")
 		})?;
 
-		if is_parachain {
-			ensure_runtime_binary_exists(
-				cli,
-				path,
-				&self.profile,
-				&features,
-				true,
-				self.deterministic,
-				&None,
-				self.tag.clone(),
-			)
-			.await?;
-		}
 		if self.profile == Profile::Debug {
 			cli.warning("NOTE: this command now defaults to DEBUG builds. Please use `--release` (or simply `-r`) for a release build...")?;
 		}
@@ -120,7 +95,7 @@ mod tests {
 	use console::style;
 	use duct::cmd;
 	use pop_common::manifest::{add_feature, add_production_profile};
-	use std::fs;
+	use std::{fs, path::Path};
 	use strum::VariantArray;
 
 	#[tokio::test]
@@ -203,7 +178,7 @@ mod tests {
 			features: raw_features,
 			tag: None,
 		}
-		.build(&mut cli, project_path, false)
+		.build(&mut cli)
 		.await?;
 		cli.verify()
 	}

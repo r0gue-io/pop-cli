@@ -147,8 +147,10 @@ impl Command {
 			let mut feature_list = collect_features(&features, args.benchmark, args.try_runtime);
 			feature_list.sort();
 
+			let runtime_path = crate::common::builds::find_runtime_dir(&project_path, &mut Cli)?;
+
 			BuildRuntime {
-				path: project_path,
+				path: runtime_path,
 				profile,
 				benchmark: feature_list.contains(&Benchmark.as_ref()),
 				try_runtime: feature_list.contains(&TryRuntime.as_ref()),

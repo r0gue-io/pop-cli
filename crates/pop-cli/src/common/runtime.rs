@@ -132,10 +132,13 @@ pub(crate) async fn build_runtime(
 	let binary_path = if deterministic {
 		let spinner = spinner();
 		let manifest = from_path(runtime_path)?;
-		let package = manifest.package();
+		let package = manifest.package.as_ref().ok_or(anyhow::anyhow!(format!(
+			"Couldn't find package declaration at {:?}",
+			runtime_path
+		)))?;
 		let name = package.clone().name;
 		spinner.start("Building deterministic runtime...");
-		build_deterministic_runtime(cli, &name, *mode, runtime_path.to_path_buf(), tag)
+		build_deterministic_runtime(&name, *mode, runtime_path.to_path_buf(), tag)
 			.await?
 			.0
 	} else {
@@ -175,7 +178,6 @@ fn print_build_output(cli: &mut impl Cli, binary_path: &Path) -> anyhow::Result<
 /// * `runtime_dir`: The runtime directory.
 #[cfg(feature = "chain")]
 pub(crate) async fn build_deterministic_runtime(
-	cli: &mut impl Cli,
 	package: &str,
 	profile: Profile,
 	runtime_dir: PathBuf,
@@ -193,7 +195,6 @@ pub(crate) async fn build_deterministic_runtime(
 		anyhow::anyhow!("Failed to build the deterministic runtime: {e}")
 	})?;
 	let code = fs::read(&runtime_path).map_err(anyhow::Error::from)?;
-	cli.success("\n✅ Runtime built successfully.\n")?;
 	Ok((runtime_path, code))
 }
 

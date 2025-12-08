@@ -60,7 +60,7 @@ impl DeterministicBuilder {
 		let dir = fs::canonicalize(path.unwrap_or_else(|| PathBuf::from("./")))?;
 		let tmpdir = env::temp_dir().join("cargo");
 
-		let cache_mount = format!("-v {}:/cargo-home", tmpdir.display());
+		let cache_mount = format!("{}:/cargo-home", tmpdir.display());
 
 		Ok(Self {
 			cache_mount,
@@ -105,10 +105,9 @@ impl DeterministicBuilder {
 		};
 		let image_digest = format!("IMAGE={}", self.digest);
 		let volume = format!("{}:/build", self.path.display());
-		let cache_volume = format!("{}:/cargo-home", env::temp_dir().join("cargo").display());
 		let image_tag = format!("{}:{}", self.image, self.tag);
 
-		let mut args = vec![
+		let args = vec![
 			"run".to_owned(),
 			"--name".to_owned(),
 			"srtool".to_owned(),
@@ -125,26 +124,30 @@ impl DeterministicBuilder {
 			image_digest,
 			"-v".to_owned(),
 			volume,
+			"-v".to_owned(),
+			self.cache_mount.clone(),
+			image_tag,
+			"build".to_owned(),
+			"--app".to_owned(),
+			"--json".to_owned(),
 		];
 
-		// Add cache mount if cache_mount is not empty (for Docker, not Podman)
-		if !self.cache_mount.is_empty() {
-			args.extend(["-v".to_owned(), cache_volume]);
-		}
-
-		args.extend([image_tag, "build".to_owned(), "--app".to_owned(), "--json".to_owned()]);
 		Ok(args)
 	}
 
 	// Returns the expected output path of the compiled runtime `.wasm` file.
 	fn get_output_path(&self) -> PathBuf {
+		let output_wasm = match self.profile {
+			Profile::Debug => "wasm",
+			_ => "compact.compressed.wasm",
+		};
 		self.runtime_dir
 			.join("target")
 			.join("srtool")
 			.join(self.profile.to_string())
 			.join("wbuild")
 			.join(&self.package)
-			.join(format!("{}.compact.compressed.wasm", self.package.replace("-", "_")))
+			.join(format!("{}.{}", self.package.replace("-", "_"), output_wasm))
 	}
 }
 

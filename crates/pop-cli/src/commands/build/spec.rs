@@ -647,7 +647,6 @@ impl BuildSpec {
 			// Deterministic build.
 			if self.deterministic {
 				let (runtime_path, code) = build_deterministic_runtime(
-					cli,
 					&self.package,
 					self.profile,
 					self.runtime_dir
