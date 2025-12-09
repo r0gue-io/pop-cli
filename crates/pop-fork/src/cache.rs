@@ -18,12 +18,14 @@ use thiserror::Error;
 const MAX_POOL_CONNECTIONS: u32 = 5;
 
 /// SQLite connection string for in-memory databases.
+#[cfg(test)]
 const SQLITE_MEMORY_URL: &str = "sqlite::memory:";
 
 /// Connection pool size for in-memory databases.
 ///
 /// Must be 1 because SQLite in-memory databases are connection-specific:
 /// each connection creates a separate, isolated database instance.
+#[cfg(test)]
 const MEMORY_POOL_CONNECTIONS: u32 = 1;
 
 /// Errors that can occur when interacting with the storage cache.
@@ -81,6 +83,7 @@ impl StorageCache {
 	}
 
 	/// Open an in-memory cache (for testing).
+	#[cfg(test)]
 	pub async fn in_memory() -> Result<Self, CacheError> {
 		let pool = SqlitePoolOptions::new()
 			.max_connections(MEMORY_POOL_CONNECTIONS)
