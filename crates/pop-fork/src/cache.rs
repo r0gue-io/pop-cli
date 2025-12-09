@@ -37,9 +37,19 @@ pub enum CacheError {
 	/// IO error.
 	#[error("IO error: {0}")]
 	Io(#[from] std::io::Error),
+	/// Data corruption detected in the cache.
+	#[error("Data corruption: {0}")]
+	DataCorruption(String),
 }
 
 /// Information about a cached block.
+///
+/// # Block Number Type
+///
+/// Block numbers are stored as `u32` to match Polkadot SDK's `BlockNumber` type.
+/// SQLite stores all integers as `i64`, so we convert when reading from the database.
+/// Invalid values (negative or > u32::MAX) indicate database corruption and will
+/// return a [`CacheError::DataCorruption`] error.
 #[derive(Debug, Clone)]
 pub struct BlockInfo {
 	/// Block hash.
@@ -272,16 +282,23 @@ impl StorageCache {
 				.await?;
 
 		// Convert SQLite BLOB and INTEGER types back to their Rust equivalents.
-		// Note: SQLite stores integers as i64, so we cast to u32 for block numbers.
-		Ok(row.map(|r| {
-			let hash_bytes: Vec<u8> = r.get("hash");
-			let parent_bytes: Vec<u8> = r.get("parent_hash");
-			BlockInfo {
-				hash: H256::from_slice(&hash_bytes),
-				number: r.get::<i64, _>("number") as u32,
-				parent_hash: H256::from_slice(&parent_bytes),
-				header: r.get("header"),
-			}
+		// Note: SQLite stores integers as i64, so we safely convert to u32 for block numbers.
+		let Some(r) = row else {
+			return Ok(None);
+		};
+
+		let hash_bytes: Vec<u8> = r.get("hash");
+		let parent_bytes: Vec<u8> = r.get("parent_hash");
+		let number: u32 = r
+			.get::<i64, _>("number")
+			.try_into()
+			.map_err(|_| CacheError::DataCorruption("block number out of u32 range".into()))?;
+
+		Ok(Some(BlockInfo {
+			hash: H256::from_slice(&hash_bytes),
+			number,
+			parent_hash: H256::from_slice(&parent_bytes),
+			header: r.get("header"),
 		}))
 	}
 
