@@ -540,11 +540,7 @@ impl CallChainCommand {
 				if !func.params.is_empty() {
 					cli.plain("    Parameters:".to_string())?;
 					for param in &func.params {
-						cli.plain(format!(
-							"      - {}: {}",
-							param.name,
-							simplify_type(&param.type_name)
-						))?;
+						cli.plain(format!("      - {}: {}", param.name, param.type_name))?;
 					}
 				}
 
@@ -568,12 +564,12 @@ impl CallChainCommand {
 				if let Some(key_id) = storage.key_id &&
 					let Ok(key_param) = type_to_param("key", registry, key_id)
 				{
-					cli.plain(format!("    Key: {}", simplify_type(&key_param.type_name)))?;
+					cli.plain(format!("    Key: {}", key_param.type_name))?;
 				}
 
 				// Resolve and display value type
 				if let Ok(value_param) = type_to_param("value", registry, storage.type_id) {
-					cli.plain(format!("    Value: {}", simplify_type(&value_param.type_name)))?;
+					cli.plain(format!("    Value: {}", value_param.type_name))?;
 				}
 
 				if !storage.docs.is_empty() {
@@ -944,91 +940,6 @@ fn parse_pallet_name(name: &str) -> Result<String, String> {
 		Some(c) => Ok(c.to_ascii_uppercase().to_string() + chars.as_str()),
 		None => Err("Pallet cannot be empty".to_string()),
 	}
-}
-
-/// Simplifies a type name for display by removing variant details and complex nested types.
-/// - "Compact<u128>" -> "Compact<u128>" (keep simple generics)
-/// - "MultiAddress<AccountId32 ([u8;32]),()>: Id(...)" -> "MultiAddress" (simplify complex types)
-/// - "[AccountId32 ([u8;32])]" -> "[AccountId32]" (simplify array contents)
-/// - "(u32, AccountId32 ([u8;32]))" -> "(u32, AccountId32)" (simplify tuple contents)
-///
-/// # Safety
-/// String slicing operations assume ASCII input, which is guaranteed for Rust type names
-/// from chain metadata. Non-ASCII characters in type names would indicate malformed metadata.
-fn simplify_type(type_name: &str) -> String {
-	// Remove variant details after ":"
-	let base = type_name.split(':').next().unwrap_or(type_name).trim();
-
-	// Handle tuple types like "(u32, AccountId32 ([u8;32]))"
-	if base.starts_with('(') && base.ends_with(')') {
-		let inner = &base[1..base.len() - 1];
-		// Split by comma but respect nested parentheses
-		let simplified_parts: Vec<String> = split_tuple_elements(inner)
-			.iter()
-			.map(|part| simplify_type(part.trim()))
-			.collect();
-		return format!("({})", simplified_parts.join(", "));
-	}
-
-	// Handle array types like "[AccountId32 ([u8;32])]"
-	if base.starts_with('[') && base.ends_with(']') {
-		let inner = &base[1..base.len() - 1];
-		let simplified_inner = simplify_type(inner);
-		return format!("[{}]", simplified_inner);
-	}
-
-	// Check if this has generics
-	if let Some(pos) = base.find('<') {
-		let type_name = &base[..pos];
-		let generics = &base[pos..];
-
-		// If the generics contain spaces or parentheses, it's complex - just use type name
-		if generics.contains(' ') || generics.contains('(') {
-			return type_name.to_string();
-		}
-
-		// Simple generic like Compact<u128> or Option<bool> - keep as is
-		return base.to_string();
-	}
-
-	// Handle cases like "AccountId32 ([u8;32])" - just take the type name
-	if let Some(pos) = base.find(' ') {
-		return base[..pos].to_string();
-	}
-
-	base.to_string()
-}
-
-/// Splits tuple elements by comma, respecting nested parentheses.
-/// Uses saturating subtraction for depth to handle malformed input with unbalanced brackets.
-fn split_tuple_elements(s: &str) -> Vec<String> {
-	let mut parts = Vec::new();
-	let mut current = String::new();
-	let mut depth: usize = 0;
-
-	for c in s.chars() {
-		match c {
-			'(' | '<' | '[' => {
-				depth += 1;
-				current.push(c);
-			},
-			')' | '>' | ']' => {
-				depth = depth.saturating_sub(1);
-				current.push(c);
-			},
-			',' if depth == 0 => {
-				parts.push(current.trim().to_string());
-				current = String::new();
-			},
-			_ => current.push(c),
-		}
-	}
-
-	if !current.trim().is_empty() {
-		parts.push(current.trim().to_string());
-	}
-
-	parts
 }
 
 /// Truncates documentation to a maximum length, ending at a sentence boundary if possible.
@@ -1639,60 +1550,6 @@ mod tests {
 		// --metadata should conflict with --function
 		let result = TestCmd::try_parse_from(["test", "--metadata", "--function", "transfer"]);
 		assert!(result.is_err());
-	}
-
-	#[test]
-	fn simplify_type_works() {
-		// Simple generics should be preserved
-		assert_eq!(simplify_type("Compact<u128>"), "Compact<u128>");
-		assert_eq!(simplify_type("Option<bool>"), "Option<bool>");
-
-		// Complex generics should be simplified to just the type name
-		assert_eq!(
-			simplify_type("MultiAddress<AccountId32 ([u8;32]),()>: Id(...)"),
-			"MultiAddress"
-		);
-
-		// Type names with internal details should be simplified
-		assert_eq!(simplify_type("AccountId32 ([u8;32])"), "AccountId32");
-
-		// Tuple types should have their contents simplified
-		assert_eq!(simplify_type("(u32, AccountId32 ([u8;32]))"), "(u32, AccountId32)");
-
-		// Array types should have their contents simplified
-		assert_eq!(simplify_type("[AccountId32 ([u8;32])]"), "[AccountId32]");
-
-		// Plain types should pass through unchanged
-		assert_eq!(simplify_type("u32"), "u32");
-		assert_eq!(simplify_type("bool"), "bool");
-
-		// Nested tuples
-		assert_eq!(simplify_type("((u32, u64), bool)"), "((u32, u64), bool)");
-	}
-
-	#[test]
-	fn split_tuple_elements_works() {
-		// Simple case
-		assert_eq!(split_tuple_elements("a, b"), vec!["a", "b"]);
-		assert_eq!(split_tuple_elements("a, b, c"), vec!["a", "b", "c"]);
-
-		// Nested parentheses should be respected
-		assert_eq!(split_tuple_elements("a, (b, c), d"), vec!["a", "(b, c)", "d"]);
-
-		// Nested angle brackets should be respected
-		assert_eq!(split_tuple_elements("Vec<u8>, Option<bool>"), vec!["Vec<u8>", "Option<bool>"]);
-
-		// Mixed nesting
-		assert_eq!(split_tuple_elements("Foo<(A, B)>, Bar"), vec!["Foo<(A, B)>", "Bar"]);
-
-		// Single element
-		assert_eq!(split_tuple_elements("single"), vec!["single"]);
-
-		// Empty string
-		assert!(split_tuple_elements("").is_empty());
-
-		// Handles unbalanced closing brackets gracefully (saturating_sub)
-		assert_eq!(split_tuple_elements("a), b"), vec!["a)", "b"]);
 	}
 
 	#[test]
