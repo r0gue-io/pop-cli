@@ -284,7 +284,7 @@ mod tests {
 	use super::*;
 
 	/// Paseo testnet public RPC endpoint.
-	const PASEO_ENDPOINT: &str = "wss://rpc.ibp.network/paseoA";
+	const PASEO_ENDPOINT: &str = "wss://rpc.ibp.network/paseo";
 
 	// Well-known storage keys for testing.
 	// These are derived from twox128 hashes of pallet and storage item names.
