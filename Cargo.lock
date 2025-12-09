@@ -134,8 +134,8 @@ dependencies = [
  "const-hex",
  "derive_more 2.0.1",
  "foldhash 0.2.0",
- "hashbrown 0.16.0",
- "indexmap 2.12.0",
+ "hashbrown 0.16.1",
+ "indexmap 2.12.1",
  "itoa",
  "k256",
  "keccak-asm",
@@ -182,7 +182,7 @@ dependencies = [
  "alloy-sol-macro-input",
  "const-hex",
  "heck 0.5.0",
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
  "proc-macro-error2",
  "proc-macro2",
  "quote",
@@ -2098,7 +2098,7 @@ checksum = "7c74b8349d32d297c9134b8c88677813a227df8f779daa29bfc29c183fe3dca6"
 [[package]]
 name = "contract-build"
 version = "6.0.0-beta.1"
-source = "git+https://github.com/use-ink/cargo-contract?rev=ceb7b89#ceb7b89f807b0e446dce68c007511d5dbc171277"
+source = "git+https://github.com/use-ink/cargo-contract?rev=79c4d3d#79c4d3d97e88f0bf3ca21a618e5d6bc7bcd055b8"
 dependencies = [
  "alloy-json-abi",
  "anyhow",
@@ -2117,7 +2117,7 @@ dependencies = [
  "ink_metadata",
  "itertools 0.14.0",
  "parity-scale-codec",
- "polkavm-linker 0.29.0",
+ "polkavm-linker 0.30.0",
  "regex",
  "rustc_version 0.4.1",
  "rustversion",
@@ -2141,7 +2141,7 @@ dependencies = [
 [[package]]
 name = "contract-extrinsics"
 version = "6.0.0-beta.1"
-source = "git+https://github.com/use-ink/cargo-contract?rev=ceb7b89#ceb7b89f807b0e446dce68c007511d5dbc171277"
+source = "git+https://github.com/use-ink/cargo-contract?rev=79c4d3d#79c4d3d97e88f0bf3ca21a618e5d6bc7bcd055b8"
 dependencies = [
  "anyhow",
  "colored",
@@ -2171,7 +2171,7 @@ dependencies = [
 [[package]]
 name = "contract-metadata"
 version = "6.0.0-beta.1"
-source = "git+https://github.com/use-ink/cargo-contract?rev=ceb7b89#ceb7b89f807b0e446dce68c007511d5dbc171277"
+source = "git+https://github.com/use-ink/cargo-contract?rev=79c4d3d#79c4d3d97e88f0bf3ca21a618e5d6bc7bcd055b8"
 dependencies = [
  "anyhow",
  "impl-serde",
@@ -2184,7 +2184,7 @@ dependencies = [
 [[package]]
 name = "contract-transcode"
 version = "6.0.0-beta.1"
-source = "git+https://github.com/use-ink/cargo-contract?rev=ceb7b89#ceb7b89f807b0e446dce68c007511d5dbc171277"
+source = "git+https://github.com/use-ink/cargo-contract?rev=79c4d3d#79c4d3d97e88f0bf3ca21a618e5d6bc7bcd055b8"
 dependencies = [
  "anyhow",
  "base58",
@@ -2192,7 +2192,7 @@ dependencies = [
  "contract-metadata",
  "escape8259",
  "hex",
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
  "ink_env",
  "ink_metadata",
  "itertools 0.14.0",
@@ -2793,7 +2793,7 @@ checksum = "2abd4c3021eefbac5149f994c117b426852bca3a0aad227698527bca6d4ea657"
 dependencies = [
  "cc",
  "codespan-reporting",
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
  "proc-macro2",
  "quote",
  "scratch",
@@ -2808,7 +2808,7 @@ checksum = "6f12fbc5888b2311f23e52a601e11ad7790d8f0dbb903ec26e2513bf5373ed70"
 dependencies = [
  "clap",
  "codespan-reporting",
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
  "proc-macro2",
  "quote",
  "syn 2.0.110",
@@ -2826,7 +2826,7 @@ version = "1.0.188"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a26f0d82da663316786791c3d0e9f9edc7d1ee1f04bdad3d2643086a69d6256c"
 dependencies = [
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
  "proc-macro2",
  "quote",
  "syn 2.0.110",
@@ -3654,7 +3654,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb42427514b063d97ce21d5199f36c0c307d981434a6be32582bc79fe5bd2303"
 dependencies = [
  "expander",
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
  "proc-macro-crate 3.4.0",
  "proc-macro2",
  "quote",
@@ -4472,7 +4472,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
 dependencies = [
  "fallible-iterator",
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
  "stable_deref_trait",
 ]
 
@@ -4566,7 +4566,7 @@ dependencies = [
  "futures-sink",
  "futures-util",
  "http 0.2.12",
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
  "slab",
  "tokio",
  "tokio-util",
@@ -4585,7 +4585,7 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "http 1.3.1",
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
  "slab",
  "tokio",
  "tokio-util",
@@ -4664,12 +4664,13 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
-version = "0.16.0"
+version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5419bdc4f6a9207fbeba6d11b604d481addf78ecd10c11ad51e76c2f6482748d"
+checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
 dependencies = [
  "foldhash 0.2.0",
  "serde",
+ "serde_core",
 ]
 
 [[package]]
@@ -5386,12 +5387,12 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
-version = "2.12.0"
+version = "2.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6717a8d2a5a929a1a2eb43a12812498ed141a0bcfb7e8f7844fbdbe4303bba9f"
+checksum = "0ad4bb2b565bca0645f4d68c5c9af97fba094e9791da685bf83cb5f3ce74acf2"
 dependencies = [
  "equivalent",
- "hashbrown 0.16.0",
+ "hashbrown 0.16.1",
  "serde",
  "serde_core",
 ]
@@ -6738,7 +6739,7 @@ dependencies = [
  "futures",
  "futures-timer",
  "hickory-resolver 0.25.2",
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
  "libc",
  "mockall",
  "multiaddr 0.17.1",
@@ -7745,7 +7746,7 @@ checksum = "62948e14d923ea95ea2c7c86c71013138b66525b86bdc08d2dcc262bdb497b87"
 dependencies = [
  "crc32fast",
  "hashbrown 0.15.5",
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
  "memchr",
 ]
 
@@ -7899,7 +7900,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43dfaf083aef571385fccfdc3a2f8ede8d0a1863160455d4f2b014d8f7d04a3f"
 dependencies = [
  "expander",
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
  "itertools 0.11.0",
  "petgraph",
  "proc-macro-crate 3.4.0",
@@ -8426,8 +8427,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4c5cc86750666a3ed20bdaf5ca2a0344f9c67674cae0515bec2da16fbaa47db"
 dependencies = [
  "fixedbitset",
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
 ]
+
+[[package]]
+name = "picosimd"
+version = "0.9.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af35c838647fef3d6d052e27006ef88ea162336eee33063c50a63f163c18cdeb"
 
 [[package]]
 name = "pin-project"
@@ -8830,6 +8837,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f634b46a6a47a5de381f56d1d8cced9f8640d063b2b1a44b0da6dbef91bbd400"
 
 [[package]]
+name = "polkavm-common"
+version = "0.30.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed1b408db93d4f49f5c651a7844682b9d7a561827b4dc6202c10356076c055c9"
+dependencies = [
+ "picosimd",
+]
+
+[[package]]
 name = "polkavm-derive"
 version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8940,16 +8956,16 @@ dependencies = [
 
 [[package]]
 name = "polkavm-linker"
-version = "0.29.0"
+version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43e01613e9e3e4ebd624aa3a11f1775a5c90b881200c50e054fe13c3ba451f98"
+checksum = "6739125c4f8f44b4282b6531d765d599f20514e9b608737c6c3544594d08f995"
 dependencies = [
  "dirs",
  "gimli 0.31.1",
  "hashbrown 0.14.5",
  "log",
  "object 0.36.7",
- "polkavm-common 0.29.0",
+ "polkavm-common 0.30.0",
  "regalloc2 0.9.3",
  "rustc-demangle",
 ]
@@ -9010,7 +9026,7 @@ dependencies = [
  "frame-benchmarking-cli",
  "frame-try-runtime",
  "glob",
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
  "parity-scale-codec",
  "pop-common",
  "rustilities",
@@ -11334,7 +11350,7 @@ dependencies = [
  "async-trait",
  "futures",
  "futures-timer",
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
  "itertools 0.11.0",
  "linked-hash-map",
  "parity-scale-codec",
@@ -11365,7 +11381,7 @@ checksum = "7a04c8e6a886fd4563be1cfe487af2f11280ea797298b8d831e1ee5a273cc17d"
 dependencies = [
  "async-trait",
  "futures",
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
  "log",
  "parity-scale-codec",
  "serde",
@@ -11889,7 +11905,7 @@ version = "1.0.145"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "402a6f66d8c709116cf22f558eab210f5a50187f702eb4d7e5ef38d9a7f1c79c"
 dependencies = [
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
  "itoa",
  "memchr",
  "ryu",
@@ -11959,7 +11975,7 @@ dependencies = [
  "chrono",
  "hex",
  "indexmap 1.9.3",
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
  "schemars 0.9.0",
  "schemars 1.1.0",
  "serde_core",
@@ -11986,7 +12002,7 @@ version = "0.9.34+deprecated"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a8b1a1a2ebf674015cc02edccce75287f1a0130d394307b36743c2f5d504b47"
 dependencies = [
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
  "itoa",
  "ryu",
  "serde",
@@ -14687,7 +14703,7 @@ version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0dc8b1fb61449e27716ec0e1bdf0f6b8f3e8f6b05391e8497b8b6d7804ea6d8"
 dependencies = [
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
  "serde_core",
  "serde_spanned 1.0.3",
  "toml_datetime 0.7.3",
@@ -14720,7 +14736,7 @@ version = "0.22.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "41fe8c660ae4257887cf66394862d21dbca4a6ddd26f04a3560410406a2f819a"
 dependencies = [
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
  "serde",
  "serde_spanned 0.6.9",
  "toml_datetime 0.6.11",
@@ -14734,7 +14750,7 @@ version = "0.23.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6485ef6d0d9b5d0ec17244ff7eb05310113c3f316f2d14200d4de56b3cb98f8d"
 dependencies = [
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
  "toml_datetime 0.7.3",
  "toml_parser",
  "toml_writer",
@@ -15676,7 +15692,7 @@ checksum = "161296c618fa2d63f6ed5fffd1112937e803cb9ec71b32b01a76321555660917"
 dependencies = [
  "bitflags 2.10.0",
  "hashbrown 0.15.5",
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
  "semver 1.0.27",
  "serde",
 ]
@@ -15715,7 +15731,7 @@ dependencies = [
  "cfg-if",
  "gimli 0.31.1",
  "hashbrown 0.15.5",
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
  "libc",
  "log",
  "mach2",
@@ -15756,7 +15772,7 @@ dependencies = [
  "cranelift-bitset",
  "cranelift-entity",
  "gimli 0.31.1",
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
  "log",
  "object 0.36.7",
  "postcard",
@@ -16733,7 +16749,7 @@ checksum = "eb2a05c7c36fde6c09b08576c9f7fb4cda705990f73b58fe011abf7dfb24168b"
 dependencies = [
  "arbitrary",
  "crc32fast",
- "indexmap 2.12.0",
+ "indexmap 2.12.1",
  "memchr",
 ]
 

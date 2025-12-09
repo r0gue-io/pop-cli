@@ -12,6 +12,8 @@ use {
 	std::path::Path,
 	strum::{EnumMessage, VariantArray},
 };
+#[cfg(feature = "contract")]
+use {pop_contracts::ComposeBuildArgs, regex::Regex};
 
 /// This method is used to get the proper project path format (with or without cli flag)
 pub fn get_project_path(path_flag: Option<PathBuf>, path_pos: Option<PathBuf>) -> Option<PathBuf> {
@@ -144,6 +146,37 @@ pub fn guide_user_to_select_profile(cli: &mut impl Cli) -> anyhow::Result<Profil
 		);
 	}
 	Ok(*prompt.interact()?)
+}
+
+#[cfg(feature = "contract")]
+pub(crate) struct PopComposeBuildArgs;
+#[cfg(feature = "contract")]
+impl ComposeBuildArgs for PopComposeBuildArgs {
+	fn compose_build_args() -> anyhow::Result<Vec<String>> {
+		let mut args: Vec<String> = Vec::new();
+		// match `--image` or `verify` with arg with 1 or more white spaces surrounded
+		let rex = Regex::new(r#"(--image|verify)[ ]*[^ ]*[ ]*"#)?;
+		// we join the args together, so we can remove `--image <arg>`
+		let args_string: String = std::env::args().skip(1).collect::<Vec<String>>().join(" ");
+		let args_string = rex.replace_all(&args_string, "").to_string();
+
+		// and then we turn it back to the vec, filtering out commands and arguments
+		// that should not be passed to the docker build command
+		let mut os_args: Vec<String> = args_string
+			.split_ascii_whitespace()
+			.filter(|a| {
+				a != &"--verifiable" &&
+					!a.contains("cargo-contract") &&
+					a != &"cargo" && a != &"contract" &&
+					a != &"build" && a != &"--output-json"
+			})
+			.map(|s| s.to_string())
+			.collect();
+
+		args.append(&mut os_args);
+
+		Ok(args)
+	}
 }
 
 #[cfg(test)]

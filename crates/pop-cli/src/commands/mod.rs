@@ -65,8 +65,8 @@ pub(crate) enum Command {
 	/// Convert between different formats.
 	#[clap(alias = "cv")]
 	Convert(convert::ConvertArgs),
-    /// Verify a smart contract binary
-    	#[clap(alias = "v")]
+	/// Verify a smart contract binary
+	#[clap(alias = "v")]
 	#[cfg(feature = "contract")]
 	Verify(verify::VerifyCommand),
 }
@@ -227,7 +227,7 @@ impl Command {
 				env_logger::init();
 				args.command.execute(&mut Cli)
 			},
-            Self::Verify(verify) => verify.execute(&mut Cli)
+			Self::Verify(verify) => verify.execute(&mut Cli),
 		}
 	}
 }
@@ -287,8 +287,8 @@ impl Display for Command {
 			Command::Hash(args) => write!(f, "hash {}", args.command),
 			Command::Convert(args) => write!(f, "convert {}", args.command),
 			Command::Upgrade(_) => write!(f, "upgrade"),
-            #[cfg(feature = "contract")]
-            Command::Verify(_) => write!(f, "verify")
+			#[cfg(feature = "contract")]
+			Command::Verify(_) => write!(f, "verify"),
 		}
 	}
 }

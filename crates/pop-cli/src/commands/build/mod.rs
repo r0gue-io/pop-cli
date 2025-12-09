@@ -2,12 +2,8 @@
 
 use crate::cli::{self, Cli};
 use clap::{Args, Subcommand};
-#[cfg(feature = "contract")]
-use contract::BuildContract;
 use duct::cmd;
 use pop_common::Profile;
-#[cfg(feature = "contract")]
-use pop_contracts::MetadataSpec;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 #[cfg(feature = "chain")]
@@ -17,6 +13,8 @@ use {
 	spec::BuildSpecCommand,
 	std::fmt::{Display, Formatter, Result},
 };
+#[cfg(feature = "contract")]
+use {contract::BuildContract, pop_contracts::MetadataSpec};
 
 #[cfg(feature = "chain")]
 pub(crate) mod chain;

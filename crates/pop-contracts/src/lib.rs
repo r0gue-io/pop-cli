@@ -3,7 +3,7 @@
 #![doc = include_str!("../README.md")]
 
 use anyhow::Result;
-use cargo_toml::{Dependency,Manifest};
+use cargo_toml::{Dependency, Manifest};
 use once_cell::sync::Lazy;
 use semver::Version;
 
@@ -18,7 +18,9 @@ mod testing;
 mod up;
 mod utils;
 
-pub use build::{BuildMode, ImageVariant, Verbosity, build_smart_contract, is_supported};
+pub use build::{
+	BuildMode, ComposeBuildArgs, ImageVariant, Verbosity, build_smart_contract, is_supported,
+};
 pub use call::{
 	CallOpts, call_smart_contract, call_smart_contract_from_signed_payload, dry_run_call,
 	dry_run_gas_estimate_call, get_call_payload, set_up_call,
@@ -44,7 +46,10 @@ pub use utils::{
 	parse_hex_bytes,
 };
 // External exports
-pub use contract_build::{MetadataArtifacts, BuildInfo, MetadataSpec, util::{rust_toolchain, decode_hex}, code_hash};
+pub use contract_build::{
+	BuildInfo, MetadataArtifacts, MetadataSpec, code_hash,
+	util::{decode_hex, rust_toolchain},
+};
 pub use contract_extrinsics::{CallExec, ExtrinsicOpts, UploadCode};
 pub use contract_metadata::{CodeHash, ContractMetadata};
 pub use ink_env::{DefaultEnvironment, Environment};
@@ -56,21 +61,34 @@ pub use utils::map_account::AccountMapper;
 const FALLBACK_CARGO_CONTRACT_VERSION: &str = "6.0.0-beta.1";
 /// cargo-contract used version
 pub static CARGO_CONTRACT_VERSION: Lazy<Version> = Lazy::new(|| {
-	let cargo_contract_version: Result<String> = || -> Result<String>{
-        let current_dir = std::env::current_dir()?;
-        let workspace_manifest = rustilities::manifest::find_workspace_manifest(current_dir).ok_or(anyhow::anyhow!("Not interesting error"))?;
-        let manifest = Manifest::from_path(workspace_manifest)?;
+	let cargo_contract_version: Result<String> = || -> Result<String> {
+		let current_dir = std::env::current_dir()?;
+		let workspace_manifest = rustilities::manifest::find_workspace_manifest(current_dir)
+			.ok_or(anyhow::anyhow!("Not interesting error"))?;
+		let manifest = Manifest::from_path(workspace_manifest)?;
 
-        manifest.workspace.and_then(|workspace| {
-            if let Some(contract_build_dep) = workspace.dependencies.get("contract-build"){
-                match contract_build_dep {
-                    Dependency::Simple(version) => Some(version.clone()),
-                    Dependency::Detailed(detailed) if detailed.version.as_ref().is_some() => Some(detailed.version.as_ref().expect("The match guard protects us; qed").clone()),
-                    _ => None
-                }
-            } else { None }
-        }).ok_or(anyhow::anyhow!("Not interesting error"))
-    }();
+		manifest
+			.workspace
+			.and_then(|workspace| {
+				if let Some(contract_build_dep) = workspace.dependencies.get("contract-build") {
+					match contract_build_dep {
+						Dependency::Simple(version) => Some(version.clone()),
+						Dependency::Detailed(detailed) if detailed.version.as_ref().is_some() =>
+							Some(
+								detailed
+									.version
+									.as_ref()
+									.expect("The match guard protects us; qed")
+									.clone(),
+							),
+						_ => None,
+					}
+				} else {
+					None
+				}
+			})
+			.ok_or(anyhow::anyhow!("Not interesting error"))
+	}();
 
 	Version::parse(cargo_contract_version.as_deref().unwrap_or(FALLBACK_CARGO_CONTRACT_VERSION)).expect("The fallback version is always valid; if cargo_contract_version is Ok it contains a valid semver as well; qed;")
 });

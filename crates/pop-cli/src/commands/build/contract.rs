@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use super::{BuildArgs, Profile};
-use crate::cli;
+use crate::{cli, common::builds::PopComposeBuildArgs};
 use pop_contracts::{BuildMode, ImageVariant, MetadataSpec, Verbosity, build_smart_contract};
 use std::path::PathBuf;
 
@@ -31,7 +31,7 @@ impl BuildContract {
 	fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
 		cli.intro("Building your contract")?;
 		// Build contract.
-		let build_result = build_smart_contract(
+		let build_result = build_smart_contract::<PopComposeBuildArgs>(
 			&self.path,
 			self.build_mode,
 			Verbosity::Default,

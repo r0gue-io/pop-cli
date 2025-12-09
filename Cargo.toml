@@ -59,17 +59,17 @@ sp-weights = { version = "33.0.0", default-features = false }
 scale = { package = "parity-scale-codec", version = "3.7.5", features = ["derive"] }
 scale-info = { version = "2.11.6", default-features = false, features = ["derive"] }
 scale-value = { version = "0.18.0", default-features = false, features = ["from-string", "parser-ss58"] }
-contract-build = { git = "https://github.com/use-ink/cargo-contract", rev = "ceb7b89", default-features = false }
-contract-extrinsics = { git = "https://github.com/use-ink/cargo-contract", rev = "ceb7b89", default-features = false }
-contract-transcode = { git = "https://github.com/use-ink/cargo-contract", rev = "ceb7b89", default-features = false }
-contract-metadata = { git = "https://github.com/use-ink/cargo-contract", rev = "ceb7b89", default-features = false }
+contract-build = { git = "https://github.com/use-ink/cargo-contract", rev = "79c4d3d", default-features = false }
+contract-extrinsics = { git = "https://github.com/use-ink/cargo-contract", rev = "79c4d3d", default-features = false }
+contract-transcode = { git = "https://github.com/use-ink/cargo-contract", rev = "79c4d3d", default-features = false }
+contract-metadata = { git = "https://github.com/use-ink/cargo-contract", rev = "79c4d3d", default-features = false }
 heck = { version = "0.5.0", default-features = false }
 
 # parachains
 askama = { version = "0.12", default-features = false, features = ["config"] }
 regex = { version = "1.10", default-features = false }
 walkdir = { version = "2.5", default-features = false }
-indexmap = { version = "2.2", default-features = false }
+indexmap = { version = "2.12.1", default-features = false }
 toml_edit = { version = "0.22", features = ["serde"] }
 symlink = { version = "0.1", default-features = false }
 serde_json = { version = "1.0", default-features = false, features = ["preserve_order"] }

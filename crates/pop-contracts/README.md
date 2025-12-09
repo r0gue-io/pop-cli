@@ -20,11 +20,18 @@ Build an existing Smart Contract:
 ```rust,no_run
 use pop_contracts::build_smart_contract;
 use std::path::Path;
-pub use contract_build::{Verbosity, MetadataSpec, BuildMode};
+pub use contract_build::{Verbosity, MetadataSpec, BuildMode, ComposeBuildArgs};
+
+struct MockCompose;
+impl ComposeBuildArgs for MockCompose{
+    fn compose_build_args() -> anyhow::Result<Vec<String>>{
+        Ok(Vec::new())
+    }
+}
 
 let contract_path = Path::new("./");
 let build_mode = BuildMode::Release; // `Release` for release mode, `Debug` for debug mode, `Verifiable` for verifiable contract.
-let result = build_smart_contract(&contract_path, build_mode, Verbosity::Default, Some(MetadataSpec::Ink), None); // You can build your contract with Solidity metadata using `Some(MetadataSpec::Solidity)`
+let result = build_smart_contract::<MockCompose>(&contract_path, build_mode, Verbosity::Default, Some(MetadataSpec::Ink), None); // You can build your contract with Solidity metadata using `Some(MetadataSpec::Solidity)`
 ```
 
 
