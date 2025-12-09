@@ -30,8 +30,10 @@
 //! ```
 
 mod cache;
+pub mod error;
 mod rpc;
 mod strings;
 
-pub use cache::{BlockInfo, CacheError, StorageCache};
-pub use rpc::{ForkRpcClient, RpcClientError};
+pub use cache::{BlockInfo, StorageCache};
+pub use error::{CacheError, RpcClientError};
+pub use rpc::ForkRpcClient;
