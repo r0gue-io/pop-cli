@@ -66,6 +66,7 @@ pub struct BlockInfo {
 ///
 /// Enables fast restarts without re-fetching all data from live chains
 /// and reduces load on public RPC endpoints.
+#[derive(Clone)]
 pub struct StorageCache {
 	pool: SqlitePool,
 }
@@ -510,18 +511,17 @@ mod tests {
 
 	#[tokio::test]
 	async fn concurrent_access() {
-		use std::sync::Arc;
-
 		let temp_dir = tempfile::tempdir().unwrap();
 		let db_path = temp_dir.path().join("concurrent_test.db");
-		let cache = Arc::new(StorageCache::open(&db_path).await.unwrap());
+		let cache = StorageCache::open(&db_path).await.unwrap();
 
 		let block_hash = H256::from([9u8; 32]);
 
 		// Spawn multiple concurrent write tasks
+		// StorageCache is cheap to clone (just increments pool's reference count)
 		let mut handles = vec![];
 		for i in 0..10u8 {
-			let cache = Arc::clone(&cache);
+			let cache = cache.clone();
 			let handle = tokio::spawn(async move {
 				let key = format!("key_{}", i);
 				let value = format!("value_{}", i);
@@ -538,7 +538,7 @@ mod tests {
 		// Spawn concurrent read tasks
 		let mut read_handles = vec![];
 		for i in 0..10u8 {
-			let cache = Arc::clone(&cache);
+			let cache = cache.clone();
 			let handle = tokio::spawn(async move {
 				let key = format!("key_{}", i);
 				cache.get(block_hash, key.as_bytes()).await
@@ -554,8 +554,8 @@ mod tests {
 		}
 
 		// Test concurrent batch operations
-		let cache1 = Arc::clone(&cache);
-		let cache2 = Arc::clone(&cache);
+		let cache1 = cache.clone();
+		let cache2 = cache.clone();
 		let block_hash2 = H256::from([10u8; 32]);
 
 		let batch_handle1 = tokio::spawn(async move {
