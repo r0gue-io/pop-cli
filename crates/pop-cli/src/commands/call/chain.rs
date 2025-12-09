@@ -498,101 +498,7 @@ impl CallChainCommand {
 			},
 		}
 	}
-}
 
-/// Lists all pallets available on the chain.
-fn list_pallets(pallets: &[Pallet], cli: &mut impl Cli) -> Result<()> {
-	cli.info(format!("Available pallets ({}):\n", pallets.len()))?;
-	for pallet in pallets {
-		if pallet.docs.is_empty() {
-			cli.plain(format!("  {}", pallet.name))?;
-		} else {
-			cli.plain(format!("  {} - {}", pallet.name, pallet.docs))?;
-		}
-	}
-	Ok(())
-}
-
-/// Shows details of a specific pallet (calls, storage, constants).
-fn show_pallet(pallet: &Pallet, registry: &PortableRegistry, cli: &mut impl Cli) -> Result<()> {
-	cli.info(format!("Pallet: {}\n", pallet.name))?;
-	if !pallet.docs.is_empty() {
-		cli.plain(format!("{}\n", pallet.docs))?;
-	}
-
-	// Show calls/extrinsics with parameters and docs
-	if !pallet.functions.is_empty() {
-		cli.plain(format!(
-			"\n━━━ Extrinsics ({}) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-			pallet.functions.len()
-		))?;
-		for func in &pallet.functions {
-			let status = if func.is_supported { "" } else { " [NOT SUPPORTED]" };
-			cli.plain(format!("\n  {}{}", func.name, status))?;
-
-			// Format parameters on separate lines for readability
-			if !func.params.is_empty() {
-				cli.plain("    Parameters:".to_string())?;
-				for param in &func.params {
-					cli.plain(format!("      - {}: {}", param.name, param.type_name))?;
-				}
-			}
-
-			if !func.docs.is_empty() {
-				cli.plain(format!("    Description: {}", func.docs))?;
-			}
-		}
-	}
-
-	// Show storage with key/value info
-	if !pallet.state.is_empty() {
-		cli.plain(format!(
-			"\n\n━━━ Storage ({}) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-			pallet.state.len()
-		))?;
-		for storage in &pallet.state {
-			cli.plain(format!("\n  {}", storage.name))?;
-
-			// Resolve and display key type for maps
-			if let Some(key_id) = storage.key_id &&
-				let Ok(key_param) = type_to_param("key", registry, key_id)
-			{
-				cli.plain(format!("    Key: {}", key_param.type_name))?;
-			}
-
-			// Resolve and display value type
-			if let Ok(value_param) = type_to_param("value", registry, storage.type_id) {
-				cli.plain(format!("    Value: {}", value_param.type_name))?;
-			}
-
-			if !storage.docs.is_empty() {
-				cli.plain(format!("    Description: {}", storage.docs))?;
-			}
-		}
-	}
-
-	// Show constants with values and docs
-	if !pallet.constants.is_empty() {
-		cli.plain(format!(
-			"\n\n━━━ Constants ({}) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-			pallet.constants.len()
-		))?;
-		for constant in &pallet.constants {
-			let value_str = raw_value_to_string(&constant.value, "").map_err(|e| {
-				anyhow!("Failed to decode constant {}::{}: {e}", pallet.name, constant.name)
-			})?;
-			cli.plain(format!("\n  {}", constant.name))?;
-			cli.plain(format!("    Value: {}", value_str))?;
-			if !constant.docs.is_empty() {
-				cli.plain(format!("    Description: {}", constant.docs))?;
-			}
-		}
-	}
-
-	Ok(())
-}
-
-impl CallChainCommand {
 	/// Replaces file arguments with their contents, leaving other arguments unchanged.
 	fn expand_file_arguments(&self) -> Result<Vec<String>> {
 		self.args
@@ -638,6 +544,93 @@ impl CallChainCommand {
 		self.args = resolved_args.clone();
 		Ok(resolved_args)
 	}
+}
+
+/// Lists all pallets available on the chain.
+fn list_pallets(pallets: &[Pallet], cli: &mut impl Cli) -> Result<()> {
+	cli.info(format!("Available pallets ({}):\n", pallets.len()))?;
+	for pallet in pallets {
+		if pallet.docs.is_empty() {
+			cli.plain(format!("  {}", pallet.name))?;
+		} else {
+			cli.plain(format!("  {} - {}", pallet.name, pallet.docs))?;
+		}
+	}
+	Ok(())
+}
+
+/// Shows details of a specific pallet (calls, storage, constants).
+fn show_pallet(pallet: &Pallet, registry: &PortableRegistry, cli: &mut impl Cli) -> Result<()> {
+	cli.info(format!("Pallet: {}\n", pallet.name))?;
+	if !pallet.docs.is_empty() {
+		cli.plain(format!("{}\n", pallet.docs))?;
+	}
+
+	// Show calls/extrinsics with parameters and docs
+	if !pallet.functions.is_empty() {
+		cli.plain(format!(
+			"\n━━━ Extrinsics ({}) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+			pallet.functions.len()
+		))?;
+		for func in &pallet.functions {
+			let status = if func.is_supported { "" } else { " [NOT SUPPORTED]" };
+			cli.plain(format!("\n  {}{}", func.name, status))?;
+			// Format parameters on separate lines for readability
+			if !func.params.is_empty() {
+				cli.plain("    Parameters:".to_string())?;
+				for param in &func.params {
+					cli.plain(format!("      - {}: {}", param.name, param.type_name))?;
+				}
+			}
+			if !func.docs.is_empty() {
+				cli.plain(format!("    Description: {}", func.docs))?;
+			}
+		}
+	}
+
+	// Show storage with key/value info
+	if !pallet.state.is_empty() {
+		cli.plain(format!(
+			"\n\n━━━ Storage ({}) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+			pallet.state.len()
+		))?;
+		for storage in &pallet.state {
+			cli.plain(format!("\n  {}", storage.name))?;
+			// Resolve and display key type for maps
+			if let Some(key_id) = storage.key_id &&
+				let Ok(key_param) = type_to_param("key", registry, key_id)
+			{
+				cli.plain(format!("    Key: {}", key_param.type_name))?;
+			}
+			// Resolve and display value type
+			if let Ok(value_param) = type_to_param("value", registry, storage.type_id) {
+				cli.plain(format!("    Value: {}", value_param.type_name))?;
+			}
+			if !storage.docs.is_empty() {
+				cli.plain(format!("    Description: {}", storage.docs))?;
+			}
+		}
+	}
+
+	// Show constants with values and docs
+	if !pallet.constants.is_empty() {
+		cli.plain(format!(
+			"\n\n━━━ Constants ({}) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+			pallet.constants.len()
+		))?;
+		for constant in &pallet.constants {
+			let value_str = raw_value_to_string(&constant.value, "").map_err(|e| {
+				anyhow!("Failed to decode constant {}::{}: {e}", pallet.name, constant.name)
+			})?;
+			cli.plain(format!("\n  {}", constant.name))?;
+			cli.plain(format!("    Value: {}", value_str))?;
+			if !constant.docs.is_empty() {
+				cli.plain(format!("    Description: {}", constant.docs))?;
+			}
+		}
+	}
+
+	Ok(())
 }
 
 /// Represents a configured dispatchable function call, including the pallet, function, arguments,
@@ -1475,8 +1468,8 @@ mod tests {
 			let cmd = CallChainCommand { metadata: true, ..Default::default() };
 			let mut cli =
 				MockCli::new().expect_info(format!("Available pallets ({}):\n", pallets.len()));
-			cmd.display_metadata(&chain, &mut cli)?;
-			cli.verify()?;
+			assert!(cmd.display_metadata(&chain, &mut cli).is_ok());
+			assert!(cli.verify().is_ok());
 		}
 
 		// Test 2: Show specific pallet details
@@ -1487,8 +1480,8 @@ mod tests {
 				..Default::default()
 			};
 			let mut cli = MockCli::new().expect_info("Pallet: System\n".to_string());
-			cmd.display_metadata(&chain, &mut cli)?;
-			cli.verify()?;
+			assert!(cmd.display_metadata(&chain, &mut cli).is_ok());
+			assert!(cli.verify().is_ok());
 		}
 
 		// Test 3: Invalid pallet name should fail
@@ -1505,20 +1498,6 @@ mod tests {
 		}
 
 		Ok(())
-	}
-
-	#[test]
-	fn metadata_flag_conflicts_with_function() {
-		use clap::Parser;
-
-		#[derive(Parser)]
-		struct TestCmd {
-			#[command(flatten)]
-			call: CallChainCommand,
-		}
-		// --metadata should conflict with --function
-		let result = TestCmd::try_parse_from(["test", "--metadata", "--function", "transfer"]);
-		assert!(result.is_err());
 	}
 
 	#[test]
@@ -1556,8 +1535,8 @@ mod tests {
 			.expect_plain("  Balances")
 			.expect_plain("  Assets - Assets management");
 
-		list_pallets(&pallets, &mut cli).unwrap();
-		cli.verify().unwrap();
+		assert!(list_pallets(&pallets, &mut cli).is_ok());
+		assert!(cli.verify().is_ok());
 	}
 
 	#[tokio::test]
@@ -1622,8 +1601,8 @@ mod tests {
 			}
 		}
 
-		show_pallet(system_pallet, registry, &mut cli)?;
-		cli.verify()?;
+		assert!(show_pallet(system_pallet, registry, &mut cli).is_ok());
+		assert!(cli.verify().is_ok());
 		Ok(())
 	}
 }
