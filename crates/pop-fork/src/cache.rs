@@ -160,7 +160,7 @@ impl StorageCache {
 	pub async fn get_batch(
 		&self,
 		block_hash: H256,
-		keys: &[Vec<u8>],
+		keys: &[&[u8]],
 	) -> Result<Vec<Option<Option<Vec<u8>>>>, CacheError> {
 		if keys.is_empty() {
 			return Ok(vec![]);
@@ -179,7 +179,7 @@ impl StorageCache {
 		let mut query_builder = sqlx::query(&query).bind(block_hash.as_bytes());
 
 		for key in keys {
-			query_builder = query_builder.bind(key.as_slice());
+			query_builder = query_builder.bind(key);
 		}
 
 		let rows = query_builder.fetch_all(&self.pool).await?;
@@ -198,7 +198,7 @@ impl StorageCache {
 		// Return values in the same order as input keys.
 		// Keys not found in cache_map (not in DB) return None (not cached).
 		// Keys found return Some(value) where value is None for empty or Some(bytes) for data.
-		Ok(keys.iter().map(|key| cache_map.get(key).cloned()).collect())
+		Ok(keys.iter().map(|key| cache_map.get(*key).cloned()).collect())
 	}
 
 	/// Cache multiple storage values in a batch.
@@ -207,7 +207,7 @@ impl StorageCache {
 	pub async fn set_batch(
 		&self,
 		block_hash: H256,
-		entries: &[(Vec<u8>, Option<Vec<u8>>)],
+		entries: &[(&[u8], Option<&[u8]>)],
 	) -> Result<(), CacheError> {
 		if entries.is_empty() {
 			return Ok(());
@@ -226,7 +226,7 @@ impl StorageCache {
 				"INSERT OR REPLACE INTO storage (block_hash, key, value, is_empty) VALUES (?, ?, ?, ?)",
 			)
 			.bind(block_hash.as_bytes())
-			.bind(key.as_slice())
+			.bind(key)
 			.bind(value.as_deref())
 			.bind(value.is_none())
 			.execute(&mut *tx)
@@ -388,18 +388,17 @@ mod tests {
 		let cache = StorageCache::in_memory().await.unwrap();
 
 		let block_hash = H256::from([3u8; 32]);
-		let entries = vec![
-			(b"key1".to_vec(), Some(b"value1".to_vec())),
-			(b"key2".to_vec(), Some(b"value2".to_vec())),
-			(b"key3".to_vec(), None), // empty
+		let entries: Vec<(&[u8], Option<&[u8]>)> = vec![
+			(b"key1", Some(b"value1")),
+			(b"key2", Some(b"value2")),
+			(b"key3", None), // empty
 		];
 
 		// Batch set
 		cache.set_batch(block_hash, &entries).await.unwrap();
 
 		// Batch get
-		let keys: Vec<Vec<u8>> =
-			vec![b"key1".to_vec(), b"key2".to_vec(), b"key3".to_vec(), b"key4".to_vec()];
+		let keys: Vec<&[u8]> = vec![b"key1", b"key2", b"key3", b"key4"];
 		let results = cache.get_batch(block_hash, &keys).await.unwrap();
 
 		assert_eq!(results.len(), 4);
@@ -543,14 +542,25 @@ mod tests {
 		let block_hash2 = H256::from([10u8; 32]);
 
 		let batch_handle1 = tokio::spawn(async move {
-			let entries: Vec<_> =
-				(0..5).map(|i| (format!("batch1_{}", i).into_bytes(), Some(vec![i]))).collect();
+			let keys: Vec<Vec<u8>> = (0..5).map(|i| format!("batch1_{}", i).into_bytes()).collect();
+			let values: Vec<Vec<u8>> = (0..5).map(|i| vec![i]).collect();
+			let entries: Vec<(&[u8], Option<&[u8]>)> = keys
+				.iter()
+				.zip(values.iter())
+				.map(|(k, v)| (k.as_slice(), Some(v.as_slice())))
+				.collect();
 			cache1.set_batch(block_hash2, &entries).await
 		});
 
 		let batch_handle2 = tokio::spawn(async move {
-			let entries: Vec<_> =
-				(5..10).map(|i| (format!("batch2_{}", i).into_bytes(), Some(vec![i]))).collect();
+			let keys: Vec<Vec<u8>> =
+				(5..10).map(|i| format!("batch2_{}", i).into_bytes()).collect();
+			let values: Vec<Vec<u8>> = (5..10).map(|i| vec![i]).collect();
+			let entries: Vec<(&[u8], Option<&[u8]>)> = keys
+				.iter()
+				.zip(values.iter())
+				.map(|(k, v)| (k.as_slice(), Some(v.as_slice())))
+				.collect();
 			cache2.set_batch(block_hash2, &entries).await
 		});
 
@@ -559,7 +569,8 @@ mod tests {
 
 		// Verify batch results
 		let keys: Vec<Vec<u8>> = (0..5).map(|i| format!("batch1_{}", i).into_bytes()).collect();
-		let results = cache.get_batch(block_hash2, &keys).await.unwrap();
+		let key_refs: Vec<&[u8]> = keys.iter().map(|k| k.as_slice()).collect();
+		let results = cache.get_batch(block_hash2, &key_refs).await.unwrap();
 		for (i, result) in results.iter().enumerate() {
 			assert_eq!(*result, Some(Some(vec![i as u8])));
 		}
