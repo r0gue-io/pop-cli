@@ -632,7 +632,6 @@ fn show_pallet(pallet: &Pallet, registry: &PortableRegistry, cli: &mut impl Cli)
 
 	Ok(())
 }
-
 /// Represents a configured dispatchable function call, including the pallet, function, arguments,
 /// and signing options.
 #[derive(Clone, Default)]
