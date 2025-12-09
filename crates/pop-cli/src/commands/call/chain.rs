@@ -15,11 +15,11 @@ use anyhow::{Result, anyhow};
 use clap::Args;
 use pop_chains::{
 	Action, CallData, CallItem, DynamicPayload, Function, OnlineClient, Pallet, Param, Payload,
-	PortableRegistry, SubstrateConfig, construct_extrinsic, construct_sudo_extrinsic,
-	decode_call_data, encode_call_data, find_callable_by_name, find_pallet_by_name,
-	raw_value_to_string, render_storage_key_values, sign_and_submit_extrinsic, supported_actions,
-	type_to_param,
+	SubstrateConfig, construct_extrinsic, construct_sudo_extrinsic, decode_call_data,
+	encode_call_data, find_callable_by_name, find_pallet_by_name, raw_value_to_string,
+	render_storage_key_values, sign_and_submit_extrinsic, supported_actions, type_to_param,
 };
+use scale_info::PortableRegistry;
 use serde::Serialize;
 use url::Url;
 
@@ -1563,7 +1563,7 @@ mod tests {
 	#[tokio::test]
 	async fn show_pallet_works() -> Result<()> {
 		let node = TestNode::spawn().await?;
-		let client = set_up_client(&node.ws_url()).await?;
+		let client = set_up_client(node.ws_url()).await?;
 		let pallets = parse_chain_metadata(&client)?;
 		let metadata = client.metadata();
 		let registry = metadata.types();

@@ -73,9 +73,7 @@ pub use try_runtime::{
 	TryRuntimeCliCommand, binary::*, parse, parse_try_state_string, run_try_runtime,
 	shared_parameters::*, state, try_state_details, try_state_label, upgrade_checks_details,
 };
-// External exports from subxt and scale_info.
-/// Re-export of `PortableRegistry` for resolving type information from chain metadata.
-pub use scale_info::PortableRegistry;
+// External exports from subxt.
 pub use subxt::{
 	OnlineClient, SubstrateConfig,
 	blocks::ExtrinsicEvents,
