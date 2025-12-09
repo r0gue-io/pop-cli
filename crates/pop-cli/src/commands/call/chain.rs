@@ -488,119 +488,111 @@ impl CallChainCommand {
 	fn display_metadata(&self, chain: &Chain, cli: &mut impl Cli) -> Result<()> {
 		match &self.pallet {
 			// No pallet specified: list all pallets
-			None => self.list_pallets(&chain.pallets, cli),
+			None => list_pallets(&chain.pallets, cli),
 			// Pallet specified: show pallet details
 			Some(pallet_name) => {
 				let pallet = find_pallet_by_name(&chain.pallets, pallet_name)?;
 				let metadata = chain.client.metadata();
 				let registry = metadata.types();
-				self.show_pallet(pallet, registry, cli)
+				show_pallet(pallet, registry, cli)
 			},
 		}
 	}
+}
 
-	/// Lists all pallets available on the chain.
-	fn list_pallets(&self, pallets: &[Pallet], cli: &mut impl Cli) -> Result<()> {
-		cli.info(format!("Available pallets ({}):\n", pallets.len()))?;
-		for pallet in pallets {
-			if pallet.docs.is_empty() {
-				cli.plain(format!("  {}", pallet.name))?;
-			} else {
-				// Truncate long docs and show first sentence or first 80 chars
-				let short_docs = truncate_docs(&pallet.docs, 80);
-				cli.plain(format!("  {} - {}", pallet.name, short_docs))?;
-			}
+/// Lists all pallets available on the chain.
+fn list_pallets(pallets: &[Pallet], cli: &mut impl Cli) -> Result<()> {
+	cli.info(format!("Available pallets ({}):\n", pallets.len()))?;
+	for pallet in pallets {
+		if pallet.docs.is_empty() {
+			cli.plain(format!("  {}", pallet.name))?;
+		} else {
+			cli.plain(format!("  {} - {}", pallet.name, pallet.docs))?;
 		}
-		Ok(())
+	}
+	Ok(())
+}
+
+/// Shows details of a specific pallet (calls, storage, constants).
+fn show_pallet(pallet: &Pallet, registry: &PortableRegistry, cli: &mut impl Cli) -> Result<()> {
+	cli.info(format!("Pallet: {}\n", pallet.name))?;
+	if !pallet.docs.is_empty() {
+		cli.plain(format!("{}\n", pallet.docs))?;
 	}
 
-	/// Shows details of a specific pallet (calls, storage, constants).
-	fn show_pallet(
-		&self,
-		pallet: &Pallet,
-		registry: &PortableRegistry,
-		cli: &mut impl Cli,
-	) -> Result<()> {
-		cli.info(format!("Pallet: {}\n", pallet.name))?;
-		if !pallet.docs.is_empty() {
-			cli.plain(format!("{}\n", pallet.docs))?;
-		}
+	// Show calls/extrinsics with parameters and docs
+	if !pallet.functions.is_empty() {
+		cli.plain(format!(
+			"\n━━━ Extrinsics ({}) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+			pallet.functions.len()
+		))?;
+		for func in &pallet.functions {
+			let status = if func.is_supported { "" } else { " [NOT SUPPORTED]" };
+			cli.plain(format!("\n  {}{}", func.name, status))?;
 
-		// Show calls/extrinsics with parameters and docs
-		if !pallet.functions.is_empty() {
-			cli.plain(format!(
-				"\n━━━ Extrinsics ({}) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-				pallet.functions.len()
-			))?;
-			for func in &pallet.functions {
-				let status = if func.is_supported { "" } else { " [NOT SUPPORTED]" };
-				cli.plain(format!("\n  {}{}", func.name, status))?;
-
-				// Format parameters on separate lines for readability
-				if !func.params.is_empty() {
-					cli.plain("    Parameters:".to_string())?;
-					for param in &func.params {
-						cli.plain(format!("      - {}: {}", param.name, param.type_name))?;
-					}
-				}
-
-				if !func.docs.is_empty() {
-					let short_docs = truncate_docs(&func.docs, 300);
-					cli.plain(format!("    Description: {}", short_docs))?;
+			// Format parameters on separate lines for readability
+			if !func.params.is_empty() {
+				cli.plain("    Parameters:".to_string())?;
+				for param in &func.params {
+					cli.plain(format!("      - {}: {}", param.name, param.type_name))?;
 				}
 			}
-		}
 
-		// Show storage with key/value info
-		if !pallet.state.is_empty() {
-			cli.plain(format!(
-				"\n\n━━━ Storage ({}) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-				pallet.state.len()
-			))?;
-			for storage in &pallet.state {
-				cli.plain(format!("\n  {}", storage.name))?;
-
-				// Resolve and display key type for maps
-				if let Some(key_id) = storage.key_id &&
-					let Ok(key_param) = type_to_param("key", registry, key_id)
-				{
-					cli.plain(format!("    Key: {}", key_param.type_name))?;
-				}
-
-				// Resolve and display value type
-				if let Ok(value_param) = type_to_param("value", registry, storage.type_id) {
-					cli.plain(format!("    Value: {}", value_param.type_name))?;
-				}
-
-				if !storage.docs.is_empty() {
-					let short_docs = truncate_docs(&storage.docs, 300);
-					cli.plain(format!("    Description: {}", short_docs))?;
-				}
+			if !func.docs.is_empty() {
+				cli.plain(format!("    Description: {}", func.docs))?;
 			}
 		}
-
-		// Show constants with values and docs
-		if !pallet.constants.is_empty() {
-			cli.plain(format!(
-				"\n\n━━━ Constants ({}) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-				pallet.constants.len()
-			))?;
-			for constant in &pallet.constants {
-				let value_str = raw_value_to_string(&constant.value, "").map_err(|e| {
-					anyhow!("Failed to decode constant {}::{}: {e}", pallet.name, constant.name)
-				})?;
-				cli.plain(format!("\n  {}", constant.name))?;
-				cli.plain(format!("    Value: {}", value_str))?;
-				if !constant.docs.is_empty() {
-					let short_docs = truncate_docs(&constant.docs, 300);
-					cli.plain(format!("    Description: {}", short_docs))?;
-				}
-			}
-		}
-
-		Ok(())
 	}
 
+	// Show storage with key/value info
+	if !pallet.state.is_empty() {
+		cli.plain(format!(
+			"\n\n━━━ Storage ({}) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+			pallet.state.len()
+		))?;
+		for storage in &pallet.state {
+			cli.plain(format!("\n  {}", storage.name))?;
+
+			// Resolve and display key type for maps
+			if let Some(key_id) = storage.key_id &&
+				let Ok(key_param) = type_to_param("key", registry, key_id)
+			{
+				cli.plain(format!("    Key: {}", key_param.type_name))?;
+			}
+
+			// Resolve and display value type
+			if let Ok(value_param) = type_to_param("value", registry, storage.type_id) {
+				cli.plain(format!("    Value: {}", value_param.type_name))?;
+			}
+
+			if !storage.docs.is_empty() {
+				cli.plain(format!("    Description: {}", storage.docs))?;
+			}
+		}
+	}
+
+	// Show constants with values and docs
+	if !pallet.constants.is_empty() {
+		cli.plain(format!(
+			"\n\n━━━ Constants ({}) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+			pallet.constants.len()
+		))?;
+		for constant in &pallet.constants {
+			let value_str = raw_value_to_string(&constant.value, "").map_err(|e| {
+				anyhow!("Failed to decode constant {}::{}: {e}", pallet.name, constant.name)
+			})?;
+			cli.plain(format!("\n  {}", constant.name))?;
+			cli.plain(format!("    Value: {}", value_str))?;
+			if !constant.docs.is_empty() {
+				cli.plain(format!("    Description: {}", constant.docs))?;
+			}
+		}
+	}
+
+	Ok(())
+}
+
+impl CallChainCommand {
 	/// Replaces file arguments with their contents, leaving other arguments unchanged.
 	fn expand_file_arguments(&self) -> Result<Vec<String>> {
 		self.args
@@ -940,29 +932,6 @@ fn parse_pallet_name(name: &str) -> Result<String, String> {
 		Some(c) => Ok(c.to_ascii_uppercase().to_string() + chars.as_str()),
 		None => Err("Pallet cannot be empty".to_string()),
 	}
-}
-
-/// Truncates documentation to a maximum length, ending at a sentence boundary if possible.
-fn truncate_docs(docs: &str, max_len: usize) -> String {
-	// Clean up whitespace and newlines
-	let clean: String = docs.split_whitespace().collect::<Vec<_>>().join(" ");
-
-	if clean.len() <= max_len {
-		return clean;
-	}
-
-	// Try to end at a sentence boundary
-	let truncated = &clean[..max_len];
-	if let Some(pos) = truncated.rfind(". ") {
-		return clean[..=pos].to_string();
-	}
-
-	// Otherwise truncate at word boundary
-	if let Some(pos) = truncated.rfind(' ') {
-		return format!("{}...", &clean[..pos]);
-	}
-
-	format!("{}...", truncated)
 }
 
 #[cfg(test)]
@@ -1553,26 +1522,108 @@ mod tests {
 	}
 
 	#[test]
-	fn truncate_docs_works() {
-		// Short docs should pass through unchanged
-		assert_eq!(truncate_docs("Short doc", 80), "Short doc");
+	fn list_pallets_works() {
+		let pallets = vec![
+			Pallet {
+				name: "System".to_string(),
+				index: 0,
+				docs: "System pallet for runtime".to_string(),
+				functions: vec![],
+				constants: vec![],
+				state: vec![],
+			},
+			Pallet {
+				name: "Balances".to_string(),
+				index: 1,
+				docs: "".to_string(), // No docs
+				functions: vec![],
+				constants: vec![],
+				state: vec![],
+			},
+			Pallet {
+				name: "Assets".to_string(),
+				index: 2,
+				docs: "Assets management".to_string(),
+				functions: vec![],
+				constants: vec![],
+				state: vec![],
+			},
+		];
 
-		// Docs with sentence boundary should truncate at sentence
-		assert_eq!(truncate_docs("First sentence. Second sentence.", 20), "First sentence.");
+		let mut cli = MockCli::new()
+			.expect_info("Available pallets (3):\n")
+			.expect_plain("  System - System pallet for runtime")
+			.expect_plain("  Balances")
+			.expect_plain("  Assets - Assets management");
 
-		// Long docs without sentence boundary should truncate at word boundary with ellipsis
-		assert_eq!(truncate_docs("A very long string without periods", 15), "A very long...");
+		list_pallets(&pallets, &mut cli).unwrap();
+		cli.verify().unwrap();
+	}
 
-		// Whitespace should be normalized
-		assert_eq!(
-			truncate_docs("Multiple   spaces\nand\nnewlines", 100),
-			"Multiple spaces and newlines"
-		);
+	#[tokio::test]
+	async fn show_pallet_works() -> Result<()> {
+		let node = TestNode::spawn().await?;
+		let client = set_up_client(&node.ws_url()).await?;
+		let pallets = parse_chain_metadata(&client)?;
+		let metadata = client.metadata();
+		let registry = metadata.types();
 
-		// Exact length match
-		assert_eq!(truncate_docs("Exactly", 7), "Exactly");
+		// Find the System pallet
+		let system_pallet =
+			pallets.iter().find(|p| p.name == "System").expect("System pallet exists");
 
-		// Edge case: max_len less than first word
-		assert_eq!(truncate_docs("VeryLongWord other", 5), "VeryL...");
+		// Build expectations based on actual pallet content
+		let mut cli = MockCli::new().expect_info("Pallet: System\n");
+
+		// Expect extrinsics section
+		cli = cli.expect_plain(format!(
+			"\n━━━ Extrinsics ({}) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+			system_pallet.functions.len()
+		));
+		// Expect each extrinsic
+		for func in &system_pallet.functions {
+			let status = if func.is_supported { "" } else { " [NOT SUPPORTED]" };
+			cli = cli.expect_plain(format!("\n  {}{}", func.name, status));
+			if !func.params.is_empty() {
+				cli = cli.expect_plain("    Parameters:".to_string());
+				for param in &func.params {
+					cli = cli.expect_plain(format!("      - {}: {}", param.name, param.type_name));
+				}
+			}
+			if !func.docs.is_empty() {
+				cli = cli.expect_plain(format!("    Description: {}", func.docs));
+			}
+		}
+
+		// Expect storage section
+		cli = cli.expect_plain(format!(
+			"\n\n━━━ Storage ({}) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+			system_pallet.state.len()
+		));
+		for storage in &system_pallet.state {
+			cli = cli.expect_plain(format!("\n  {}", storage.name));
+			// Key and Value types are resolved dynamically, so we skip exact matching
+			// but we know docs will be output if present
+			if !storage.docs.is_empty() {
+				cli = cli.expect_plain(format!("    Description: {}", storage.docs));
+			}
+		}
+
+		// Expect constants section
+		cli = cli.expect_plain(format!(
+			"\n\n━━━ Constants ({}) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+			system_pallet.constants.len()
+		));
+		for constant in &system_pallet.constants {
+			cli = cli.expect_plain(format!("\n  {}", constant.name));
+			// Value is resolved dynamically
+			if !constant.docs.is_empty() {
+				cli = cli.expect_plain(format!("    Description: {}", constant.docs));
+			}
+		}
+
+		show_pallet(system_pallet, registry, &mut cli)?;
+		cli.verify()?;
+		Ok(())
 	}
 }
