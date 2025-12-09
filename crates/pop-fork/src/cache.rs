@@ -5,10 +5,10 @@
 //! Provides persistent caching of storage values fetched from live chains,
 //! enabling fast restarts and reducing RPC calls.
 
+use crate::error::cache::CacheError;
 use sqlx::{Row, SqlitePool, sqlite::SqlitePoolOptions};
 use std::path::Path;
 use subxt::config::substrate::H256;
-use thiserror::Error;
 
 /// Maximum number of connections in the SQLite connection pool.
 ///
@@ -27,20 +27,6 @@ const SQLITE_MEMORY_URL: &str = "sqlite::memory:";
 /// each connection creates a separate, isolated database instance.
 #[cfg(test)]
 const MEMORY_POOL_CONNECTIONS: u32 = 1;
-
-/// Errors that can occur when interacting with the storage cache.
-#[derive(Debug, Error)]
-pub enum CacheError {
-	/// Database error.
-	#[error("Database error: {0}")]
-	Database(#[from] sqlx::Error),
-	/// IO error.
-	#[error("IO error: {0}")]
-	Io(#[from] std::io::Error),
-	/// Data corruption detected in the cache.
-	#[error("Data corruption: {0}")]
-	DataCorruption(String),
-}
 
 /// Information about a cached block.
 ///

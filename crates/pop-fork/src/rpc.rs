@@ -45,30 +45,13 @@
 //! Note: subxt marks legacy methods as "not advised" but they remain widely used.
 //! This decision should be revisited if the ecosystem moves away from legacy RPCs.
 
+use crate::error::rpc::RpcClientError;
 use subxt::{
 	PolkadotConfig,
 	backend::{legacy::LegacyRpcMethods, rpc::RpcClient},
 	config::substrate::H256,
 };
-use thiserror::Error;
 use url::Url;
-
-/// Errors that can occur when interacting with the RPC client.
-#[derive(Debug, Error)]
-pub enum RpcClientError {
-	/// Failed to connect to the RPC endpoint.
-	#[error("Failed to connect to {endpoint}: {message}")]
-	ConnectionFailed { endpoint: String, message: String },
-	/// RPC request failed.
-	#[error("RPC request failed: {0}")]
-	RequestFailed(String),
-	/// Invalid response from RPC.
-	#[error("Invalid RPC response: {0}")]
-	InvalidResponse(String),
-	/// Storage key not found (this is different from empty storage).
-	#[error("Required storage key not found: {0}")]
-	StorageNotFound(String),
-}
 
 /// RPC client wrapper for fork operations.
 ///
