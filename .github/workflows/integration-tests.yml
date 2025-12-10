@@ -41,6 +41,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Free up space on runner
+        if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
           set -xeuo pipefail
