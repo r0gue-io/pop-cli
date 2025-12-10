@@ -3,6 +3,8 @@
 use crate::cli::{self, Cli};
 use clap::{Args, Subcommand};
 use duct::cmd;
+#[cfg(any(feature = "chain", feature = "contract"))]
+use pop_common::Docker;
 use pop_common::Profile;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -14,7 +16,10 @@ use {
 	std::fmt::{Display, Formatter, Result},
 };
 #[cfg(feature = "contract")]
-use {contract::BuildContract, pop_contracts::MetadataSpec};
+use {
+	contract::BuildContract,
+	pop_contracts::{BuildMode, MetadataSpec},
+};
 
 #[cfg(feature = "chain")]
 pub(crate) mod chain;
@@ -46,8 +51,10 @@ pub(crate) struct BuildArgs {
 	pub command: Option<Command>,
 	/// Directory path with flag for your project [default: current directory]
 	#[arg(long, visible_alias = "manifest-path")]
+	#[serde(skip_serializing)]
 	pub(crate) path: Option<PathBuf>,
 	/// Directory path without flag for your project [default: current directory]
+	#[serde(skip_serializing)]
 	#[arg(value_name = "PATH", index = 1, conflicts_with = "path")]
 	pub(crate) path_pos: Option<PathBuf>,
 	/// The package to be built.
@@ -74,6 +81,10 @@ pub(crate) struct BuildArgs {
 	#[clap(short, long, help_heading = RUNTIME_HELP_HEADER)]
 	#[cfg(feature = "chain")]
 	pub(crate) deterministic: bool,
+	/// Whether to use a specific image tag for a deterministic build (srtool image)
+	#[clap(long, requires = "deterministic", help_heading = RUNTIME_HELP_HEADER)]
+	#[cfg(feature = "chain")]
+	pub(crate) tag: Option<String>,
 	/// Whether to build only the runtime.
 	#[clap(long, help_heading = RUNTIME_HELP_HEADER)]
 	#[cfg(feature = "chain")]
@@ -116,7 +127,7 @@ fn collect_features(input: &str, benchmark: bool, try_runtime: bool) -> Vec<&str
 
 impl Command {
 	/// Executes the command.
-	pub(crate) fn execute(args: &BuildArgs) -> anyhow::Result<()> {
+	pub(crate) async fn execute(args: &BuildArgs) -> anyhow::Result<()> {
 		// If only contract feature enabled, build as contract
 		let project_path =
 			crate::common::builds::ensure_project_path(args.path.clone(), args.path_pos.clone());
@@ -124,6 +135,9 @@ impl Command {
 		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(&project_path)? {
 			let build_mode = contract::resolve_build_mode(args);
+			if let BuildMode::Verifiable = build_mode {
+				Docker::ensure_running()?;
+			}
 			let image = contract::resolve_image(args)?;
 			BuildContract { path: project_path, build_mode, metadata: args.metadata, image }
 				.execute()?;
@@ -136,6 +150,9 @@ impl Command {
 			args.deterministic ||
 			pop_chains::runtime::is_supported(&project_path)
 		{
+			if args.deterministic {
+				Docker::ensure_running()?;
+			}
 			let profile = match &args.profile {
 				Some(profile) => *profile,
 				None => args.release.into(),
@@ -144,15 +161,19 @@ impl Command {
 			let mut feature_list = collect_features(&features, args.benchmark, args.try_runtime);
 			feature_list.sort();
 
+			let runtime_path = crate::common::builds::find_runtime_dir(&project_path, &mut Cli)?;
+
 			BuildRuntime {
-				path: project_path,
+				path: runtime_path,
 				profile,
 				benchmark: feature_list.contains(&Benchmark.as_ref()),
 				try_runtime: feature_list.contains(&TryRuntime.as_ref()),
 				deterministic: args.deterministic,
 				features: feature_list.into_iter().map(|f| f.to_string()).collect(),
+				tag: args.tag.clone(),
 			}
-			.execute()?;
+			.execute()
+			.await?;
 			return Ok(());
 		}
 
@@ -357,6 +378,8 @@ mod tests {
 					try_runtime,
 					#[cfg(feature = "chain")]
 					deterministic,
+					#[cfg(feature = "chain")]
+					tag: None,
 					features: Some(features.join(",")),
 					#[cfg(feature = "chain")]
 					only_runtime: false,
@@ -407,8 +430,8 @@ mod tests {
 		);
 	}
 
-	#[test]
-	fn execute_works_with_basic_option() -> anyhow::Result<()> {
+	#[tokio::test]
+	async fn execute_works_with_basic_option() -> anyhow::Result<()> {
 		let name = "hello_world";
 		let temp_dir = tempfile::tempdir()?;
 		let path = temp_dir.path();
@@ -431,6 +454,8 @@ mod tests {
 			#[cfg(feature = "chain")]
 			deterministic: false,
 			#[cfg(feature = "chain")]
+			tag: None,
+			#[cfg(feature = "chain")]
 			only_runtime: false,
 			#[cfg(feature = "contract")]
 			metadata: None,
@@ -443,8 +468,8 @@ mod tests {
 		Ok(())
 	}
 
-	#[test]
-	fn execute_works_with_advanced_options() -> anyhow::Result<()> {
+	#[tokio::test]
+	async fn execute_works_with_advanced_options() -> anyhow::Result<()> {
 		let name = "hello_world";
 		let temp_dir = tempfile::tempdir()?;
 		let path = temp_dir.path();
@@ -480,6 +505,8 @@ mod tests {
 			#[cfg(feature = "chain")]
 			deterministic: false,
 			#[cfg(feature = "chain")]
+			tag: None,
+			#[cfg(feature = "chain")]
 			only_runtime: false,
 			#[cfg(feature = "contract")]
 			metadata: None,
@@ -506,6 +533,8 @@ mod tests {
 			#[cfg(feature = "chain")]
 			deterministic: false,
 			#[cfg(feature = "chain")]
+			tag: None,
+			#[cfg(feature = "chain")]
 			only_runtime: false,
 			#[cfg(feature = "contract")]
 			metadata: None,
@@ -529,6 +558,7 @@ mod tests {
 				benchmark: false,
 				try_runtime: false,
 				deterministic: false,
+				tag: None,
 				only_runtime: false,
 				#[cfg(feature = "contract")]
 				metadata: None,
@@ -556,6 +586,8 @@ mod tests {
 			#[cfg(feature = "chain")]
 			deterministic: false,
 			#[cfg(feature = "chain")]
+			tag: None,
+			#[cfg(feature = "chain")]
 			only_runtime: false,
 			#[cfg(feature = "contract")]
 			metadata: None,
@@ -582,6 +614,8 @@ mod tests {
 			#[cfg(feature = "chain")]
 			deterministic: false,
 			#[cfg(feature = "chain")]
+			tag: None,
+			#[cfg(feature = "chain")]
 			only_runtime: false,
 			#[cfg(feature = "contract")]
 			metadata: None,
@@ -605,6 +639,7 @@ mod tests {
 				benchmark: true,
 				try_runtime: true,
 				deterministic: false,
+				tag: None,
 				only_runtime: false,
 				#[cfg(feature = "contract")]
 				metadata: None,

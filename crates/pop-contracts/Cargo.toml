@@ -36,6 +36,7 @@ strum.workspace = true
 strum_macros.workspace = true
 subxt-signer.workspace = true
 subxt.workspace = true
+toml.workspace = true
 
 # cargo-contracts
 contract-build.workspace = true

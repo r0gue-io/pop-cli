@@ -5,6 +5,7 @@ mod helpers;
 use crate::{BuildMode, Error, ImageVariant, Verbosity};
 use contract_build::ComposeBuildArgs;
 use core::marker::PhantomData;
+use pop_common::Docker;
 use std::path::PathBuf;
 
 /// A struct representing a contract deployed on-chain.
@@ -74,8 +75,7 @@ impl<T: ComposeBuildArgs> VerifyContract<T> {
 				// can run the image. Otherwise check that the local toolchain is the same one used
 				// to compile the reference
 				if let BuildMode::Verifiable = &build_info_parsed.build_mode {
-					// TODO: Ensure Docker is running (https://github.com/r0gue-io/pop-cli/pull/811 needs to be merged)
-					()
+					Docker::ensure_running()?;
 				} else {
 					helpers::compare_local_toolchain(&build_info_parsed.build_info)?;
 				}
@@ -99,6 +99,9 @@ impl<T: ComposeBuildArgs> VerifyContract<T> {
 					&deployed_contract.contract_address,
 				)
 				.await?;
+
+				// All verifications against live contracts use Docker images
+				Docker::ensure_running()?;
 
 				let build_result = crate::build_smart_contract::<T>(
 					&self.verifying_path,

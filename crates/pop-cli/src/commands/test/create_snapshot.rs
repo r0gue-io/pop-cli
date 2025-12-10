@@ -27,6 +27,7 @@ pub(crate) struct TestCreateSnapshotCommand {
 	/// The snapshot path to write to.
 	///
 	/// If not provided `<spec-name>-<spec-version>@<block-hash>.snap` will be used.
+	#[serde(skip_serializing)]
 	#[clap(index = 1)]
 	snapshot_path: Option<String>,
 

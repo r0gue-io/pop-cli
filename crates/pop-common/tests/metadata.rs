@@ -33,7 +33,7 @@ async fn format_type_works() -> Result<()> {
 	assert_eq!(assets_create_types[0], "Compact<u32>"); // id
 	assert_eq!(
 		assets_create_types[1],
-		"MultiAddress<AccountId32 ([u8;32]),()>: Id(AccountId32 ([u8;32])), Index(Compact<()>), Raw([u8]), Address32([u8;32]), Address20([u8;20])"
+		"MultiAddress<AccountId32 ([u8;32]), ()>: Id(AccountId32 ([u8;32])), Index(Compact<()>), Raw([u8]), Address32([u8;32]), Address20([u8;20])"
 	); // admin
 	assert_eq!(assets_create_types[2], "u128"); // minBalance
 
@@ -69,7 +69,7 @@ async fn format_type_works() -> Result<()> {
 		})
 		.collect();
 	assert_eq!(system_set_storage_types.len(), 1);
-	assert_eq!(system_set_storage_types[0], "[([u8],[u8])]"); // 0
+	assert_eq!(system_set_storage_types[0], "[([u8], [u8])]"); // 0
 
 	Ok(())
 }

@@ -2,9 +2,7 @@
 
 use crate::{
 	cli::traits::{Cli, Confirm},
-	wallet_integration::{
-		FrontendFromString, SubmitRequest, TransactionData, WalletIntegrationManager,
-	},
+	wallet_integration::{FrontendFromString, TransactionData, WalletIntegrationManager},
 };
 use cliclack::{log, spinner};
 #[cfg(feature = "chain")]
@@ -26,8 +24,8 @@ pub const USE_WALLET_PROMPT: &str = "Do you want to use your browser wallet to s
 /// * `call_data` - The call data to be signed.
 /// * `url` - Chain rpc.
 /// # Returns
-/// * The signed payload and the associated contract address, if provided by the wallet.
-pub async fn request_signature(call_data: Vec<u8>, rpc: String) -> anyhow::Result<SubmitRequest> {
+/// * The signed payload, if it exists.
+pub async fn request_signature(call_data: Vec<u8>, rpc: String) -> anyhow::Result<Option<String>> {
 	let ui = FrontendFromString::new(include_str!("../assets/index.html").to_string());
 
 	let transaction_data = TransactionData::new(rpc, call_data);
@@ -59,9 +57,7 @@ pub async fn request_signature(call_data: Vec<u8>, rpc: String) -> anyhow::Resul
 	spinner.clear();
 
 	let signed_payload = wallet.state.lock().await.signed_payload.take();
-	let contract_address = wallet.state.lock().await.contract_address.take();
-
-	Ok(SubmitRequest { signed_payload, contract_address })
+	Ok(signed_payload)
 }
 
 /// Prompts the user to use the wallet for signing.
@@ -90,7 +86,7 @@ pub(crate) async fn submit_extrinsic(
 	call_data: Vec<u8>,
 	cli: &mut impl Cli,
 ) -> Result<ExtrinsicEvents<SubstrateConfig>> {
-	let maybe_payload = request_signature(call_data, url.to_string()).await?.signed_payload;
+	let maybe_payload = request_signature(call_data, url.to_string()).await?;
 	let payload = maybe_payload.ok_or_else(|| anyhow!("No signed payload received."))?;
 	cli.success("Signed payload received.")?;
 	let spinner = spinner();

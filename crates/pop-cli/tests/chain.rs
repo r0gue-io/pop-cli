@@ -94,6 +94,8 @@ async fn parachain_lifecycle() -> Result<()> {
 				"1u64 << 60",
 				"--verify",
 				"--with-frontend=create-dot-app",
+				"--package-manager",
+				"npm",
 			],
 		);
 		assert!(command.spawn()?.wait().await?.success());
