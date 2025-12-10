@@ -282,9 +282,11 @@ impl ForkRpcClient {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use pop_common::test_env::TestNode;
 
-	/// Paseo testnet public RPC endpoint.
-	const PASEO_ENDPOINT: &str = "wss://rpc.ibp.network/paseoA";
+	// Note: These tests spawn local test nodes, which download the ink-node binary.
+	// Running in parallel causes concurrent downloads that may fail due to rate limiting.
+	// Run sequentially with: cargo nextest run -p pop-fork --lib 'rpc::tests::' -j 1
 
 	// Well-known storage keys for testing.
 	// These are derived from twox128 hashes of pallet and storage item names.
@@ -300,21 +302,18 @@ mod tests {
 	const SYSTEM_PARENT_HASH_KEY: &str =
 		"26aa394eea5630e07c48ae0c9558cef734abf5cb34d6244378cddbf18e849d96";
 
-	// Note: These tests require a live RPC endpoint.
-	// Run with: cargo nextest run -p pop-fork --run-ignored all
-
 	#[tokio::test]
-	#[ignore = "requires live RPC endpoint"]
-	async fn connect_to_paseo() {
-		let endpoint: Url = PASEO_ENDPOINT.parse().unwrap();
+	async fn connect_to_node() {
+		let node = TestNode::spawn().await.expect("Failed to spawn test node");
+		let endpoint: Url = node.ws_url().parse().unwrap();
 		let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 		assert_eq!(client.endpoint(), &endpoint);
 	}
 
 	#[tokio::test]
-	#[ignore = "requires live RPC endpoint"]
 	async fn fetch_finalized_head() {
-		let endpoint: Url = PASEO_ENDPOINT.parse().unwrap();
+		let node = TestNode::spawn().await.expect("Failed to spawn test node");
+		let endpoint: Url = node.ws_url().parse().unwrap();
 		let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 		let hash = client.finalized_head().await.unwrap();
 		// Hash should be 32 bytes
@@ -322,20 +321,20 @@ mod tests {
 	}
 
 	#[tokio::test]
-	#[ignore = "requires live RPC endpoint"]
 	async fn fetch_header() {
-		let endpoint: Url = PASEO_ENDPOINT.parse().unwrap();
+		let node = TestNode::spawn().await.expect("Failed to spawn test node");
+		let endpoint: Url = node.ws_url().parse().unwrap();
 		let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 		let hash = client.finalized_head().await.unwrap();
 		let header = client.header(hash).await.unwrap();
-		// Block number should be reasonable
-		assert!(header.number > 0);
+		// Header should have a valid state root (32 bytes)
+		assert_eq!(header.state_root.as_bytes().len(), 32);
 	}
 
 	#[tokio::test]
-	#[ignore = "requires live RPC endpoint"]
 	async fn fetch_storage() {
-		let endpoint: Url = PASEO_ENDPOINT.parse().unwrap();
+		let node = TestNode::spawn().await.expect("Failed to spawn test node");
+		let endpoint: Url = node.ws_url().parse().unwrap();
 		let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 		let hash = client.finalized_head().await.unwrap();
 
@@ -347,9 +346,9 @@ mod tests {
 	}
 
 	#[tokio::test]
-	#[ignore = "requires live RPC endpoint"]
 	async fn fetch_metadata() {
-		let endpoint: Url = PASEO_ENDPOINT.parse().unwrap();
+		let node = TestNode::spawn().await.expect("Failed to spawn test node");
+		let endpoint: Url = node.ws_url().parse().unwrap();
 		let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 		let hash = client.finalized_head().await.unwrap();
 		let metadata = client.metadata(hash).await.unwrap();
@@ -359,26 +358,26 @@ mod tests {
 	}
 
 	#[tokio::test]
-	#[ignore = "requires live RPC endpoint"]
 	async fn fetch_runtime_code() {
-		let endpoint: Url = PASEO_ENDPOINT.parse().unwrap();
+		let node = TestNode::spawn().await.expect("Failed to spawn test node");
+		let endpoint: Url = node.ws_url().parse().unwrap();
 		let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 		let hash = client.finalized_head().await.unwrap();
 		let code = client.runtime_code(hash).await.unwrap();
 
-		// Runtime code should be substantial (may be compressed, so we just check size)
-		// Typical runtime code is several megabytes
+		// Runtime code should be substantial
+		// ink-node runtime is smaller than relay chains but still significant
 		assert!(
-			code.len() > 100_000,
+			code.len() > 10_000,
 			"Runtime code should be substantial, got {} bytes",
 			code.len()
 		);
 	}
 
 	#[tokio::test]
-	#[ignore = "requires live RPC endpoint"]
 	async fn fetch_storage_keys_paged() {
-		let endpoint: Url = PASEO_ENDPOINT.parse().unwrap();
+		let node = TestNode::spawn().await.expect("Failed to spawn test node");
+		let endpoint: Url = node.ws_url().parse().unwrap();
 		let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 		let hash = client.finalized_head().await.unwrap();
 
@@ -394,9 +393,9 @@ mod tests {
 	}
 
 	#[tokio::test]
-	#[ignore = "requires live RPC endpoint"]
 	async fn fetch_storage_batch() {
-		let endpoint: Url = PASEO_ENDPOINT.parse().unwrap();
+		let node = TestNode::spawn().await.expect("Failed to spawn test node");
+		let endpoint: Url = node.ws_url().parse().unwrap();
 		let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 		let hash = client.finalized_head().await.unwrap();
 
@@ -413,28 +412,24 @@ mod tests {
 	}
 
 	#[tokio::test]
-	#[ignore = "requires live RPC endpoint"]
 	async fn fetch_system_chain() {
-		let endpoint: Url = PASEO_ENDPOINT.parse().unwrap();
+		let node = TestNode::spawn().await.expect("Failed to spawn test node");
+		let endpoint: Url = node.ws_url().parse().unwrap();
 		let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 
 		let chain_name = client.system_chain().await.unwrap();
 
-		// Paseo should return its chain name
+		// Chain should return a non-empty name
 		assert!(!chain_name.is_empty());
-		assert!(chain_name.to_lowercase().contains("paseo"));
 	}
 
 	#[tokio::test]
-	#[ignore = "requires live RPC endpoint"]
 	async fn fetch_system_properties() {
-		let endpoint: Url = PASEO_ENDPOINT.parse().unwrap();
+		let node = TestNode::spawn().await.expect("Failed to spawn test node");
+		let endpoint: Url = node.ws_url().parse().unwrap();
 		let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 
-		let properties = client.system_properties().await.unwrap();
-
-		// Paseo should have standard token properties
-		assert!(properties.contains_key("tokenDecimals"));
-		assert!(properties.contains_key("tokenSymbol"));
+		// Should successfully fetch system properties (may be empty for some nodes)
+		let _properties = client.system_properties().await.unwrap();
 	}
 }
