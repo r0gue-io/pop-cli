@@ -227,7 +227,7 @@ impl Command {
 				env_logger::init();
 				args.command.execute(&mut Cli)
 			},
-			Self::Verify(verify) => verify.execute(&mut Cli),
+			Self::Verify(verify) => verify.execute(&mut Cli).await,
 		}
 	}
 }

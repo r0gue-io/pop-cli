@@ -1,20 +1,22 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	BuildInfo, BuildMode, CARGO_CONTRACT_VERSION, CodeHash, ContractMetadata, Error, ImageVariant,
-	MetadataArtifacts, Verbosity,
+	BuildInfo, BuildMode, CARGO_CONTRACT_VERSION, ContractMetadata, Error, ImageVariant,
+	MetadataArtifacts,
 };
 use contract_build::BuildResult;
 use regex::Regex;
-use serde::Serialize;
+use scale::Decode;
+use sp_core::{ConstU32, H256, bounded_vec::BoundedVec};
 use std::{fs::File, path::Path};
+use subxt::ext::scale_encode::EncodeAsType;
 
 #[cfg_attr(test, derive(Debug))]
 pub(super) struct BuildInfoParsed {
 	pub(super) build_info: BuildInfo,
 	pub(super) build_mode: BuildMode,
 	pub(super) image: Option<ImageVariant>,
-	pub(super) polkavm_blob: Vec<u8>,
+	pub(super) polkavm_code_hash: H256,
 }
 
 /// Get the `BuildInfo` and `BuildMode` used to compile a contract bundle by inspecting the
@@ -38,6 +40,9 @@ pub(super) fn get_build_info_parsed_from_contract_bundle(
 	)
 	.expect("If a contract binary is present, it must be hex decodable. This is because ContractMetadata deserializer enforces this field is a valid byte str, so if it's not, this step isn't even reached; qed");
 
+	// NOTE: pallet_revive stores contracts below its keccack_256 hash, not blake_256 (https://github.com/paritytech/polkadot-sdk/blob/polkadot-unstable2507-revive/substrate/frame/revive/src/vm/pvm/env.rs#L126)
+	let polkavm_code_hash = H256::from(sp_core::keccak_256(&polkavm_blob));
+
 	if let Some(info) = metadata.source.build_info {
 		let build_info: BuildInfo = serde_json::from_value(info.into())?;
 		match metadata.image {
@@ -45,11 +50,11 @@ pub(super) fn get_build_info_parsed_from_contract_bundle(
 				build_info,
 				build_mode: BuildMode::Verifiable,
 				image: Some(ImageVariant::from(Some(image))),
-				polkavm_blob,
+				polkavm_code_hash,
 			}),
 			_ => {
 				let build_mode = build_info.build_mode.clone();
-				Ok(BuildInfoParsed { build_info, build_mode, image: None, polkavm_blob })
+				Ok(BuildInfoParsed { build_info, build_mode, image: None, polkavm_code_hash })
 			},
 		}
 	} else {
@@ -94,20 +99,21 @@ pub(super) fn compare_local_toolchain(build_info: &BuildInfo) -> Result<(), Erro
 	Ok(())
 }
 
-/// Verifies that a PolkaVM blob matches the contract binary in a build result.
+/// Verifies that a PolkaVM code hash matches the contract binary in a build result.
 ///
-/// This function computes the hash of the provided PolkaVM blob and compares it against
-/// the hash stored in the contract metadata of the build result. This ensures that the
-/// contract binary being verified matches what was actually built.
+/// This function compares this hash against the hash stored in the contract metadata of the build
+/// result. This ensures that the contract binary being verified matches what was actually built.
+/// NOTE: If this function were public we should take care that the `BuildResult` code hash wasn't
+/// manipulated. However it's only available inside this module, and the `BuildResult` that'll be
+/// passed will always be legit.
 ///
 /// # Arguments
-/// - `polkavm_blob` - The PolkaVM bytecode blob to verify
+/// - `polkavm_code_hash` - The PolkaVM codehash to verify
 /// - `build_result` - The build result containing the contract metadata to compare against
-pub(super) fn verify_polkavm_blob_against_build_result(
-	polkavm_blob: &[u8],
+pub(super) fn verify_polkavm_code_hash_against_build_result(
+	polkavm_code_hash: H256,
 	build_result: BuildResult,
 ) -> Result<(), Error> {
-	let reference_polkavm_hash = CodeHash(contract_build::code_hash(polkavm_blob));
 	let built_contract_path = if let Some(MetadataArtifacts::Ink(artifacts)) =
 		build_result.metadata_result
 	{
@@ -121,18 +127,107 @@ pub(super) fn verify_polkavm_blob_against_build_result(
 	let file = File::open(target_bundle.clone())?;
 	let built_contract: ContractMetadata = serde_json::from_reader(file)?;
 
-	if reference_polkavm_hash != built_contract.source.hash {
+	if polkavm_code_hash.0 != built_contract.source.hash.0 {
 		return Err(Error::Verification(format!(
-			"Failed to verify the polkavm blob against the build result at {:?}.",
-			target_bundle
+			"The verification failed. The two contracts don't produce the same bytecode.",
 		)));
 	}
 
 	Ok(())
 }
 
-pub(super) get_deployed_polkavm_blob(contract_address: String) -> Result<Vec<u8>>{
-    
+// NOTE: This struct is needed to decode the contract info from pallet_revive storage.  So this may be changing regularly as pallet_revive isn't precisely stable (tho this struct may not change a lot). The struct has been taken from https://github.com/paritytech/polkadot-sdk/blob/polkadot-unstable2507-revive/substrate/frame/revive/src/storage.rs#L71 which is the latest supported version. To allow compatibility with all chains using this version of revive, we remove the generic (depending on the pallet), and do the (fair) assumption that all balances are `u128`, as most parachains use this type in their config: https://paritytech.github.io/polkadot-sdk/master/parachains_common/type.Balance.html. That way we remove the generics depending on the runtime
+#[derive(Decode)]
+struct AccountInfo {
+	// The type of the account.
+	account_type: AccountType,
+	// The  amount that was transferred to this account that is less than the
+	// NativeToEthRatio, and can be represented in the native currency
+	#[allow(dead_code)]
+	dust: u32,
+}
+
+#[derive(Decode)]
+enum AccountType {
+	Contract(ContractInfo),
+	EOA,
+}
+
+type TrieId = BoundedVec<u8, ConstU32<128>>;
+
+#[derive(Decode)]
+struct ContractInfo {
+	// Unique ID for the subtree encoded as a bytes vector.
+	#[allow(dead_code)]
+	trie_id: TrieId,
+	// The code associated with a given account.
+	code_hash: H256,
+	// How many bytes of storage are accumulated in this contract's child trie.
+	#[allow(dead_code)]
+	storage_bytes: u32,
+	// How many items of storage are accumulated in this contract's child trie.
+	#[allow(dead_code)]
+	storage_items: u32,
+	// This records to how much deposit the accumulated `storage_bytes` amount to.
+	#[allow(dead_code)]
+	storage_byte_deposit: u128,
+	// This records to how much deposit the accumulated `storage_items` amount to.
+	#[allow(dead_code)]
+	storage_item_deposit: u128,
+	// This records how much deposit is put down in order to pay for the contract itself.
+	//
+	// We need to store this information separately so it is not used when calculating any refunds
+	// since the base deposit can only ever be refunded on contract termination.
+	#[allow(dead_code)]
+	pub storage_base_deposit: u128,
+	#[allow(dead_code)]
+	// The size of the immutable data of this contract.
+	pub immutable_data_len: u32,
+}
+
+pub(super) async fn get_deployed_polkavm_code_hash(
+	rpc_endpoint: &str,
+	contract_address: &str,
+) -> Result<H256, Error> {
+	let contract_address = crate::utils::parse_hex_bytes(contract_address)?.0;
+	let client = pop_chains::set_up_client(rpc_endpoint).await.map_err(|_| {
+		Error::Verification(
+			"pop couldn't connect to the provided rpc enpoint. Verification aborted.".to_owned(),
+		)
+	})?;
+
+	let account_info_of_storage = pop_chains::parse_chain_metadata(&client)
+        .map_err(|_|Error::Verification("`pop` couldn't parse metadata from the provided endpoint. Verification aborted.".to_owned()))?
+		.into_iter()
+		.find(|pallet| pallet.name == "Revive")
+		.ok_or(Error::Verification(
+			"The target chain doesn't support smart contracts. Verification aborted.".to_owned(),
+		))?
+        .state
+        .into_iter()
+        .find(|storage| storage.name == "AccountInfoOf")
+		.ok_or(Error::Verification("revive.AccountInfoOf not found in the specified chain. This chain isn't using the latest revive version and hence isn't supported by pop".to_owned()))?;
+
+	let storage_value = account_info_of_storage
+		.query(&client, vec![contract_address.into()])
+		.await
+        .map_err(|_|Error::Verification("`pop` cannot find contract information for the provided contract address. Verification aborted.".to_owned()))?
+		.and_then(|storage_value| {
+			storage_value.encode_as_type(account_info_of_storage.type_id, client.metadata().types()).ok()
+		})
+		.ok_or(Error::Verification("`pop` cannot find contract information for the provided contract address. Verification aborted.".to_owned()))?;
+
+	let account_info = AccountInfo::decode(&mut &storage_value[..]).map_err(|_| Error::Verification("`pop` cannot find contract information for the provided contract address. Verification aborted.".to_owned()))?;
+	let code_hash = match account_info.account_type {
+		AccountType::Contract(ContractInfo { code_hash, .. }) => code_hash,
+		_ =>
+			return Err(Error::Verification(
+				"The provided address doesn't belong to a contract. Verification aborted."
+					.to_owned(),
+			)),
+	};
+
+	Ok(code_hash)
 }
 
 /// Validates that the passed `toolchain` is a valid Rust toolchain.
@@ -158,11 +253,15 @@ fn validate_toolchain_name(toolchain: &str) -> Result<(), Error> {
 mod tests {
 	use super::*;
 	use contract_build::{
-		BuildArtifacts, OutputType,
+		BuildArtifacts, OutputType, Verbosity,
 		metadata::{InkMetadataArtifacts, MetadataArtifacts},
 	};
 	use std::{io::ErrorKind, path::PathBuf};
 	use tempfile::TempDir;
+
+	const PASEO_ENDPOINT: &str = "wss://paseo-rpc.n.dwellir.com";
+	const PASSET_HUB_ENDPOINT: &str = "wss://passet-hub-paseo.ibp.network";
+	const VERIFIED_DEPLOYED_CONTRACT_ADDRESS: &str = "0x6afcd9a58dc4a1b512ae73f29c959f0a32f6a6cf";
 
 	struct TestBuilder {
 		temp_dir: TempDir,
@@ -210,8 +309,17 @@ mod tests {
 				assert_eq!(BuildMode::Verifiable, result.build_mode);
 				assert_eq!("stable-x86_64-unknown-linux-gnu", result.build_info.rust_toolchain);
 				assert_eq!("6.0.0-beta.1", result.build_info.cargo_contract_version.to_string());
-				assert!(result.image.is_some());
-				assert!(!result.polkavm_blob.is_empty());
+				assert_eq!(
+					format!("{:?}", result.image.unwrap()),
+					"Custom(\"useink/contracts-verifiable:6.0.0-beta.1\")"
+				);
+				assert_eq!(
+					result.polkavm_code_hash.0,
+					[
+						192, 235, 212, 95, 142, 195, 172, 151, 29, 73, 74, 170, 83, 227, 95, 172,
+						94, 254, 37, 225, 134, 215, 167, 254, 224, 101, 10, 229, 232, 96, 121, 40
+					]
+				);
 			},
 		);
 	}
@@ -227,7 +335,13 @@ mod tests {
 				assert_eq!("stable-aarch64-apple-darwin", result.build_info.rust_toolchain);
 				assert_eq!("6.0.0-beta.1", result.build_info.cargo_contract_version.to_string());
 				assert!(result.image.is_none());
-				assert!(!result.polkavm_blob.is_empty());
+				assert_eq!(
+					result.polkavm_code_hash.0,
+					[
+						251, 6, 126, 132, 31, 3, 8, 176, 14, 18, 248, 17, 119, 139, 46, 26, 198,
+						234, 173, 216, 243, 192, 30, 144, 122, 71, 228, 29, 1, 143, 244, 189
+					]
+				);
 			});
 	}
 
@@ -411,11 +525,13 @@ mod tests {
 	}
 
 	#[test]
-	fn verify_polkavm_blob_against_build_result_succeeds() {
+	fn verify_polkavm_code_hash_against_build_result_succeeds() {
 		TestBuilder::default().execute(|builder| {
 			// Create a mock polkavm blob
 			let polkavm_blob = vec![0x01, 0x02, 0x03, 0x04];
-			let blob_hash = CodeHash(contract_build::code_hash(&polkavm_blob))
+			let polkavm_code_hash = H256::from(sp_core::keccak_256(&polkavm_blob));
+
+			let polkavm_code_hash_string = polkavm_code_hash
 				.0
 				.iter()
 				.map(|byte| format!("{:02x}", byte))
@@ -424,7 +540,7 @@ mod tests {
 			// Create a mock contract metadata with the same hash
 			let metadata = serde_json::json!({
 				"source": {
-					"hash": blob_hash,
+					"hash": polkavm_code_hash,
 					"language": "ink! 6.0.0",
 					"compiler": "rustc 1.0.0",
 				},
@@ -456,15 +572,15 @@ mod tests {
 				output_type: OutputType::Json,
 			};
 
-			let result = verify_polkavm_blob_against_build_result(&polkavm_blob, build_result);
-			println!("{:?}", result);
+			let result =
+				verify_polkavm_code_hash_against_build_result(polkavm_code_hash, build_result);
 			assert!(result.is_ok());
 		});
 	}
 
 	#[test]
-	fn verify_polkavm_blob_against_build_result_missing_metadata_artifacts() {
-		let polkavm_blob = vec![0x01, 0x02, 0x03, 0x04];
+	fn verify_polkavm_code_hash_against_build_result_missing_metadata_artifacts() {
+		let polkavm_code_hash = H256::from([01; 32]);
 
 		// Create a BuildResult with no metadata_result
 		let build_result = BuildResult {
@@ -479,7 +595,7 @@ mod tests {
 			output_type: OutputType::Json,
 		};
 
-		let result = verify_polkavm_blob_against_build_result(&polkavm_blob, build_result);
+		let result = verify_polkavm_code_hash_against_build_result(polkavm_code_hash, build_result);
 		assert!(matches!(
 			result,
 			Err(Error::ContractMetadata(msg)) if msg == "The metadata for the workspace contract does not contain a contract binary, therefore we are unable to verify the contract."
@@ -487,8 +603,8 @@ mod tests {
 	}
 
 	#[test]
-	fn verify_polkavm_blob_against_build_result_bundle_file_not_found() {
-		let polkavm_blob = vec![0x01, 0x02, 0x03, 0x04];
+	fn verify_polkavm_code_hash_against_build_result_bundle_file_not_found() {
+		let polkavm_code_hash = H256::from([01; 32]);
 
 		// Create a BuildResult pointing to a non-existent bundle file
 		let artifacts = InkMetadataArtifacts {
@@ -507,14 +623,14 @@ mod tests {
 			output_type: OutputType::Json,
 		};
 
-		let result = verify_polkavm_blob_against_build_result(&polkavm_blob, build_result);
+		let result = verify_polkavm_code_hash_against_build_result(polkavm_code_hash, build_result);
 		assert!(matches!(result, Err(Error::IO(err)) if err.kind() == ErrorKind::NotFound));
 	}
 
 	#[test]
-	fn verify_polkavm_blob_against_build_result_invalid_json_in_bundle() {
+	fn verify_polkavm_code_hash_against_build_result_invalid_json_in_bundle() {
 		TestBuilder::default().execute(|builder| {
-			let polkavm_blob = vec![0x01, 0x02, 0x03, 0x04];
+		let polkavm_code_hash = H256::from([01; 32]);
 
 			// Create an invalid JSON file
 			let bundle_path = builder.temp_path().join("invalid.contract");
@@ -537,18 +653,17 @@ mod tests {
 				output_type: OutputType::Json,
 			};
 
-			let result = verify_polkavm_blob_against_build_result(&polkavm_blob, build_result);
+			let result = verify_polkavm_code_hash_against_build_result(polkavm_code_hash, build_result);
 			assert!(matches!(result, Err(Error::SerdeJson(msg)) if msg.to_string() == "expected ident at line 1 column 2"));
 		});
 	}
 
 	#[test]
-	fn verify_polkavm_blob_against_build_result_hash_mismatch() {
+	fn verify_polkavm_code_hash_against_build_result_hash_mismatch() {
 		TestBuilder::default().execute(|builder| {
-			// Create a polkavm blob
-			let polkavm_blob = vec![0x01, 0x02, 0x03, 0x04];
+		let polkavm_code_hash = H256::from([01; 32]);
 
-            let different_hash = "01".repeat(32);
+            let different_hash = "02".repeat(32);
 
 			let metadata = serde_json::json!({
 				"source": {
@@ -584,11 +699,94 @@ mod tests {
 				image: None,
 				output_type: OutputType::Json,
 			};
-			let result = verify_polkavm_blob_against_build_result(&polkavm_blob, build_result);
+			let result = verify_polkavm_code_hash_against_build_result(polkavm_code_hash, build_result);
 			assert!(matches!(
 				result,
-				Err(Error::Verification(msg)) if msg == format!("Failed to verify the polkavm blob against the build result at {:?}.", bundle_path)
+				Err(Error::Verification(msg)) if msg == "The verification failed. The two contracts don't produce the same bytecode."
 			));
 		});
+	}
+
+	// Tests for get_deployed_polkavm_code_hash
+
+	#[tokio::test]
+	async fn get_deployed_polkavm_code_hash_succeeds_with_valid_contract() {
+		let result =
+			get_deployed_polkavm_code_hash(PASSET_HUB_ENDPOINT, VERIFIED_DEPLOYED_CONTRACT_ADDRESS)
+				.await;
+
+		assert!(result.is_ok());
+		let code_hash = result.unwrap();
+		// The code hash should match the one from testing_verified.contract
+		assert_eq!(
+			code_hash.0,
+			[
+				192, 235, 212, 95, 142, 195, 172, 151, 29, 73, 74, 170, 83, 227, 95, 172, 94, 254,
+				37, 225, 134, 215, 167, 254, 224, 101, 10, 229, 232, 96, 121, 40
+			]
+		);
+	}
+
+	#[tokio::test]
+	async fn get_deployed_polkavm_code_hash_fails_with_invalid_address_format() {
+		// Test with invalid hex address
+		let result = get_deployed_polkavm_code_hash(PASSET_HUB_ENDPOINT, "invalid_address").await;
+
+		// Should fail during parse_hex_bytes
+		assert!(matches!(result, Err(Error::HexParsing(msg)) if msg == "Odd number of digits"));
+	}
+
+	#[tokio::test]
+	async fn get_deployed_polkavm_code_hash_fails_with_invalid_rpc_endpoint() {
+		// Test with completely invalid URL
+		let result = get_deployed_polkavm_code_hash(
+			"wss://nonexistent.invalid.endpoint.test",
+			VERIFIED_DEPLOYED_CONTRACT_ADDRESS,
+		)
+		.await;
+
+		assert!(matches!(
+			result,
+			Err(Error::Verification(msg)) if msg == "pop couldn't connect to the provided rpc enpoint. Verification aborted."
+		));
+	}
+
+	#[tokio::test]
+	async fn get_deployed_polkavm_code_hash_fails_when_chain_has_no_revive_pallet() {
+		// Paseo doesn't have the Revive pallet
+		let result =
+			get_deployed_polkavm_code_hash(PASEO_ENDPOINT, VERIFIED_DEPLOYED_CONTRACT_ADDRESS)
+				.await;
+
+		assert!(matches!(
+			result,
+			Err(Error::Verification(msg)) if msg == "The target chain doesn't support smart contracts. Verification aborted."
+		));
+	}
+
+	#[tokio::test]
+	async fn get_deployed_polkavm_code_hash_fails_with_nonexistent_contract_address() {
+		// Use a valid address format that doesn't exist on chain
+		let nonexistent_address = "0x0000000000000000000000000000000000000000";
+
+		let result = get_deployed_polkavm_code_hash(PASSET_HUB_ENDPOINT, nonexistent_address).await;
+
+		assert!(matches!(
+			result,
+			Err(Error::Verification(msg)) if msg == "`pop` cannot find contract information for the provided contract address. Verification aborted."
+		));
+	}
+
+	#[tokio::test]
+	async fn get_deployed_polkavm_code_hash_fails_with_eoa_address() {
+		// Use a valid address format that exists but belongs to a EOA
+		let eoa_address = "0x00000000000000000000000000000000000a0000";
+
+		let result = get_deployed_polkavm_code_hash(PASSET_HUB_ENDPOINT, eoa_address).await;
+
+		assert!(matches!(
+			result,
+			Err(Error::Verification(msg)) if msg == "The provided address doesn't belong to a contract. Verification aborted."
+		));
 	}
 }

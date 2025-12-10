@@ -2,15 +2,10 @@
 
 mod helpers;
 
-use crate::{
-	BuildInfo, BuildMode, CARGO_CONTRACT_VERSION, CodeHash, ContractMetadata, Error, ImageVariant,
-	MetadataArtifacts, Verbosity,
-};
-use contract_build::{BuildResult, ComposeBuildArgs};
+use crate::{BuildMode, Error, ImageVariant, Verbosity};
+use contract_build::ComposeBuildArgs;
 use core::marker::PhantomData;
-use regex::Regex;
-use serde::Serialize;
-use std::{fs::File, path::PathBuf};
+use std::path::PathBuf;
 
 /// A struct representing a contract deployed on-chain.
 pub struct DeployedContract {
@@ -68,7 +63,7 @@ impl<T: ComposeBuildArgs> VerifyContract<T> {
 	}
 
 	/// Verify the contract
-	pub fn execute(self) -> Result<(), Error> {
+	pub async fn execute(self) -> Result<(), Error> {
 		match self.reference_contract {
 			ReferenceContract::Local(reference_path) => {
 				// Parse the contract bundle
@@ -93,13 +88,32 @@ impl<T: ComposeBuildArgs> VerifyContract<T> {
 					build_info_parsed.image,
 				)?;
 
-				helpers::verify_polkavm_blob_against_build_result(
-					&build_info_parsed.polkavm_blob,
+				helpers::verify_polkavm_code_hash_against_build_result(
+					build_info_parsed.polkavm_code_hash,
 					build_result,
 				)?;
-				Ok(())
 			},
-			ReferenceContract::Deployed(_) => Ok(()),
+			ReferenceContract::Deployed(deployed_contract) => {
+				let reference_code_hash = helpers::get_deployed_polkavm_code_hash(
+					&deployed_contract.rpc_endpoint,
+					&deployed_contract.contract_address,
+				)
+				.await?;
+
+				let build_result = crate::build_smart_contract::<T>(
+					&self.verifying_path,
+					BuildMode::Verifiable,
+					Verbosity::default(),
+					None,
+					Some(deployed_contract.build_image),
+				)?;
+
+				helpers::verify_polkavm_code_hash_against_build_result(
+					reference_code_hash,
+					build_result,
+				)?;
+			},
 		}
+		Ok(())
 	}
 }

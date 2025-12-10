@@ -159,9 +159,10 @@ impl ComposeBuildArgs for PopComposeBuildArgs {
 		let path_pos_regex = Regex::new(r#"(--path-pos)[ ]*[^ ]*[ ]*"#).expect("Valid regex; qed;");
 		// If --image is passed in build command, remove it
 		let image_regex = Regex::new(r#"(--image)[ ]*[^ ]*[ ]*"#).expect("Valid regex; qed;");
-		// If verify, we ignore --contract-path and its value, --url and its value and --address and its value
-		let verify_regex =
-			Regex::new(r#"(--contract-path|--url|--address)[ ]*[^ ]*[ ]*"#).expect("Valid regex; qed;");
+		// If verify, we ignore --contract-path and its value, --url and its value and --address and
+		// its value
+		let verify_regex = Regex::new(r#"(--contract-path|--url|--address)[ ]*[^ ]*[ ]*"#)
+			.expect("Valid regex; qed;");
 
 		// we join the args together, so we can remove `--image <arg>`. Skip the first argument (the
 		// binary name)

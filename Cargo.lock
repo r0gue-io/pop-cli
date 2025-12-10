@@ -9148,6 +9148,8 @@ dependencies = [
  "heck 0.5.0",
  "ink_env",
  "once_cell",
+ "parity-scale-codec",
+ "pop-chains",
  "pop-common",
  "regex",
  "reqwest",
