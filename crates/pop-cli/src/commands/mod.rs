@@ -227,6 +227,7 @@ impl Command {
 				env_logger::init();
 				args.command.execute(&mut Cli)
 			},
+			#[cfg(feature = "contract")]
 			Self::Verify(verify) => verify.execute(&mut Cli).await,
 		}
 	}
