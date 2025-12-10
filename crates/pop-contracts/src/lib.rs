@@ -46,6 +46,7 @@ pub use utils::{
 	},
 	parse_hex_bytes,
 };
+pub use verify::{VerifyContract, DeployedContract};
 // External exports
 pub use contract_build::{BuildInfo, MetadataArtifacts, MetadataSpec};
 pub use contract_extrinsics::{CallExec, ExtrinsicOpts, UploadCode};
