@@ -9068,6 +9068,7 @@ dependencies = [
  "regex",
  "reqwest",
  "rustilities",
+ "scale-info",
  "scale-value",
  "serde",
  "serde_json",

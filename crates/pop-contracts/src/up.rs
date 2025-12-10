@@ -169,11 +169,17 @@ pub async fn get_upload_payload(
 /// # Arguments
 /// * `instantiate_exec` - arguments for contract instantiate.
 /// * `gas_limit` - max amount of gas to be used for instantiation.
+/// * `storage_deposit_limit` - storage deposit limit. If None, estimation will be performed.
 pub async fn get_instantiate_payload(
 	instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>,
 	gas_limit: Weight,
+	storage_deposit_limit: Option<u128>,
 ) -> anyhow::Result<Vec<u8>> {
-	let storage_deposit_limit = instantiate_exec.estimate_limits().await?.1;
+	let storage_deposit_limit = if let Some(limit) = storage_deposit_limit {
+		limit
+	} else {
+		instantiate_exec.estimate_limits().await?.1
+	};
 	let mut encoded_data = Vec::<u8>::new();
 	let args = instantiate_exec.args();
 	match args.code().clone() {

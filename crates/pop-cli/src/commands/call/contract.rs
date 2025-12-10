@@ -485,9 +485,6 @@ impl CallContractCommand {
 				return Err(anyhow!(format!("{e}")));
 			},
 		};
-		// Check if the account is already mapped, and prompt the user to perform the mapping if
-		// it's required.
-		map_account(call_exec.opts(), cli).await?;
 
 		// Perform signing steps with wallet integration, skipping secure signing for query-only
 		// operations.
@@ -495,6 +492,10 @@ impl CallContractCommand {
 			self.execute_with_wallet(call_exec, cli).await?;
 			return Ok(());
 		}
+
+		// Check if the account is already mapped, and prompt the user to perform the mapping if
+		// it's required.
+		map_account(call_exec.opts(), cli).await?;
 
 		let spinner = spinner();
 		spinner.start("Doing a dry run...");
@@ -575,10 +576,8 @@ impl CallContractCommand {
 		call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 		cli: &mut impl Cli,
 	) -> Result<()> {
-		let storage_deposit_limit = match call_exec.opts().storage_deposit_limit() {
-			Some(deposit_limit) => deposit_limit,
-			None => call_exec.estimate_gas().await?.1,
-		};
+		// Skip storage deposit estimation when using wallet (UI will handle it)
+		let storage_deposit_limit = call_exec.opts().storage_deposit_limit().unwrap_or(0);
 		let call_data = self
 			.get_contract_data(&call_exec, storage_deposit_limit)
 			.map_err(|err| anyhow!("An error occurred getting the call data: {err}"))?;

@@ -236,6 +236,16 @@ impl UpContractCommand {
 		// Track the deployed contract address across both deployment flows.
 		let mut deployed_contract_address: Option<String> = None;
 
+		// Resolve constructor arguments
+		if !self.upload_only {
+			let function =
+				extract_function(self.path.clone(), &self.constructor, FunctionType::Constructor)?;
+			if !function.args.is_empty() {
+				resolve_function_args(&function, &mut Cli, &mut self.args, self.skip_confirm)?;
+			}
+			normalize_call_args(&mut self.args, &function);
+		}
+
 		// Run steps for signing with wallet integration.
 		if self.use_wallet {
 			let (call_data, hash) = match self.get_contract_data().await {
@@ -328,15 +338,6 @@ impl UpContractCommand {
 					},
 				}
 			} else {
-				let function = extract_function(
-					self.path.clone(),
-					&self.constructor,
-					FunctionType::Constructor,
-				)?;
-				if !function.args.is_empty() {
-					resolve_function_args(&function, &mut Cli, &mut self.args, self.skip_confirm)?;
-				}
-				normalize_call_args(&mut self.args, &function);
 				// Otherwise instantiate.
 				let instantiate_exec = match set_up_deployment(self.clone().into()).await {
 					Ok(i) => i,
@@ -511,7 +512,11 @@ impl UpContractCommand {
 					.await
 					.unwrap_or_else(|_| Weight::zero())
 			};
-			let call_data = get_instantiate_payload(instantiate_exec, weight_limit).await?;
+			// Skip storage deposit estimation when using wallet (UI will handle it)
+			let storage_deposit_limit = if self.use_wallet { Some(0) } else { None };
+			let call_data =
+				get_instantiate_payload(instantiate_exec, weight_limit, storage_deposit_limit)
+					.await?;
 			Ok((call_data, hash))
 		}
 	}

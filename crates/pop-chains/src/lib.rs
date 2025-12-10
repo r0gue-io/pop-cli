@@ -72,7 +72,7 @@ pub use try_runtime::{
 	TryRuntimeCliCommand, binary::*, parse, parse_try_state_string, run_try_runtime,
 	shared_parameters::*, state, try_state_details, try_state_label, upgrade_checks_details,
 };
-// External export from subxt.
+// External exports from subxt.
 pub use subxt::{
 	OnlineClient, SubstrateConfig,
 	blocks::ExtrinsicEvents,
