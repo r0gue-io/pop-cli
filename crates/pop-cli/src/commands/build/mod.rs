@@ -3,19 +3,23 @@
 use crate::{cli, cli::traits::Cli as _};
 use clap::{Args, Subcommand};
 use duct::cmd;
+#[cfg(any(feature = "chain", feature = "contract"))]
+use pop_common::Docker;
 use pop_common::Profile;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 #[cfg(feature = "chain")]
 use {
 	chain::BuildChain,
-	pop_common::Docker,
 	runtime::{BuildRuntime, Feature::*},
 	spec::BuildSpecCommand,
 	std::fmt::{Display, Formatter, Result},
 };
 #[cfg(feature = "contract")]
-use {contract::BuildContract, pop_contracts::MetadataSpec};
+use {
+	contract::BuildContract,
+	pop_contracts::{BuildMode, MetadataSpec},
+};
 
 #[cfg(feature = "chain")]
 pub(crate) mod chain;
@@ -180,6 +184,9 @@ impl Command {
 		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(&project_path)? {
 			let build_mode = contract::resolve_build_mode(args);
+			if let BuildMode::Verifiable = build_mode {
+				Docker::ensure_running()?;
+			}
 			let image = contract::resolve_image(args)?;
 			BuildContract { path: project_path, build_mode, metadata: args.metadata, image }
 				.execute()?;
