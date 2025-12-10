@@ -293,10 +293,8 @@ async fn verifiable_contract_lifecycle() -> Result<()> {
 	assert!(contract_dir.exists());
 
 	// pop build --verifiable
-	command = pop(
-		&temp_dir,
-		["build", "--manifest-path", contract_dir.join("Cargo.toml"), "--verifiable"],
-	);
+	command =
+		pop(&temp_dir, ["build", "--manifest-path", "./test_contract/Cargo.toml", "--verifiable"]);
 	assert!(command.spawn()?.wait().await?.success());
 
 	let ink_target_path = contract_dir.join("target").join("ink");
@@ -319,9 +317,9 @@ async fn verifiable_contract_lifecycle() -> Result<()> {
 		[
 			"verify",
 			"--contract-path",
-			ink_target_path.join("test_contract.contract"),
+			"./test_contract/target/ink/test_contract.contract",
 			"--manifest-path",
-			contract_dir.join("Cargo.toml"),
+			"./test_contract/Cargo.toml",
 		],
 	);
 	assert!(command.spawn()?.wait().await?.success());
@@ -335,9 +333,9 @@ async fn verifiable_contract_lifecycle() -> Result<()> {
 		[
 			"verify",
 			"--contract-path",
-			ink_target_path.join("test_contract.contract"),
+			"./test_contract/target/ink/test_contract.contract",
 			"--manifest-path",
-			temp_dir.join("test_contract_2").join("Cargo.toml"),
+			"./test_contract_2/Cargo.toml",
 		],
 	);
 	assert!(!command.spawn()?.wait().await?.success());
