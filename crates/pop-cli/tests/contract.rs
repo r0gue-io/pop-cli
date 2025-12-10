@@ -283,8 +283,6 @@ async fn contract_lifecycle() -> Result<()> {
 
 #[tokio::test]
 async fn verifiable_contract_lifecycle() -> Result<()> {
-	// TODO: Incomplete test, we'll be adding more steps as the development of the feature
-	// progresses
 	let temp = tempfile::tempdir()?;
 	let temp_dir = temp.path();
 	//let temp_dir = Path::new("./"); //For testing locally
@@ -296,7 +294,7 @@ async fn verifiable_contract_lifecycle() -> Result<()> {
 
 	// pop build --verifiable
 	command =
-		pop(&temp_dir, ["build", "--manifest-path", "./test_contract/Cargo.toml", "--verifiable"]);
+		pop(&temp_dir, ["build", "--manifest-path", contract_dir.join("Cargo.toml"), "--verifiable"]);
 	assert!(command.spawn()?.wait().await?.success());
 
 	let ink_target_path = contract_dir.join("target").join("ink");
@@ -312,6 +310,17 @@ async fn verifiable_contract_lifecycle() -> Result<()> {
 		Some(Value::String(value)) if value.starts_with("useink/contracts-verifiable") => (),
 		_ => return Err(anyhow::anyhow!("Verifiable build doesn't include the expected image")),
 	}
+
+    // Verify the contract recently built against itself
+    command = pop(&temp_dir, ["verify", "--contract-path", ink_target_path.join("test_contract.contract"), "--manifest-path", contract_dir.join("Cargo.toml")]);
+    assert!(command.spawn()?.wait().await?.success());
+
+    // Create a different contract and observe that verification fails
+    command = pop(temp_dir, ["new", "contract", "test_contract_2", "--template", "erc20"]);
+	assert!(command.spawn()?.wait().await?.success());
+
+    command = pop(&temp_dir, ["verify", "--contract-path", ink_target_path.join("test_contract.contract"), "--manifest-path", temp_dir.join("test_contract_2").join("Cargo.toml")]);
+    assert!(!command.spawn()?.wait().await?.success());
 
 	Ok(())
 }

@@ -53,7 +53,7 @@ pub(super) fn get_build_info_parsed_from_contract_bundle(
 				polkavm_code_hash,
 			}),
 			_ => {
-				let build_mode = build_info.build_mode.clone();
+				let build_mode = build_info.build_mode;
 				Ok(BuildInfoParsed { build_info, build_mode, image: None, polkavm_code_hash })
 			},
 		}
@@ -128,9 +128,9 @@ pub(super) fn verify_polkavm_code_hash_against_build_result(
 	let built_contract: ContractMetadata = serde_json::from_reader(file)?;
 
 	if polkavm_code_hash.0 != built_contract.source.hash.0 {
-		return Err(Error::Verification(format!(
-			"The verification failed. The two contracts don't produce the same bytecode.",
-		)));
+		return Err(Error::Verification(
+			"The verification failed. The two contracts don't produce the same bytecode.".to_owned()
+		));
 	}
 
 	Ok(())
@@ -150,7 +150,7 @@ struct AccountInfo {
 #[derive(Decode)]
 enum AccountType {
 	Contract(ContractInfo),
-	EOA,
+	Eoa,
 }
 
 type TrieId = BoundedVec<u8, ConstU32<128>>;
@@ -531,12 +531,6 @@ mod tests {
 			let polkavm_blob = vec![0x01, 0x02, 0x03, 0x04];
 			let polkavm_code_hash = H256::from(sp_core::keccak_256(&polkavm_blob));
 
-			let polkavm_code_hash_string = polkavm_code_hash
-				.0
-				.iter()
-				.map(|byte| format!("{:02x}", byte))
-				.collect::<String>();
-
 			// Create a mock contract metadata with the same hash
 			let metadata = serde_json::json!({
 				"source": {
@@ -580,7 +574,7 @@ mod tests {
 
 	#[test]
 	fn verify_polkavm_code_hash_against_build_result_missing_metadata_artifacts() {
-		let polkavm_code_hash = H256::from([01; 32]);
+		let polkavm_code_hash = H256::from([1; 32]);
 
 		// Create a BuildResult with no metadata_result
 		let build_result = BuildResult {
@@ -604,7 +598,7 @@ mod tests {
 
 	#[test]
 	fn verify_polkavm_code_hash_against_build_result_bundle_file_not_found() {
-		let polkavm_code_hash = H256::from([01; 32]);
+		let polkavm_code_hash = H256::from([1; 32]);
 
 		// Create a BuildResult pointing to a non-existent bundle file
 		let artifacts = InkMetadataArtifacts {
@@ -630,7 +624,7 @@ mod tests {
 	#[test]
 	fn verify_polkavm_code_hash_against_build_result_invalid_json_in_bundle() {
 		TestBuilder::default().execute(|builder| {
-		let polkavm_code_hash = H256::from([01; 32]);
+		let polkavm_code_hash = H256::from([1; 32]);
 
 			// Create an invalid JSON file
 			let bundle_path = builder.temp_path().join("invalid.contract");
@@ -661,7 +655,7 @@ mod tests {
 	#[test]
 	fn verify_polkavm_code_hash_against_build_result_hash_mismatch() {
 		TestBuilder::default().execute(|builder| {
-		let polkavm_code_hash = H256::from([01; 32]);
+		let polkavm_code_hash = H256::from([1; 32]);
 
             let different_hash = "02".repeat(32);
 
