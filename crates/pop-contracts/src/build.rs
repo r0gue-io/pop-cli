@@ -3,7 +3,7 @@
 use crate::{errors::Error, utils::get_manifest_path};
 pub use contract_build::{BuildMode, ImageVariant, MetadataSpec, Verbosity};
 use contract_build::{BuildResult, ExecuteArgs, execute};
-use std::{fs,path::Path};
+use std::{fs, path::Path};
 use toml::Value;
 
 /// Build the smart contract located at the specified `path` in `build_release` mode.
@@ -23,7 +23,7 @@ pub fn build_smart_contract(
 ) -> anyhow::Result<BuildResult> {
 	let manifest_path = get_manifest_path(path)?;
 
-    let metadata_spec = match metadata_spec {
+	let metadata_spec = match metadata_spec {
 		s @ Some(_) => s,
 		None => resolve_metadata_spec(manifest_path.as_ref())?,
 	};
