@@ -129,7 +129,8 @@ pub(super) fn verify_polkavm_code_hash_against_build_result(
 
 	if polkavm_code_hash.0 != built_contract.source.hash.0 {
 		return Err(Error::Verification(
-			"The verification failed. The two contracts don't produce the same bytecode.".to_owned()
+			"The verification failed. The two contracts don't produce the same bytecode."
+				.to_owned(),
 		));
 	}
 

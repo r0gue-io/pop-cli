@@ -463,7 +463,8 @@ mod tests {
 			verifiable: false,
 			#[cfg(feature = "contract")]
 			image: None,
-		}).await?;
+		})
+		.await?;
 
 		Ok(())
 	}
@@ -514,7 +515,8 @@ mod tests {
 			verifiable: false,
 			#[cfg(feature = "contract")]
 			image: None,
-		}).await?;
+		})
+		.await?;
 
 		// Test 2: Execute with production profile
 		Command::execute(&BuildArgs {
@@ -542,7 +544,8 @@ mod tests {
 			verifiable: false,
 			#[cfg(feature = "contract")]
 			image: None,
-		}).await?;
+		})
+		.await?;
 
 		// Test 3: Execute with custom features
 		#[cfg(feature = "chain")]
@@ -566,7 +569,8 @@ mod tests {
 				verifiable: false,
 				#[cfg(feature = "contract")]
 				image: None,
-			}).await?;
+			})
+			.await?;
 		}
 
 		// Test 4: Execute with package parameter
@@ -595,7 +599,8 @@ mod tests {
 			verifiable: false,
 			#[cfg(feature = "contract")]
 			image: None,
-		}).await?;
+		})
+		.await?;
 
 		// Test 5: Execute with path_pos instead of path
 		Command::execute(&BuildArgs {
@@ -623,7 +628,8 @@ mod tests {
 			verifiable: false,
 			#[cfg(feature = "contract")]
 			image: None,
-		}).await?;
+		})
+		.await?;
 
 		// Test 6: Execute with benchmark and try_runtime flags
 		#[cfg(feature = "chain")]
@@ -647,7 +653,8 @@ mod tests {
 				verifiable: false,
 				#[cfg(feature = "contract")]
 				image: None,
-			}).await?;
+			})
+			.await?;
 		}
 
 		Ok(())

@@ -293,8 +293,10 @@ async fn verifiable_contract_lifecycle() -> Result<()> {
 	assert!(contract_dir.exists());
 
 	// pop build --verifiable
-	command =
-		pop(&temp_dir, ["build", "--manifest-path", contract_dir.join("Cargo.toml"), "--verifiable"]);
+	command = pop(
+		&temp_dir,
+		["build", "--manifest-path", contract_dir.join("Cargo.toml"), "--verifiable"],
+	);
 	assert!(command.spawn()?.wait().await?.success());
 
 	let ink_target_path = contract_dir.join("target").join("ink");
@@ -311,16 +313,34 @@ async fn verifiable_contract_lifecycle() -> Result<()> {
 		_ => return Err(anyhow::anyhow!("Verifiable build doesn't include the expected image")),
 	}
 
-    // Verify the contract recently built against itself
-    command = pop(&temp_dir, ["verify", "--contract-path", ink_target_path.join("test_contract.contract"), "--manifest-path", contract_dir.join("Cargo.toml")]);
-    assert!(command.spawn()?.wait().await?.success());
-
-    // Create a different contract and observe that verification fails
-    command = pop(temp_dir, ["new", "contract", "test_contract_2", "--template", "erc20"]);
+	// Verify the contract recently built against itself
+	command = pop(
+		&temp_dir,
+		[
+			"verify",
+			"--contract-path",
+			ink_target_path.join("test_contract.contract"),
+			"--manifest-path",
+			contract_dir.join("Cargo.toml"),
+		],
+	);
 	assert!(command.spawn()?.wait().await?.success());
 
-    command = pop(&temp_dir, ["verify", "--contract-path", ink_target_path.join("test_contract.contract"), "--manifest-path", temp_dir.join("test_contract_2").join("Cargo.toml")]);
-    assert!(!command.spawn()?.wait().await?.success());
+	// Create a different contract and observe that verification fails
+	command = pop(temp_dir, ["new", "contract", "test_contract_2", "--template", "erc20"]);
+	assert!(command.spawn()?.wait().await?.success());
+
+	command = pop(
+		&temp_dir,
+		[
+			"verify",
+			"--contract-path",
+			ink_target_path.join("test_contract.contract"),
+			"--manifest-path",
+			temp_dir.join("test_contract_2").join("Cargo.toml"),
+		],
+	);
+	assert!(!command.spawn()?.wait().await?.success());
 
 	Ok(())
 }
