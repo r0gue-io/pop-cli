@@ -17,6 +17,7 @@ mod test;
 mod testing;
 mod up;
 mod utils;
+mod verify;
 
 pub use build::{
 	BuildMode, ComposeBuildArgs, ImageVariant, Verbosity, build_smart_contract, is_supported,
@@ -46,10 +47,7 @@ pub use utils::{
 	parse_hex_bytes,
 };
 // External exports
-pub use contract_build::{
-	BuildInfo, MetadataArtifacts, MetadataSpec, code_hash,
-	util::{decode_hex, rust_toolchain},
-};
+pub use contract_build::{BuildInfo, MetadataArtifacts, MetadataSpec};
 pub use contract_extrinsics::{CallExec, ExtrinsicOpts, UploadCode};
 pub use contract_metadata::{CodeHash, ContractMetadata};
 pub use ink_env::{DefaultEnvironment, Environment};
@@ -60,7 +58,7 @@ pub use utils::map_account::AccountMapper;
 
 const FALLBACK_CARGO_CONTRACT_VERSION: &str = "6.0.0-beta.1";
 /// cargo-contract used version
-pub static CARGO_CONTRACT_VERSION: Lazy<Version> = Lazy::new(|| {
+pub(crate) static CARGO_CONTRACT_VERSION: Lazy<Version> = Lazy::new(|| {
 	let cargo_contract_version: Result<String> = || -> Result<String> {
 		let current_dir = std::env::current_dir()?;
 		let workspace_manifest = rustilities::manifest::find_workspace_manifest(current_dir)

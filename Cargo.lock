@@ -9149,6 +9149,7 @@ dependencies = [
  "ink_env",
  "once_cell",
  "pop-common",
+ "regex",
  "reqwest",
  "rustilities",
  "scale-info",

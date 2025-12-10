@@ -16,6 +16,7 @@ anyhow.workspace = true
 cargo_toml.workspace = true
 duct.workspace = true
 once_cell.workspace = true
+regex.workspace = true
 reqwest.workspace = true
 rustilities = { workspace = true, features = ["manifest"]}
 semver.workspace = true
