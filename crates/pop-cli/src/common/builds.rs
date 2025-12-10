@@ -154,29 +154,27 @@ pub(crate) struct PopComposeBuildArgs;
 impl ComposeBuildArgs for PopComposeBuildArgs {
 	fn compose_build_args() -> anyhow::Result<Vec<String>> {
 		let mut args: Vec<String> = Vec::new();
-		// match pop related args in pop build --verifiable or pop verify that shouldn't be passed to Docker image.
-        // --path-pos and its following value should be ignored anyway
-        let path_pos_regex = Regex::new(r#"(--path-pos)[ ]*[^ ]*[ ]*"#).expect("Valid regex; qed;");
-        // If --image is passed in build command, remove it
+		// match pop related args in pop build --verifiable or pop verify that shouldn't be passed
+		// to Docker image. --path-pos and its following value should be ignored anyway
+		let path_pos_regex = Regex::new(r#"(--path-pos)[ ]*[^ ]*[ ]*"#).expect("Valid regex; qed;");
+		// If --image is passed in build command, remove it
 		let image_regex = Regex::new(r#"(--image)[ ]*[^ ]*[ ]*"#).expect("Valid regex; qed;");
-        // If verify, we ignore --contract-path and what follows
-        let contract_path_regex = Regex::new(r#"(--contract-path)[ ]*[^ ]*[ ]*"#).expect("Valid regex; qed;");
+		// If verify, we ignore --contract-path and its value, --url and its value and --address and its value
+		let verify_regex =
+			Regex::new(r#"(--contract-path|--url|--address)[ ]*[^ ]*[ ]*"#).expect("Valid regex; qed;");
 
-		// we join the args together, so we can remove `--image <arg>`. Skip the first argument (the binary name)
+		// we join the args together, so we can remove `--image <arg>`. Skip the first argument (the
+		// binary name)
 		let args_string: String = std::env::args().skip(1).collect::<Vec<String>>().join(" ");
 		let args_string = path_pos_regex.replace_all(&args_string, "").to_string();
 		let args_string = image_regex.replace_all(&args_string, "").to_string();
-		let args_string = contract_path_regex.replace_all(&args_string, "").to_string();
+		let args_string = verify_regex.replace_all(&args_string, "").to_string();
 
 		// and then we turn it back to the vec, filtering out commands and arguments
 		// that should not be passed to the docker build command
 		let mut os_args: Vec<String> = args_string
 			.split_ascii_whitespace()
-			.filter(|a| {
-				a != &"--verifiable" &&
-                a != &"verify" &&
-				a != &"build"
-			})
+			.filter(|a| a != &"--verifiable" && a != &"verify" && a != &"build")
 			.map(|s| s.to_string())
 			.collect();
 

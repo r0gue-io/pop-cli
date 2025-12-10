@@ -131,6 +131,10 @@ pub(super) fn verify_polkavm_blob_against_build_result(
 	Ok(())
 }
 
+pub(super) get_deployed_polkavm_blob(contract_address: String) -> Result<Vec<u8>>{
+    
+}
+
 /// Validates that the passed `toolchain` is a valid Rust toolchain.
 ///
 /// # Developers Note
