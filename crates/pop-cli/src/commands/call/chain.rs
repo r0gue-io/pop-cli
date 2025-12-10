@@ -19,6 +19,7 @@ use pop_chains::{
 	encode_call_data, find_callable_by_name, find_pallet_by_name, raw_value_to_string,
 	render_storage_key_values, sign_and_submit_extrinsic, supported_actions, type_to_param,
 };
+use scale_info::PortableRegistry;
 use serde::Serialize;
 use url::Url;
 
@@ -75,6 +76,10 @@ pub struct CallChainCommand {
 	/// Automatically signs and submits the extrinsic without prompting for confirmation.
 	#[arg(short = 'y', long)]
 	skip_confirm: bool,
+	/// Display chain metadata instead of executing a call.
+	/// Use alone to list all pallets, or with --pallet to show pallet details.
+	#[arg(short = 'm', long, conflicts_with_all = ["function", "args", "suri", "use-wallet", "call", "sudo"])]
+	metadata: bool,
 }
 
 impl CallChainCommand {
@@ -92,6 +97,12 @@ impl CallChainCommand {
 			&mut cli,
 		)
 		.await?;
+
+		// Handle metadata display mode
+		if self.metadata {
+			return self.display_metadata(&chain, &mut cli);
+		}
+
 		// Execute the call if call_data is provided.
 		if let Some(call_data) = self.call_data.as_ref() {
 			if let Err(e) = self
@@ -473,6 +484,21 @@ impl CallChainCommand {
 		self.use_wallet = false;
 	}
 
+	/// Displays chain metadata (pallets, calls, storage, constants).
+	fn display_metadata(&self, chain: &Chain, cli: &mut impl Cli) -> Result<()> {
+		match &self.pallet {
+			// No pallet specified: list all pallets
+			None => list_pallets(&chain.pallets, cli),
+			// Pallet specified: show pallet details
+			Some(pallet_name) => {
+				let pallet = find_pallet_by_name(&chain.pallets, pallet_name)?;
+				let metadata = chain.client.metadata();
+				let registry = metadata.types();
+				show_pallet(pallet, registry, cli)
+			},
+		}
+	}
+
 	/// Replaces file arguments with their contents, leaving other arguments unchanged.
 	fn expand_file_arguments(&self) -> Result<Vec<String>> {
 		self.args
@@ -520,6 +546,92 @@ impl CallChainCommand {
 	}
 }
 
+/// Lists all pallets available on the chain.
+fn list_pallets(pallets: &[Pallet], cli: &mut impl Cli) -> Result<()> {
+	cli.info(format!("Available pallets ({}):\n", pallets.len()))?;
+	for pallet in pallets {
+		if pallet.docs.is_empty() {
+			cli.plain(format!("  {}", pallet.name))?;
+		} else {
+			cli.plain(format!("  {} - {}", pallet.name, pallet.docs))?;
+		}
+	}
+	Ok(())
+}
+
+/// Shows details of a specific pallet (calls, storage, constants).
+fn show_pallet(pallet: &Pallet, registry: &PortableRegistry, cli: &mut impl Cli) -> Result<()> {
+	cli.info(format!("Pallet: {}\n", pallet.name))?;
+	if !pallet.docs.is_empty() {
+		cli.plain(format!("{}\n", pallet.docs))?;
+	}
+
+	// Show calls/extrinsics with parameters and docs
+	if !pallet.functions.is_empty() {
+		cli.plain(format!(
+			"\n━━━ Extrinsics ({}) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+			pallet.functions.len()
+		))?;
+		for func in &pallet.functions {
+			let status = if func.is_supported { "" } else { " [NOT SUPPORTED]" };
+			cli.plain(format!("\n  {}{}", func.name, status))?;
+			// Format parameters on separate lines for readability
+			if !func.params.is_empty() {
+				cli.plain("    Parameters:".to_string())?;
+				for param in &func.params {
+					cli.plain(format!("      - {}: {}", param.name, param.type_name))?;
+				}
+			}
+			if !func.docs.is_empty() {
+				cli.plain(format!("    Description: {}", func.docs))?;
+			}
+		}
+	}
+
+	// Show storage with key/value info
+	if !pallet.state.is_empty() {
+		cli.plain(format!(
+			"\n\n━━━ Storage ({}) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+			pallet.state.len()
+		))?;
+		for storage in &pallet.state {
+			cli.plain(format!("\n  {}", storage.name))?;
+			// Resolve and display key type for maps
+			if let Some(key_id) = storage.key_id &&
+				let Ok(key_param) = type_to_param("key", registry, key_id)
+			{
+				cli.plain(format!("    Key: {}", key_param.type_name))?;
+			}
+			// Resolve and display value type
+			if let Ok(value_param) = type_to_param("value", registry, storage.type_id) {
+				cli.plain(format!("    Value: {}", value_param.type_name))?;
+			}
+			if !storage.docs.is_empty() {
+				cli.plain(format!("    Description: {}", storage.docs))?;
+			}
+		}
+	}
+
+	// Show constants with values and docs
+	if !pallet.constants.is_empty() {
+		cli.plain(format!(
+			"\n\n━━━ Constants ({}) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+			pallet.constants.len()
+		))?;
+		for constant in &pallet.constants {
+			let value_str = raw_value_to_string(&constant.value, "").map_err(|e| {
+				anyhow!("Failed to decode constant {}::{}: {e}", pallet.name, constant.name)
+			})?;
+			cli.plain(format!("\n  {}", constant.name))?;
+			cli.plain(format!("    Value: {}", value_str))?;
+			if !constant.docs.is_empty() {
+				cli.plain(format!("    Description: {}", constant.docs))?;
+			}
+		}
+	}
+
+	Ok(())
+}
 /// Represents a configured dispatchable function call, including the pallet, function, arguments,
 /// and signing options.
 #[derive(Clone, Default)]
@@ -817,7 +929,10 @@ fn parse_pallet_name(name: &str) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{cli::MockCli, common::wallet::USE_WALLET_PROMPT};
+	use crate::{
+		cli::MockCli,
+		common::{chain::Chain, wallet::USE_WALLET_PROMPT},
+	};
 	use pop_chains::{Function, parse_chain_metadata, set_up_client};
 	use pop_common::test_env::TestNode;
 	use tempfile::tempdir;
@@ -1075,6 +1190,7 @@ mod tests {
 			skip_confirm: false,
 			call_data: Some("0x00000411".to_string()),
 			sudo: false,
+			metadata: false,
 		};
 		let mut cli = MockCli::new()
 			.expect_confirm(USE_WALLET_PROMPT, false)
@@ -1105,6 +1221,7 @@ mod tests {
 			skip_confirm: false,
 			call_data: None,
 			sudo: true,
+			metadata: false,
 		};
 		call_config.reset_for_new_call();
 		assert_eq!(call_config.pallet, None);
@@ -1127,6 +1244,7 @@ mod tests {
 			call_data: None,
 			skip_confirm: false,
 			sudo: false,
+			metadata: false,
 		};
 		assert_eq!(
 			call_config.expand_file_arguments()?,
@@ -1333,5 +1451,157 @@ mod tests {
 		// Execute the command end-to-end; it should parse the composite key and perform the storage
 		// query
 		cmd.execute().await
+	}
+
+	#[tokio::test]
+	async fn display_metadata_works() -> Result<()> {
+		// Spawn a test node once for all metadata tests
+		let node = TestNode::spawn().await?;
+		let client = set_up_client(node.ws_url()).await?;
+		let pallets = parse_chain_metadata(&client)?;
+
+		let chain = Chain { url: Url::parse(node.ws_url())?, client, pallets: pallets.clone() };
+
+		// Test 1: List all pallets
+		{
+			let cmd = CallChainCommand { metadata: true, ..Default::default() };
+			let mut cli =
+				MockCli::new().expect_info(format!("Available pallets ({}):\n", pallets.len()));
+			assert!(cmd.display_metadata(&chain, &mut cli).is_ok());
+			assert!(cli.verify().is_ok());
+		}
+
+		// Test 2: Show specific pallet details
+		{
+			let cmd = CallChainCommand {
+				pallet: Some("System".to_string()),
+				metadata: true,
+				..Default::default()
+			};
+			let mut cli = MockCli::new().expect_info("Pallet: System\n".to_string());
+			assert!(cmd.display_metadata(&chain, &mut cli).is_ok());
+			assert!(cli.verify().is_ok());
+		}
+
+		// Test 3: Invalid pallet name should fail
+		{
+			let cmd = CallChainCommand {
+				pallet: Some("NonExistentPallet".to_string()),
+				metadata: true,
+				..Default::default()
+			};
+			let mut cli = MockCli::new();
+			let result = cmd.display_metadata(&chain, &mut cli);
+			assert!(result.is_err());
+			assert!(result.unwrap_err().to_string().contains("NonExistentPallet"));
+		}
+
+		Ok(())
+	}
+
+	#[test]
+	fn list_pallets_works() {
+		let pallets = vec![
+			Pallet {
+				name: "System".to_string(),
+				index: 0,
+				docs: "System pallet for runtime".to_string(),
+				functions: vec![],
+				constants: vec![],
+				state: vec![],
+			},
+			Pallet {
+				name: "Balances".to_string(),
+				index: 1,
+				docs: "".to_string(), // No docs
+				functions: vec![],
+				constants: vec![],
+				state: vec![],
+			},
+			Pallet {
+				name: "Assets".to_string(),
+				index: 2,
+				docs: "Assets management".to_string(),
+				functions: vec![],
+				constants: vec![],
+				state: vec![],
+			},
+		];
+
+		let mut cli = MockCli::new()
+			.expect_info("Available pallets (3):\n")
+			.expect_plain("  System - System pallet for runtime")
+			.expect_plain("  Balances")
+			.expect_plain("  Assets - Assets management");
+
+		assert!(list_pallets(&pallets, &mut cli).is_ok());
+		assert!(cli.verify().is_ok());
+	}
+
+	#[tokio::test]
+	async fn show_pallet_works() -> Result<()> {
+		let node = TestNode::spawn().await?;
+		let client = set_up_client(node.ws_url()).await?;
+		let pallets = parse_chain_metadata(&client)?;
+		let metadata = client.metadata();
+		let registry = metadata.types();
+
+		// Find the System pallet
+		let system_pallet =
+			pallets.iter().find(|p| p.name == "System").expect("System pallet exists");
+
+		// Build expectations based on actual pallet content
+		let mut cli = MockCli::new().expect_info("Pallet: System\n");
+
+		// Expect extrinsics section
+		cli = cli.expect_plain(format!(
+			"\n━━━ Extrinsics ({}) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+			system_pallet.functions.len()
+		));
+		// Expect each extrinsic
+		for func in &system_pallet.functions {
+			let status = if func.is_supported { "" } else { " [NOT SUPPORTED]" };
+			cli = cli.expect_plain(format!("\n  {}{}", func.name, status));
+			if !func.params.is_empty() {
+				cli = cli.expect_plain("    Parameters:".to_string());
+				for param in &func.params {
+					cli = cli.expect_plain(format!("      - {}: {}", param.name, param.type_name));
+				}
+			}
+			if !func.docs.is_empty() {
+				cli = cli.expect_plain(format!("    Description: {}", func.docs));
+			}
+		}
+
+		// Expect storage section
+		cli = cli.expect_plain(format!(
+			"\n\n━━━ Storage ({}) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+			system_pallet.state.len()
+		));
+		for storage in &system_pallet.state {
+			cli = cli.expect_plain(format!("\n  {}", storage.name));
+			// Key and Value types are resolved dynamically, so we skip exact matching
+			// but we know docs will be output if present
+			if !storage.docs.is_empty() {
+				cli = cli.expect_plain(format!("    Description: {}", storage.docs));
+			}
+		}
+
+		// Expect constants section
+		cli = cli.expect_plain(format!(
+			"\n\n━━━ Constants ({}) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+			system_pallet.constants.len()
+		));
+		for constant in &system_pallet.constants {
+			cli = cli.expect_plain(format!("\n  {}", constant.name));
+			// Value is resolved dynamically
+			if !constant.docs.is_empty() {
+				cli = cli.expect_plain(format!("    Description: {}", constant.docs));
+			}
+		}
+
+		assert!(show_pallet(system_pallet, registry, &mut cli).is_ok());
+		assert!(cli.verify().is_ok());
+		Ok(())
 	}
 }

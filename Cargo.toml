@@ -34,9 +34,10 @@ git2 = { version = "0.18", default-features = true, features = ["vendored-openss
 glob = { version = "0.3.1", default-features = false }
 log = { version = "0.4.20", default-features = false }
 mockito = { version = "1.4.0", default-features = false }
-psvm = { version = "0.3.0", default-features = false }
+psvm = { version = "0.3.1", default-features = false }
 rustilities = "3.0.1"
 tar = { version = "0.4.40", default-features = false }
+temp-env = "0.3.6"
 tempfile = { version = "3.10", default-features = false }
 thiserror = { version = "1.0.58", default-features = false }
 tokio-test = { version = "0.4.4", default-features = false }
@@ -71,7 +72,6 @@ toml_edit = { version = "0.22", features = ["serde"] }
 symlink = { version = "0.1", default-features = false }
 serde_json = { version = "1.0", default-features = false, features = ["preserve_order"] }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
-srtool-lib = { version = "0.13.2", default-features = false }
 zombienet-configuration = { version = "0.4.3", default-features = false }
 zombienet-sdk = { version = "0.4.3", default-features = false }
 git2_credentials = "0.13.0"

@@ -3,7 +3,8 @@
 use crate::{errors::Error, utils::get_manifest_path};
 pub use contract_build::{BuildMode, ImageVariant, MetadataSpec, Verbosity};
 use contract_build::{BuildResult, ExecuteArgs, execute};
-use std::path::Path;
+use std::{fs,path::Path};
+use toml::Value;
 
 /// Build the smart contract located at the specified `path` in `build_release` mode.
 ///
@@ -22,6 +23,11 @@ pub fn build_smart_contract(
 ) -> anyhow::Result<BuildResult> {
 	let manifest_path = get_manifest_path(path)?;
 
+    let metadata_spec = match metadata_spec {
+		s @ Some(_) => s,
+		None => resolve_metadata_spec(manifest_path.as_ref())?,
+	};
+
 	let mut args =
 		ExecuteArgs { manifest_path, build_mode, verbosity, metadata_spec, ..Default::default() };
 
@@ -35,6 +41,30 @@ pub fn build_smart_contract(
 		BuildMode::Verifiable => tokio::task::block_in_place(|| execute(args)),
 		_ => execute(args),
 	}
+}
+
+/// Determine the metadata spec to use inferring from the
+/// `[package.metadata.ink-lang]` `abi` setting in `Cargo.toml`.
+fn resolve_metadata_spec(manifest_path: &Path) -> anyhow::Result<Option<MetadataSpec>> {
+	let manifest_contents = fs::read_to_string(manifest_path)?;
+	let manifest: Value = toml::from_str(&manifest_contents)?;
+
+	let abi = manifest
+		.get("package")
+		.and_then(Value::as_table)
+		.and_then(|pkg| pkg.get("metadata"))
+		.and_then(Value::as_table)
+		.and_then(|metadata| metadata.get("ink-lang"))
+		.and_then(Value::as_table)
+		.and_then(|ink_lang| ink_lang.get("abi"))
+		.and_then(Value::as_str)
+		.map(|abi| abi.to_lowercase());
+
+	Ok(match abi.as_deref() {
+		// Prefer Solidity metadata when the contract is configured for Solidity or dual ABI.
+		Some("sol") | Some("all") => Some(MetadataSpec::Solidity),
+		_ => None,
+	})
 }
 
 /// Determines whether the manifest at the supplied path is a supported smart contract project.
@@ -51,6 +81,7 @@ mod tests {
 	use super::*;
 	use contract_build::new_contract_project;
 	use duct::cmd;
+	use std::fs;
 
 	#[test]
 	fn is_supported_works() -> anyhow::Result<()> {
@@ -66,6 +97,80 @@ mod tests {
 		let name = "flipper";
 		new_contract_project(name, Some(&path), None)?;
 		assert!(is_supported(&path.join(name))?);
+		Ok(())
+	}
+
+	#[test]
+	fn resolve_metadata_spec_infers_solidity_for_sol_abi() -> anyhow::Result<()> {
+		let temp_dir = tempfile::tempdir()?;
+		let manifest_path = temp_dir.path().join("Cargo.toml");
+		fs::write(
+			&manifest_path,
+			r#"[package]
+name = "dummy"
+version = "0.1.0"
+[package.metadata.ink-lang]
+abi = "sol"
+"#,
+		)?;
+
+		let spec = resolve_metadata_spec(&manifest_path)?;
+		assert_eq!(spec, Some(MetadataSpec::Solidity));
+		Ok(())
+	}
+
+	#[test]
+	fn resolve_metadata_spec_infers_solidity_for_all_abi() -> anyhow::Result<()> {
+		let temp_dir = tempfile::tempdir()?;
+		let manifest_path = temp_dir.path().join("Cargo.toml");
+		fs::write(
+			&manifest_path,
+			r#"[package]
+name = "dummy"
+version = "0.1.0"
+[package.metadata.ink-lang]
+abi = "all"
+"#,
+		)?;
+
+		let spec = resolve_metadata_spec(&manifest_path)?;
+		assert_eq!(spec, Some(MetadataSpec::Solidity));
+		Ok(())
+	}
+
+	#[test]
+	fn resolve_metadata_spec_handles_explicit_ink_abi() -> anyhow::Result<()> {
+		let temp_dir = tempfile::tempdir()?;
+		let manifest_path = temp_dir.path().join("Cargo.toml");
+		fs::write(
+			&manifest_path,
+			r#"[package]
+name = "dummy"
+version = "0.1.0"
+[package.metadata.ink-lang]
+abi = "ink"
+"#,
+		)?;
+
+		let spec = resolve_metadata_spec(&manifest_path)?;
+		assert!(spec.is_none());
+		Ok(())
+	}
+
+	#[test]
+	fn resolve_metadata_spec_defaults_for_ink() -> anyhow::Result<()> {
+		let temp_dir = tempfile::tempdir()?;
+		let manifest_path = temp_dir.path().join("Cargo.toml");
+		fs::write(
+			&manifest_path,
+			r#"[package]
+name = "dummy"
+version = "0.1.0"
+"#,
+		)?;
+
+		let spec = resolve_metadata_spec(&manifest_path)?;
+		assert!(spec.is_none());
 		Ok(())
 	}
 }

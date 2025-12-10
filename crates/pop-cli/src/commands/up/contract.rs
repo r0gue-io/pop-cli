@@ -90,6 +90,7 @@ impl InkNodeCommand {
 #[clap(next_help_heading = HELP_HEADER)]
 pub struct UpContractCommand {
 	/// Path to the contract build directory.
+	#[serde(skip_serializing)]
 	#[clap(skip)]
 	pub(crate) path: PathBuf,
 	/// The name of the contract constructor to call.
@@ -118,6 +119,7 @@ pub struct UpContractCommand {
 	/// e.g.
 	/// - for a dev account "//Alice"
 	/// - with a password "//Alice///SECRET_PASSWORD"
+	#[serde(skip_serializing)]
 	#[clap(short, long)]
 	pub(crate) suri: Option<String>,
 	/// Use a browser extension wallet to sign the extrinsic.
@@ -240,6 +242,16 @@ impl UpContractCommand {
 		// Track the deployed contract address across both deployment flows.
 		let mut deployed_contract_address: Option<String> = None;
 
+		// Resolve constructor arguments
+		if !self.upload_only {
+			let function =
+				extract_function(self.path.clone(), &self.constructor, FunctionType::Constructor)?;
+			if !function.args.is_empty() {
+				resolve_function_args(&function, &mut Cli, &mut self.args, self.skip_confirm)?;
+			}
+			normalize_call_args(&mut self.args, &function);
+		}
+
 		// Run steps for signing with wallet integration.
 		if self.use_wallet {
 			let (call_data, hash) = match self.get_contract_data().await {
@@ -252,8 +264,8 @@ impl UpContractCommand {
 				},
 			};
 
-			let maybe_signature_request = request_signature(call_data, url.to_string()).await?;
-			if let Some(payload) = maybe_signature_request.signed_payload {
+			let maybe_payload = request_signature(call_data, url.to_string()).await?;
+			if let Some(payload) = maybe_payload {
 				Cli.success("Signed payload received.")?;
 				let spinner = spinner();
 				spinner.start(
@@ -294,12 +306,8 @@ impl UpContractCommand {
 					// Check if the account is already mapped, and prompt the user to perform the
 					// mapping if it's required.
 					map_account(instantiate_exec.opts(), &mut Cli).await?;
-					let contract_info = match instantiate_contract_signed(
-						maybe_signature_request.contract_address,
-						url.as_str(),
-						payload,
-					)
-					.await
+					let contract_info = match instantiate_contract_signed(url.as_str(), payload)
+						.await
 					{
 						Err(e) => {
 							spinner
@@ -336,15 +344,6 @@ impl UpContractCommand {
 					},
 				}
 			} else {
-				let function = extract_function(
-					self.path.clone(),
-					&self.constructor,
-					FunctionType::Constructor,
-				)?;
-				if !function.args.is_empty() {
-					resolve_function_args(&function, &mut Cli, &mut self.args, self.skip_confirm)?;
-				}
-				normalize_call_args(&mut self.args, &function);
 				// Otherwise instantiate.
 				let instantiate_exec = match set_up_deployment(self.clone().into()).await {
 					Ok(i) => i,
@@ -519,7 +518,11 @@ impl UpContractCommand {
 					.await
 					.unwrap_or_else(|_| Weight::zero())
 			};
-			let call_data = get_instantiate_payload(instantiate_exec, weight_limit).await?;
+			// Skip storage deposit estimation when using wallet (UI will handle it)
+			let storage_deposit_limit = if self.use_wallet { Some(0) } else { None };
+			let call_data =
+				get_instantiate_payload(instantiate_exec, weight_limit, storage_deposit_limit)
+					.await?;
 			Ok((call_data, hash))
 		}
 	}
@@ -577,8 +580,9 @@ pub(crate) async fn start_ink_node(
 	Cli.info(format!(
 		"Local node started successfully:{}",
 		style(format!(
-			"\n{}\n{}",
+			"\n{}\n{}\n{}",
 			style(format!("portal: https://polkadot.js.org/apps/?rpc={}#/explorer", url)).dim(),
+			style(format!("url: {}", url)).dim(),
 			style(format!("logs: tail -f {}", log_ink_node.path().display())).dim(),
 		))
 		.dim()
