@@ -40,3 +40,10 @@ impl From<Box<dyn StdError + Send + Sync>> for CacheError {
 		CacheError::DataCorruption(format!("{e}"))
 	}
 }
+
+impl From<Box<dyn StdError + Send + Sync>> for CacheError {
+	fn from(e: Box<dyn StdError + Send + Sync>) -> Self {
+		// Migrations return boxed errors; fold them into a descriptive error variant
+		CacheError::DataCorruption(format!("{e}"))
+	}
+}
