@@ -83,21 +83,8 @@ impl StorageCache {
 	/// Creates the parent directory if it doesn't exist.
 	pub async fn open(maybe_path: Option<&Path>) -> Result<Self, CacheError> {
 		// For in-memory open a single dedicated connection; for file path use a pool.
-		if maybe_path.is_none() {
-			// Single in-memory connection
-			let mut conn = SyncConnectionWrapper::<SqliteConnection>::establish(":memory:").await?;
-			// Run migrations on this single connection
-			// Set busy timeout to reduce lock errors under contention
-			diesel::sql_query("PRAGMA busy_timeout=5000;").execute(&mut conn).await?;
-			let mut harness = AsyncMigrationHarness::new(conn);
-			harness.run_pending_migrations(MIGRATIONS)?;
-			let conn = harness.into_inner();
-			Ok(Self {
-				inner: StorageConn::Single(std::sync::Arc::new(tokio::sync::Mutex::new(conn))),
-			})
-		} else {
+		if let Some(path) = maybe_path {
 			// Ensure parent directory exists
-			let path = maybe_path.unwrap();
 			if let Some(parent) = path.parent() {
 				std::fs::create_dir_all(parent)?;
 			}
@@ -119,6 +106,18 @@ impl StorageCache {
 				AsyncDieselConnectionManager::<SyncConnectionWrapper<SqliteConnection>>::new(url);
 			let pool = Pool::builder().max_size(MAX_POOL_CONNECTIONS).build(manager).await?;
 			Ok(Self { inner: StorageConn::Pool(pool) })
+		} else {
+			// Single in-memory connection
+			let mut conn = SyncConnectionWrapper::<SqliteConnection>::establish(":memory:").await?;
+			// Run migrations on this single connection
+			// Set busy timeout to reduce lock errors under contention
+			diesel::sql_query("PRAGMA busy_timeout=5000;").execute(&mut conn).await?;
+			let mut harness = AsyncMigrationHarness::new(conn);
+			harness.run_pending_migrations(MIGRATIONS)?;
+			let conn = harness.into_inner();
+			Ok(Self {
+				inner: StorageConn::Single(std::sync::Arc::new(tokio::sync::Mutex::new(conn))),
+			})
 		}
 	}
 
