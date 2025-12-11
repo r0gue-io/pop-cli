@@ -104,4 +104,6 @@ open = { version = "5.3.1", default-features = false }
 tower-http = { version = "0.6.2", default-features = false }
 
 # database
-sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite"] }
+diesel = { version = "2.3.4", default-features = false, features = ["sqlite"] }
+diesel-async = { version = "0.7.4", default-features = false, features = ["sqlite", "tokio", "bb8", "migrations"] }
+diesel_migrations = { version = "2.3.1", default-features = false }

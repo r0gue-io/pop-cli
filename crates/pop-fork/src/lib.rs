@@ -31,7 +31,9 @@
 
 mod cache;
 pub mod error;
+mod models;
 mod rpc;
+mod schema;
 
 pub use cache::{BlockInfo, StorageCache};
 pub use error::{CacheError, RpcClientError};
