@@ -11,7 +11,7 @@ use crate::{
 	schema::{blocks, storage},
 };
 use bb8::CustomizeConnection;
-use diesel::{OptionalExtension, prelude::*, sqlite::SqliteConnection};
+use diesel::{OptionalExtension, prelude::*, sqlite::SqliteConnection, result::Error as DieselError};
 use diesel_async::{
 	AsyncConnection, AsyncMigrationHarness, RunQueryDsl,
 	pooled_connection::{AsyncDieselConnectionManager, PoolError, bb8::Pool},
@@ -82,6 +82,32 @@ impl CustomizeConnection<SyncConnectionWrapper<SqliteConnection>, PoolError>
 }
 
 impl StorageCache {
+	/// Execute a closure with a database connection.
+	///
+	/// Handles acquiring the connection from either the pool or single mutex.
+	async fn with_conn<F, R>(&self, f: F) -> Result<R, DieselError>
+	where
+		F: for<'a> FnOnce(
+			&'a mut SyncConnectionWrapper<SqliteConnection>,
+		) -> Pin<Box<dyn Future<Output = Result<R, DieselError>> + Send + 'a>>,
+	{
+		match &self.inner {
+			StorageConn::Pool(pool) => {
+				let mut conn = pool.get().await.map_err(|e| {
+					DieselError::DatabaseError(
+						diesel::result::DatabaseErrorKind::UnableToSendCommand,
+						Box::new(e.to_string()),
+					)
+				})?;
+				f(&mut conn).await
+			},
+			StorageConn::Single(m) => {
+				let mut conn = m.lock().await;
+				f(&mut *conn).await
+			},
+		}
+	}
+
 	/// Open or create a cache database at the specified path.
 	///
 	/// Creates the parent directory if it doesn't exist.
@@ -158,28 +184,21 @@ impl StorageCache {
 		use crate::schema::storage::columns as sc;
 		let bh = block_hash.as_bytes().to_vec();
 		let k = key.to_vec();
-		let row: Option<(Option<Vec<u8>>, bool)> = match &self.inner {
-			StorageConn::Pool(pool) => {
-				let mut conn = pool.get().await?;
-				storage::table
-					.filter(sc::block_hash.eq(bh))
-					.filter(sc::key.eq(k))
-					.select((sc::value, sc::is_empty))
-					.first::<(Option<Vec<u8>>, bool)>(&mut conn)
-					.await
-					.optional()?
-			},
-			StorageConn::Single(m) => {
-				let mut conn = m.lock().await;
-				storage::table
-					.filter(sc::block_hash.eq(bh))
-					.filter(sc::key.eq(k))
-					.select((sc::value, sc::is_empty))
-					.first::<(Option<Vec<u8>>, bool)>(&mut *conn)
-					.await
-					.optional()?
-			},
-		};
+
+		let row: Option<(Option<Vec<u8>>, bool)> = self
+			.with_conn(|conn| {
+				Box::pin(async move {
+					storage::table
+						.filter(sc::block_hash.eq(bh))
+						.filter(sc::key.eq(k))
+						.select((sc::value, sc::is_empty))
+						.first::<(Option<Vec<u8>>, bool)>(conn)
+						.await
+						.optional()
+				})
+			})
+			.await
+			.map_err(CacheError::from)?;
 
 		Ok(row.map(|(val, empty)| if empty { None } else { val }))
 	}
@@ -204,36 +223,27 @@ impl StorageCache {
 			value: value.map(|v| v.to_vec()),
 			is_empty: value.is_none(),
 		};
+
 		let mut attempts = 0;
 		loop {
-			let res = match &self.inner {
-				StorageConn::Pool(pool) => {
-					let mut conn = pool.get().await?;
-					diesel::insert_into(storage::table)
-						.values(&new_row)
-						.on_conflict((sc::block_hash, sc::key))
-						.do_update()
-						.set((
-							sc::value.eq(new_row.value.clone()),
-							sc::is_empty.eq(new_row.is_empty),
-						))
-						.execute(&mut conn)
-						.await
-				},
-				StorageConn::Single(m) => {
-					let mut conn = m.lock().await;
-					diesel::insert_into(storage::table)
-						.values(&new_row)
-						.on_conflict((sc::block_hash, sc::key))
-						.do_update()
-						.set((
-							sc::value.eq(new_row.value.clone()),
-							sc::is_empty.eq(new_row.is_empty),
-						))
-						.execute(&mut *conn)
-						.await
-				},
-			};
+			let row = new_row.clone();
+			let res = self
+				.with_conn(|conn| {
+					Box::pin(async move {
+						diesel::insert_into(storage::table)
+							.values(&row)
+							.on_conflict((sc::block_hash, sc::key))
+							.do_update()
+							.set((
+								sc::value.eq(row.value.clone()),
+								sc::is_empty.eq(row.is_empty),
+							))
+							.execute(conn)
+							.await
+					})
+				})
+				.await;
+
 			match res {
 				Ok(_) => return Ok(()),
 				Err(e) if is_locked_error(&e) && attempts < MAX_LOCK_RETRIES => {
@@ -260,26 +270,20 @@ impl StorageCache {
 		use crate::schema::storage::columns as sc;
 		let bh = block_hash.as_bytes().to_vec();
 		let key_vecs: Vec<Vec<u8>> = keys.iter().map(|k| k.to_vec()).collect();
-		let rows: Vec<(Vec<u8>, Option<Vec<u8>>, bool)> = match &self.inner {
-			StorageConn::Pool(pool) => {
-				let mut conn = pool.get().await?;
-				storage::table
-					.filter(sc::block_hash.eq(bh))
-					.filter(sc::key.eq_any(&key_vecs))
-					.select((sc::key, sc::value, sc::is_empty))
-					.load::<(Vec<u8>, Option<Vec<u8>>, bool)>(&mut conn)
-					.await?
-			},
-			StorageConn::Single(m) => {
-				let mut conn = m.lock().await;
-				storage::table
-					.filter(sc::block_hash.eq(bh))
-					.filter(sc::key.eq_any(&key_vecs))
-					.select((sc::key, sc::value, sc::is_empty))
-					.load::<(Vec<u8>, Option<Vec<u8>>, bool)>(&mut *conn)
-					.await?
-			},
-		};
+
+		let rows: Vec<(Vec<u8>, Option<Vec<u8>>, bool)> = self
+			.with_conn(|conn| {
+				Box::pin(async move {
+					storage::table
+						.filter(sc::block_hash.eq(bh))
+						.filter(sc::key.eq_any(&key_vecs))
+						.select((sc::key, sc::value, sc::is_empty))
+						.load::<(Vec<u8>, Option<Vec<u8>>, bool)>(conn)
+						.await
+				})
+			})
+			.await
+			.map_err(CacheError::from)?;
 
 		// Build a map from the results. SQLite doesn't guarantee result order matches
 		// the IN clause order, so we use a HashMap to look up values by key.
@@ -325,51 +329,32 @@ impl StorageCache {
 
 		let mut attempts = 0;
 		loop {
-            let new_rows = new_rows.clone();
-			let res = match &self.inner {
-				StorageConn::Pool(pool) => {
-					let mut conn = pool.get().await?;
-					conn.transaction::<_, diesel::result::Error, _>(move |conn| {
-						Box::pin(async move {
-							for row in new_rows {
-								diesel::insert_into(storage::table)
-									.values(&row)
-									.on_conflict((sc::block_hash, sc::key))
-									.do_update()
-									.set((
-										sc::value.eq(row.value.clone()),
-										sc::is_empty.eq(row.is_empty),
-									))
-									.execute(conn)
-									.await?;
-							}
-							Ok(())
+			let rows = new_rows.clone();
+			let res = self
+				.with_conn(|conn| {
+					Box::pin(async move {
+						conn.transaction::<_, DieselError, _>(move |conn| {
+							Box::pin(async move {
+								for row in rows {
+									diesel::insert_into(storage::table)
+										.values(&row)
+										.on_conflict((sc::block_hash, sc::key))
+										.do_update()
+										.set((
+											sc::value.eq(row.value.clone()),
+											sc::is_empty.eq(row.is_empty),
+										))
+										.execute(conn)
+										.await?;
+								}
+								Ok(())
+							})
 						})
+						.await
 					})
-					.await
-				},
-				StorageConn::Single(m) => {
-					let mut conn = m.lock().await;
-					conn.transaction::<_, diesel::result::Error, _>(move |conn| {
-						Box::pin(async move {
-							for row in new_rows {
-								diesel::insert_into(storage::table)
-									.values(&row)
-									.on_conflict((sc::block_hash, sc::key))
-									.do_update()
-									.set((
-										sc::value.eq(row.value.clone()),
-										sc::is_empty.eq(row.is_empty),
-									))
-									.execute(conn)
-									.await?;
-							}
-							Ok(())
-						})
-					})
-					.await
-				},
-			};
+				})
+				.await;
+
 			match res {
 				Ok(_) => return Ok(()),
 				Err(e) if is_locked_error(&e) && attempts < MAX_LOCK_RETRIES => {
@@ -398,38 +383,28 @@ impl StorageCache {
 			parent_hash: parent_hash.as_bytes().to_vec(),
 			header: header.to_vec(),
 		};
+
 		let mut attempts = 0;
 		loop {
-			let res = match &self.inner {
-				StorageConn::Pool(pool) => {
-					let mut conn = pool.get().await?;
-					diesel::insert_into(blocks::table)
-						.values(&new_block)
-						.on_conflict(bc::hash)
-						.do_update()
-						.set((
-							bc::number.eq(new_block.number),
-							bc::parent_hash.eq(new_block.parent_hash.clone()),
-							bc::header.eq(new_block.header.clone()),
-						))
-						.execute(&mut conn)
-						.await
-				},
-				StorageConn::Single(m) => {
-					let mut conn = m.lock().await;
-					diesel::insert_into(blocks::table)
-						.values(&new_block)
-						.on_conflict(bc::hash)
-						.do_update()
-						.set((
-							bc::number.eq(new_block.number),
-							bc::parent_hash.eq(new_block.parent_hash.clone()),
-							bc::header.eq(new_block.header.clone()),
-						))
-						.execute(&mut *conn)
-						.await
-				},
-			};
+			let block = new_block.clone();
+			let res = self
+				.with_conn(|conn| {
+					Box::pin(async move {
+						diesel::insert_into(blocks::table)
+							.values(&block)
+							.on_conflict(bc::hash)
+							.do_update()
+							.set((
+								bc::number.eq(block.number),
+								bc::parent_hash.eq(block.parent_hash.clone()),
+								bc::header.eq(block.header.clone()),
+							))
+							.execute(conn)
+							.await
+					})
+				})
+				.await;
+
 			match res {
 				Ok(_) => return Ok(()),
 				Err(e) if is_locked_error(&e) && attempts < MAX_LOCK_RETRIES => {
@@ -447,26 +422,20 @@ impl StorageCache {
 		// Returns None if the block hasn't been cached yet.
 		use crate::schema::blocks::columns as bc;
 		let bh = hash.as_bytes().to_vec();
-		let row = match &self.inner {
-			StorageConn::Pool(pool) => {
-				let mut conn = pool.get().await?;
-				blocks::table
-					.filter(bc::hash.eq(bh))
-					.select(BlockRow::as_select())
-					.first::<BlockRow>(&mut conn)
-					.await
-					.optional()?
-			},
-			StorageConn::Single(m) => {
-				let mut conn = m.lock().await;
-				blocks::table
-					.filter(bc::hash.eq(bh))
-					.select(BlockRow::as_select())
-					.first::<BlockRow>(&mut *conn)
-					.await
-					.optional()?
-			},
-		};
+
+		let row = self
+			.with_conn(|conn| {
+				Box::pin(async move {
+					blocks::table
+						.filter(bc::hash.eq(bh))
+						.select(BlockRow::as_select())
+						.first::<BlockRow>(conn)
+						.await
+						.optional()
+				})
+			})
+			.await
+			.map_err(CacheError::from)?;
 
 		match row {
 			// Sanity check on the block number, as we use i64 to represent them in SQLite but
@@ -484,44 +453,31 @@ impl StorageCache {
 		// This maintains consistency: we never have orphaned storage entries
 		// without their parent block, or vice versa.
 		use crate::schema::{blocks::columns as bc, storage::columns as sc};
-		let orig_bh_vec = hash.as_bytes().to_vec();
+		let bh_vec = hash.as_bytes().to_vec();
+
 		let mut attempts = 0;
 		loop {
-			let bh_vec = orig_bh_vec.clone();
-			let res = match &self.inner {
-				StorageConn::Pool(pool) => {
-					let mut conn = pool.get().await?;
-					conn.transaction::<_, diesel::result::Error, _>(move |conn| {
-						let bh = bh_vec;
-						Box::pin(async move {
-							diesel::delete(storage::table.filter(sc::block_hash.eq(bh.clone())))
-								.execute(conn)
-								.await?;
-							diesel::delete(blocks::table.filter(bc::hash.eq(bh)))
-								.execute(conn)
-								.await?;
-							Ok(())
+			let bh = bh_vec.clone();
+			let res = self
+				.with_conn(|conn| {
+					Box::pin(async move {
+						conn.transaction::<_, DieselError, _>(move |conn| {
+							let bh = bh.clone();
+							Box::pin(async move {
+								diesel::delete(storage::table.filter(sc::block_hash.eq(bh.clone())))
+									.execute(conn)
+									.await?;
+								diesel::delete(blocks::table.filter(bc::hash.eq(bh)))
+									.execute(conn)
+									.await?;
+								Ok(())
+							})
 						})
+						.await
 					})
-					.await
-				},
-				StorageConn::Single(m) => {
-					let mut conn = m.lock().await;
-					conn.transaction::<_, diesel::result::Error, _>(move |conn| {
-						let bh = bh_vec;
-						Box::pin(async move {
-							diesel::delete(storage::table.filter(sc::block_hash.eq(bh.clone())))
-								.execute(conn)
-								.await?;
-							diesel::delete(blocks::table.filter(bc::hash.eq(bh)))
-								.execute(conn)
-								.await?;
-							Ok(())
-						})
-					})
-					.await
-				},
-			};
+				})
+				.await;
+
 			match res {
 				Ok(_) => return Ok(()),
 				Err(e) if is_locked_error(&e) && attempts < MAX_LOCK_RETRIES => {
@@ -534,9 +490,9 @@ impl StorageCache {
 	}
 }
 
-fn is_locked_error(e: &diesel::result::Error) -> bool {
+fn is_locked_error(e: &DieselError) -> bool {
 	match e {
-		diesel::result::Error::DatabaseError(_, info) => {
+		DieselError::DatabaseError(_, info) => {
 			let msg = info.message().to_ascii_lowercase();
 			msg.contains("database is locked") || msg.contains("busy")
 		},
@@ -678,6 +634,7 @@ mod tests {
 					.await
 					.unwrap();
 			},
+            _ => unreachable!("Test single connection; qed;")
 		}
 
 		// Get block should fail with DataCorruption error
