@@ -10,15 +10,17 @@ use crate::{
 	models::{BlockRow, StorageRow},
 	schema::{blocks, storage},
 };
+use bb8::CustomizeConnection;
 use diesel::{OptionalExtension, prelude::*, sqlite::SqliteConnection};
 use diesel_async::{
 	AsyncConnection, AsyncMigrationHarness, RunQueryDsl,
-	pooled_connection::{AsyncDieselConnectionManager, bb8::Pool},
+	pooled_connection::{AsyncDieselConnectionManager, PoolError, bb8::Pool},
 	sync_connection_wrapper::SyncConnectionWrapper,
 };
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
-use std::{collections::HashMap, path::Path, time::Duration};
+use std::{collections::HashMap, future::Future, path::Path, pin::Pin, sync::Arc, time::Duration};
 use subxt::config::substrate::H256;
+use tokio::sync::Mutex;
 
 /// Maximum number of connections in the SQLite connection pool.
 ///
@@ -28,7 +30,6 @@ use subxt::config::substrate::H256;
 const MAX_POOL_CONNECTIONS: u32 = 5;
 /// Maximum retries for transient SQLite lock/busy errors on write paths.
 const MAX_LOCK_RETRIES: u32 = 30;
-
 
 /// SQLite-backed persistent cache for storage values.
 ///
@@ -49,13 +50,35 @@ enum StorageConn {
 	/// For in-memory databases, uses a single shared connection protected by a mutex.
 	/// In-memory databases don't benefit from connection pools since all connections share the
 	/// same memory state.
-	Single(std::sync::Arc<tokio::sync::Mutex<SyncConnectionWrapper<SqliteConnection>>>),
+	Single(Arc<Mutex<SyncConnectionWrapper<SqliteConnection>>>),
 }
 
 async fn retry_conn(attempts: &mut u32) {
 	*attempts += 1;
 	let delay_ms = 10u64.saturating_mul(*attempts as u64);
 	tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+}
+
+/// Connection customizer that sets SQLite pragmas on each pooled connection.
+#[derive(Debug, Clone, Copy)]
+struct SqliteConnectionCustomizer;
+
+impl CustomizeConnection<SyncConnectionWrapper<SqliteConnection>, PoolError>
+	for SqliteConnectionCustomizer
+{
+	fn on_acquire<'a>(
+		&'a self,
+		conn: &'a mut SyncConnectionWrapper<SqliteConnection>,
+	) -> Pin<Box<dyn Future<Output = Result<(), PoolError>> + Send + 'a>> {
+		Box::pin(async move {
+			// Set busy timeout to reduce lock errors under contention
+			diesel::sql_query("PRAGMA busy_timeout=5000;")
+				.execute(conn)
+				.await
+				.map_err(|err| PoolError::QueryError(err))?;
+			Ok(())
+		})
+	}
 }
 
 impl StorageCache {
@@ -74,18 +97,24 @@ impl StorageCache {
 			// Run migrations on a temporary async connection first
 			{
 				let mut conn = SyncConnectionWrapper::<SqliteConnection>::establish(&url).await?;
-				// Apply pragmatic settings for better concurrency on file databases
+				// Apply pragmas for better concurrency on file databases
+				// WAL mode: Persists to the database file itself
 				diesel::sql_query("PRAGMA journal_mode=WAL;").execute(&mut conn).await?;
+				// Busy timeout: For this migration connection
 				diesel::sql_query("PRAGMA busy_timeout=5000;").execute(&mut conn).await?;
 				let mut harness = AsyncMigrationHarness::new(conn);
 				harness.run_pending_migrations(MIGRATIONS)?;
 				let _ = harness.into_inner();
 			}
 
-			// Build the pool
+			// Build the pool with connection customizer
 			let manager =
 				AsyncDieselConnectionManager::<SyncConnectionWrapper<SqliteConnection>>::new(url);
-			let pool = Pool::builder().max_size(MAX_POOL_CONNECTIONS).build(manager).await?;
+			let pool = Pool::builder()
+				.max_size(MAX_POOL_CONNECTIONS)
+				.connection_customizer(Box::new(SqliteConnectionCustomizer))
+				.build(manager)
+				.await?;
 			Ok(Self { inner: StorageConn::Pool(pool) })
 		} else {
 			// Single in-memory connection
@@ -441,12 +470,14 @@ impl StorageCache {
 			},
 		};
 
-        match row{
-            // Sanity check on the block number, as we use i64 to represent them in SQLite but Substrate blocks are u32
-            Some(BlockRow{number,..}) if number < 0 || number > u32::MAX.into() => Err(CacheError::DataCorruption("block number out of u32 range".into())),
-            row @ Some(_) => Ok(row),
-            None => Ok(None)
-        }
+		match row {
+			// Sanity check on the block number, as we use i64 to represent them in SQLite but
+			// Substrate blocks are u32
+			Some(BlockRow { number, .. }) if number < 0 || number > u32::MAX.into() =>
+				Err(CacheError::DataCorruption("block number out of u32 range".into())),
+			row @ Some(_) => Ok(row),
+			None => Ok(None),
+		}
 	}
 
 	/// Clear all cached data for a specific block.

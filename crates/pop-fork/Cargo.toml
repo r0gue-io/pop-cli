@@ -9,6 +9,7 @@ rust-version.workspace = true
 
 [dependencies]
 # Fork-specific
+bb8.workspace = true
 diesel.workspace = true
 diesel-async.workspace = true
 diesel_migrations.workspace = true
