@@ -26,3 +26,6 @@ pop-common = { path = "../pop-common", version = "0.12.1" }
 hex.workspace = true
 tempfile.workspace = true
 tokio-test.workspace = true
+
+[features]
+integration-tests = []

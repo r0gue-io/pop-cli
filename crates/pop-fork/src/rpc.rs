@@ -44,6 +44,20 @@
 //!
 //! Note: subxt marks legacy methods as "not advised" but they remain widely used.
 //! This decision should be revisited if the ecosystem moves away from legacy RPCs.
+//!
+//! # Testing
+//!
+//! Integration tests for this module are located in `tests/rpc.rs` rather than inline.
+//! This separation exists because:
+//!
+//! 1. Tests spawn local test nodes (ink-node), requiring binary downloads and process management.
+//! 2. Concurrent test execution can cause race conditions during node binary downloads.
+//! 3. CI runs these tests with `-j 1` (sequential) to avoid resource contention.
+//!
+//! To run the tests locally:
+//! ```bash
+//! cargo nextest run -p pop-fork --features integration-tests --test rpc -j 1
+//! ```
 
 use subxt::{
 	PolkadotConfig,
@@ -282,154 +296,31 @@ impl ForkRpcClient {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use pop_common::test_env::TestNode;
 
-	// Note: These tests spawn local test nodes, which download the ink-node binary.
-	// Running in parallel causes concurrent downloads that may fail due to rate limiting.
-	// Run sequentially with: cargo nextest run -p pop-fork --lib 'rpc::tests::' -j 1
-
-	// Well-known storage keys for testing.
-	// These are derived from twox128 hashes of pallet and storage item names.
-
-	/// System pallet prefix: twox128("System")
-	const SYSTEM_PALLET_PREFIX: &str = "26aa394eea5630e07c48ae0c9558cef7";
-
-	/// System::Number storage key: twox128("System") ++ twox128("Number")
-	const SYSTEM_NUMBER_KEY: &str =
-		"26aa394eea5630e07c48ae0c9558cef702a5c1b19ab7a04f536c519aca4983ac";
-
-	/// System::ParentHash storage key: twox128("System") ++ twox128("ParentHash")
-	const SYSTEM_PARENT_HASH_KEY: &str =
-		"26aa394eea5630e07c48ae0c9558cef734abf5cb34d6244378cddbf18e849d96";
-
-	#[tokio::test]
-	async fn connect_to_node() {
-		let node = TestNode::spawn().await.expect("Failed to spawn test node");
-		let endpoint: Url = node.ws_url().parse().unwrap();
-		let client = ForkRpcClient::connect(&endpoint).await.unwrap();
-		assert_eq!(client.endpoint(), &endpoint);
+	#[test]
+	fn error_display_connection_failed() {
+		let err = RpcClientError::ConnectionFailed {
+			endpoint: "wss://example.com".to_string(),
+			message: "connection refused".to_string(),
+		};
+		assert_eq!(err.to_string(), "Failed to connect to wss://example.com: connection refused");
 	}
 
-	#[tokio::test]
-	async fn fetch_finalized_head() {
-		let node = TestNode::spawn().await.expect("Failed to spawn test node");
-		let endpoint: Url = node.ws_url().parse().unwrap();
-		let client = ForkRpcClient::connect(&endpoint).await.unwrap();
-		let hash = client.finalized_head().await.unwrap();
-		// Hash should be 32 bytes
-		assert_eq!(hash.as_bytes().len(), 32);
+	#[test]
+	fn error_display_request_failed() {
+		let err = RpcClientError::RequestFailed("timeout".to_string());
+		assert_eq!(err.to_string(), "RPC request failed: timeout");
 	}
 
-	#[tokio::test]
-	async fn fetch_header() {
-		let node = TestNode::spawn().await.expect("Failed to spawn test node");
-		let endpoint: Url = node.ws_url().parse().unwrap();
-		let client = ForkRpcClient::connect(&endpoint).await.unwrap();
-		let hash = client.finalized_head().await.unwrap();
-		let header = client.header(hash).await.unwrap();
-		// Header should have a valid state root (32 bytes)
-		assert_eq!(header.state_root.as_bytes().len(), 32);
+	#[test]
+	fn error_display_invalid_response() {
+		let err = RpcClientError::InvalidResponse("missing field".to_string());
+		assert_eq!(err.to_string(), "Invalid RPC response: missing field");
 	}
 
-	#[tokio::test]
-	async fn fetch_storage() {
-		let node = TestNode::spawn().await.expect("Failed to spawn test node");
-		let endpoint: Url = node.ws_url().parse().unwrap();
-		let client = ForkRpcClient::connect(&endpoint).await.unwrap();
-		let hash = client.finalized_head().await.unwrap();
-
-		let key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
-		let value = client.storage(&key, hash).await.unwrap();
-
-		// System::Number should exist and have a value
-		assert!(value.is_some());
-	}
-
-	#[tokio::test]
-	async fn fetch_metadata() {
-		let node = TestNode::spawn().await.expect("Failed to spawn test node");
-		let endpoint: Url = node.ws_url().parse().unwrap();
-		let client = ForkRpcClient::connect(&endpoint).await.unwrap();
-		let hash = client.finalized_head().await.unwrap();
-		let metadata = client.metadata(hash).await.unwrap();
-
-		// Metadata should be substantial
-		assert!(metadata.len() > 1000);
-	}
-
-	#[tokio::test]
-	async fn fetch_runtime_code() {
-		let node = TestNode::spawn().await.expect("Failed to spawn test node");
-		let endpoint: Url = node.ws_url().parse().unwrap();
-		let client = ForkRpcClient::connect(&endpoint).await.unwrap();
-		let hash = client.finalized_head().await.unwrap();
-		let code = client.runtime_code(hash).await.unwrap();
-
-		// Runtime code should be substantial
-		// ink-node runtime is smaller than relay chains but still significant
-		assert!(
-			code.len() > 10_000,
-			"Runtime code should be substantial, got {} bytes",
-			code.len()
-		);
-	}
-
-	#[tokio::test]
-	async fn fetch_storage_keys_paged() {
-		let node = TestNode::spawn().await.expect("Failed to spawn test node");
-		let endpoint: Url = node.ws_url().parse().unwrap();
-		let client = ForkRpcClient::connect(&endpoint).await.unwrap();
-		let hash = client.finalized_head().await.unwrap();
-
-		let prefix = hex::decode(SYSTEM_PALLET_PREFIX).unwrap();
-		let keys = client.storage_keys_paged(&prefix, 10, None, hash).await.unwrap();
-
-		// Should find some System storage keys
-		assert!(!keys.is_empty());
-		// All keys should start with the prefix
-		for key in &keys {
-			assert!(key.starts_with(&prefix));
-		}
-	}
-
-	#[tokio::test]
-	async fn fetch_storage_batch() {
-		let node = TestNode::spawn().await.expect("Failed to spawn test node");
-		let endpoint: Url = node.ws_url().parse().unwrap();
-		let client = ForkRpcClient::connect(&endpoint).await.unwrap();
-		let hash = client.finalized_head().await.unwrap();
-
-		let keys = vec![
-			hex::decode(SYSTEM_NUMBER_KEY).unwrap(),
-			hex::decode(SYSTEM_PARENT_HASH_KEY).unwrap(),
-		];
-		let values = client.storage_batch(&keys, hash).await.unwrap();
-
-		assert_eq!(values.len(), 2);
-		// Both System::Number and System::ParentHash should exist
-		assert!(values[0].is_some());
-		assert!(values[1].is_some());
-	}
-
-	#[tokio::test]
-	async fn fetch_system_chain() {
-		let node = TestNode::spawn().await.expect("Failed to spawn test node");
-		let endpoint: Url = node.ws_url().parse().unwrap();
-		let client = ForkRpcClient::connect(&endpoint).await.unwrap();
-
-		let chain_name = client.system_chain().await.unwrap();
-
-		// Chain should return a non-empty name
-		assert!(!chain_name.is_empty());
-	}
-
-	#[tokio::test]
-	async fn fetch_system_properties() {
-		let node = TestNode::spawn().await.expect("Failed to spawn test node");
-		let endpoint: Url = node.ws_url().parse().unwrap();
-		let client = ForkRpcClient::connect(&endpoint).await.unwrap();
-
-		// Should successfully fetch system properties (may be empty for some nodes)
-		let _properties = client.system_properties().await.unwrap();
+	#[test]
+	fn error_display_storage_not_found() {
+		let err = RpcClientError::StorageNotFound(":code".to_string());
+		assert_eq!(err.to_string(), "Required storage key not found: :code");
 	}
 }
