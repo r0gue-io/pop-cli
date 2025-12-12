@@ -32,3 +32,11 @@ CREATE TABLE local_storage (
 
 -- Index to accelerate block-wide deletes/queries
 CREATE INDEX idx_local_storage_block ON local_storage(block_number);
+-- Create prefix_scans table for tracking prefix scan progress
+CREATE TABLE prefix_scans (
+    block_hash BLOB NOT NULL,
+    prefix BLOB NOT NULL,
+    last_scanned_key BLOB,
+    is_complete BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (block_hash, prefix)
+);
