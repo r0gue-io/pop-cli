@@ -116,7 +116,7 @@ impl StorageCache {
 	/// * `Ok(Some(Some(value)))` - Cached with a value.
 	/// * `Ok(Some(None))` - Cached as empty (storage key exists but has no value).
 	/// * `Ok(None)` - Not in cache (unknown).
-	pub async fn get(
+	pub async fn get_storage(
 		&self,
 		block_hash: H256,
 		key: &[u8],
@@ -161,7 +161,7 @@ impl StorageCache {
 	/// * `block_hash` - The block hash this storage is from
 	/// * `key` - The storage key
 	/// * `value` - The storage value, or None if the key has no value (empty)
-	pub async fn set(
+	pub async fn set_storage(
 		&self,
 		block_hash: H256,
 		key: &[u8],
@@ -220,7 +220,7 @@ impl StorageCache {
 	/// Get multiple cached storage values in a batch.
 	///
 	/// Returns results in the same order as the input keys.
-	pub async fn get_batch(
+	pub async fn get_storage_batch(
 		&self,
 		block_hash: H256,
 		keys: &[&[u8]],
@@ -270,7 +270,7 @@ impl StorageCache {
 	/// Cache multiple storage values in a batch.
 	///
 	/// Uses a transaction for efficiency.
-	pub async fn set_batch(
+	pub async fn set_storage_batch(
 		&self,
 		block_hash: H256,
 		entries: &[(&[u8], Option<&[u8]>)],
@@ -531,13 +531,13 @@ mod tests {
 		let value = b"test_value";
 
 		// Initially not cached
-		assert!(cache.get(block_hash, key).await.unwrap().is_none());
+		assert!(cache.get_storage(block_hash, key).await.unwrap().is_none());
 
 		// Set a value
-		cache.set(block_hash, key, Some(value)).await.unwrap();
+		cache.set_storage(block_hash, key, Some(value)).await.unwrap();
 
 		// Now cached with value
-		let cached = cache.get(block_hash, key).await.unwrap();
+		let cached = cache.get_storage(block_hash, key).await.unwrap();
 		assert_eq!(cached, Some(Some(value.to_vec())));
 	}
 
@@ -549,10 +549,10 @@ mod tests {
 		let key = b"empty_key";
 
 		// Set as empty (key exists but no value)
-		cache.set(block_hash, key, None).await.unwrap();
+		cache.set_storage(block_hash, key, None).await.unwrap();
 
 		// Cached as empty
-		let cached = cache.get(block_hash, key).await.unwrap();
+		let cached = cache.get_storage(block_hash, key).await.unwrap();
 		assert_eq!(cached, Some(None));
 	}
 
@@ -568,11 +568,11 @@ mod tests {
 		];
 
 		// Batch set
-		cache.set_batch(block_hash, &entries).await.unwrap();
+		cache.set_storage_batch(block_hash, &entries).await.unwrap();
 
 		// Batch get
 		let keys: Vec<&[u8]> = vec![b"key1", b"key2", b"key3", b"key4"];
-		let results = cache.get_batch(block_hash, &keys).await.unwrap();
+		let results = cache.get_storage_batch(block_hash, &keys).await.unwrap();
 
 		assert_eq!(results.len(), 4);
 		assert_eq!(results[0], Some(Some(b"value1".to_vec())));
@@ -608,11 +608,11 @@ mod tests {
 		let block2 = H256::from([6u8; 32]);
 		let key = b"same_key";
 
-		cache.set(block1, key, Some(b"value1")).await.unwrap();
-		cache.set(block2, key, Some(b"value2")).await.unwrap();
+		cache.set_storage(block1, key, Some(b"value1")).await.unwrap();
+		cache.set_storage(block2, key, Some(b"value2")).await.unwrap();
 
-		let cached1 = cache.get(block1, key).await.unwrap();
-		let cached2 = cache.get(block2, key).await.unwrap();
+		let cached1 = cache.get_storage(block1, key).await.unwrap();
+		let cached2 = cache.get_storage(block2, key).await.unwrap();
 
 		assert_eq!(cached1, Some(Some(b"value1".to_vec())));
 		assert_eq!(cached2, Some(Some(b"value2".to_vec())));
@@ -626,18 +626,18 @@ mod tests {
 		let parent_hash = H256::from([6u8; 32]);
 		let key = b"test_key";
 
-		cache.set(hash, key, Some(b"value")).await.unwrap();
+		cache.set_storage(hash, key, Some(b"value")).await.unwrap();
 		cache.cache_block(hash, 50, parent_hash, b"header").await.unwrap();
 
 		// Data exists
-		assert!(cache.get(hash, key).await.unwrap().is_some());
+		assert!(cache.get_storage(hash, key).await.unwrap().is_some());
 		assert!(cache.get_block(hash).await.unwrap().is_some());
 
 		// Clear
 		cache.clear_block(hash).await.unwrap();
 
 		// Data removed
-		assert!(cache.get(hash, key).await.unwrap().is_none());
+		assert!(cache.get_storage(hash, key).await.unwrap().is_none());
 		assert!(cache.get_block(hash).await.unwrap().is_none());
 	}
 
@@ -653,13 +653,13 @@ mod tests {
 		// Write and close
 		{
 			let cache = StorageCache::open(Some(&db_path)).await.unwrap();
-			cache.set(block_hash, key, Some(value)).await.unwrap();
+			cache.set_storage(block_hash, key, Some(value)).await.unwrap();
 		}
 
 		// Reopen and verify
 		{
 			let cache = StorageCache::open(Some(&db_path)).await.unwrap();
-			let cached = cache.get(block_hash, key).await.unwrap();
+			let cached = cache.get_storage(block_hash, key).await.unwrap();
 			assert_eq!(cached, Some(Some(value.to_vec())));
 		}
 	}
@@ -680,7 +680,7 @@ mod tests {
 			let handle = tokio::spawn(async move {
 				let key = format!("key_{}", i);
 				let value = format!("value_{}", i);
-				cache.set(block_hash, key.as_bytes(), Some(value.as_bytes())).await
+				cache.set_storage(block_hash, key.as_bytes(), Some(value.as_bytes())).await
 			});
 			handles.push(handle);
 		}
@@ -696,7 +696,7 @@ mod tests {
 			let cache = cache.clone();
 			let handle = tokio::spawn(async move {
 				let key = format!("key_{}", i);
-				cache.get(block_hash, key.as_bytes()).await
+				cache.get_storage(block_hash, key.as_bytes()).await
 			});
 			read_handles.push((i, handle));
 		}
@@ -721,7 +721,7 @@ mod tests {
 				.zip(values.iter())
 				.map(|(k, v)| (k.as_slice(), Some(v.as_slice())))
 				.collect();
-			cache1.set_batch(block_hash2, &entries).await
+			cache1.set_storage_batch(block_hash2, &entries).await
 		});
 
 		let batch_handle2 = tokio::spawn(async move {
@@ -733,7 +733,7 @@ mod tests {
 				.zip(values.iter())
 				.map(|(k, v)| (k.as_slice(), Some(v.as_slice())))
 				.collect();
-			cache2.set_batch(block_hash2, &entries).await
+			cache2.set_storage_batch(block_hash2, &entries).await
 		});
 
 		batch_handle1.await.unwrap().unwrap();
@@ -742,7 +742,7 @@ mod tests {
 		// Verify batch results
 		let keys: Vec<Vec<u8>> = (0..5).map(|i| format!("batch1_{}", i).into_bytes()).collect();
 		let key_refs: Vec<&[u8]> = keys.iter().map(|k| k.as_slice()).collect();
-		let results = cache.get_batch(block_hash2, &key_refs).await.unwrap();
+		let results = cache.get_storage_batch(block_hash2, &key_refs).await.unwrap();
 		for (i, result) in results.iter().enumerate() {
 			assert_eq!(*result, Some(Some(vec![i as u8])));
 		}
