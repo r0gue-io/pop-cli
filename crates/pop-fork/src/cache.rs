@@ -632,6 +632,62 @@ mod tests {
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
+	async fn get_block_with_non_cached_block() {
+		let cache = StorageCache::in_memory().await.unwrap();
+
+		let hash = H256::from([4u8; 32]);
+
+		// Get block
+		let block = cache.get_block(hash).await.unwrap();
+
+        assert!(block.is_none());
+	}
+
+    #[tokio::test(flavor = "multi_thread")]
+	async fn get_block_number_corrupted_block_number_fails() {
+		let cache = StorageCache::in_memory().await.unwrap();
+
+		let hash1 = H256::from([4u8; 32]);
+		let hash2 = H256::from([5u8; 32]);
+		let parent_hash = H256::from([3u8; 32]);
+		let header = b"mock_header_data";
+
+		// Manually insert invalid block with negative number directly into database
+		let invalid_block1 = BlockRow {
+			hash: hash1.as_bytes().to_vec(),
+			number: -1, // Invalid: below 0
+			parent_hash: parent_hash.as_bytes().to_vec(),
+			header: header.to_vec(),
+		};
+
+     // Manually insert invalid block with number above the u32 maximum directly into database
+		let invalid_block2 = BlockRow {
+			hash: hash2.as_bytes().to_vec(),
+			number: u32::MAX.into() + 1,
+			parent_hash: parent_hash.as_bytes().to_vec(),
+			header: header.to_vec(),
+		};
+
+        let invalid_blocks = vec![invalid_block1, invalid_block2];
+
+		// Insert directly into the database bypassing validation
+		match &cache.inner {
+			StorageConn::Single(m) => {
+				let mut conn = m.lock().await;
+				diesel::insert_into(blocks::table)
+					.values(&invalid_blocks)
+					.execute(&mut *conn)
+					.await
+					.unwrap();
+			},
+		}
+
+		// Get block should fail with DataCorruption error
+		assert!(matches!(cache.get_block(hash1).await, Err(CacheError::DataCorruption(msg)) if msg == "block number out of u32 range"));
+        		assert!(matches!(cache.get_block(hash2).await, Err(CacheError::DataCorruption(msg)) if msg == "block number out of u32 range"));
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
 	async fn different_blocks_have_separate_storage() {
 		let cache = StorageCache::in_memory().await.unwrap();
 
