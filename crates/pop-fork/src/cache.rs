@@ -77,7 +77,7 @@ impl CustomizeConnection<SyncConnectionWrapper<SqliteConnection>, PoolError>
 			diesel::sql_query("PRAGMA busy_timeout=5000;")
 				.execute(conn)
 				.await
-				.map_err(|err| PoolError::QueryError(err))?;
+				.map_err(PoolError::QueryError)?;
 			Ok(())
 		})
 	}
@@ -105,7 +105,7 @@ impl StorageCache {
 			},
 			StorageConn::Single(m) => {
 				let mut conn = m.lock().await;
-				f(&mut *conn).await
+				f(&mut conn).await
 			},
 		}
 	}
@@ -618,7 +618,7 @@ mod tests {
 		// Manually insert invalid block with number above the u32 maximum directly into database
 		let invalid_block2 = BlockRow {
 			hash: hash2.as_bytes().to_vec(),
-			number: u32::MAX.into() + 1,
+			number: u32::MAX as i64 + 1,
 			parent_hash: parent_hash.as_bytes().to_vec(),
 			header: header.to_vec(),
 		};
@@ -629,11 +629,13 @@ mod tests {
 		match &cache.inner {
 			StorageConn::Single(m) => {
 				let mut conn = m.lock().await;
-				diesel::insert_into(blocks::table)
-					.values(&invalid_blocks)
-					.execute(&mut *conn)
-					.await
-					.unwrap();
+				for block in invalid_blocks {
+					diesel::insert_into(blocks::table)
+						.values(&block)
+						.execute(&mut *conn)
+						.await
+						.unwrap();
+				}
 			},
 			_ => unreachable!("Test single connection; qed;"),
 		}
