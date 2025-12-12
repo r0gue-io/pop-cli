@@ -11,7 +11,9 @@ use crate::{
 	schema::{blocks, storage},
 };
 use bb8::CustomizeConnection;
-use diesel::{OptionalExtension, prelude::*, sqlite::SqliteConnection, result::Error as DieselError};
+use diesel::{
+	OptionalExtension, prelude::*, result::Error as DieselError, sqlite::SqliteConnection,
+};
 use diesel_async::{
 	AsyncConnection, AsyncMigrationHarness, RunQueryDsl,
 	pooled_connection::{AsyncDieselConnectionManager, PoolError, bb8::Pool},
@@ -234,10 +236,7 @@ impl StorageCache {
 							.values(&row)
 							.on_conflict((sc::block_hash, sc::key))
 							.do_update()
-							.set((
-								sc::value.eq(row.value.clone()),
-								sc::is_empty.eq(row.is_empty),
-							))
+							.set((sc::value.eq(row.value.clone()), sc::is_empty.eq(row.is_empty)))
 							.execute(conn)
 							.await
 					})
@@ -464,9 +463,11 @@ impl StorageCache {
 						conn.transaction::<_, DieselError, _>(move |conn| {
 							let bh = bh.clone();
 							Box::pin(async move {
-								diesel::delete(storage::table.filter(sc::block_hash.eq(bh.clone())))
-									.execute(conn)
-									.await?;
+								diesel::delete(
+									storage::table.filter(sc::block_hash.eq(bh.clone())),
+								)
+								.execute(conn)
+								.await?;
 								diesel::delete(blocks::table.filter(bc::hash.eq(bh)))
 									.execute(conn)
 									.await?;
@@ -594,10 +595,10 @@ mod tests {
 		// Get block
 		let block = cache.get_block(hash).await.unwrap();
 
-        assert!(block.is_none());
+		assert!(block.is_none());
 	}
 
-    #[tokio::test(flavor = "multi_thread")]
+	#[tokio::test(flavor = "multi_thread")]
 	async fn get_block_number_corrupted_block_number_fails() {
 		let cache = StorageCache::in_memory().await.unwrap();
 
@@ -614,7 +615,7 @@ mod tests {
 			header: header.to_vec(),
 		};
 
-     // Manually insert invalid block with number above the u32 maximum directly into database
+		// Manually insert invalid block with number above the u32 maximum directly into database
 		let invalid_block2 = BlockRow {
 			hash: hash2.as_bytes().to_vec(),
 			number: u32::MAX.into() + 1,
@@ -622,7 +623,7 @@ mod tests {
 			header: header.to_vec(),
 		};
 
-        let invalid_blocks = vec![invalid_block1, invalid_block2];
+		let invalid_blocks = vec![invalid_block1, invalid_block2];
 
 		// Insert directly into the database bypassing validation
 		match &cache.inner {
@@ -634,12 +635,16 @@ mod tests {
 					.await
 					.unwrap();
 			},
-            _ => unreachable!("Test single connection; qed;")
+			_ => unreachable!("Test single connection; qed;"),
 		}
 
 		// Get block should fail with DataCorruption error
-		assert!(matches!(cache.get_block(hash1).await, Err(CacheError::DataCorruption(msg)) if msg == "block number out of u32 range"));
-        		assert!(matches!(cache.get_block(hash2).await, Err(CacheError::DataCorruption(msg)) if msg == "block number out of u32 range"));
+		assert!(
+			matches!(cache.get_block(hash1).await, Err(CacheError::DataCorruption(msg)) if msg == "block number out of u32 range")
+		);
+		assert!(
+			matches!(cache.get_block(hash2).await, Err(CacheError::DataCorruption(msg)) if msg == "block number out of u32 range")
+		);
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
