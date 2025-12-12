@@ -184,18 +184,15 @@ impl ForkRpcClient {
 	/// A vector of optional values, in the same order as the input keys.
 	pub async fn storage_batch(
 		&self,
-		keys: &[Vec<u8>],
+		keys: &[&[u8]],
 		at: H256,
 	) -> Result<Vec<Option<Vec<u8>>>, RpcClientError> {
 		if keys.is_empty() {
 			return Ok(vec![]);
 		}
 
-		// Use state_queryStorageAt for batch fetching
-		let keys_refs: Vec<&[u8]> = keys.iter().map(|k| k.as_slice()).collect();
-
 		let result =
-			self.legacy.state_query_storage_at(keys_refs, Some(at)).await.map_err(|e| {
+			self.legacy.state_query_storage_at(keys, Some(at)).await.map_err(|e| {
 				RpcClientError::RequestFailed {
 					method: methods::STATE_QUERY_STORAGE_AT,
 					message: e.to_string(),
