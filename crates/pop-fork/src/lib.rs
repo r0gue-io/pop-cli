@@ -43,7 +43,7 @@ mod rpc;
 mod schema;
 mod strings;
 
-pub use cache::StorageCache;
+pub use cache::{PrefixScanProgress, StorageCache};
 pub use error::{CacheError, RemoteStorageError, RpcClientError};
 pub use models::BlockRow;
 pub use remote::RemoteStorageLayer;

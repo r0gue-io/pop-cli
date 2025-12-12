@@ -20,3 +20,12 @@ CREATE TABLE blocks (
 
 -- Index to support lookups by number
 CREATE INDEX idx_blocks_number ON blocks(number);
+
+-- Create prefix_scans table for tracking prefix scan progress
+CREATE TABLE prefix_scans (
+    block_hash BLOB NOT NULL,
+    prefix BLOB NOT NULL,
+    last_scanned_key BLOB,
+    is_complete BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (block_hash, prefix)
+);
