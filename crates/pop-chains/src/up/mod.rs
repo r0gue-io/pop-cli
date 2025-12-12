@@ -483,7 +483,10 @@ impl NetworkConfiguration {
 				}
 				// Configure chain spec generator or file
 				if let Some(ref path) = relay_chain_spec_file {
-					builder = builder.with_chain_spec_path(path.as_str());
+					let path = PathBuf::from(path);
+					let paseo_spec = crate::get_paseo_spec_content();
+					std::fs::write(&path, paseo_spec).unwrap();
+					builder = builder.with_chain_spec_path(path);
 				} else if let Some(command) = chain_spec_generator {
 					builder = builder.with_chain_spec_command(command);
 				}
