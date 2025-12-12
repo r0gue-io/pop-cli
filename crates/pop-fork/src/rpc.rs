@@ -44,6 +44,20 @@
 //!
 //! Note: subxt marks legacy methods as "not advised" but they remain widely used.
 //! This decision should be revisited if the ecosystem moves away from legacy RPCs.
+//!
+//! # Testing
+//!
+//! Integration tests for this module are located in `tests/rpc.rs` rather than inline.
+//! This separation exists because:
+//!
+//! 1. Tests spawn local test nodes (ink-node), requiring binary downloads and process management.
+//! 2. Concurrent test execution can cause race conditions during node binary downloads.
+//! 3. CI runs these tests with `-j 1` (sequential) to avoid resource contention.
+//!
+//! To run the tests locally:
+//! ```bash
+//! cargo nextest run -p pop-fork --features integration-tests --test rpc -j 1
+//! ```
 
 use crate::{
 	error::rpc::RpcClientError,
@@ -282,7 +296,6 @@ impl ForkRpcClient {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use pop_common::test_env::TestNode;
 
 	#[test]
 	fn error_display_connection_failed() {
