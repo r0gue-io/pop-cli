@@ -198,7 +198,7 @@ impl StorageCache {
 	) -> Result<(), CacheError> {
 		// Insert or update the cached storage entry with simple retry on lock contention.
 		use crate::schema::storage::columns as sc;
-		let new = StorageRow {
+		let new_row = StorageRow {
 			block_hash: block_hash.as_bytes().to_vec(),
 			key: key.to_vec(),
 			value: value.map(|v| v.to_vec()),
@@ -206,7 +206,6 @@ impl StorageCache {
 		};
 		let mut attempts = 0;
 		loop {
-			let new_row = new.clone();
 			let res = match &self.inner {
 				StorageConn::Pool(pool) => {
 					let mut conn = pool.get().await?;
@@ -326,13 +325,13 @@ impl StorageCache {
 
 		let mut attempts = 0;
 		loop {
-			let rows = new_rows.clone();
+            let new_rows = new_rows.clone();
 			let res = match &self.inner {
 				StorageConn::Pool(pool) => {
 					let mut conn = pool.get().await?;
 					conn.transaction::<_, diesel::result::Error, _>(move |conn| {
 						Box::pin(async move {
-							for row in rows {
+							for row in new_rows {
 								diesel::insert_into(storage::table)
 									.values(&row)
 									.on_conflict((sc::block_hash, sc::key))
@@ -353,7 +352,7 @@ impl StorageCache {
 					let mut conn = m.lock().await;
 					conn.transaction::<_, diesel::result::Error, _>(move |conn| {
 						Box::pin(async move {
-							for row in rows {
+							for row in new_rows {
 								diesel::insert_into(storage::table)
 									.values(&row)
 									.on_conflict((sc::block_hash, sc::key))
@@ -393,7 +392,7 @@ impl StorageCache {
 	) -> Result<(), CacheError> {
 		// Store block metadata for quick lookup without hitting the remote RPC.
 		use crate::schema::blocks::columns as bc;
-		let new = BlockRow {
+		let new_block = BlockRow {
 			hash: hash.as_bytes().to_vec(),
 			number: number as i64,
 			parent_hash: parent_hash.as_bytes().to_vec(),
@@ -401,7 +400,6 @@ impl StorageCache {
 		};
 		let mut attempts = 0;
 		loop {
-			let new_block = new.clone();
 			let res = match &self.inner {
 				StorageConn::Pool(pool) => {
 					let mut conn = pool.get().await?;
