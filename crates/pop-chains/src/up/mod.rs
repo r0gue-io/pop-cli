@@ -11,7 +11,7 @@ use pop_common::sourcing::traits::{Source as _, enums::Source as _};
 pub use pop_common::{
 	Profile,
 	git::{GitHub, Repository},
-	sourcing::{Binary, GitHub::*, Source, Source::*},
+	sourcing::{ArchiveType, GitHub::*, Source, Source::*, SourcedArchive},
 };
 use std::{
 	collections::BTreeSet,
@@ -102,16 +102,18 @@ impl Zombienet {
 		Ok(Self { network_config, relay_chain, parachains, hrmp_channels })
 	}
 
-	/// The binaries required to launch the network.
-	pub fn binaries(&mut self) -> impl Iterator<Item = &mut Binary> {
-		once([Some(&mut self.relay_chain.binary), self.relay_chain.chain_spec_generator.as_mut()])
-			.chain(
-				self.parachains
-					.values_mut()
-					.map(|p| [Some(&mut p.binary), p.chain_spec_generator.as_mut()]),
-			)
-			.flatten()
-			.flatten()
+	/// The archives required to launch the network.
+	pub fn archives(&mut self) -> impl Iterator<Item = &mut SourcedArchive> {
+		once([
+			Some(&mut self.relay_chain.binary),
+			self.relay_chain.chain_spec_generator.as_mut(),
+			self.relay_chain.chain_spec_file.as_mut(),
+		])
+		.chain(self.parachains.values_mut().map(|p| {
+			[Some(&mut p.binary), p.chain_spec_generator.as_mut(), p.chain_spec_file.as_mut()]
+		}))
+		.flatten()
+		.flatten()
 	}
 
 	/// Determine parachain configuration based on specified version and network configuration.
@@ -214,7 +216,7 @@ impl Zombienet {
 				return Err(Error::MissingBinary(command));
 			}
 
-			if command.starts_with(PolkadotOmniNode.binary()) {
+			if command.starts_with(PolkadotOmniNode.binary()?) {
 				paras.insert(id, Chain::from_omni_node(id, cache)?);
 				continue 'outer;
 			}
@@ -446,6 +448,10 @@ impl NetworkConfiguration {
 				"{{chainName}}"
 			)),
 		};
+		let relay_chain_spec_file = match &relay_chain.chain_spec_file {
+			None => None,
+			Some(file) => Some(NetworkConfiguration::resolve_path(&file.path())?),
+		};
 
 		// Use builder to clone network config, adapting binary paths as necessary
 		let mut builder = NetworkConfigBuilder::new()
@@ -475,8 +481,13 @@ impl NetworkConfiguration {
 					builder =
 						builder.with_chain_spec_command_output_path(chain_spec_command_output_path);
 				}
-				// Configure chain spec generator
-				if let Some(command) = chain_spec_generator {
+				// Configure chain spec generator or file
+				if let Some(ref path) = relay_chain_spec_file {
+					let path = PathBuf::from(path);
+					let paseo_spec = crate::get_paseo_spec_content();
+					std::fs::write(&path, paseo_spec).unwrap();
+					builder = builder.with_chain_spec_path(path);
+				} else if let Some(command) = chain_spec_generator {
 					builder = builder.with_chain_spec_command(command);
 				}
 				// Overrides: genesis/wasm
@@ -523,6 +534,10 @@ impl NetworkConfiguration {
 					"{{chainName}}"
 				)),
 			};
+			let parachain_chain_spec_file = match &para.chain_spec_file {
+				None => None,
+				Some(file) => Some(NetworkConfiguration::resolve_path(&file.path())?),
+			};
 
 			builder = builder.with_parachain(|builder| {
 				let mut builder = builder
@@ -561,8 +576,10 @@ impl NetworkConfiguration {
 				if let Some(location) = source.chain_spec_path() {
 					builder = builder.with_chain_spec_path(location.clone());
 				}
-				// Configure chain spec generator
-				if let Some(command) = chain_spec_generator {
+				// Configure chain spec generator or file
+				if let Some(ref path) = parachain_chain_spec_file {
+					builder = builder.with_chain_spec_path(path.as_str());
+				} else if let Some(command) = chain_spec_generator {
 					builder = builder.with_chain_spec_command(command);
 				}
 				// Overrides: genesis/wasm
@@ -699,14 +716,16 @@ struct RelayChain {
 	// The runtime used.
 	runtime: Runtime,
 	/// The binary used to launch a relay chain node.
-	binary: Binary,
+	binary: SourcedArchive,
 	/// The additional workers required by the relay chain node.
 	workers: [&'static str; 2],
 	/// The name of the chain.
 	#[allow(dead_code)]
 	chain: String,
 	/// If applicable, the binary used to generate a chain specification.
-	chain_spec_generator: Option<Binary>,
+	chain_spec_generator: Option<SourcedArchive>,
+	/// If applicable, the chain spec file
+	chain_spec_file: Option<SourcedArchive>,
 }
 
 /// The configuration required to launch a parachain.
@@ -715,11 +734,13 @@ struct Chain {
 	/// The parachain identifier on the local network.
 	id: u32,
 	/// The binary used to launch a parachain node.
-	binary: Binary,
+	binary: SourcedArchive,
 	/// The name of the chain.
 	chain: Option<String>,
 	/// If applicable, the binary used to generate a chain specification.
-	chain_spec_generator: Option<Binary>,
+	chain_spec_generator: Option<SourcedArchive>,
+	/// If applicable, the chain spec file used to launch a parachain node
+	chain_spec_file: Option<SourcedArchive>,
 }
 
 impl Chain {
@@ -739,9 +760,15 @@ impl Chain {
 		let manifest = resolve_manifest(&name, &path)?;
 		Ok(Chain {
 			id,
-			binary: Binary::Local { name, path, manifest },
+			binary: SourcedArchive::Local {
+				name,
+				path,
+				manifest,
+				archive_type: ArchiveType::Binary,
+			},
 			chain: chain.map(|c| c.to_string()),
 			chain_spec_generator: None,
+			chain_spec_file: None,
 		})
 	}
 
@@ -773,18 +800,20 @@ impl Chain {
 			.into();
 			Ok(Chain {
 				id,
-				binary: Binary::Source {
+				binary: SourcedArchive::Source {
 					name: repo.package.clone(),
 					source,
 					cache: cache.to_path_buf(),
+					archive_type: ArchiveType::Binary,
 				},
 				chain: chain.map(|c| c.to_string()),
 				chain_spec_generator: None,
+				chain_spec_file: None,
 			})
 		} else {
 			Ok(Chain {
 				id,
-				binary: Binary::Source {
+				binary: SourcedArchive::Source {
 					name: repo.package.clone(),
 					source: Git {
 						url: repo.url.clone(),
@@ -795,9 +824,11 @@ impl Chain {
 					}
 					.into(),
 					cache: cache.to_path_buf(),
+					archive_type: ArchiveType::Binary,
 				},
 				chain: chain.map(|c| c.to_string()),
 				chain_spec_generator: None,
+				chain_spec_file: None,
 			})
 		}
 	}
@@ -805,13 +836,15 @@ impl Chain {
 	fn from_omni_node(id: u32, cache: &Path) -> Result<Chain, Error> {
 		Ok(Chain {
 			id,
-			binary: Binary::Source {
-				name: PolkadotOmniNode.binary().to_string(),
+			binary: SourcedArchive::Source {
+				name: PolkadotOmniNode.binary()?.to_string(),
 				source: Box::new(PolkadotOmniNode.source()?),
 				cache: cache.to_path_buf(),
+				archive_type: ArchiveType::Binary,
 			},
 			chain: None,
 			chain_spec_generator: None,
+			chain_spec_file: None,
 		})
 	}
 }
@@ -937,9 +970,9 @@ chain = "paseo-local"
 			assert_eq!(relay_chain.version().unwrap(), RELAY_BINARY_VERSION);
 			assert!(matches!(
 				relay_chain,
-				Binary::Source { source, .. }
+				SourcedArchive::Source { source, archive_type, .. }
 					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
-						if *tag == Some(format!("polkadot-{RELAY_BINARY_VERSION}"))
+						if *tag == Some(format!("polkadot-{RELAY_BINARY_VERSION}")) && *archive_type == ArchiveType::Binary
 					)
 			));
 			assert!(zombienet.parachains.is_empty());
@@ -979,9 +1012,9 @@ chain = "paseo-local"
 			assert_eq!(relay_chain.version().unwrap(), RELAY_BINARY_VERSION);
 			assert!(matches!(
 				relay_chain,
-				Binary::Source { source, .. }
+				SourcedArchive::Source { source, archive_type, .. }
 					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
-						if *tag == Some(format!("polkadot-{RELAY_BINARY_VERSION}"))
+						if *tag == Some(format!("polkadot-{RELAY_BINARY_VERSION}")) && *archive_type == ArchiveType::Binary
 					)
 			));
 			assert!(zombienet.parachains.is_empty());
@@ -992,6 +1025,50 @@ chain = "paseo-local"
 
 		#[tokio::test]
 		async fn new_with_relay_chain_spec_generator_works() -> Result<()> {
+			let temp_dir = tempdir()?;
+			let cache = PathBuf::from(temp_dir.path());
+			let config = Builder::new().suffix(".toml").tempfile()?;
+			writeln!(
+				config.as_file(),
+				r#"
+[relaychain]
+chain = "polkadot-local"
+"#
+			)?;
+			let version = "v1.3.3";
+
+			let zombienet = Zombienet::new(
+				&cache,
+				config.path().try_into()?,
+				None,
+				Some(version),
+				None,
+				None,
+				None,
+			)
+			.await?;
+
+			assert_eq!(zombienet.relay_chain.chain, "polkadot-local");
+			let chain_spec_generator = &zombienet.relay_chain.chain_spec_generator.unwrap();
+			assert_eq!(chain_spec_generator.name(), "polkadot-chain-spec-generator");
+			assert_eq!(
+				chain_spec_generator.path(),
+				temp_dir.path().join(format!("polkadot-chain-spec-generator-{version}"))
+			);
+			assert_eq!(chain_spec_generator.version().unwrap(), version);
+			assert!(matches!(
+				chain_spec_generator,
+				SourcedArchive::Source { source, archive_type, .. }
+					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
+						if *tag == Some(version.to_string())
+					) && *archive_type == ArchiveType::Binary
+			));
+			assert!(zombienet.parachains.is_empty());
+			Ok(())
+		}
+
+		#[tokio::test]
+		async fn new_with_relay_chain_spec_file_works() -> Result<()> {
 			let temp_dir = tempdir()?;
 			let cache = PathBuf::from(temp_dir.path());
 			let config = Builder::new().suffix(".toml").tempfile()?;
@@ -1016,19 +1093,19 @@ chain = "paseo-local"
 			.await?;
 
 			assert_eq!(zombienet.relay_chain.chain, "paseo-local");
-			let chain_spec_generator = &zombienet.relay_chain.chain_spec_generator.unwrap();
-			assert_eq!(chain_spec_generator.name(), "paseo-chain-spec-generator");
+			let chain_spec_file = &zombienet.relay_chain.chain_spec_file.unwrap();
+			assert_eq!(chain_spec_file.name(), "paseo-local.json");
 			assert_eq!(
-				chain_spec_generator.path(),
-				temp_dir.path().join(format!("paseo-chain-spec-generator-{version}"))
+				chain_spec_file.path(),
+				temp_dir.path().join(format!("paseo-local-{}.json", version))
 			);
-			assert_eq!(chain_spec_generator.version().unwrap(), version);
+			assert_eq!(chain_spec_file.version().unwrap(), version);
 			assert!(matches!(
-				chain_spec_generator,
-				Binary::Source { source, .. }
+				chain_spec_file,
+				SourcedArchive::Source { source, archive_type, .. }
 					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
 						if *tag == Some(version.to_string())
-					)
+					) && *archive_type == ArchiveType::File
 			));
 			assert!(zombienet.parachains.is_empty());
 			Ok(())
@@ -1068,9 +1145,9 @@ default_command = "./bin-stable2503/polkadot"
 			assert_eq!(relay_chain.version().unwrap(), RELAY_BINARY_VERSION);
 			assert!(matches!(
 				relay_chain,
-				Binary::Source { source, ..}
+				SourcedArchive::Source { source, archive_type, ..}
 					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
-						if *tag == Some(format!("polkadot-{RELAY_BINARY_VERSION}"))
+						if *tag == Some(format!("polkadot-{RELAY_BINARY_VERSION}")) && *archive_type == ArchiveType::Binary
 					)
 			));
 			assert!(zombienet.parachains.is_empty());
@@ -1115,10 +1192,10 @@ command = "polkadot"
 			assert_eq!(relay_chain.version().unwrap(), RELAY_BINARY_VERSION);
 			assert!(matches!(
 				relay_chain,
-				Binary::Source { source, .. }
+				SourcedArchive::Source { source, archive_type, .. }
 					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
 						if *tag == Some(format!("polkadot-{RELAY_BINARY_VERSION}"))
-					)
+					) && *archive_type == ArchiveType::Binary
 			));
 			assert!(zombienet.parachains.is_empty());
 			Ok(())
@@ -1156,10 +1233,10 @@ command = "polkadot"
 			assert_eq!(relay_chain.version().unwrap(), RELAY_BINARY_VERSION);
 			assert!(matches!(
 				relay_chain,
-				Binary::Source { source, .. }
+				SourcedArchive::Source { source, archive_type, .. }
 					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
 						if *tag == Some(format!("polkadot-{RELAY_BINARY_VERSION}"))
-					)
+					) && *archive_type == ArchiveType::Binary
 			));
 			assert!(zombienet.parachains.is_empty());
 			Ok(())
@@ -1283,7 +1360,7 @@ chain = "asset-hub-paseo-local"
 			assert_eq!(system_parachain.version().unwrap(), SYSTEM_PARA_BINARY_VERSION);
 			assert!(matches!(
 				system_parachain,
-				Binary::Source { source, .. }
+				SourcedArchive::Source { source, .. }
 					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
 						if *tag == Some(format!("polkadot-{SYSTEM_PARA_BINARY_VERSION}"))
 					)
@@ -1293,6 +1370,56 @@ chain = "asset-hub-paseo-local"
 
 		#[tokio::test]
 		async fn new_with_system_chain_spec_generator_works() -> Result<()> {
+			let temp_dir = tempdir()?;
+			let cache = PathBuf::from(temp_dir.path());
+			let config = Builder::new().suffix(".toml").tempfile()?;
+			writeln!(
+				config.as_file(),
+				r#"
+[relaychain]
+chain = "polkadot-local"
+
+[[parachains]]
+id = 1000
+chain = "asset-hub-polkadot-local"
+"#
+			)?;
+
+			let zombienet = Zombienet::new(
+				&cache,
+				config.path().try_into()?,
+				None,
+				None,
+				None,
+				Some(SYSTEM_PARA_RUNTIME_VERSION),
+				None,
+			)
+			.await?;
+
+			assert_eq!(zombienet.parachains.len(), 1);
+			let system_parachain = &zombienet.parachains.get(&1000).unwrap();
+			assert_eq!(system_parachain.chain.as_ref().unwrap(), "asset-hub-polkadot-local");
+			let chain_spec_generator = system_parachain.chain_spec_generator.as_ref().unwrap();
+			assert_eq!(chain_spec_generator.name(), "polkadot-chain-spec-generator");
+			assert_eq!(
+				chain_spec_generator.path(),
+				temp_dir
+					.path()
+					.join(format!("polkadot-chain-spec-generator-{SYSTEM_PARA_RUNTIME_VERSION}"))
+			);
+			assert_eq!(chain_spec_generator.version().unwrap(), SYSTEM_PARA_RUNTIME_VERSION);
+			assert!(matches!(
+				chain_spec_generator,
+				SourcedArchive::Source { source, archive_type, .. }
+					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
+						if *tag == Some(SYSTEM_PARA_RUNTIME_VERSION.to_string())
+					) && *archive_type == ArchiveType::Binary
+			));
+			Ok(())
+		}
+
+		#[tokio::test]
+		async fn new_with_system_chain_spec_file_works() -> Result<()> {
 			let temp_dir = tempdir()?;
 			let cache = PathBuf::from(temp_dir.path());
 			let config = Builder::new().suffix(".toml").tempfile()?;
@@ -1322,21 +1449,21 @@ chain = "asset-hub-paseo-local"
 			assert_eq!(zombienet.parachains.len(), 1);
 			let system_parachain = &zombienet.parachains.get(&1000).unwrap();
 			assert_eq!(system_parachain.chain.as_ref().unwrap(), "asset-hub-paseo-local");
-			let chain_spec_generator = system_parachain.chain_spec_generator.as_ref().unwrap();
-			assert_eq!(chain_spec_generator.name(), "paseo-chain-spec-generator");
+			let chain_spec_file = system_parachain.chain_spec_file.as_ref().unwrap();
+			assert_eq!(chain_spec_file.name(), "asset-hub-paseo-local.json");
 			assert_eq!(
-				chain_spec_generator.path(),
+				chain_spec_file.path(),
 				temp_dir
 					.path()
-					.join(format!("paseo-chain-spec-generator-{SYSTEM_PARA_RUNTIME_VERSION}"))
+					.join(format!("asset-hub-paseo-local-{SYSTEM_PARA_RUNTIME_VERSION}.json"))
 			);
-			assert_eq!(chain_spec_generator.version().unwrap(), SYSTEM_PARA_RUNTIME_VERSION);
+			assert_eq!(chain_spec_file.version().unwrap(), SYSTEM_PARA_RUNTIME_VERSION);
 			assert!(matches!(
-				chain_spec_generator,
-				Binary::Source { source, .. }
+				chain_spec_file,
+				SourcedArchive::Source { source, archive_type, .. }
 					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
 						if *tag == Some(SYSTEM_PARA_RUNTIME_VERSION.to_string())
-					)
+					) && *archive_type == ArchiveType::File
 			));
 			Ok(())
 		}
@@ -1370,7 +1497,7 @@ default_command = "pop-node"
 			assert_eq!(pop.version().unwrap(), version);
 			assert!(matches!(
 				pop,
-				Binary::Source { source, .. }
+				SourcedArchive::Source { source, .. }
 					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
 						if *tag == Some(format!("node-{version}"))
 					)
@@ -1414,7 +1541,7 @@ default_command = "pop-node"
 			assert_eq!(pop.version().unwrap(), version);
 			assert!(matches!(
 				pop,
-				Binary::Source { source, .. }
+				SourcedArchive::Source { source, .. }
 					if matches!(source.as_ref(), Source::GitHub(ReleaseArchive { tag, .. })
 						if *tag == Some(format!("node-{version}"))
 					)
@@ -1448,7 +1575,7 @@ default_command = "./target/release/parachain-template-node"
 			assert_eq!(pop.name(), "parachain-template-node");
 			assert_eq!(pop.path(), Path::new("./target/release/parachain-template-node"));
 			assert_eq!(pop.version(), None);
-			assert!(matches!(pop, Binary::Local { .. }));
+			assert!(matches!(pop, SourcedArchive::Local { .. }));
 			Ok(())
 		}
 
@@ -1512,7 +1639,7 @@ command = "substrate-contracts-node"
 				assert_eq!(parachain.name(), "parachain-template-node");
 				assert_eq!(parachain.path(), Path::new("./target/release/parachain-template-node"));
 				assert_eq!(parachain.version(), None);
-				assert!(matches!(parachain, Binary::Local { .. }));
+				assert!(matches!(parachain, SourcedArchive::Local { .. }));
 				let contract_parachain = &zombienet.parachains.get(&2000).unwrap().binary;
 				assert_eq!(contract_parachain.name(), "substrate-contracts-node");
 				assert_eq!(
@@ -1520,7 +1647,7 @@ command = "substrate-contracts-node"
 					Path::new("./target/debug/substrate-contracts-node")
 				);
 				assert_eq!(contract_parachain.version(), None);
-				assert!(matches!(contract_parachain, Binary::Local { .. }));
+				assert!(matches!(contract_parachain, SourcedArchive::Local { .. }));
 				Ok(())
 			})
 			.await
@@ -1555,7 +1682,7 @@ command = "./target/release/parachain-template-node"
 			assert_eq!(pop.name(), "parachain-template-node");
 			assert_eq!(pop.path(), Path::new("./target/release/parachain-template-node"));
 			assert_eq!(pop.version(), None);
-			assert!(matches!(pop, Binary::Local { .. }));
+			assert!(matches!(pop, SourcedArchive::Local { .. }));
 			Ok(())
 		}
 
@@ -1595,7 +1722,7 @@ default_command = "moonbeam"
 			assert_eq!(pop.version().unwrap(), version);
 			assert!(matches!(
 				pop,
-				Binary::Source { source, .. }
+				SourcedArchive::Source { source, .. }
 					if matches!(source.as_ref(), Source::GitHub(SourceCodeArchive { reference, .. })
 						if *reference == Some(version.to_string())
 					)
@@ -1691,7 +1818,7 @@ default_command = "pop-node"
 			let mut zombienet =
 				Zombienet::new(&cache, config.path().try_into()?, None, None, None, None, None)
 					.await?;
-			assert_eq!(zombienet.binaries().count(), 6);
+			assert_eq!(zombienet.archives().count(), 6);
 			Ok(())
 		}
 
@@ -1715,7 +1842,7 @@ chain = "asset-hub-paseo-local"
 			let mut zombienet =
 				Zombienet::new(&cache, config.path().try_into()?, None, None, None, None, None)
 					.await?;
-			assert_eq!(zombienet.binaries().count(), 4);
+			assert_eq!(zombienet.archives().count(), 4);
 			Ok(())
 		}
 
@@ -1760,7 +1887,7 @@ chain = "paseo-local"
 			let mut zombienet =
 				Zombienet::new(&cache, config.path().try_into()?, None, None, None, None, None)
 					.await?;
-			let Binary::Source { source, .. } = &mut zombienet.relay_chain.binary else {
+			let SourcedArchive::Source { source, .. } = &mut zombienet.relay_chain.binary else {
 				panic!("expected binary which needs to be sourced")
 			};
 			if let Source::GitHub(ReleaseArchive { tag, .. }) = source.as_mut() {
@@ -1829,7 +1956,7 @@ validator = true
 			let mut zombienet =
 				Zombienet::new(&cache, config.path().try_into()?, None, None, None, None, None)
 					.await?;
-			for b in zombienet.binaries() {
+			for b in zombienet.archives() {
 				b.source(true, &Output, true).await?;
 			}
 
@@ -2103,66 +2230,76 @@ rpc_port = 9944
 			let adapted = network_config.adapt(
 				&RelayChain {
 					runtime: Paseo,
-					binary: Binary::Local {
+					binary: SourcedArchive::Local {
 						name: "polkadot".to_string(),
 						path: relay_chain.to_path_buf(),
 						manifest: None,
+						archive_type: ArchiveType::Binary,
 					},
 					workers: ["polkadot-execute-worker", ""],
 					chain: "paseo-local".to_string(),
 					chain_spec_generator: None,
+					chain_spec_file: None,
 				},
 				&[
 					(
 						1000,
 						Chain {
 							id: 1000,
-							binary: Binary::Local {
+							binary: SourcedArchive::Local {
 								name: "polkadot-parachain".to_string(),
 								path: system_chain.to_path_buf(),
 								manifest: None,
+								archive_type: ArchiveType::Binary,
 							},
 							chain: None,
 							chain_spec_generator: None,
+							chain_spec_file: None,
 						},
 					),
 					(
 						2000,
 						Chain {
 							id: 2000,
-							binary: Binary::Local {
+							binary: SourcedArchive::Local {
 								name: "pop-node".to_string(),
 								path: pop.to_path_buf(),
 								manifest: None,
+								archive_type: ArchiveType::Binary,
 							},
 							chain: None,
 							chain_spec_generator: None,
+							chain_spec_file: None,
 						},
 					),
 					(
 						2001,
 						Chain {
 							id: 2001,
-							binary: Binary::Local {
+							binary: SourcedArchive::Local {
 								name: "parachain-template-node".to_string(),
 								path: parachain_template.to_path_buf(),
 								manifest: None,
+								archive_type: ArchiveType::Binary,
 							},
 							chain: None,
 							chain_spec_generator: None,
+							chain_spec_file: None,
 						},
 					),
 					(
 						2002,
 						Chain {
 							id: 2002,
-							binary: Binary::Local {
+							binary: SourcedArchive::Local {
 								name: "parachain-template-node".to_string(),
 								path: parachain_template.to_path_buf(),
 								manifest: None,
+								archive_type: ArchiveType::Binary,
 							},
 							chain: None,
 							chain_spec_generator: None,
+							chain_spec_file: None,
 						},
 					),
 				]
@@ -2317,34 +2454,40 @@ command = "polkadot-parachain"
 			let adapted = network_config.adapt(
 				&RelayChain {
 					runtime: Paseo,
-					binary: Binary::Local {
+					binary: SourcedArchive::Local {
 						name: "polkadot".to_string(),
 						path: relay_chain.to_path_buf(),
 						manifest: None,
+						archive_type: ArchiveType::Binary,
 					},
 					workers: ["polkadot-execute-worker", ""],
 					chain: "paseo-local".to_string(),
-					chain_spec_generator: Some(Binary::Local {
+					chain_spec_generator: Some(SourcedArchive::Local {
 						name: "paseo-chain-spec-generator".to_string(),
 						path: relay_chain_spec_generator.to_path_buf(),
 						manifest: None,
+						archive_type: ArchiveType::Binary,
 					}),
+					chain_spec_file: None,
 				},
 				&[(
 					1000,
 					Chain {
 						id: 1000,
-						binary: Binary::Local {
+						binary: SourcedArchive::Local {
 							name: "polkadot-parachain".to_string(),
 							path: system_chain.to_path_buf(),
 							manifest: None,
+							archive_type: ArchiveType::Binary,
 						},
 						chain: Some("asset-hub-paseo-local".to_string()),
-						chain_spec_generator: Some(Binary::Local {
+						chain_spec_generator: Some(SourcedArchive::Local {
 							name: "paseo-chain-spec-generator".to_string(),
 							path: system_chain_spec_generator.to_path_buf(),
 							manifest: None,
+							archive_type: ArchiveType::Binary,
 						}),
+						chain_spec_file: None,
 					},
 				)]
 				.into(),
@@ -2453,40 +2596,46 @@ max_message_size = 8000
 			let adapted = network_config.adapt(
 				&RelayChain {
 					runtime: Paseo,
-					binary: Binary::Local {
+					binary: SourcedArchive::Local {
 						name: "polkadot".to_string(),
 						path: relay_chain.to_path_buf(),
 						manifest: None,
+						archive_type: ArchiveType::Binary,
 					},
 					workers: ["polkadot-execute-worker", ""],
 					chain: "paseo-local".to_string(),
 					chain_spec_generator: None,
+					chain_spec_file: None,
 				},
 				&[
 					(
 						1000,
 						Chain {
 							id: 1000,
-							binary: Binary::Local {
+							binary: SourcedArchive::Local {
 								name: "polkadot-parachain".to_string(),
 								path: system_chain.to_path_buf(),
 								manifest: None,
+								archive_type: ArchiveType::Binary,
 							},
 							chain: Some("asset-hub-paseo-local".to_string()),
 							chain_spec_generator: None,
+							chain_spec_file: None,
 						},
 					),
 					(
 						2000,
 						Chain {
 							id: 2000,
-							binary: Binary::Local {
+							binary: SourcedArchive::Local {
 								name: "pop-node".to_string(),
 								path: pop.to_path_buf(),
 								manifest: None,
+								archive_type: ArchiveType::Binary,
 							},
 							chain: None,
 							chain_spec_generator: None,
+							chain_spec_file: None,
 						},
 					),
 				]
@@ -2605,26 +2754,30 @@ name = "asset-hub"
 			let adapted = network_config.adapt(
 				&RelayChain {
 					runtime: Paseo,
-					binary: Binary::Local {
+					binary: SourcedArchive::Local {
 						name: "polkadot".to_string(),
 						path: relay_chain.to_path_buf(),
 						manifest: None,
+						archive_type: ArchiveType::Binary,
 					},
 					workers: ["polkadot-execute-worker", ""],
 					chain: "paseo-local".to_string(),
 					chain_spec_generator: None,
+					chain_spec_file: None,
 				},
 				&[(
 					1000,
 					Chain {
 						id: 1000,
-						binary: Binary::Local {
+						binary: SourcedArchive::Local {
 							name: "polkadot-parachain".to_string(),
 							path: system_chain.to_path_buf(),
 							manifest: None,
+							archive_type: ArchiveType::Binary,
 						},
 						chain: Some("asset-hub-paseo-local".to_string()),
 						chain_spec_generator: None,
+						chain_spec_file: None,
 					},
 				)]
 				.into(),
@@ -2723,26 +2876,30 @@ balances = [["5Ec4AhPKXY9B4ayGshkz2wFMh7N8gP7XKfAvtt1cigpG9FkJ", 420000000000]]
 			let adapted = network_config.adapt(
 				&RelayChain {
 					runtime: Paseo,
-					binary: Binary::Local {
+					binary: SourcedArchive::Local {
 						name: "polkadot".to_string(),
 						path: relay_chain.to_path_buf(),
 						manifest: None,
+						archive_type: ArchiveType::Binary,
 					},
 					workers: ["polkadot-execute-worker", ""],
 					chain: "paseo-local".to_string(),
 					chain_spec_generator: None,
+					chain_spec_file: None,
 				},
 				&[(
 					1000,
 					Chain {
 						id: 1000,
-						binary: Binary::Local {
+						binary: SourcedArchive::Local {
 							name: "polkadot-parachain".to_string(),
 							path: system_chain.to_path_buf(),
 							manifest: None,
+							archive_type: ArchiveType::Binary,
 						},
 						chain: Some("asset-hub-paseo-local".to_string()),
 						chain_spec_generator: None,
+						chain_spec_file: None,
 					},
 				)]
 				.into(),
@@ -2838,9 +2995,15 @@ balance = 2000000000000
 				Chain::from_local(2000, command.clone(), Some("dev"))?,
 				Chain {
 					id: 2000,
-					binary: Binary::Local { name: name.to_string(), path: command, manifest: None },
+					binary: SourcedArchive::Local {
+						name: name.to_string(),
+						path: command,
+						manifest: None,
+						archive_type: ArchiveType::Binary
+					},
 					chain: Some("dev".to_string()),
 					chain_spec_generator: None,
+					chain_spec_file: None
 				}
 			);
 			Ok(())
@@ -2854,13 +3017,15 @@ balance = 2000000000000
 				Chain::from_local(2000, command.clone(), Some("dev"))?,
 				Chain {
 					id: 2000,
-					binary: Binary::Local {
+					binary: SourcedArchive::Local {
 						name: name.to_string(),
 						path: command,
-						manifest: Some(PathBuf::from("./Cargo.toml"))
+						manifest: Some(PathBuf::from("./Cargo.toml")),
+						archive_type: ArchiveType::Binary
 					},
 					chain: Some("dev".to_string()),
 					chain_spec_generator: None,
+					chain_spec_file: None
 				}
 			);
 			Ok(())
@@ -2874,7 +3039,7 @@ balance = 2000000000000
 				Chain::from_repository(2000, &repo, Some("dev"), cache.path())?,
 				Chain {
 					id: 2000,
-					binary: Binary::Source {
+					binary: SourcedArchive::Source {
 						name: "pop-node".to_string(),
 						source: Git {
 							url: repo.url,
@@ -2885,9 +3050,11 @@ balance = 2000000000000
 						}
 						.into(),
 						cache: cache.path().to_path_buf(),
+						archive_type: ArchiveType::Binary
 					},
 					chain: Some("dev".to_string()),
 					chain_spec_generator: None,
+					chain_spec_file: None
 				}
 			);
 			Ok(())
@@ -2901,7 +3068,7 @@ balance = 2000000000000
 				Chain::from_repository(2000, &repo, Some("dev"), cache.path())?,
 				Chain {
 					id: 2000,
-					binary: Binary::Source {
+					binary: SourcedArchive::Source {
 						name: "pop-node".to_string(),
 						source: Source::GitHub(SourceCodeArchive {
 							owner: "r0gue-io".to_string(),
@@ -2913,9 +3080,11 @@ balance = 2000000000000
 						})
 						.into(),
 						cache: cache.path().to_path_buf(),
+						archive_type: ArchiveType::Binary
 					},
 					chain: Some("dev".to_string()),
 					chain_spec_generator: None,
+					chain_spec_file: None
 				},
 			);
 			Ok(())

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use super::{Binary, Relay, chain_specs::chain_spec_generator};
+use super::{
+	ArchiveType, Relay, SourcedArchive,
+	chain_specs::{chain_spec_file, chain_spec_generator},
+};
 use crate::{Error, registry, registry::System, traits::Binary as BinaryT};
 use pop_common::sourcing::{filters::prefix, traits::*};
 use std::path::Path;
@@ -35,12 +38,27 @@ pub(super) async fn system(
 		.resolve(&name, version.or(Some(relay_chain_version)), cache, |f| prefix(f, &name))
 		.await
 		.into();
-	let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
+	let binary = SourcedArchive::Source {
+		name,
+		source,
+		cache: cache.to_path_buf(),
+		archive_type: ArchiveType::Binary,
+	};
 	let chain_spec_generator = match chain {
 		Some(chain) => chain_spec_generator(chain, runtime_version, cache).await?,
 		None => None,
 	};
-	Ok(Some(super::Chain { id, binary, chain: chain.map(|c| c.to_string()), chain_spec_generator }))
+	let chain_spec_file = match chain {
+		Some(chain) => chain_spec_file(chain, runtime_version, cache).await?,
+		None => None,
+	};
+	Ok(Some(super::Chain {
+		id,
+		binary,
+		chain: chain.map(|c| c.to_string()),
+		chain_spec_generator,
+		chain_spec_file,
+	}))
 }
 
 /// Initializes the configuration required to launch a parachain.
@@ -63,12 +81,18 @@ pub(super) async fn from(
 		let name = para.binary().to_string();
 		let source =
 			para.source()?.resolve(&name, version, cache, |f| prefix(f, &name)).await.into();
-		let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
+		let binary = SourcedArchive::Source {
+			name,
+			source,
+			cache: cache.to_path_buf(),
+			archive_type: ArchiveType::Binary,
+		};
 		return Ok(Some(super::Chain {
 			id,
 			binary,
 			chain: chain.map(|c| c.to_string()),
 			chain_spec_generator: None,
+			chain_spec_file: None,
 		}));
 	}
 	Ok(None)
@@ -122,20 +146,22 @@ mod tests {
 		.await?
 		.unwrap();
 		assert_eq!(para_id, parachain.id);
-		assert!(matches!(parachain.binary, Binary::Source { name, source, cache }
-			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
-					owner: "r0gue-io".to_string(),
-					repository: "polkadot".to_string(),
-					tag: Some(format!("polkadot-{RELAY_BINARY_VERSION}")),
-					tag_pattern: Some("polkadot-{version}".into()),
-					prerelease: false,
-					version_comparator: sort_by_latest_stable_version,
-					fallback: FALLBACK.into(),
-					archive: format!("{name}-{}.tar.gz", target()?),
-					contents: vec![ArchiveFileSpec::new(expected.binary().into(), None, true)],
-					latest: parachain.binary.latest().map(|l| l.to_string()),
-				}).into() && cache == temp_dir.path()
-		));
+		assert!(
+			matches!(parachain.binary, SourcedArchive::Source { name, source, cache, archive_type }
+				if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
+						owner: "r0gue-io".to_string(),
+						repository: "polkadot".to_string(),
+						tag: Some(format!("polkadot-{RELAY_BINARY_VERSION}")),
+						tag_pattern: Some("polkadot-{version}".into()),
+						prerelease: false,
+						version_comparator: sort_by_latest_stable_version,
+						fallback: FALLBACK.into(),
+						archive: format!("{name}-{}.tar.gz", target()?),
+						contents: vec![ArchiveFileSpec::new(expected.binary().into(), None, true)],
+						latest: parachain.binary.latest().map(|l| l.to_string()),
+					}).into() && cache == temp_dir.path() && archive_type == ArchiveType::Binary
+			)
+		);
 		Ok(())
 	}
 
@@ -157,20 +183,22 @@ mod tests {
 		.await?
 		.unwrap();
 		assert_eq!(para_id, parachain.id);
-		assert!(matches!(parachain.binary, Binary::Source { name, source, cache }
-			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
-					owner: "r0gue-io".to_string(),
-					repository: "polkadot".to_string(),
-					tag: Some(format!("polkadot-{SYSTEM_PARA_BINARY_VERSION}")),
-					tag_pattern: Some("polkadot-{version}".into()),
-					prerelease: false,
-					version_comparator: sort_by_latest_stable_version,
-					fallback: FALLBACK.into(),
-					archive: format!("{name}-{}.tar.gz", target()?),
-					contents: vec![ArchiveFileSpec::new(expected.binary().into(), None, true)],
-					latest: parachain.binary.latest().map(|l| l.to_string()),
-				}).into() && cache == temp_dir.path()
-		));
+		assert!(
+			matches!(parachain.binary, SourcedArchive::Source { name, source, cache, archive_type }
+				if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
+						owner: "r0gue-io".to_string(),
+						repository: "polkadot".to_string(),
+						tag: Some(format!("polkadot-{SYSTEM_PARA_BINARY_VERSION}")),
+						tag_pattern: Some("polkadot-{version}".into()),
+						prerelease: false,
+						version_comparator: sort_by_latest_stable_version,
+						fallback: FALLBACK.into(),
+						archive: format!("{name}-{}.tar.gz", target()?),
+						contents: vec![ArchiveFileSpec::new(expected.binary().into(), None, true)],
+						latest: parachain.binary.latest().map(|l| l.to_string()),
+					}).into() && cache == temp_dir.path() && archive_type == ArchiveType::Binary
+			)
+		);
 		Ok(())
 	}
 
@@ -187,6 +215,46 @@ mod tests {
 			None,
 			Some(runtime_version),
 			RELAY_BINARY_VERSION,
+			Some("asset-hub-polkadot-local"),
+			temp_dir.path(),
+		)
+		.await?
+		.unwrap();
+		assert_eq!(parachain.id, para_id);
+		assert_eq!(parachain.chain.unwrap(), "asset-hub-polkadot-local");
+		let chain_spec_generator = parachain.chain_spec_generator.unwrap();
+		assert!(
+			matches!(chain_spec_generator, SourcedArchive::Source { name, source, cache, archive_type }
+				if name == "polkadot-chain-spec-generator" && source == Source::GitHub(ReleaseArchive {
+						owner: "r0gue-io".to_string(),
+						repository: "polkadot-runtimes".to_string(),
+						tag: Some(runtime_version.to_string()),
+						tag_pattern: None,
+						prerelease: false,
+						version_comparator: sort_by_latest_semantic_version,
+						fallback: "v1.4.1".into(),
+						archive: format!("chain-spec-generator-{}.tar.gz", target()?),
+						contents: [ArchiveFileSpec::new("chain-spec-generator".into(), Some("polkadot-chain-spec-generator".into()), true)].to_vec(),
+						latest: chain_spec_generator.latest().map(|l| l.to_string()),
+					}).into() && cache == temp_dir.path() && archive_type == ArchiveType::Binary
+			)
+		);
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn system_with_chain_spec_file_works() -> anyhow::Result<()> {
+		let expected = System;
+		let runtime_version = "v2.0.2";
+		let para_id = 1000;
+
+		let temp_dir = tempdir()?;
+		let parachain = system(
+			para_id,
+			expected.binary(),
+			None,
+			Some(runtime_version),
+			RELAY_BINARY_VERSION,
 			Some("asset-hub-paseo-local"),
 			temp_dir.path(),
 		)
@@ -194,21 +262,37 @@ mod tests {
 		.unwrap();
 		assert_eq!(parachain.id, para_id);
 		assert_eq!(parachain.chain.unwrap(), "asset-hub-paseo-local");
-		let chain_spec_generator = parachain.chain_spec_generator.unwrap();
-		assert!(matches!(chain_spec_generator, Binary::Source { name, source, cache }
-			if name == "paseo-chain-spec-generator" && source == Source::GitHub(ReleaseArchive {
-					owner: "r0gue-io".to_string(),
-					repository: "paseo-runtimes".to_string(),
-					tag: Some(runtime_version.to_string()),
-					tag_pattern: None,
-					prerelease: false,
-					version_comparator: sort_by_latest_semantic_version,
-					fallback: "v1.4.1".into(),
-					archive: format!("chain-spec-generator-{}.tar.gz", target()?),
-					contents: [ArchiveFileSpec::new("chain-spec-generator".into(), Some("paseo-chain-spec-generator".into()), true)].to_vec(),
-					latest: chain_spec_generator.latest().map(|l| l.to_string()),
-				}).into() && cache == temp_dir.path()
-		));
+		let chain_spec_file = parachain.chain_spec_file.unwrap();
+		assert!(
+			matches!(chain_spec_file, SourcedArchive::Source { name, source, cache, archive_type }
+				if name == "asset-hub-paseo-local.json" &&
+					archive_type == ArchiveType::File &&
+					matches!(*source, Source::GitHub(ReleaseArchive {
+						ref owner,
+						ref repository,
+						ref tag,
+						ref tag_pattern,
+						prerelease,
+						ref fallback,
+						ref archive,
+						ref contents,
+						..
+					}) if owner == "paseo-network" &&
+						repository == "runtimes" &&
+						tag == &Some(runtime_version.to_string()) &&
+						tag_pattern.is_none() &&
+						!prerelease &&
+						fallback == "v2.0.2" &&
+						archive == "asset-hub-paseo-local.json" &&
+						contents == &vec![ArchiveFileSpec::new(
+							"asset-hub-paseo-local.json".to_string(),
+							Some("asset-hub-paseo-local".into()),
+							true
+						)]
+					) &&
+					cache == temp_dir.path()
+			)
+		);
 		Ok(())
 	}
 
@@ -224,20 +308,22 @@ mod tests {
 				.await?
 				.unwrap();
 		assert_eq!(para_id, parachain.id);
-		assert!(matches!(parachain.binary, Binary::Source { name, source, cache }
-			if name == expected && source == Source::GitHub(ReleaseArchive {
-					owner: "r0gue-io".to_string(),
-					repository: "pop-node".to_string(),
-					tag: Some(format!("node-{version}")),
-					tag_pattern: Some("node-{version}".into()),
-					prerelease: false,
-					version_comparator: sort_by_latest_semantic_version,
-					fallback: "v0.3.0".into(),
-					archive: format!("{name}-{}.tar.gz", target()?),
-					contents: vec![ArchiveFileSpec::new(expected.into(), None, true)],
-					latest: parachain.binary.latest().map(|l| l.to_string()),
-				}).into() && cache == temp_dir.path()
-		));
+		assert!(
+			matches!(parachain.binary, SourcedArchive::Source { name, source, cache, archive_type }
+				if name == expected && source == Source::GitHub(ReleaseArchive {
+						owner: "r0gue-io".to_string(),
+						repository: "pop-node".to_string(),
+						tag: Some(format!("node-{version}")),
+						tag_pattern: Some("node-{version}".into()),
+						prerelease: false,
+						version_comparator: sort_by_latest_semantic_version,
+						fallback: "v0.3.0".into(),
+						archive: format!("{name}-{}.tar.gz", target()?),
+						contents: vec![ArchiveFileSpec::new(expected.into(), None, true)],
+						latest: parachain.binary.latest().map(|l| l.to_string()),
+					}).into() && cache == temp_dir.path() && archive_type == ArchiveType::Binary
+			)
+		);
 		Ok(())
 	}
 

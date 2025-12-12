@@ -11,9 +11,21 @@ use crate::{
 };
 use std::path::{Path, PathBuf};
 
-/// A binary used to launch a node.
+/// File extensions we allow in our sourcing
+pub static ALLOWED_FILE_EXTENSIONS: [&str; 1] = [".json"];
+
+/// The type of the Archive
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub enum ArchiveType {
+	/// If the archive is a binary
+	Binary,
+	/// If the archive is a file
+	File,
+}
+
+/// A sourced archive.
 #[derive(Debug, PartialEq)]
-pub enum Binary {
+pub enum SourcedArchive {
 	/// A local binary.
 	Local {
 		/// The name of the binary.
@@ -22,6 +34,8 @@ pub enum Binary {
 		path: PathBuf,
 		/// If applicable, the path to a manifest used to build the binary if missing.
 		manifest: Option<PathBuf>,
+		/// The archive type
+		archive_type: ArchiveType,
 	},
 	/// A binary which needs to be sourced.
 	Source {
@@ -32,11 +46,13 @@ pub enum Binary {
 		source: Box<Source>,
 		/// The cache to be used to store the binary.
 		cache: PathBuf,
+		/// The archive type
+		archive_type: ArchiveType,
 	},
 }
 
-impl Binary {
-	/// Whether the binary exists.
+impl SourcedArchive {
+	/// Whether the archive exists.
 	pub fn exists(&self) -> bool {
 		self.path().exists()
 	}
@@ -61,12 +77,12 @@ impl Binary {
 		}
 	}
 
-	/// Whether the binary is defined locally.
+	/// Whether the archive is defined locally.
 	pub fn local(&self) -> bool {
 		matches!(self, Self::Local { .. })
 	}
 
-	/// The name of the binary.
+	/// The name of the archive.
 	pub fn name(&self) -> &str {
 		match self {
 			Self::Local { name, .. } => name,
@@ -74,27 +90,50 @@ impl Binary {
 		}
 	}
 
-	/// The path of the binary.
+	/// The archive type.
+	pub fn archive_type(&self) -> ArchiveType {
+		match *self {
+			Self::Local { archive_type, .. } => archive_type,
+			Self::Source { archive_type, .. } => archive_type,
+		}
+	}
+
+	/// The path of the archive.
 	pub fn path(&self) -> PathBuf {
 		match self {
 			Self::Local { path, .. } => path.to_path_buf(),
-			Self::Source { name, cache, .. } => {
+			Self::Source { name, cache, archive_type, .. } => {
 				// Determine whether a specific version is specified
-				self.version()
-					.map_or_else(|| cache.join(name), |v| cache.join(format!("{name}-{v}")))
+				self.version().map_or_else(
+					|| cache.join(name),
+					|v| match *archive_type {
+						ArchiveType::File =>
+							if let Some(ext_pos) = name.rfind('.') {
+								cache.join(format!(
+									"{}-{}{}",
+									&name[..ext_pos],
+									v,
+									&name[ext_pos..]
+								))
+							} else {
+								cache.join(format!("{name}-{v}"))
+							},
+						_ => cache.join(format!("{name}-{v}")),
+					},
+				)
 			},
 		}
 	}
 
-	/// Attempts to resolve a version of a binary based on whether one is specified, an existing
+	/// Attempts to resolve a version of a archive based on whether one is specified, an existing
 	/// version can be found cached locally, or uses the latest version.
 	///
 	/// # Arguments
-	/// * `name` - The name of the binary.
+	/// * `name` - The name of the archive.
 	/// * `specified` - If available, a version explicitly specified.
 	/// * `available` - The available versions, which are used to check for existing matches already
 	///   cached locally or the latest otherwise.
-	/// * `cache` - The location used for caching binaries.
+	/// * `cache` - The location used for caching archives.
 	pub(super) fn resolve_version<'a>(
 		name: &str,
 		specified: Option<&'a str>,
@@ -117,11 +156,11 @@ impl Binary {
 		}
 	}
 
-	/// Sources the binary.
+	/// Sources the archive.
 	///
 	/// # Arguments
-	/// * `release` - Whether any binaries needing to be built should be done so using the release
-	///   profile.
+	/// * `release` - Whether any binary archives needing to be built should be done so using the
+	///   release profile.
 	/// * `status` - Used to observe status updates.
 	/// * `verbose` - Whether verbose output is required.
 	pub async fn source(
@@ -132,14 +171,14 @@ impl Binary {
 	) -> Result<(), Error> {
 		match self {
 			Self::Local { name, path, manifest, .. } => match manifest {
-				None => Err(Error::MissingBinary(format!(
+				None => Err(Error::MissingArchive(format!(
 					"The {path:?} binary cannot be sourced automatically."
 				))),
 				Some(manifest) =>
 					from_local_package(manifest, name, release, status, verbose).await,
 			},
-			Self::Source { source, cache, .. } =>
-				source.source(cache, release, status, verbose).await,
+			Self::Source { source, cache, archive_type, .. } =>
+				source.source(cache, release, status, verbose, *archive_type).await,
 		}
 	}
 
@@ -149,6 +188,7 @@ impl Binary {
 		let Self::Source { source, .. } = self else {
 			return false;
 		};
+
 		let GitHub(ReleaseArchive { tag, latest, .. }) = source.as_ref() else {
 			return false;
 		};
@@ -194,7 +234,10 @@ mod tests {
 	};
 	use anyhow::Result;
 	use duct::cmd;
-	use std::fs::{File, create_dir_all};
+	use std::{
+		fs::{File, create_dir_all},
+		os::unix::fs::PermissionsExt,
+	};
 	use tempfile::tempdir;
 	use url::Url;
 
@@ -205,7 +248,12 @@ mod tests {
 		let path = temp_dir.path().join(name);
 		File::create(&path)?;
 
-		let binary = Binary::Local { name: name.to_string(), path: path.clone(), manifest: None };
+		let binary = SourcedArchive::Local {
+			name: name.to_string(),
+			path: path.clone(),
+			manifest: None,
+			archive_type: ArchiveType::Binary,
+		};
 
 		assert!(binary.exists());
 		assert_eq!(binary.latest(), None);
@@ -226,7 +274,12 @@ mod tests {
 		File::create(&path)?;
 		let manifest = Some(temp_dir.path().join("Cargo.toml"));
 
-		let binary = Binary::Local { name: name.to_string(), path: path.clone(), manifest };
+		let binary = SourcedArchive::Local {
+			name: name.to_string(),
+			path: path.clone(),
+			manifest,
+			archive_type: ArchiveType::Binary,
+		};
 
 		assert!(binary.exists());
 		assert_eq!(binary.latest(), None);
@@ -249,18 +302,18 @@ mod tests {
 		// Specified
 		let specified = Some("v1.12.0");
 		assert_eq!(
-			Binary::resolve_version(name, specified, &available, temp_dir.path()),
+			SourcedArchive::resolve_version(name, specified, &available, temp_dir.path()),
 			specified
 		);
 		// Latest
 		assert_eq!(
-			Binary::resolve_version(name, None, &available, temp_dir.path()).unwrap(),
+			SourcedArchive::resolve_version(name, None, &available, temp_dir.path()).unwrap(),
 			"stable2409"
 		);
 		// Cached
 		File::create(temp_dir.path().join(format!("{name}-{}", available[1])))?;
 		assert_eq!(
-			Binary::resolve_version(name, None, &available, temp_dir.path()).unwrap(),
+			SourcedArchive::resolve_version(name, None, &available, temp_dir.path()).unwrap(),
 			available[1]
 		);
 		Ok(())
@@ -279,10 +332,11 @@ mod tests {
 		let path = temp_dir.path().join(name);
 		File::create(&path)?;
 
-		let mut binary = Binary::Source {
+		let mut binary = SourcedArchive::Source {
 			name: name.to_string(),
 			source: Archive { url: url.to_string(), contents }.into(),
 			cache: temp_dir.path().to_path_buf(),
+			archive_type: ArchiveType::Binary,
 		};
 
 		assert!(binary.exists());
@@ -294,6 +348,7 @@ mod tests {
 		assert_eq!(binary.version(), None);
 		binary.use_latest();
 		assert_eq!(binary.version(), None);
+		assert_eq!(binary.archive_type(), ArchiveType::Binary);
 		Ok(())
 	}
 
@@ -310,7 +365,7 @@ mod tests {
 			);
 			File::create(&path)?;
 
-			let mut binary = Binary::Source {
+			let mut binary = SourcedArchive::Source {
 				name: package.to_string(),
 				source: Git {
 					url: url.clone(),
@@ -321,6 +376,7 @@ mod tests {
 				}
 				.into(),
 				cache: temp_dir.path().to_path_buf(),
+				archive_type: ArchiveType::Binary,
 			};
 
 			assert!(binary.exists());
@@ -332,6 +388,7 @@ mod tests {
 			assert_eq!(binary.version(), reference.as_deref());
 			binary.use_latest();
 			assert_eq!(binary.version(), reference.as_deref());
+			assert_eq!(binary.archive_type(), ArchiveType::Binary);
 		}
 
 		Ok(())
@@ -353,7 +410,7 @@ mod tests {
 				.join(tag.as_ref().map_or(name.to_string(), |t| format!("{name}-{t}")));
 			File::create(&path)?;
 			for latest in [None, Some("polkadot-stable2503".to_string())] {
-				let mut binary = Binary::Source {
+				let mut binary = SourcedArchive::Source {
 					name: name.to_string(),
 					source: GitHub(ReleaseArchive {
 						owner: owner.into(),
@@ -372,6 +429,7 @@ mod tests {
 					})
 					.into(),
 					cache: temp_dir.path().to_path_buf(),
+					archive_type: ArchiveType::Binary,
 				};
 
 				let latest = latest.as_ref().map(|l| l.replace("polkadot-", ""));
@@ -387,6 +445,7 @@ mod tests {
 				if latest.is_some() {
 					assert_eq!(binary.version(), latest.as_deref());
 				}
+				assert_eq!(binary.archive_type(), ArchiveType::Binary);
 			}
 		}
 		Ok(())
@@ -404,7 +463,7 @@ mod tests {
 				.path()
 				.join(reference.as_ref().map_or(package.to_string(), |t| format!("{package}-{t}")));
 			File::create(&path)?;
-			let mut binary = Binary::Source {
+			let mut binary = SourcedArchive::Source {
 				name: package.to_string(),
 				source: GitHub(SourceCodeArchive {
 					owner: owner.to_string(),
@@ -416,6 +475,7 @@ mod tests {
 				})
 				.into(),
 				cache: temp_dir.path().to_path_buf(),
+				archive_type: ArchiveType::Binary,
 			};
 
 			assert!(binary.exists());
@@ -427,6 +487,7 @@ mod tests {
 			assert_eq!(binary.version(), reference.as_deref());
 			binary.use_latest();
 			assert_eq!(binary.version(), reference.as_deref());
+			assert_eq!(binary.archive_type(), ArchiveType::Binary);
 		}
 		Ok(())
 	}
@@ -440,10 +501,11 @@ mod tests {
 		let path = temp_dir.path().join(name);
 		File::create(&path)?;
 
-		let mut binary = Binary::Source {
+		let mut binary = SourcedArchive::Source {
 			name: name.to_string(),
 			source: Source::Url { url: url.to_string(), name: name.to_string() }.into(),
 			cache: temp_dir.path().to_path_buf(),
+			archive_type: ArchiveType::Binary,
 		};
 
 		assert!(binary.exists());
@@ -455,6 +517,7 @@ mod tests {
 		assert_eq!(binary.version(), None);
 		binary.use_latest();
 		assert_eq!(binary.version(), None);
+		assert_eq!(binary.archive_type(), ArchiveType::Binary);
 		Ok(())
 	}
 
@@ -464,8 +527,8 @@ mod tests {
 		let temp_dir = tempdir()?;
 		let path = temp_dir.path().join(&name);
 		assert!(matches!(
-			Binary::Local { name, path: path.clone(), manifest: None }.source(true, &Output, true).await,
-			Err(Error::MissingBinary(error)) if error == format!("The {path:?} binary cannot be sourced automatically.")
+			SourcedArchive::Local { name, path: path.clone(), manifest: None, archive_type: ArchiveType::Binary }.source(true, &Output, true).await,
+			Err(Error::MissingArchive(error)) if error == format!("The {path:?} binary cannot be sourced automatically.")
 		));
 		Ok(())
 	}
@@ -478,29 +541,322 @@ mod tests {
 		let path = temp_dir.path().join(name);
 		let manifest = Some(path.join("Cargo.toml"));
 		let path = path.join("target/release").join(name);
-		Binary::Local { name: name.to_string(), path: path.clone(), manifest }
-			.source(true, &Output, true)
-			.await?;
+		SourcedArchive::Local {
+			name: name.to_string(),
+			path: path.clone(),
+			manifest,
+			archive_type: ArchiveType::Binary,
+		}
+		.source(true, &Output, true)
+		.await?;
 		assert!(path.exists());
 		Ok(())
 	}
 
 	#[tokio::test]
-	async fn sourcing_from_url_works() -> Result<()> {
+	async fn sourcing_binary_from_url_works() -> Result<()> {
 		let name = "polkadot";
 		let url =
 			"https://github.com/paritytech/polkadot-sdk/releases/latest/download/polkadot.asc";
 		let temp_dir = tempdir()?;
 		let path = temp_dir.path().join(name);
 
-		Binary::Source {
+		SourcedArchive::Source {
 			name: name.to_string(),
 			source: Source::Url { url: url.to_string(), name: name.to_string() }.into(),
 			cache: temp_dir.path().to_path_buf(),
+			archive_type: ArchiveType::Binary,
 		}
 		.source(true, &Output, true)
 		.await?;
 		assert!(path.exists());
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn sourcing_file_from_url_works() -> Result<()> {
+		let name = "paseo-local.json";
+		let url =
+			"https://github.com/paseo-network/runtimes/releases/download/v2.0.2/paseo-local.json";
+		let temp_dir = tempdir()?;
+		let path = temp_dir.path().join(name);
+
+		SourcedArchive::Source {
+			name: name.to_string(),
+			source: Source::Url { url: url.to_string(), name: name.to_string() }.into(),
+			cache: temp_dir.path().to_path_buf(),
+			archive_type: ArchiveType::File,
+		}
+		.source(true, &Output, true)
+		.await?;
+		assert!(path.exists());
+		// Files should not have executable permissions
+		assert_eq!(std::fs::metadata(&path)?.permissions().mode() & 0o111, 0);
+		Ok(())
+	}
+
+	#[test]
+	fn file_archive_path_with_version_works() -> Result<()> {
+		let name = "paseo-local.json";
+		let temp_dir = tempdir()?;
+		let version = "v2.0.2";
+
+		// Create a versioned file
+		let expected_path = temp_dir.path().join(format!("paseo-local-{}.json", version));
+		File::create(&expected_path)?;
+
+		let binary = SourcedArchive::Source {
+			name: name.to_string(),
+			source: Source::GitHub(crate::sourcing::GitHub::ReleaseArchive {
+				owner: "paseo-network".to_string(),
+				repository: "runtimes".to_string(),
+				tag: Some(version.to_string()),
+				tag_pattern: None,
+				prerelease: false,
+				version_comparator: crate::polkadot_sdk::sort_by_latest_semantic_version,
+				fallback: "v2.0.2".to_string(),
+				archive: format!("{}.json", name),
+				contents: vec![],
+				latest: None,
+			})
+			.into(),
+			cache: temp_dir.path().to_path_buf(),
+			archive_type: ArchiveType::File,
+		};
+
+		assert_eq!(binary.path(), expected_path);
+		assert!(binary.exists());
+		Ok(())
+	}
+
+	#[test]
+	fn archive_type_binary_works() -> Result<()> {
+		let name = "polkadot";
+		let temp_dir = tempdir()?;
+		let path = temp_dir.path().join(name);
+		File::create(&path)?;
+
+		// Test Local Binary
+		let local_binary = SourcedArchive::Local {
+			name: name.to_string(),
+			path: path.clone(),
+			manifest: None,
+			archive_type: ArchiveType::Binary,
+		};
+		assert_eq!(local_binary.archive_type(), ArchiveType::Binary);
+
+		// Test Source Binary
+		let source_binary = SourcedArchive::Source {
+			name: name.to_string(),
+			source: Source::Url {
+				url: "https://example.com/polkadot".to_string(),
+				name: name.to_string(),
+			}
+			.into(),
+			cache: temp_dir.path().to_path_buf(),
+			archive_type: ArchiveType::Binary,
+		};
+		assert_eq!(source_binary.archive_type(), ArchiveType::Binary);
+		Ok(())
+	}
+
+	#[test]
+	fn archive_type_file_works() -> Result<()> {
+		let name = "chain-spec.json";
+		let temp_dir = tempdir()?;
+		let path = temp_dir.path().join(name);
+		File::create(&path)?;
+
+		// Test Local File
+		let local_file = SourcedArchive::Local {
+			name: name.to_string(),
+			path: path.clone(),
+			manifest: None,
+			archive_type: ArchiveType::File,
+		};
+		assert_eq!(local_file.archive_type(), ArchiveType::File);
+
+		// Test Source File
+		let source_file = SourcedArchive::Source {
+			name: name.to_string(),
+			source: Source::Url {
+				url: "https://example.com/chain-spec.json".to_string(),
+				name: name.to_string(),
+			}
+			.into(),
+			cache: temp_dir.path().to_path_buf(),
+			archive_type: ArchiveType::File,
+		};
+		assert_eq!(source_file.archive_type(), ArchiveType::File);
+		Ok(())
+	}
+
+	#[test]
+	fn path_for_binary_without_version_works() -> Result<()> {
+		let name = "polkadot";
+		let temp_dir = tempdir()?;
+
+		let binary = SourcedArchive::Source {
+			name: name.to_string(),
+			source: Source::Url {
+				url: "https://example.com/polkadot".to_string(),
+				name: name.to_string(),
+			}
+			.into(),
+			cache: temp_dir.path().to_path_buf(),
+			archive_type: ArchiveType::Binary,
+		};
+
+		// Without version, path should be cache/name
+		assert_eq!(binary.path(), temp_dir.path().join(name));
+		Ok(())
+	}
+
+	#[test]
+	fn path_for_binary_with_version_works() -> Result<()> {
+		let name = "polkadot";
+		let version = "v1.0.0";
+		let temp_dir = tempdir()?;
+
+		let binary = SourcedArchive::Source {
+			name: name.to_string(),
+			source: Source::GitHub(crate::sourcing::GitHub::ReleaseArchive {
+				owner: "paritytech".to_string(),
+				repository: "polkadot-sdk".to_string(),
+				tag: Some(version.to_string()),
+				tag_pattern: None,
+				prerelease: false,
+				version_comparator: crate::polkadot_sdk::sort_by_latest_semantic_version,
+				fallback: "v1.0.0".to_string(),
+				archive: "polkadot.tar.gz".to_string(),
+				contents: vec![],
+				latest: None,
+			})
+			.into(),
+			cache: temp_dir.path().to_path_buf(),
+			archive_type: ArchiveType::Binary,
+		};
+
+		// With version, path should be cache/name-version
+		assert_eq!(binary.path(), temp_dir.path().join(format!("{}-{}", name, version)));
+		Ok(())
+	}
+
+	#[test]
+	fn path_for_file_without_version_works() -> Result<()> {
+		let name = "chain-spec.json";
+		let temp_dir = tempdir()?;
+
+		let file = SourcedArchive::Source {
+			name: name.to_string(),
+			source: Source::Url {
+				url: "https://example.com/chain-spec.json".to_string(),
+				name: name.to_string(),
+			}
+			.into(),
+			cache: temp_dir.path().to_path_buf(),
+			archive_type: ArchiveType::File,
+		};
+
+		// Without version, path should be cache/name
+		assert_eq!(file.path(), temp_dir.path().join(name));
+		Ok(())
+	}
+
+	#[test]
+	fn path_for_file_with_version_and_extension_works() -> Result<()> {
+		let name = "paseo-local.json";
+		let version = "v2.0.2";
+		let temp_dir = tempdir()?;
+
+		let file = SourcedArchive::Source {
+			name: name.to_string(),
+			source: Source::GitHub(crate::sourcing::GitHub::ReleaseArchive {
+				owner: "paseo-network".to_string(),
+				repository: "runtimes".to_string(),
+				tag: Some(version.to_string()),
+				tag_pattern: None,
+				prerelease: false,
+				version_comparator: crate::polkadot_sdk::sort_by_latest_semantic_version,
+				fallback: "v2.0.2".to_string(),
+				archive: "paseo-local.json".to_string(),
+				contents: vec![],
+				latest: None,
+			})
+			.into(),
+			cache: temp_dir.path().to_path_buf(),
+			archive_type: ArchiveType::File,
+		};
+
+		// With version and extension, path should be cache/name-version.ext
+		// e.g., paseo-local-v2.0.2.json
+		assert_eq!(file.path(), temp_dir.path().join(format!("paseo-local-{}.json", version)));
+		Ok(())
+	}
+
+	#[test]
+	fn path_for_file_with_version_no_extension_works() -> Result<()> {
+		let name = "chain-spec";
+		let version = "v1.0.0";
+		let temp_dir = tempdir()?;
+
+		let file = SourcedArchive::Source {
+			name: name.to_string(),
+			source: Source::GitHub(crate::sourcing::GitHub::ReleaseArchive {
+				owner: "example".to_string(),
+				repository: "repo".to_string(),
+				tag: Some(version.to_string()),
+				tag_pattern: None,
+				prerelease: false,
+				version_comparator: crate::polkadot_sdk::sort_by_latest_semantic_version,
+				fallback: "v1.0.0".to_string(),
+				archive: "chain-spec".to_string(),
+				contents: vec![],
+				latest: None,
+			})
+			.into(),
+			cache: temp_dir.path().to_path_buf(),
+			archive_type: ArchiveType::File,
+		};
+
+		// With version but no extension, path should be cache/name-version
+		assert_eq!(file.path(), temp_dir.path().join(format!("{}-{}", name, version)));
+		Ok(())
+	}
+
+	#[test]
+	fn path_for_local_binary_works() -> Result<()> {
+		let name = "polkadot";
+		let temp_dir = tempdir()?;
+		let path = temp_dir.path().join("custom/path").join(name);
+
+		let binary = SourcedArchive::Local {
+			name: name.to_string(),
+			path: path.clone(),
+			manifest: None,
+			archive_type: ArchiveType::Binary,
+		};
+
+		// Local binaries should return their exact path
+		assert_eq!(binary.path(), path);
+		Ok(())
+	}
+
+	#[test]
+	fn path_for_local_file_works() -> Result<()> {
+		let name = "chain-spec.json";
+		let temp_dir = tempdir()?;
+		let path = temp_dir.path().join("custom/path").join(name);
+
+		let file = SourcedArchive::Local {
+			name: name.to_string(),
+			path: path.clone(),
+			manifest: None,
+			archive_type: ArchiveType::File,
+		};
+
+		// Local files should return their exact path
+		assert_eq!(file.path(), path);
 		Ok(())
 	}
 }

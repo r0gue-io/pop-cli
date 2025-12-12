@@ -87,3 +87,8 @@ const PASSET_HUB_SPEC_JSON: &str = include_str!("../artifacts/passet-hub-spec.js
 fn get_passet_hub_spec_content() -> &'static str {
 	PASSET_HUB_SPEC_JSON
 }
+
+const PASEO_SPEC_JSON: &str = include_str!("../artifacts/paseo-local.json");
+fn get_paseo_spec_content() -> &'static str {
+	PASEO_SPEC_JSON
+}

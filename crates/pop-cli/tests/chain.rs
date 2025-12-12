@@ -7,7 +7,7 @@
 use anyhow::Result;
 use pop_chains::{
 	ChainTemplate,
-	up::{Binary, Source::GitHub},
+	up::{ArchiveType, Source::GitHub, SourcedArchive},
 };
 use pop_common::{
 	find_free_port,
@@ -407,7 +407,7 @@ fn mock_build_process(temp_dir: &Path) -> Result<()> {
 async fn fetch_runtime(cache: &Path) -> Result<String> {
 	let name = "parachain_template_runtime.wasm";
 	let contents = ["parachain_template_runtime.wasm"];
-	let binary = Binary::Source {
+	let binary = SourcedArchive::Source {
 		name: name.to_string(),
 		source: GitHub(ReleaseArchive {
 			owner: "r0gue-io".into(),
@@ -426,6 +426,7 @@ async fn fetch_runtime(cache: &Path) -> Result<String> {
 		})
 		.into(),
 		cache: cache.to_path_buf(),
+		archive_type: ArchiveType::Binary,
 	};
 	binary.source(true, &(), true).await?;
 	Ok(name.to_string())

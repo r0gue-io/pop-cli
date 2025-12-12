@@ -6,9 +6,9 @@ use pop_common::{
 	Error, GitHub,
 	polkadot_sdk::sort_by_latest_semantic_version,
 	sourcing::{
-		Binary,
+		ArchiveType,
 		GitHub::ReleaseArchive,
-		Source,
+		Source, SourcedArchive,
 		traits::{
 			Source as SourceT,
 			enums::{Source as _, *},
@@ -92,24 +92,30 @@ impl SourceT for Chain {
 }
 
 /// Retrieves the latest release of the contracts node binary, resolves its version, and constructs
-/// a `Binary::Source` with the specified cache path.
+/// a `SourcedArchive::Source` with the specified cache path.
 ///
 /// # Arguments
 /// * `cache` - The cache directory path.
 /// * `version` - The specific version used for the ink-node (`None` will use the latest available
 ///   version).
-pub async fn ink_node_generator(cache: PathBuf, version: Option<&str>) -> Result<Binary, Error> {
+pub async fn ink_node_generator(
+	cache: PathBuf,
+	version: Option<&str>,
+) -> Result<SourcedArchive, Error> {
 	node_generator_inner(&Chain::ContractsNode, cache, version).await
 }
 
 /// Retrieves the latest release of the Ethereum RPC binary, resolves its version, and constructs
-/// a `Binary::Source` with the specified cache path.
+/// a `SourcedArchive::Source` with the specified cache path.
 ///
 /// # Arguments
 /// * `cache` - The cache directory path.
 /// * `version` - The specific version used for the eth-rpc (`None` will use the latest available
 ///   version).
-pub async fn eth_rpc_generator(cache: PathBuf, version: Option<&str>) -> Result<Binary, Error> {
+pub async fn eth_rpc_generator(
+	cache: PathBuf,
+	version: Option<&str>,
+) -> Result<SourcedArchive, Error> {
 	node_generator_inner(&Chain::EthRpc, cache, version).await
 }
 
@@ -117,14 +123,14 @@ async fn node_generator_inner(
 	chain: &Chain,
 	cache: PathBuf,
 	version: Option<&str>,
-) -> Result<Binary, Error> {
-	let name = chain.binary().to_string();
+) -> Result<SourcedArchive, Error> {
+	let name = chain.binary()?.to_string();
 	let source = chain
 		.source()?
 		.resolve(&name, version, &cache, |f| prefix(f, &name))
 		.await
 		.into();
-	Ok(Binary::Source { name, source, cache })
+	Ok(SourcedArchive::Source { name, source, cache, archive_type: ArchiveType::Binary })
 }
 
 /// Runs the latest version of the `ink-node` in the background.
@@ -259,8 +265,8 @@ mod tests {
 			let cache = temp_dir.path().join("cache");
 			let binary = ink_node_generator(cache.clone(), Some(version)).await?;
 
-			assert!(matches!(binary, Binary::Source { name, source, cache}
-				if name == expected.binary() &&
+			assert!(matches!(binary, SourcedArchive::Source { name, source, cache, archive_type}
+				if name == expected.binary().unwrap() &&
 					*source == Source::GitHub(ReleaseArchive {
 						owner: owner.to_string(),
 						repository: BIN_NAME.to_string(),
@@ -274,7 +280,7 @@ mod tests {
 							latest: None,
 						})
 					&&
-				cache == cache
+				cache == cache && archive_type == ArchiveType::Binary
 			));
 		}
 		Ok(())

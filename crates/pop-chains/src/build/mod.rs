@@ -894,12 +894,12 @@ edition = "2021"
 			Some(&vec!["https://github.com/r0gue-io/pop-node#node-v0.3.0".to_string()]),
 		)
 		.await?;
-		let mut binary_name: String = "".to_string();
-		for binary in zombienet.binaries().filter(|b| !b.exists() && b.name() == "pop-node") {
-			binary_name = format!("{}-{}", binary.name(), binary.version().unwrap());
-			binary.source(true, &(), true).await?;
+		let mut archive_name: String = "".to_string();
+		for archive in zombienet.archives().filter(|b| !b.exists() && b.name() == "pop-node") {
+			archive_name = format!("{}-{}", archive.name(), archive.version().unwrap());
+			archive.source(true, &(), true).await?;
 		}
-		Ok(binary_name)
+		Ok(archive_name)
 	}
 
 	// Replace the binary fetched with the mocked binary

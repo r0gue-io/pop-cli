@@ -42,6 +42,9 @@ pub enum Error {
 	/// An error occurred during sourcing of a binary.
 	#[error("SourceError error: {0}")]
 	SourceError(#[from] sourcing::Error),
+	/// An error occurred parsing a Strum property
+	#[error("Property {0} isn't defined for {1}")]
+	StrumPropertyError(String, String),
 	/// A template error occurred.
 	#[error("TemplateError error: {0}")]
 	TemplateError(#[from] templates::Error),

@@ -121,9 +121,9 @@ tokio_test::block_on(async {
     let release = true; // Whether the binary should be built using the release profile.
     let status = {}; // Mechanism to observe status updates
     let verbose = false; // Whether verbose output is required
-    let missing = zombienet.binaries();
-    for binary in missing {
-        binary.source(release, &status, verbose).await;
+    let missing = zombienet.archives();
+    for archive in missing {
+        archive.source(release, &status, verbose).await;
     }
 })
 ```

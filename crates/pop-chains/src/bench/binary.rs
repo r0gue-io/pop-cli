@@ -5,9 +5,9 @@ use pop_common::{
 	git::GitHub,
 	polkadot_sdk::sort_by_latest_stable_version,
 	sourcing::{
-		ArchiveFileSpec, Binary,
+		ArchiveFileSpec, ArchiveType,
 		GitHub::*,
-		Source,
+		Source, SourcedArchive,
 		filters::prefix,
 		traits::{
 			Source as SourceT,
@@ -36,7 +36,7 @@ impl SourceT for BenchmarkingCli {
 	fn source(&self) -> Result<Source, Error> {
 		// Source from GitHub release asset
 		let repo = GitHub::parse(self.repository())?;
-		let binary = self.binary();
+		let binary = self.binary()?;
 		Ok(Source::GitHub(ReleaseArchive {
 			owner: repo.org,
 			repository: repo.name,
@@ -60,15 +60,20 @@ impl SourceT for BenchmarkingCli {
 pub async fn omni_bencher_generator(
 	cache: PathBuf,
 	version: Option<&str>,
-) -> Result<Binary, Error> {
+) -> Result<SourcedArchive, Error> {
 	let cli = BenchmarkingCli::OmniBencher;
-	let name = cli.binary().to_string();
+	let name = cli.binary()?.to_string();
 	let source = cli
 		.source()?
 		.resolve(&name, version, cache.as_path(), |f| prefix(f, &name))
 		.await
 		.into();
-	let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
+	let binary = SourcedArchive::Source {
+		name,
+		source,
+		cache: cache.to_path_buf(),
+		archive_type: ArchiveType::Binary,
+	};
 	Ok(binary)
 }
 
@@ -83,7 +88,7 @@ mod tests {
 		let temp_dir_path = temp_dir.path().to_path_buf();
 		let version = "polkadot-stable2412-4";
 		let binary = omni_bencher_generator(temp_dir_path.clone(), Some(version)).await?;
-		assert!(matches!(binary, Binary::Source { name: _, source, cache }
+		assert!(matches!(binary, SourcedArchive::Source { name: _, source, cache, archive_type }
 				if source == Source::GitHub(ReleaseArchive {
 					owner: "r0gue-io".to_string(),
 					repository: "polkadot".to_string(),
@@ -96,7 +101,7 @@ mod tests {
 					contents: ["frame-omni-bencher"].map(|b| ArchiveFileSpec::new(b.into(), Some(b.into()), true)).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
 				}).into() &&
-				cache == temp_dir_path.as_path()
+				cache == temp_dir_path.as_path() && archive_type == ArchiveType::Binary
 		));
 		Ok(())
 	}

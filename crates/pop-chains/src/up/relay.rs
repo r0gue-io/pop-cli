@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use super::chain_specs::chain_spec_generator;
+use super::chain_specs::{chain_spec_file, chain_spec_generator};
 use crate::{Error, up::chain_specs};
 use pop_common::{
 	git::GitHub,
 	polkadot_sdk::sort_by_latest_stable_version,
 	sourcing::{
-		ArchiveFileSpec, Binary,
+		ArchiveFileSpec, ArchiveType,
 		GitHub::*,
-		Source,
+		Source, SourcedArchive,
 		filters::prefix,
 		traits::{
 			Source as SourceT,
@@ -50,8 +50,8 @@ impl SourceT for &RelayChain {
 					prerelease: false,
 					version_comparator: sort_by_latest_stable_version,
 					fallback: self.fallback().into(),
-					archive: format!("{}-{}.tar.gz", self.binary(), target()?),
-					contents: once(self.binary())
+					archive: format!("{}-{}.tar.gz", self.binary()?, target()?),
+					contents: once(self.binary()?)
 						.chain(self.workers())
 						.map(|n| ArchiveFileSpec::new(n.into(), None, true))
 						.collect(),
@@ -82,7 +82,7 @@ pub(super) async fn default(
 	chain: &str,
 	cache: &Path,
 ) -> Result<super::RelayChain, Error> {
-	from(RelayChain::Polkadot.binary(), version, runtime_version, chain, cache).await
+	from(RelayChain::Polkadot.binary()?, version, runtime_version, chain, cache).await
 }
 
 /// Initializes the configuration required to launch the relay chain using the specified command.
@@ -100,17 +100,22 @@ pub(super) async fn from(
 	chain: &str,
 	cache: &Path,
 ) -> Result<super::RelayChain, Error> {
-	if let Some(relay) = RelayChain::VARIANTS
-		.iter()
-		.find(|r| command.to_lowercase().ends_with(r.binary()))
-	{
-		let name = relay.binary().to_string();
+	if let Some(relay) = RelayChain::VARIANTS.iter().find(|r| {
+		let binary = r.binary();
+		if let Ok(binary) = binary { command.to_lowercase().ends_with(binary) } else { false }
+	}) {
+		let name = relay.binary()?.to_string();
 		let source = relay
 			.source()?
 			.resolve(&name, version, cache, |f| prefix(f, &name))
 			.await
 			.into();
-		let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
+		let binary = SourcedArchive::Source {
+			name,
+			source,
+			cache: cache.to_path_buf(),
+			archive_type: ArchiveType::Binary,
+		};
 		let runtime = chain_specs::Runtime::from_chain(chain)
 			.ok_or(Error::UnsupportedCommand(format!("the relay chain is unsupported: {chain}")))?;
 		return Ok(super::RelayChain {
@@ -119,6 +124,7 @@ pub(super) async fn from(
 			workers: relay.workers(),
 			chain: chain.into(),
 			chain_spec_generator: chain_spec_generator(chain, runtime_version, cache).await?,
+			chain_spec_file: chain_spec_file(chain, runtime_version, cache).await?,
 		});
 	}
 
@@ -140,20 +146,22 @@ mod tests {
 		let temp_dir = tempdir()?;
 		let relay =
 			default(Some(RELAY_BINARY_VERSION), None, "paseo-local", temp_dir.path()).await?;
-		assert!(matches!(relay.binary, Binary::Source { name, source, cache }
-			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
-					owner: "r0gue-io".to_string(),
-					repository: "polkadot".to_string(),
-					tag: Some(format!("polkadot-{RELAY_BINARY_VERSION}")),
-					tag_pattern: Some("polkadot-{version}".into()),
-					prerelease: false,
-					version_comparator: sort_by_latest_stable_version,
-					fallback: FALLBACK.into(),
-					archive: format!("{name}-{}.tar.gz", target()?),
-					contents: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"].map(|b| ArchiveFileSpec::new(b.into(), None, true)).to_vec(),
-					latest: relay.binary.latest().map(|l| l.to_string()),
-				}).into() && cache == temp_dir.path()
-		));
+		assert!(
+			matches!(relay.binary, SourcedArchive::Source { name, source, cache, archive_type }
+				if name == expected.binary().unwrap() && source == Source::GitHub(ReleaseArchive {
+						owner: "r0gue-io".to_string(),
+						repository: "polkadot".to_string(),
+						tag: Some(format!("polkadot-{RELAY_BINARY_VERSION}")),
+						tag_pattern: Some("polkadot-{version}".into()),
+						prerelease: false,
+						version_comparator: sort_by_latest_stable_version,
+						fallback: FALLBACK.into(),
+						archive: format!("{name}-{}.tar.gz", target()?),
+						contents: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"].map(|b| ArchiveFileSpec::new(b.into(), None, true)).to_vec(),
+						latest: relay.binary.latest().map(|l| l.to_string()),
+					}).into() && cache == temp_dir.path() && archive_type == ArchiveType::Binary
+			)
+		);
 		assert_eq!(relay.workers, expected.workers());
 		Ok(())
 	}
@@ -162,23 +170,51 @@ mod tests {
 	async fn default_with_chain_spec_generator_works() -> anyhow::Result<()> {
 		let runtime_version = "v1.3.3";
 		let temp_dir = tempdir()?;
+		let relay = default(None, Some(runtime_version), "polkadot-local", temp_dir.path()).await?;
+		assert_eq!(relay.chain, "polkadot-local");
+		let chain_spec_generator = relay.chain_spec_generator.unwrap();
+		assert!(
+			matches!(chain_spec_generator, SourcedArchive::Source { name, source, cache, archive_type }
+				if name == "polkadot-chain-spec-generator" && source == Source::GitHub(ReleaseArchive {
+						owner: "r0gue-io".to_string(),
+						repository: "polkadot-runtimes".to_string(),
+						tag: Some(runtime_version.to_string()),
+						tag_pattern: None,
+						prerelease: false,
+						version_comparator: sort_by_latest_semantic_version,
+						fallback: "v1.4.1".into(),
+						archive: format!("chain-spec-generator-{}.tar.gz", target()?),
+						contents: [ArchiveFileSpec::new("chain-spec-generator".into(), Some("polkadot-chain-spec-generator".into()), true)].to_vec(),
+						latest: chain_spec_generator.latest().map(|l| l.to_string()),
+					}).into() && cache == temp_dir.path() && archive_type == ArchiveType::Binary
+			)
+		);
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn default_with_chain_spec_file_works() -> anyhow::Result<()> {
+		let runtime_version = "v1.3.3";
+		let temp_dir = tempdir()?;
 		let relay = default(None, Some(runtime_version), "paseo-local", temp_dir.path()).await?;
 		assert_eq!(relay.chain, "paseo-local");
-		let chain_spec_generator = relay.chain_spec_generator.unwrap();
-		assert!(matches!(chain_spec_generator, Binary::Source { name, source, cache }
-			if name == "paseo-chain-spec-generator" && source == Source::GitHub(ReleaseArchive {
-					owner: "r0gue-io".to_string(),
-					repository: "paseo-runtimes".to_string(),
-					tag: Some(runtime_version.to_string()),
-					tag_pattern: None,
-					prerelease: false,
-					version_comparator: sort_by_latest_semantic_version,
-					fallback: "v1.4.1".into(),
-					archive: format!("chain-spec-generator-{}.tar.gz", target()?),
-					contents: [ArchiveFileSpec::new("chain-spec-generator".into(), Some("paseo-chain-spec-generator".into()), true)].to_vec(),
-					latest: chain_spec_generator.latest().map(|l| l.to_string()),
-				}).into() && cache == temp_dir.path()
-		));
+		let chain_spec_file = relay.chain_spec_file.unwrap();
+		assert!(
+			matches!(chain_spec_file, SourcedArchive::Source { name, source, cache, archive_type }
+				if name == "paseo-local.json" && source == Source::GitHub(ReleaseArchive {
+						owner: "paseo-network".to_string(),
+						repository: "runtimes".to_string(),
+						tag: Some(runtime_version.to_string()),
+						tag_pattern: None,
+						prerelease: false,
+						version_comparator: sort_by_latest_semantic_version,
+						fallback: "v2.0.2".into(),
+						archive: "paseo-local.json".to_string(),
+						contents: [ArchiveFileSpec::new("paseo-local.json".into(), Some("paseo-local".into()), true)].to_vec(),
+						latest: chain_spec_file.latest().map(|l| l.to_string()),
+					}).into() && cache == temp_dir.path() && archive_type == ArchiveType::File
+			)
+		);
 		Ok(())
 	}
 
@@ -203,8 +239,8 @@ mod tests {
 			temp_dir.path(),
 		)
 		.await?;
-		assert!(matches!(relay.binary, Binary::Source { name, source, cache }
-			if name == expected.binary() && source == Source::GitHub(ReleaseArchive {
+		assert!(matches!(relay.binary, SourcedArchive::Source { name, source, cache, archive_type}
+			if name == expected.binary().unwrap() && source == Source::GitHub(ReleaseArchive {
 					owner: "r0gue-io".to_string(),
 					repository: "polkadot".to_string(),
 					tag: Some(format!("polkadot-{RELAY_BINARY_VERSION}")),
@@ -215,7 +251,7 @@ mod tests {
 					archive: format!("{name}-{}.tar.gz", target()?),
 					contents: ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"].map(|b| ArchiveFileSpec::new(b.into(), None, true)).to_vec(),
 					latest: relay.binary.latest().map(|l| l.to_string()),
-				}).into() && cache == temp_dir.path()
+				}).into() && cache == temp_dir.path() && archive_type==ArchiveType::Binary
 		));
 		assert_eq!(relay.workers, expected.workers());
 		Ok(())

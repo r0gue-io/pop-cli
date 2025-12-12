@@ -5,9 +5,9 @@ use pop_common::{
 	git::GitHub,
 	polkadot_sdk::sort_by_latest_semantic_version,
 	sourcing::{
-		ArchiveFileSpec, Binary,
+		ArchiveFileSpec, ArchiveType,
 		GitHub::*,
-		Source,
+		Source, SourcedArchive,
 		filters::prefix,
 		traits::{
 			Source as SourceT,
@@ -35,7 +35,7 @@ impl SourceT for TryRuntimeCli {
 	fn source(&self) -> Result<Source, Error> {
 		// Source from GitHub release asset
 		let repo = GitHub::parse(self.repository())?;
-		let binary = self.binary();
+		let binary = self.binary()?;
 		Ok(Source::GitHub(ReleaseArchive {
 			owner: repo.org,
 			repository: repo.name,
@@ -56,15 +56,23 @@ impl SourceT for TryRuntimeCli {
 /// # Arguments
 /// * `cache` - The path to the directory where the binary should be cached.
 /// * `version` - An optional version string. If `None`, the latest available version is used.
-pub async fn try_runtime_generator(cache: PathBuf, version: Option<&str>) -> Result<Binary, Error> {
+pub async fn try_runtime_generator(
+	cache: PathBuf,
+	version: Option<&str>,
+) -> Result<SourcedArchive, Error> {
 	let cli = TryRuntimeCli::TryRuntime;
-	let name = cli.binary().to_string();
+	let name = cli.binary()?.to_string();
 	let source = cli
 		.source()?
 		.resolve(&name, version, cache.as_path(), |f| prefix(f, &name))
 		.await
 		.into();
-	let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
+	let binary = SourcedArchive::Source {
+		name,
+		source,
+		cache: cache.to_path_buf(),
+		archive_type: ArchiveType::Binary,
+	};
 	Ok(binary)
 }
 
@@ -79,7 +87,7 @@ mod tests {
 		let path = temp_dir.path().to_path_buf();
 		let version = "v0.8.0";
 		let binary = try_runtime_generator(path.clone(), None).await?;
-		assert!(matches!(binary, Binary::Source { name: _, source, cache }
+		assert!(matches!(binary, SourcedArchive::Source { name: _, source, cache, archive_type}
 				if source == Source::GitHub(ReleaseArchive {
 					owner: "r0gue-io".to_string(),
 					repository: "try-runtime-cli".to_string(),
@@ -92,7 +100,7 @@ mod tests {
 					contents: ["try-runtime-cli"].map(|b| ArchiveFileSpec::new(b.into(), Some(b.into()), true)).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
 				}).into() &&
-				cache == path
+				cache == path && archive_type == ArchiveType::Binary
 		));
 		Ok(())
 	}

@@ -5,9 +5,9 @@ use pop_common::{
 	git::GitHub,
 	polkadot_sdk::sort_by_latest_semantic_version,
 	sourcing::{
-		ArchiveFileSpec, Binary,
+		ArchiveFileSpec, ArchiveType,
 		GitHub::*,
-		Source,
+		Source, SourcedArchive,
 		filters::prefix,
 		traits::{
 			Source as SourceT,
@@ -16,7 +16,7 @@ use pop_common::{
 	},
 	target,
 };
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use strum::{EnumProperty as _, VariantArray as _};
 use strum_macros::{AsRefStr, EnumProperty, VariantArray};
 
@@ -34,10 +34,10 @@ pub enum Runtime {
 	Kusama = 0,
 	/// Paseo.
 	#[strum(props(
-		Repository = "https://github.com/r0gue-io/paseo-runtimes",
-		Binary = "chain-spec-generator",
+		Repository = "https://github.com/paseo-network/runtimes",
+		File = "paseo-local",
 		Chain = "paseo-local",
-		Fallback = "v1.4.1"
+		Fallback = "v2.0.2"
 	))]
 	Paseo = 1,
 	/// Polkadot.
@@ -60,23 +60,43 @@ impl SourceT for Runtime {
 		// Source from GitHub release asset
 		let repo = GitHub::parse(self.repository())?;
 		let name = self.name().to_lowercase();
-		let binary = self.binary();
-		Ok(Source::GitHub(ReleaseArchive {
-			owner: repo.org,
-			repository: repo.name,
-			tag: None,
-			tag_pattern: self.tag_pattern().map(|t| t.into()),
-			prerelease: false,
-			version_comparator: sort_by_latest_semantic_version,
-			fallback: self.fallback().into(),
-			archive: format!("{binary}-{}.tar.gz", target()?),
-			contents: vec![ArchiveFileSpec::new(
-				binary.into(),
-				Some(format!("{name}-{binary}").into()),
-				true,
-			)],
-			latest: None,
-		}))
+		match (self.binary(), self.file()) {
+			(Ok(binary), Err(_)) => Ok(Source::GitHub(ReleaseArchive {
+				owner: repo.org,
+				repository: repo.name,
+				tag: None,
+				tag_pattern: self.tag_pattern().map(|t| t.into()),
+				prerelease: false,
+				version_comparator: sort_by_latest_semantic_version,
+				fallback: self.fallback().into(),
+				archive: format!("{binary}-{}.tar.gz", target()?),
+				contents: vec![ArchiveFileSpec::new(
+					binary.into(),
+					Some(format!("{name}-{binary}").into()),
+					true,
+				)],
+				latest: None,
+			})),
+			(Err(_), Ok(file)) => Ok(Source::GitHub(ReleaseArchive {
+				owner: repo.org,
+				repository: repo.name,
+				tag: None,
+				tag_pattern: self.tag_pattern().map(|t| t.into()),
+				prerelease: false,
+				version_comparator: sort_by_latest_semantic_version,
+				fallback: self.fallback().into(),
+                archive: format!("{file}.json"),
+				contents: vec![ArchiveFileSpec::new(
+					format!("{file}.json"),
+					Some(file.to_string().into()),
+					true,
+				)],
+				latest: None,
+			})),
+			_ => Err(Error::Config(
+				"Runtime sourcing for chain specs can only contains the chain spec generator or the chain spec file".to_owned(),
+			)),
+		}
 	}
 }
 
@@ -126,20 +146,88 @@ pub(super) async fn chain_spec_generator(
 	chain: &str,
 	version: Option<&str>,
 	cache: &Path,
-) -> Result<Option<Binary>, Error> {
+) -> Result<Option<SourcedArchive>, Error> {
 	if let Some(runtime) = Runtime::from_chain(chain) {
 		if runtime == Runtime::Westend {
 			// Westend runtimes included with binary.
 			return Ok(None);
 		}
-		let name = format!("{}-{}", runtime.name().to_lowercase(), runtime.binary());
+
+		let binary_name = if let Ok(binary) = runtime.binary() {
+			binary
+		} else {
+			return Ok(None);
+		};
+		let name = format!("{}-{}", runtime.name().to_lowercase(), binary_name);
 		let source = runtime
 			.source()?
 			.resolve(&name, version, cache, |f| prefix(f, &name))
 			.await
 			.into();
-		let binary = Binary::Source { name, source, cache: cache.to_path_buf() };
+		let binary = SourcedArchive::Source {
+			name,
+			source,
+			cache: cache.to_path_buf(),
+			archive_type: ArchiveType::Binary,
+		};
 		return Ok(Some(binary));
+	}
+	Ok(None)
+}
+
+pub(super) async fn chain_spec_file(
+	chain: &str,
+	version: Option<&str>,
+	cache: &Path,
+) -> Result<Option<SourcedArchive>, Error> {
+	if let Some(runtime) = Runtime::from_chain(chain) {
+		let file = if let Ok(file) = runtime.file() {
+			file
+		} else {
+			return Ok(None);
+		};
+
+		// The File prop name is only valid for the relay chains, we need to use the right
+		// parachain name for parachains chain specs (differently of chain-spec-generator which was
+		// unique for all the chains)
+		let mut name = if chain.contains(file) {
+			chain.to_owned()
+		} else {
+			format!("{}-{}", runtime.name().to_lowercase(), file)
+		};
+
+		let mut source = runtime.source()?;
+
+		// In case the File prop isn't the source archive to download (parachain case), we need to
+		// update the source.
+		if let Source::GitHub(ReleaseArchive { ref mut archive, ref mut contents, .. }) = source &&
+			let Some(&mut ArchiveFileSpec {
+				name: ref mut contents_name, ref mut target, ..
+			}) = contents.first_mut()
+		{
+			*target = Some(PathBuf::from(name.clone()));
+			if let Some(file_extension) =
+				Path::new(&contents_name.clone()).extension().and_then(|ext| ext.to_str())
+			{
+				*archive = name.clone() + "." + file_extension;
+				*contents_name = name.clone() + "." + file_extension;
+				name = name.clone() + "." + file_extension;
+			} else {
+				*archive = name.clone();
+				*contents_name = name.clone();
+			}
+		}
+
+		let source: Box<Source> =
+			source.resolve(&name, version, cache, |f| prefix(f, &name)).await.into();
+
+		let chain_spec_file = SourcedArchive::Source {
+			name,
+			source,
+			cache: cache.to_path_buf(),
+			archive_type: ArchiveType::File,
+		};
+		return Ok(Some(chain_spec_file));
 	}
 	Ok(None)
 }
@@ -153,17 +241,17 @@ mod tests {
 	#[tokio::test]
 	async fn kusama_works() -> anyhow::Result<()> {
 		let expected = Runtime::Kusama;
-		let version = "v1.4.1";
+		let version = "v1.4.1".to_string();
 		let temp_dir = tempdir()?;
-		let binary = chain_spec_generator("kusama-local", Some(version), temp_dir.path())
+		let binary = chain_spec_generator("kusama-local", Some(&version), temp_dir.path())
 			.await?
 			.unwrap();
-		assert!(matches!(binary, Binary::Source { name, source, cache }
-			if name == format!("{}-{}", expected.name().to_lowercase(), expected.binary()) &&
+		assert!(matches!(binary, SourcedArchive::Source { name, source, cache, archive_type }
+			if name == format!("{}-{}", expected.name().to_lowercase(), expected.binary().unwrap()) &&
 				source == Source::GitHub(ReleaseArchive {
 					owner: "r0gue-io".to_string(),
 					repository: "polkadot-runtimes".to_string(),
-					tag: Some(version.to_string()),
+					tag: Some(version),
 					tag_pattern: None,
 					prerelease: false,
 					version_comparator: sort_by_latest_semantic_version,
@@ -172,7 +260,7 @@ mod tests {
 					contents: ["chain-spec-generator"].map(|b| ArchiveFileSpec::new(b.into(), Some(format!("kusama-{b}").into()), true)).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
 				}).into() &&
-				cache == temp_dir.path()
+				cache == temp_dir.path() && archive_type == ArchiveType::Binary
 		));
 		Ok(())
 	}
@@ -180,25 +268,35 @@ mod tests {
 	#[tokio::test]
 	async fn paseo_works() -> anyhow::Result<()> {
 		let expected = Runtime::Paseo;
-		let version = "v1.4.1";
+		let version = "v2.0.2";
 		let temp_dir = tempdir()?;
-		let binary = chain_spec_generator("paseo-local", Some(version), temp_dir.path())
-			.await?
-			.unwrap();
-		assert!(matches!(binary, Binary::Source { name, source, cache }
-			if name == format!("{}-{}", expected.name().to_lowercase(), expected.binary()) &&
-				source == Source::GitHub(ReleaseArchive {
-					owner: "r0gue-io".to_string(),
-					repository: "paseo-runtimes".to_string(),
-					tag: Some(version.to_string()),
-					tag_pattern: None,
-					prerelease: false,
-					version_comparator: sort_by_latest_semantic_version,
-					fallback: expected.fallback().to_string(),
-					archive: format!("chain-spec-generator-{}.tar.gz", target()?),
-					contents: ["chain-spec-generator"].map(|b| ArchiveFileSpec::new(b.into(), Some(format!("paseo-{b}").into()), true)).to_vec(),
-					latest: binary.latest().map(|l| l.to_string()),
-				}).into() &&
+		let file = chain_spec_file("paseo-local", Some(version), temp_dir.path()).await?.unwrap();
+		assert!(matches!(file, SourcedArchive::Source { name, source, cache, archive_type }
+			if name == "paseo-local.json" &&
+				archive_type == ArchiveType::File &&
+				matches!(*source, Source::GitHub(ReleaseArchive {
+					ref owner,
+					ref repository,
+					ref tag,
+					ref tag_pattern,
+					prerelease,
+					ref fallback,
+					ref archive,
+					ref contents,
+					..
+				}) if owner == "paseo-network" &&
+					repository == "runtimes" &&
+					tag == &Some(version.to_string()) &&
+					tag_pattern.is_none() &&
+					!prerelease &&
+					fallback == expected.fallback() &&
+					archive == "paseo-local.json" &&
+					contents == &vec![ArchiveFileSpec::new(
+						"paseo-local.json".to_string(),
+						Some("paseo-local".into()),
+						true
+					)]
+				) &&
 				cache == temp_dir.path()
 		));
 		Ok(())
@@ -212,8 +310,8 @@ mod tests {
 		let binary = chain_spec_generator("polkadot-local", Some(version), temp_dir.path())
 			.await?
 			.unwrap();
-		assert!(matches!(binary, Binary::Source { name, source, cache }
-			if name == format!("{}-{}", expected.name().to_lowercase(), expected.binary()) &&
+		assert!(matches!(binary, SourcedArchive::Source { name, source, cache, archive_type }
+			if name == format!("{}-{}", expected.name().to_lowercase(), expected.binary().unwrap()) &&
 				source == Source::GitHub(ReleaseArchive {
 					owner: "r0gue-io".to_string(),
 					repository: "polkadot-runtimes".to_string(),
@@ -226,7 +324,8 @@ mod tests {
 					contents: ["chain-spec-generator"].map(|b| ArchiveFileSpec::new(b.into(), Some(format!("polkadot-{b}").into()), true)).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),
 				}).into() &&
-				cache == temp_dir.path()
+				cache == temp_dir.path() &&
+				archive_type == ArchiveType::Binary
 		));
 		Ok(())
 	}
@@ -279,6 +378,156 @@ mod tests {
 			assert_eq!(
 				comparator(runtime.rollups()),
 				comparator(crate::registry::rollups(runtime))
+			);
+		}
+	}
+
+	// Tests for chain_spec_file function
+
+	#[tokio::test]
+	async fn chain_spec_file_paseo_relay_works() -> anyhow::Result<()> {
+		let expected = Runtime::Paseo;
+		let version = "v2.0.2";
+		let chain = "paseo-local";
+		let temp_dir = tempdir()?;
+
+		let file = chain_spec_file(chain, Some(version), temp_dir.path()).await?.unwrap();
+
+		assert!(matches!(file, SourcedArchive::Source { name, source, cache, archive_type }
+			if name == "paseo-local.json" &&
+				archive_type == ArchiveType::File &&
+				matches!(*source, Source::GitHub(ReleaseArchive {
+					ref owner,
+					ref repository,
+					ref tag,
+					ref tag_pattern,
+					prerelease,
+					ref fallback,
+					ref archive,
+					ref contents,
+					..
+				}) if owner == "paseo-network" &&
+					repository == "runtimes" &&
+					tag == &Some(version.to_string()) &&
+					tag_pattern.is_none() &&
+					!prerelease &&
+					fallback == expected.fallback() &&
+					archive == "paseo-local.json" &&
+					contents == &vec![ArchiveFileSpec::new(
+						"paseo-local.json".to_string(),
+						Some("paseo-local".into()),
+						true
+					)]
+				) &&
+				cache == temp_dir.path()
+		));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn chain_spec_file_paseo_parachain_works() -> anyhow::Result<()> {
+		let expected = Runtime::Paseo;
+		let version = "v2.0.2";
+		let chain = "asset-hub-paseo-local";
+		let temp_dir = tempdir()?;
+
+		let file = chain_spec_file(chain, Some(version), temp_dir.path()).await?.unwrap();
+
+		assert!(matches!(file, SourcedArchive::Source { name, source, cache, archive_type }
+			if name == "asset-hub-paseo-local.json" &&
+				archive_type == ArchiveType::File &&
+				matches!(*source, Source::GitHub(ReleaseArchive {
+					ref owner,
+					ref repository,
+					ref tag,
+					ref tag_pattern,
+					prerelease,
+					ref fallback,
+					ref archive,
+					ref contents,
+					..
+				}) if owner == "paseo-network" &&
+					repository == "runtimes" &&
+					tag == &Some(version.to_string()) &&
+					tag_pattern.is_none() &&
+					!prerelease &&
+					fallback == expected.fallback() &&
+					archive == "asset-hub-paseo-local.json" &&
+					contents == &vec![ArchiveFileSpec::new(
+						"asset-hub-paseo-local.json".to_string(),
+						Some("asset-hub-paseo-local".into()),
+						true
+					)]
+				) &&
+				cache == temp_dir.path()
+		));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn chain_spec_file_without_version_works() -> anyhow::Result<()> {
+		let chain = "asset-hub-paseo-local";
+		let temp_dir = tempdir()?;
+
+		let file = chain_spec_file(chain, None, temp_dir.path()).await?.unwrap();
+
+		// When no version is specified, it should still create the SourcedArchive
+		// but the tag will be resolved later
+		assert!(matches!(file, SourcedArchive::Source { name, archive_type, .. }
+			if name == "asset-hub-paseo-local.json" &&
+				archive_type == ArchiveType::File
+		));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn chain_spec_file_returns_none_when_no_match() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		assert_eq!(chain_spec_file("rococo-local", None, temp_dir.path()).await?, None);
+		assert_eq!(chain_spec_file("unknown-chain", None, temp_dir.path()).await?, None);
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn chain_spec_file_returns_none_for_kusama() -> anyhow::Result<()> {
+		// Kusama uses Binary (chain-spec-generator), not File
+		let temp_dir = tempdir()?;
+		assert_eq!(chain_spec_file("kusama-local", None, temp_dir.path()).await?, None);
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn chain_spec_file_returns_none_for_polkadot() -> anyhow::Result<()> {
+		// Polkadot uses Binary (chain-spec-generator), not File
+		let temp_dir = tempdir()?;
+		assert_eq!(chain_spec_file("polkadot-local", None, temp_dir.path()).await?, None);
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn chain_spec_file_returns_none_for_westend() -> anyhow::Result<()> {
+		// Westend doesn't have File property
+		let temp_dir = tempdir()?;
+		assert_eq!(chain_spec_file("westend-local", None, temp_dir.path()).await?, None);
+		Ok(())
+	}
+
+	#[test]
+	fn from_chain_matches_parachain_chains() {
+		// Verify that parachain chain names match to the correct relay runtime
+		for (parachain_chain, expected_relay) in [
+			("asset-hub-paseo-local", Paseo),
+			("bridge-hub-paseo-local", Paseo),
+			("coretime-paseo-local", Paseo),
+			("people-paseo-local", Paseo),
+			("passet-hub-paseo-local", Paseo),
+		] {
+			assert_eq!(
+				Runtime::from_chain(parachain_chain).unwrap(),
+				expected_relay,
+				"Chain '{}' should match to {:?}",
+				parachain_chain,
+				expected_relay
 			);
 		}
 	}

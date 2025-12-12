@@ -26,8 +26,8 @@ async fn launch_kusama() -> Result<()> {
 	)
 	.await?;
 
-	for binary in zombienet.binaries().filter(|b| !b.exists()) {
-		binary.source(true, &(), true).await?;
+	for archive in zombienet.archives().filter(|b| !b.exists()) {
+		archive.source(true, &(), true).await?;
 	}
 
 	zombienet.spawn().await?;
@@ -43,15 +43,15 @@ async fn launch_paseo() -> Result<()> {
 		&cache,
 		Path::new("../../tests/networks/paseo.toml").try_into()?,
 		Some(BINARY_VERSION),
-		Some("v1.2.4"),
+		Some("v2.0.2"),
 		None,
 		None,
 		None,
 	)
 	.await?;
 
-	for binary in zombienet.binaries().filter(|b| !b.exists()) {
-		binary.source(true, &(), true).await?;
+	for archive in zombienet.archives().filter(|b| !b.exists()) {
+		archive.source(true, &(), true).await?;
 	}
 
 	zombienet.spawn().await?;
@@ -74,8 +74,8 @@ async fn launch_polkadot() -> Result<()> {
 	)
 	.await?;
 
-	for binary in zombienet.binaries().filter(|b| !b.exists()) {
-		binary.source(true, &(), true).await?;
+	for archive in zombienet.archives().filter(|b| !b.exists()) {
+		archive.source(true, &(), true).await?;
 	}
 
 	zombienet.spawn().await?;
@@ -98,8 +98,8 @@ async fn launch_polkadot_and_system_parachain() -> Result<()> {
 	)
 	.await?;
 
-	for binary in zombienet.binaries().filter(|b| !b.exists()) {
-		binary.source(true, &(), true).await?;
+	for archive in zombienet.archives().filter(|b| !b.exists()) {
+		archive.source(true, &(), true).await?;
 	}
 
 	zombienet.spawn().await?;
@@ -117,13 +117,13 @@ async fn launch_paseo_and_system_parachain() -> Result<()> {
 		Some(BINARY_VERSION),
 		None,
 		Some(BINARY_VERSION),
-		Some("v1.3.3"), // 1.3.3 is where coretime-paseo-local was introduced.
+		Some("v2.0.2"),
 		None,
 	)
 	.await?;
 
-	for binary in zombienet.binaries().filter(|b| !b.exists()) {
-		binary.source(true, &(), true).await?;
+	for archive in zombienet.archives().filter(|b| !b.exists()) {
+		archive.source(true, &(), true).await?;
 	}
 
 	zombienet.spawn().await?;
@@ -146,8 +146,8 @@ async fn launch_paseo_and_two_parachains() -> Result<()> {
 	)
 	.await?;
 
-	for binary in zombienet.binaries().filter(|b| !b.exists()) {
-		binary.source(true, &(), true).await?;
+	for archive in zombienet.archives().filter(|b| !b.exists()) {
+		archive.source(true, &(), true).await?;
 	}
 
 	zombienet.spawn().await?;
