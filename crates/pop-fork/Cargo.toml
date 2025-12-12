@@ -7,6 +7,9 @@ repository.workspace = true
 version.workspace = true
 rust-version.workspace = true
 
+[features]
+integration-tests = []
+
 [dependencies]
 # Fork-specific
 bb8.workspace = true
