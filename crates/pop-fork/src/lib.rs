@@ -35,6 +35,7 @@ mod models;
 mod rpc;
 mod schema;
 
-pub use cache::{BlockInfo, StorageCache};
+pub use cache::StorageCache;
 pub use error::{CacheError, RpcClientError};
+pub use models::BlockRow;
 pub use rpc::ForkRpcClient;

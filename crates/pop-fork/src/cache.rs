@@ -7,7 +7,7 @@
 
 use crate::{
 	error::cache::CacheError,
-	models::{NewBlockRow, NewStorageRow},
+	models::{BlockRow, StorageRow},
 	schema::{blocks, storage},
 };
 use diesel::{OptionalExtension, prelude::*, sqlite::SqliteConnection};
@@ -29,25 +29,6 @@ const MAX_POOL_CONNECTIONS: u32 = 5;
 /// Maximum retries for transient SQLite lock/busy errors on write paths.
 const MAX_LOCK_RETRIES: u32 = 30;
 
-/// Information about a cached block.
-///
-/// # Block Number Type
-///
-/// Block numbers are stored as `u32` to match Polkadot SDK's `BlockNumber` type.
-/// The database uses `BIGINT` (i64) to safely represent all possible u32 values.
-/// Invalid values (negative or > u32::MAX) indicate database corruption and will
-/// return a [`CacheError::DataCorruption`] error.
-#[derive(Debug, Clone)]
-pub struct BlockInfo {
-	/// Block hash.
-	pub hash: H256,
-	/// Block number.
-	pub number: u32,
-	/// SCALE-encoded block header.
-	pub header: Vec<u8>,
-	/// Parent block hash.
-	pub parent_hash: H256,
-}
 
 /// SQLite-backed persistent cache for storage values.
 ///
@@ -188,7 +169,7 @@ impl StorageCache {
 	) -> Result<(), CacheError> {
 		// Insert or update the cached storage entry with simple retry on lock contention.
 		use crate::schema::storage::columns as sc;
-		let new = NewStorageRow {
+		let new = StorageRow {
 			block_hash: block_hash.as_bytes().to_vec(),
 			key: key.to_vec(),
 			value: value.map(|v| v.to_vec()),
@@ -304,9 +285,9 @@ impl StorageCache {
 		// 2. A transaction groups all inserts into a single commit
 		// 3. If any insert fails, the entire batch is rolled back
 		use crate::schema::storage::columns as sc;
-		let new_rows: Vec<NewStorageRow> = entries
+		let new_rows: Vec<StorageRow> = entries
 			.iter()
-			.map(|(k, v)| NewStorageRow {
+			.map(|(k, v)| StorageRow {
 				block_hash: block_hash.as_bytes().to_vec(),
 				key: (*k).to_vec(),
 				value: v.map(|vv| vv.to_vec()),
@@ -383,7 +364,7 @@ impl StorageCache {
 	) -> Result<(), CacheError> {
 		// Store block metadata for quick lookup without hitting the remote RPC.
 		use crate::schema::blocks::columns as bc;
-		let new = NewBlockRow {
+		let new = BlockRow {
 			hash: hash.as_bytes().to_vec(),
 			number: number as i64,
 			parent_hash: parent_hash.as_bytes().to_vec(),
@@ -434,7 +415,7 @@ impl StorageCache {
 	}
 
 	/// Get cached block metadata.
-	pub async fn get_block(&self, hash: H256) -> Result<Option<BlockInfo>, CacheError> {
+	pub async fn get_block(&self, hash: H256) -> Result<Option<BlockRow>, CacheError> {
 		// Retrieve all block metadata fields by the block's hash (primary key).
 		// Returns None if the block hasn't been cached yet.
 		use crate::schema::blocks::columns as bc;
@@ -444,8 +425,8 @@ impl StorageCache {
 				let mut conn = pool.get().await?;
 				blocks::table
 					.filter(bc::hash.eq(bh))
-					.select((bc::hash, bc::number, bc::parent_hash, bc::header))
-					.first::<(Vec<u8>, i64, Vec<u8>, Vec<u8>)>(&mut conn)
+					.select(BlockRow::as_select())
+					.first::<BlockRow>(&mut conn)
 					.await
 					.optional()?
 			},
@@ -453,23 +434,19 @@ impl StorageCache {
 				let mut conn = m.lock().await;
 				blocks::table
 					.filter(bc::hash.eq(bh))
-					.select((bc::hash, bc::number, bc::parent_hash, bc::header))
-					.first::<(Vec<u8>, i64, Vec<u8>, Vec<u8>)>(&mut *conn)
+					.select(BlockRow::as_select())
+					.first::<BlockRow>(&mut *conn)
 					.await
 					.optional()?
 			},
 		};
 
-		let Some((h, num_i64, parent, hdr)) = row else { return Ok(None) };
-		let num = u32::try_from(num_i64)
-			.map_err(|_| CacheError::DataCorruption("block number out of u32 range".into()))?;
-
-		Ok(Some(BlockInfo {
-			hash: H256::from_slice(&h),
-			number: num,
-			parent_hash: H256::from_slice(&parent),
-			header: hdr,
-		}))
+        match row{
+            // Sanity check on the block number, as we use i64 to represent them in SQLite but Substrate blocks are u32
+            Some(BlockRow{number,..}) if number < 0 || number > u32::MAX.into() => Err(CacheError::DataCorruption("block number out of u32 range".into())),
+            row @ Some(_) => Ok(row),
+            None => Ok(None)
+        }
 	}
 
 	/// Clear all cached data for a specific block.
@@ -617,9 +594,9 @@ mod tests {
 
 		// Get block
 		let block = cache.get_block(hash).await.unwrap().unwrap();
-		assert_eq!(block.hash, hash);
-		assert_eq!(block.number, 100);
-		assert_eq!(block.parent_hash, parent_hash);
+		assert_eq!(block.hash, hash.as_bytes().to_vec());
+		assert_eq!(block.number, 100i64);
+		assert_eq!(block.parent_hash, parent_hash.as_bytes().to_vec());
 		assert_eq!(block.header, header.to_vec());
 	}
 
