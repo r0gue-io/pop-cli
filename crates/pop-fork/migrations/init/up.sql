@@ -12,8 +12,8 @@ CREATE INDEX idx_storage_block ON storage(block_hash);
 
 -- Create blocks table
 CREATE TABLE blocks (
-    hash BLOB PRIMARY KEY,
-    number INTEGER NOT NULL,
+    hash BLOB PRIMARY KEY NOT NULL,
+    number BIGINT NOT NULL,
     parent_hash BLOB NOT NULL,
     header BLOB NOT NULL
 );

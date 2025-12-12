@@ -34,7 +34,7 @@ const MAX_LOCK_RETRIES: u32 = 30;
 /// # Block Number Type
 ///
 /// Block numbers are stored as `u32` to match Polkadot SDK's `BlockNumber` type.
-/// SQLite stores all integers as `i64`, so we convert when reading from the database.
+/// The database uses `BIGINT` (i64) to safely represent all possible u32 values.
 /// Invalid values (negative or > u32::MAX) indicate database corruption and will
 /// return a [`CacheError::DataCorruption`] error.
 #[derive(Debug, Clone)]
@@ -385,7 +385,7 @@ impl StorageCache {
 		use crate::schema::blocks::columns as bc;
 		let new = NewBlockRow {
 			hash: hash.as_bytes().to_vec(),
-			number: number as i32,
+			number: number as i64,
 			parent_hash: parent_hash.as_bytes().to_vec(),
 			header: header.to_vec(),
 		};
@@ -445,7 +445,7 @@ impl StorageCache {
 				blocks::table
 					.filter(bc::hash.eq(bh))
 					.select((bc::hash, bc::number, bc::parent_hash, bc::header))
-					.first::<(Vec<u8>, i32, Vec<u8>, Vec<u8>)>(&mut conn)
+					.first::<(Vec<u8>, i64, Vec<u8>, Vec<u8>)>(&mut conn)
 					.await
 					.optional()?
 			},
@@ -454,14 +454,14 @@ impl StorageCache {
 				blocks::table
 					.filter(bc::hash.eq(bh))
 					.select((bc::hash, bc::number, bc::parent_hash, bc::header))
-					.first::<(Vec<u8>, i32, Vec<u8>, Vec<u8>)>(&mut *conn)
+					.first::<(Vec<u8>, i64, Vec<u8>, Vec<u8>)>(&mut *conn)
 					.await
 					.optional()?
 			},
 		};
 
-		let Some((h, num_i32, parent, hdr)) = row else { return Ok(None) };
-		let num = u32::try_from(num_i32)
+		let Some((h, num_i64, parent, hdr)) = row else { return Ok(None) };
+		let num = u32::try_from(num_i64)
 			.map_err(|_| CacheError::DataCorruption("block number out of u32 range".into()))?;
 
 		Ok(Some(BlockInfo {

@@ -14,7 +14,7 @@ pub(crate) struct NewStorageRow {
 #[diesel(table_name = blocks)]
 pub(crate) struct NewBlockRow {
 	pub(crate) hash: Vec<u8>,
-	pub(crate) number: i32,
+	pub(crate) number: i64,
 	pub(crate) parent_hash: Vec<u8>,
 	pub(crate) header: Vec<u8>,
 }

@@ -1,6 +1,14 @@
-// SPDX-License-Identifier: GPL-3.0
+// @generated automatically by Diesel CLI.
 
-// Diesel schema for SQLite tables used by the cache layer.
+diesel::table! {
+	blocks (hash) {
+		hash -> Binary,
+		number -> BigInt,
+		parent_hash -> Binary,
+		header -> Binary,
+	}
+}
+
 diesel::table! {
 	storage (block_hash, key) {
 		block_hash -> Binary,
@@ -10,11 +18,4 @@ diesel::table! {
 	}
 }
 
-diesel::table! {
-	blocks (hash) {
-		hash -> Binary,
-		number -> Integer,
-		parent_hash -> Binary,
-		header -> Binary,
-	}
-}
+diesel::allow_tables_to_appear_in_same_query!(blocks, storage,);
