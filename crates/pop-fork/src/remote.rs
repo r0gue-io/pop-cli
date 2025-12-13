@@ -277,7 +277,7 @@ impl RemoteStorageLayer {
 	/// Get all keys for a prefix, fetching from RPC if not fully cached.
 	///
 	/// This is a convenience method that:
-	/// 1. Ensures the prefix is fully scanned (calls [`prefetch_prefix`] if needed)
+	/// 1. Ensures the prefix is fully scanned (calls [`Self::prefetch_prefix`] if needed)
 	/// 2. Returns all cached keys matching the prefix
 	///
 	/// Useful for enumerating all entries in a storage map (e.g., all accounts
