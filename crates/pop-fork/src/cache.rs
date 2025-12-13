@@ -711,7 +711,7 @@ impl StorageCache {
 
 	/// Count cached keys matching a prefix.
 	///
-	/// Uses the same range query strategy as [`get_keys_by_prefix`] for
+	/// Uses the same range query strategy as [`Self::get_keys_by_prefix`] for
 	/// efficient counting without loading key data.
 	pub async fn count_keys_by_prefix(
 		&self,
