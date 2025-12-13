@@ -55,6 +55,10 @@ enum StorageConn {
 	Single(Arc<Mutex<SyncConnectionWrapper<SqliteConnection>>>),
 }
 
+/// Increments the attempt counter and sleeps with linear backoff.
+///
+/// Uses a simple linear backoff strategy: delay = 10ms * attempt_number.
+/// This gives the database time to release locks while avoiding excessive delays.
 async fn retry_conn(attempts: &mut u32) {
 	*attempts += 1;
 	let delay_ms = 10u64.saturating_mul(*attempts as u64);
@@ -226,6 +230,9 @@ impl StorageCache {
 			is_empty: value.is_none(),
 		};
 
+		// Retry loop for transient SQLite lock/busy errors.
+		// SQLite may return SQLITE_BUSY when another connection holds a lock.
+		// We retry up to MAX_LOCK_RETRIES (30) times with increasing backoff delays.
 		let mut attempts = 0;
 		loop {
 			let row = new_row.clone();
@@ -326,6 +333,9 @@ impl StorageCache {
 			})
 			.collect();
 
+		// Retry loop for transient SQLite lock/busy errors.
+		// SQLite may return SQLITE_BUSY when another connection holds a lock.
+		// We retry up to MAX_LOCK_RETRIES (30) times with increasing backoff delays.
 		let mut attempts = 0;
 		loop {
 			let rows = new_rows.clone();
@@ -383,6 +393,9 @@ impl StorageCache {
 			header: header.to_vec(),
 		};
 
+		// Retry loop for transient SQLite lock/busy errors.
+		// SQLite may return SQLITE_BUSY when another connection holds a lock.
+		// We retry up to MAX_LOCK_RETRIES (30) times with increasing backoff delays.
 		let mut attempts = 0;
 		loop {
 			let block = new_block.clone();
@@ -454,6 +467,9 @@ impl StorageCache {
 		use crate::schema::{blocks::columns as bc, storage::columns as sc};
 		let bh_vec = hash.as_bytes().to_vec();
 
+		// Retry loop for transient SQLite lock/busy errors.
+		// SQLite may return SQLITE_BUSY when another connection holds a lock.
+		// We retry up to MAX_LOCK_RETRIES (30) times with increasing backoff delays.
 		let mut attempts = 0;
 		loop {
 			let bh = bh_vec.clone();
