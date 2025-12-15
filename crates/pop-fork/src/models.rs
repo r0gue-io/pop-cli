@@ -3,7 +3,7 @@ use diesel::{Insertable, Queryable, Selectable};
 
 #[derive(Insertable, Clone)]
 #[diesel(table_name = storage)]
-pub struct NewStorageRow<'a> {
+pub(crate) struct NewStorageRow<'a> {
 	pub block_hash: &'a [u8],
 	pub key: &'a [u8],
 	pub value: Option<&'a [u8]>,
@@ -13,7 +13,7 @@ pub struct NewStorageRow<'a> {
 /// Block row for insertions (uses borrowed data to avoid allocations)
 #[derive(Insertable, Clone)]
 #[diesel(table_name = blocks)]
-pub struct NewBlockRow<'a> {
+pub(crate) struct NewBlockRow<'a> {
 	pub hash: &'a [u8],
 	pub number: i64,
 	pub parent_hash: &'a [u8],

@@ -29,6 +29,9 @@ pub enum CacheError {
 	/// Data corruption detected in the cache.
 	#[error("Data corruption: {0}")]
 	DataCorruption(String),
+	/// Duplicated keys used
+	#[error("Duplicated keys")]
+	DuplicatedKeys,
 }
 
 impl From<Box<dyn StdError + Send + Sync>> for CacheError {

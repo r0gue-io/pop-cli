@@ -12,10 +12,7 @@ use crate::{
 };
 use bb8::CustomizeConnection;
 use diesel::{
-	OptionalExtension,
-	prelude::*,
-	result::{DatabaseErrorKind, Error as DieselError},
-	sqlite::SqliteConnection,
+	OptionalExtension, prelude::*, result::Error as DieselError, sqlite::SqliteConnection,
 };
 use diesel_async::{
 	AsyncConnection, AsyncMigrationHarness, RunQueryDsl,
@@ -27,7 +24,7 @@ use diesel_async::{
 };
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
 use std::{
-	collections::HashMap,
+	collections::{HashMap, HashSet},
 	future::Future,
 	ops::{Deref, DerefMut},
 	path::Path,
@@ -191,14 +188,11 @@ impl StorageCache {
 	///
 	/// Handles acquiring the connection from either the pool or single mutex.
 	/// The connection is automatically returned to the pool or unlocks the mutex when dropped.
-	async fn get_conn(&self) -> Result<ConnectionGuard<'_>, DieselError> {
+	async fn get_conn(&self) -> Result<ConnectionGuard<'_>, CacheError> {
 		match &self.inner {
 			StorageConn::Pool(pool) => {
 				let conn = pool.get().await.map_err(|e| {
-					DieselError::DatabaseError(
-						DatabaseErrorKind::UnableToSendCommand,
-						Box::new(e.to_string()),
-					)
+					CacheError::Connection(ConnectionError::BadConnection(e.to_string()))
 				})?;
 				Ok(ConnectionGuard::Pool(conn))
 			},
@@ -300,6 +294,11 @@ impl StorageCache {
 			return Ok(vec![]);
 		}
 
+		let mut seen = HashSet::with_capacity(keys.len());
+		if keys.iter().any(|key| !seen.insert(key)) {
+			return Err(CacheError::DuplicatedKeys);
+		}
+
 		use crate::schema::storage::columns as sc;
 		let mut conn = self.get_conn().await?;
 
@@ -334,6 +333,11 @@ impl StorageCache {
 	) -> Result<(), CacheError> {
 		if entries.is_empty() {
 			return Ok(());
+		}
+
+		let mut seen = HashSet::with_capacity(entries.len());
+		if entries.iter().any(|(key, _)| !seen.insert(key)) {
+			return Err(CacheError::DuplicatedKeys);
 		}
 
 		// Use a transaction to batch all inserts together.
@@ -808,5 +812,45 @@ mod tests {
 		for (i, result) in results.iter().enumerate() {
 			assert_eq!(*result, Some(Some(vec![i as u8])));
 		}
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn get_storage_batch_with_duplicate_keys() {
+		let cache = StorageCache::in_memory().await.unwrap();
+
+		let block_hash = H256::from([11u8; 32]);
+		let entries: Vec<(&[u8], Option<&[u8]>)> = vec![
+			(b"key1", Some(b"value1")),
+			(b"key2", Some(b"value2")),
+			(b"key3", Some(b"value3")),
+		];
+
+		// Set up some values
+		cache.set_storage_batch(block_hash, &entries).await.unwrap();
+
+		// Query with duplicate keys - key1 appears twice, key2 appears three times
+		let keys: Vec<&[u8]> = vec![b"key1", b"key2", b"key1", b"key3", b"key2", b"key2"];
+		let results = cache.get_storage_batch(block_hash, &keys).await;
+
+		assert!(matches!(results, Err(CacheError::DuplicatedKeys)));
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn set_storage_batch_with_duplicate_keys() {
+		let cache = StorageCache::in_memory().await.unwrap();
+
+		let block_hash = H256::from([12u8; 32]);
+
+		// Set batch with duplicate keys - last value should win
+		let entries: Vec<(&[u8], Option<&[u8]>)> = vec![
+			(b"key1", Some(b"first_value")),
+			(b"key2", Some(b"value2")),
+			(b"key1", Some(b"second_value")), // duplicate key1
+			(b"key3", Some(b"value3")),
+			(b"key1", Some(b"final_value")), // another duplicate key1
+		];
+
+		let result = cache.set_storage_batch(block_hash, &entries).await;
+		assert!(matches!(result, Err(CacheError::DuplicatedKeys)));
 	}
 }
