@@ -44,6 +44,7 @@ mod rpc;
 mod schema;
 mod strings;
 mod schema;
+mod strings;
 
 pub use cache::{PrefixScanProgress, StorageCache};
 pub use error::{CacheError, RemoteStorageError, RpcClientError};
