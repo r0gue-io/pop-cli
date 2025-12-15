@@ -7,22 +7,36 @@
 
 use crate::{
 	error::cache::CacheError,
-	models::{BlockRow, StorageRow},
+	models::{BlockRow, NewBlockRow, NewStorageRow},
 	schema::{blocks, storage},
 };
 use bb8::CustomizeConnection;
 use diesel::{
-	OptionalExtension, prelude::*, result::Error as DieselError, sqlite::SqliteConnection,
+	OptionalExtension,
+	prelude::*,
+	result::{DatabaseErrorKind, Error as DieselError},
+	sqlite::SqliteConnection,
 };
 use diesel_async::{
 	AsyncConnection, AsyncMigrationHarness, RunQueryDsl,
-	pooled_connection::{AsyncDieselConnectionManager, PoolError, bb8::Pool},
+	pooled_connection::{
+		AsyncDieselConnectionManager, PoolError,
+		bb8::{Pool, PooledConnection},
+	},
 	sync_connection_wrapper::SyncConnectionWrapper,
 };
 use diesel_migrations::{EmbeddedMigrations, MigrationHarness, embed_migrations};
-use std::{collections::HashMap, future::Future, path::Path, pin::Pin, sync::Arc, time::Duration};
+use std::{
+	collections::HashMap,
+	future::Future,
+	ops::{Deref, DerefMut},
+	path::Path,
+	pin::Pin,
+	sync::Arc,
+	time::Duration,
+};
 use subxt::config::substrate::H256;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, MutexGuard};
 
 /// Maximum number of connections in the SQLite connection pool.
 ///
@@ -53,6 +67,34 @@ enum StorageConn {
 	/// In-memory databases don't benefit from connection pools since all connections share the
 	/// same memory state.
 	Single(Arc<Mutex<SyncConnectionWrapper<SqliteConnection>>>),
+}
+
+/// Connection guard that handles both pool and single connection types.
+///
+/// Automatically returns the connection to the pool or unlocks the mutex when dropped.
+enum ConnectionGuard<'a> {
+	Pool(PooledConnection<'a, SyncConnectionWrapper<SqliteConnection>>),
+	Single(MutexGuard<'a, SyncConnectionWrapper<SqliteConnection>>),
+}
+
+impl<'a> Deref for ConnectionGuard<'a> {
+	type Target = SyncConnectionWrapper<SqliteConnection>;
+
+	fn deref(&self) -> &Self::Target {
+		match self {
+			ConnectionGuard::Pool(conn) => conn,
+			ConnectionGuard::Single(guard) => guard,
+		}
+	}
+}
+
+impl<'a> DerefMut for ConnectionGuard<'a> {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		match self {
+			ConnectionGuard::Pool(conn) => conn,
+			ConnectionGuard::Single(guard) => guard,
+		}
+	}
 }
 
 /// Increments the attempt counter and sleeps with linear backoff.
@@ -88,32 +130,6 @@ impl CustomizeConnection<SyncConnectionWrapper<SqliteConnection>, PoolError>
 }
 
 impl StorageCache {
-	/// Execute a closure with a database connection.
-	///
-	/// Handles acquiring the connection from either the pool or single mutex.
-	async fn with_conn<F, R>(&self, f: F) -> Result<R, DieselError>
-	where
-		F: for<'a> FnOnce(
-			&'a mut SyncConnectionWrapper<SqliteConnection>,
-		) -> Pin<Box<dyn Future<Output = Result<R, DieselError>> + Send + 'a>>,
-	{
-		match &self.inner {
-			StorageConn::Pool(pool) => {
-				let mut conn = pool.get().await.map_err(|e| {
-					DieselError::DatabaseError(
-						diesel::result::DatabaseErrorKind::UnableToSendCommand,
-						Box::new(e.to_string()),
-					)
-				})?;
-				f(&mut conn).await
-			},
-			StorageConn::Single(m) => {
-				let mut conn = m.lock().await;
-				f(&mut conn).await
-			},
-		}
-	}
-
 	/// Open or create a cache database at the specified path.
 	///
 	/// Creates the parent directory if it doesn't exist.
@@ -171,6 +187,28 @@ impl StorageCache {
 		Self::open(None).await
 	}
 
+	/// Get a database connection.
+	///
+	/// Handles acquiring the connection from either the pool or single mutex.
+	/// The connection is automatically returned to the pool or unlocks the mutex when dropped.
+	async fn get_conn(&self) -> Result<ConnectionGuard<'_>, DieselError> {
+		match &self.inner {
+			StorageConn::Pool(pool) => {
+				let conn = pool.get().await.map_err(|e| {
+					DieselError::DatabaseError(
+						DatabaseErrorKind::UnableToSendCommand,
+						Box::new(e.to_string()),
+					)
+				})?;
+				Ok(ConnectionGuard::Pool(conn))
+			},
+			StorageConn::Single(m) => {
+				let conn = m.lock().await;
+				Ok(ConnectionGuard::Single(conn))
+			},
+		}
+	}
+
 	/// Get a cached storage value.
 	///
 	/// # Returns
@@ -188,23 +226,16 @@ impl StorageCache {
 		// - Key cached as empty (row exists, is_empty = true)
 		// - Key cached with value (row exists, is_empty = false)
 		use crate::schema::storage::columns as sc;
-		let bh = block_hash.as_bytes().to_vec();
-		let k = key.to_vec();
 
-		let row: Option<(Option<Vec<u8>>, bool)> = self
-			.with_conn(|conn| {
-				Box::pin(async move {
-					storage::table
-						.filter(sc::block_hash.eq(bh))
-						.filter(sc::key.eq(k))
-						.select((sc::value, sc::is_empty))
-						.first::<(Option<Vec<u8>>, bool)>(conn)
-						.await
-						.optional()
-				})
-			})
+		let mut conn = self.get_conn().await?;
+
+		let row: Option<(Option<Vec<u8>>, bool)> = storage::table
+			.filter(sc::block_hash.eq(block_hash.as_bytes()))
+			.filter(sc::key.eq(key))
+			.select((sc::value, sc::is_empty))
+			.first::<(Option<Vec<u8>>, bool)>(&mut conn)
 			.await
-			.map_err(CacheError::from)?;
+			.optional()?;
 
 		Ok(row.map(|(val, empty)| if empty { None } else { val }))
 	}
@@ -223,31 +254,27 @@ impl StorageCache {
 	) -> Result<(), CacheError> {
 		// Insert or update the cached storage entry with simple retry on lock contention.
 		use crate::schema::storage::columns as sc;
-		let new_row = StorageRow {
-			block_hash: block_hash.as_bytes().to_vec(),
-			key: key.to_vec(),
-			value: value.map(|v| v.to_vec()),
-			is_empty: value.is_none(),
-		};
 
 		// Retry loop for transient SQLite lock/busy errors.
 		// SQLite may return SQLITE_BUSY when another connection holds a lock.
-		// We retry up to MAX_LOCK_RETRIES (30) times with increasing backoff delays.
+		// We retry up to MAX_LOCK_RETRIES times with increasing backoff delays.
 		let mut attempts = 0;
 		loop {
-			let row = new_row.clone();
-			let res = self
-				.with_conn(|conn| {
-					Box::pin(async move {
-						diesel::insert_into(storage::table)
-							.values(&row)
-							.on_conflict((sc::block_hash, sc::key))
-							.do_update()
-							.set((sc::value.eq(row.value.clone()), sc::is_empty.eq(row.is_empty)))
-							.execute(conn)
-							.await
-					})
-				})
+			let mut conn = self.get_conn().await?;
+
+			let row = NewStorageRow {
+				block_hash: block_hash.as_bytes(),
+				key,
+				value,
+				is_empty: value.is_none(),
+			};
+
+			let res = diesel::insert_into(storage::table)
+				.values(&row)
+				.on_conflict((sc::block_hash, sc::key))
+				.do_update()
+				.set((sc::value.eq(value), sc::is_empty.eq(row.is_empty)))
+				.execute(&mut conn)
 				.await;
 
 			match res {
@@ -274,35 +301,27 @@ impl StorageCache {
 		}
 
 		use crate::schema::storage::columns as sc;
-		let bh = block_hash.as_bytes().to_vec();
-		let key_vecs: Vec<Vec<u8>> = keys.iter().map(|k| k.to_vec()).collect();
+		let mut conn = self.get_conn().await?;
 
-		let rows: Vec<(Vec<u8>, Option<Vec<u8>>, bool)> = self
-			.with_conn(|conn| {
-				Box::pin(async move {
-					storage::table
-						.filter(sc::block_hash.eq(bh))
-						.filter(sc::key.eq_any(&key_vecs))
-						.select((sc::key, sc::value, sc::is_empty))
-						.load::<(Vec<u8>, Option<Vec<u8>>, bool)>(conn)
-						.await
-				})
-			})
-			.await
-			.map_err(CacheError::from)?;
+		let rows: Vec<(Vec<u8>, Option<Vec<u8>>, bool)> = storage::table
+			.filter(sc::block_hash.eq(block_hash.as_bytes()))
+			.filter(sc::key.eq_any(keys))
+			.select((sc::key, sc::value, sc::is_empty))
+			.load::<(Vec<u8>, Option<Vec<u8>>, bool)>(&mut conn)
+			.await?;
 
 		// Build a map from the results. SQLite doesn't guarantee result order matches
 		// the IN clause order, so we use a HashMap to look up values by key.
 		let mut cache_map = HashMap::new();
-		for (k, val, empty) in rows {
-			let value = if empty { None } else { val };
-			cache_map.insert(k, value);
+		for (key, value, empty) in rows {
+			let value = if empty { None } else { value };
+			cache_map.insert(key, value);
 		}
 
 		// Return values in the same order as input keys.
 		// Keys not found in cache_map (not in DB) return None (not cached).
 		// Keys found return Some(value) where value is None for empty or Some(bytes) for data.
-		Ok(keys.iter().map(|key| cache_map.get(*key).cloned()).collect())
+		Ok(keys.iter().map(|key| cache_map.remove(*key)).collect())
 	}
 
 	/// Cache multiple storage values in a batch.
@@ -323,43 +342,39 @@ impl StorageCache {
 		// 2. A transaction groups all inserts into a single commit
 		// 3. If any insert fails, the entire batch is rolled back
 		use crate::schema::storage::columns as sc;
-		let new_rows: Vec<StorageRow> = entries
-			.iter()
-			.map(|(k, v)| StorageRow {
-				block_hash: block_hash.as_bytes().to_vec(),
-				key: (*k).to_vec(),
-				value: v.map(|vv| vv.to_vec()),
-				is_empty: v.is_none(),
-			})
-			.collect();
+		let entries = Arc::new(entries);
+		let block_hash = Arc::new(block_hash);
 
 		// Retry loop for transient SQLite lock/busy errors.
 		// SQLite may return SQLITE_BUSY when another connection holds a lock.
 		// We retry up to MAX_LOCK_RETRIES (30) times with increasing backoff delays.
 		let mut attempts = 0;
 		loop {
-			let rows = new_rows.clone();
-			let res = self
-				.with_conn(|conn| {
+			let entries = Arc::clone(&entries);
+			let block_hash = Arc::clone(&block_hash);
+			let mut conn = self.get_conn().await?;
+			let res = conn
+				.transaction::<_, DieselError, _>(move |conn| {
 					Box::pin(async move {
-						conn.transaction::<_, DieselError, _>(move |conn| {
-							Box::pin(async move {
-								for row in rows {
-									diesel::insert_into(storage::table)
-										.values(&row)
-										.on_conflict((sc::block_hash, sc::key))
-										.do_update()
-										.set((
-											sc::value.eq(row.value.clone()),
-											sc::is_empty.eq(row.is_empty),
-										))
-										.execute(conn)
-										.await?;
-								}
-								Ok(())
+						let new_rows: Vec<NewStorageRow> = entries
+							.iter()
+							.map(|(key, value)| NewStorageRow {
+								block_hash: block_hash.as_bytes(),
+								key,
+								value: *value,
+								is_empty: value.is_none(),
 							})
-						})
-						.await
+							.collect();
+						for row in new_rows {
+							diesel::insert_into(storage::table)
+								.values(&row)
+								.on_conflict((sc::block_hash, sc::key))
+								.do_update()
+								.set((sc::value.eq(row.value), sc::is_empty.eq(row.is_empty)))
+								.execute(conn)
+								.await?;
+						}
+						Ok(())
 					})
 				})
 				.await;
@@ -367,8 +382,7 @@ impl StorageCache {
 			match res {
 				Ok(_) => return Ok(()),
 				Err(e) if is_locked_error(&e) && attempts < MAX_LOCK_RETRIES => {
-					attempts += 1;
-					tokio::time::sleep(Duration::from_millis(5 * attempts as u64)).await;
+					retry_conn(&mut attempts).await;
 					continue;
 				},
 				Err(e) => return Err(e.into()),
@@ -386,35 +400,32 @@ impl StorageCache {
 	) -> Result<(), CacheError> {
 		// Store block metadata for quick lookup without hitting the remote RPC.
 		use crate::schema::blocks::columns as bc;
-		let new_block = BlockRow {
-			hash: hash.as_bytes().to_vec(),
-			number: number as i64,
-			parent_hash: parent_hash.as_bytes().to_vec(),
-			header: header.to_vec(),
-		};
 
 		// Retry loop for transient SQLite lock/busy errors.
 		// SQLite may return SQLITE_BUSY when another connection holds a lock.
 		// We retry up to MAX_LOCK_RETRIES (30) times with increasing backoff delays.
 		let mut attempts = 0;
+		let parent_hash_bytes = parent_hash.as_bytes();
 		loop {
-			let block = new_block.clone();
-			let res = self
-				.with_conn(|conn| {
-					Box::pin(async move {
-						diesel::insert_into(blocks::table)
-							.values(&block)
-							.on_conflict(bc::hash)
-							.do_update()
-							.set((
-								bc::number.eq(block.number),
-								bc::parent_hash.eq(block.parent_hash.clone()),
-								bc::header.eq(block.header.clone()),
-							))
-							.execute(conn)
-							.await
-					})
-				})
+			let mut conn = self.get_conn().await?;
+
+			let block = NewBlockRow {
+				hash: hash.as_bytes(),
+				number: number as i64,
+				parent_hash: parent_hash_bytes,
+				header,
+			};
+
+			let res = diesel::insert_into(blocks::table)
+				.values(&block)
+				.on_conflict(bc::hash)
+				.do_update()
+				.set((
+					bc::number.eq(number as i64),
+					bc::parent_hash.eq(parent_hash_bytes),
+					bc::header.eq(header),
+				))
+				.execute(&mut conn)
 				.await;
 
 			match res {
@@ -433,21 +444,15 @@ impl StorageCache {
 		// Retrieve all block metadata fields by the block's hash (primary key).
 		// Returns None if the block hasn't been cached yet.
 		use crate::schema::blocks::columns as bc;
-		let bh = hash.as_bytes().to_vec();
 
-		let row = self
-			.with_conn(|conn| {
-				Box::pin(async move {
-					blocks::table
-						.filter(bc::hash.eq(bh))
-						.select(BlockRow::as_select())
-						.first::<BlockRow>(conn)
-						.await
-						.optional()
-				})
-			})
+		let mut conn = self.get_conn().await?;
+
+		let row = blocks::table
+			.filter(bc::hash.eq(hash.as_bytes()))
+			.select(BlockRow::as_select())
+			.first(&mut conn)
 			.await
-			.map_err(CacheError::from)?;
+			.optional()?;
 
 		match row {
 			// Sanity check on the block number, as we use i64 to represent them in SQLite but
@@ -465,32 +470,26 @@ impl StorageCache {
 		// This maintains consistency: we never have orphaned storage entries
 		// without their parent block, or vice versa.
 		use crate::schema::{blocks::columns as bc, storage::columns as sc};
-		let bh_vec = hash.as_bytes().to_vec();
+		let block_hash = Arc::new(hash.as_bytes());
 
 		// Retry loop for transient SQLite lock/busy errors.
 		// SQLite may return SQLITE_BUSY when another connection holds a lock.
 		// We retry up to MAX_LOCK_RETRIES (30) times with increasing backoff delays.
 		let mut attempts = 0;
 		loop {
-			let bh = bh_vec.clone();
-			let res = self
-				.with_conn(|conn| {
+			let block_hash = Arc::clone(&block_hash);
+			let mut conn = self.get_conn().await?;
+
+			let res = conn
+				.transaction::<_, DieselError, _>(move |conn| {
 					Box::pin(async move {
-						conn.transaction::<_, DieselError, _>(move |conn| {
-							let bh = bh.clone();
-							Box::pin(async move {
-								diesel::delete(
-									storage::table.filter(sc::block_hash.eq(bh.clone())),
-								)
-								.execute(conn)
-								.await?;
-								diesel::delete(blocks::table.filter(bc::hash.eq(bh)))
-									.execute(conn)
-									.await?;
-								Ok(())
-							})
-						})
-						.await
+						diesel::delete(storage::table.filter(sc::block_hash.eq(*block_hash)))
+							.execute(conn)
+							.await?;
+						diesel::delete(blocks::table.filter(bc::hash.eq(*block_hash)))
+							.execute(conn)
+							.await?;
+						Ok(())
 					})
 				})
 				.await;
@@ -624,28 +623,26 @@ mod tests {
 		let header = b"mock_header_data";
 
 		// Manually insert invalid block with negative number directly into database
-		let invalid_block1 = BlockRow {
-			hash: hash1.as_bytes().to_vec(),
+		let invalid_block1 = NewBlockRow {
+			hash: hash1.as_bytes(),
 			number: -1, // Invalid: below 0
-			parent_hash: parent_hash.as_bytes().to_vec(),
-			header: header.to_vec(),
+			parent_hash: parent_hash.as_bytes(),
+			header,
 		};
 
 		// Manually insert invalid block with number above the u32 maximum directly into database
-		let invalid_block2 = BlockRow {
-			hash: hash2.as_bytes().to_vec(),
+		let invalid_block2 = NewBlockRow {
+			hash: hash2.as_bytes(),
 			number: u32::MAX as i64 + 1,
-			parent_hash: parent_hash.as_bytes().to_vec(),
-			header: header.to_vec(),
+			parent_hash: parent_hash.as_bytes(),
+			header,
 		};
-
-		let invalid_blocks = vec![invalid_block1, invalid_block2];
 
 		// Insert directly into the database bypassing validation
 		match &cache.inner {
 			StorageConn::Single(m) => {
 				let mut conn = m.lock().await;
-				for block in invalid_blocks {
+				for block in [invalid_block1, invalid_block2] {
 					diesel::insert_into(blocks::table)
 						.values(&block)
 						.execute(&mut *conn)
