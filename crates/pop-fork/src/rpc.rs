@@ -191,12 +191,13 @@ impl ForkRpcClient {
 			return Ok(vec![]);
 		}
 
-		let result =
-			self.legacy.state_query_storage_at(keys, Some(at)).await.map_err(|e| {
-				RpcClientError::RequestFailed {
-					method: methods::STATE_QUERY_STORAGE_AT,
-					message: e.to_string(),
-				}
+		let result = self
+			.legacy
+			.state_query_storage_at(keys.iter().copied(), Some(at))
+			.await
+			.map_err(|e| RpcClientError::RequestFailed {
+				method: methods::STATE_QUERY_STORAGE_AT,
+				message: e.to_string(),
 			})?;
 
 		// Build a map of key -> value from the response
@@ -214,7 +215,7 @@ impl ForkRpcClient {
 		// Return values in the same order as input keys.
 		// Use remove() to avoid cloning potentially large storage values.
 		// Note: If duplicate keys are passed, only the first occurrence gets the value.
-		let values = keys.iter().map(|key| changes.remove(key).flatten()).collect();
+		let values = keys.iter().map(|key| changes.remove(*key).flatten()).collect();
 
 		Ok(values)
 	}

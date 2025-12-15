@@ -110,7 +110,7 @@ impl RemoteStorageLayer {
 	/// - Empty storage (key exists but has no value) is cached as `None`
 	pub async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, RemoteStorageError> {
 		// Check cache first
-		if let Some(cached) = self.cache.get(self.block_hash, key).await? {
+		if let Some(cached) = self.cache.get_storage(self.block_hash, key).await? {
 			return Ok(cached);
 		}
 
@@ -118,7 +118,7 @@ impl RemoteStorageLayer {
 		let value = self.rpc.storage(key, self.block_hash).await?;
 
 		// Cache the result (including empty values)
-		self.cache.set(self.block_hash, key, value.as_deref()).await?;
+		self.cache.set_storage(self.block_hash, key, value.as_deref()).await?;
 
 		Ok(value)
 	}
@@ -145,7 +145,7 @@ impl RemoteStorageLayer {
 		}
 
 		// Check cache for all keys
-		let cached_results = self.cache.get_batch(self.block_hash, keys).await?;
+		let cached_results = self.cache.get_storage_batch(self.block_hash, keys).await?;
 
 		// Find which keys need to be fetched
 		let mut uncached_indices: Vec<usize> = Vec::new();
@@ -174,7 +174,7 @@ impl RemoteStorageLayer {
 			.collect();
 
 		if !cache_entries.is_empty() {
-			self.cache.set_batch(self.block_hash, &cache_entries).await?;
+			self.cache.set_storage_batch(self.block_hash, &cache_entries).await?;
 		}
 
 		// Build final result, merging cached and fetched values
@@ -226,7 +226,7 @@ impl RemoteStorageLayer {
 			let cache_entries: Vec<(&[u8], Option<&[u8]>)> =
 				key_refs.iter().zip(values.iter()).map(|(k, v)| (*k, v.as_deref())).collect();
 
-			self.cache.set_batch(self.block_hash, &cache_entries).await?;
+			self.cache.set_storage_batch(self.block_hash, &cache_entries).await?;
 
 			total_fetched += keys.len();
 
