@@ -33,8 +33,8 @@ mod cache;
 pub mod error;
 mod models;
 mod rpc;
-mod strings;
 mod schema;
+mod strings;
 
 pub use cache::StorageCache;
 pub use error::{CacheError, RpcClientError};

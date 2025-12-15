@@ -59,8 +59,10 @@
 //! cargo nextest run -p pop-fork --features integration-tests --test rpc -j 1
 //! ```
 
-use crate::strings::rpc::{methods, storage_keys};
-use crate::error::rpc::RpcClientError;
+use crate::{
+	error::rpc::RpcClientError,
+	strings::rpc::{methods, storage_keys},
+};
 use subxt::{
 	SubstrateConfig,
 	backend::{legacy::LegacyRpcMethods, rpc::RpcClient},

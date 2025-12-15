@@ -9,6 +9,7 @@ use crate::{
 	error::cache::CacheError,
 	models::{BlockRow, NewBlockRow, NewStorageRow},
 	schema::{blocks, storage},
+	strings::cache::{errors, lock_patterns, pragmas, urls},
 };
 use bb8::CustomizeConnection;
 use diesel::{
@@ -117,7 +118,7 @@ impl CustomizeConnection<SyncConnectionWrapper<SqliteConnection>, PoolError>
 	) -> Pin<Box<dyn Future<Output = Result<(), PoolError>> + Send + 'a>> {
 		Box::pin(async move {
 			// Set busy timeout to reduce lock errors under contention
-			diesel::sql_query("PRAGMA busy_timeout=5000;")
+			diesel::sql_query(pragmas::BUSY_TIMEOUT)
 				.execute(conn)
 				.await
 				.map_err(PoolError::QueryError)?;
@@ -144,9 +145,9 @@ impl StorageCache {
 				let mut conn = SyncConnectionWrapper::<SqliteConnection>::establish(&url).await?;
 				// Apply pragmas for better concurrency on file databases
 				// WAL mode: Persists to the database file itself
-				diesel::sql_query("PRAGMA journal_mode=WAL;").execute(&mut conn).await?;
+				diesel::sql_query(pragmas::JOURNAL_MODE_WAL).execute(&mut conn).await?;
 				// Busy timeout: For this migration connection
-				diesel::sql_query("PRAGMA busy_timeout=5000;").execute(&mut conn).await?;
+				diesel::sql_query(pragmas::BUSY_TIMEOUT).execute(&mut conn).await?;
 				let mut harness = AsyncMigrationHarness::new(conn);
 				harness.run_pending_migrations(MIGRATIONS)?;
 				let _ = harness.into_inner();
@@ -163,10 +164,11 @@ impl StorageCache {
 			Ok(Self { inner: StorageConn::Pool(pool) })
 		} else {
 			// Single in-memory connection
-			let mut conn = SyncConnectionWrapper::<SqliteConnection>::establish(":memory:").await?;
+			let mut conn =
+				SyncConnectionWrapper::<SqliteConnection>::establish(urls::IN_MEMORY).await?;
 			// Run migrations on this single connection
 			// Set busy timeout to reduce lock errors under contention
-			diesel::sql_query("PRAGMA busy_timeout=5000;").execute(&mut conn).await?;
+			diesel::sql_query(pragmas::BUSY_TIMEOUT).execute(&mut conn).await?;
 			let mut harness = AsyncMigrationHarness::new(conn);
 			harness.run_pending_migrations(MIGRATIONS)?;
 			let conn = harness.into_inner();
@@ -462,7 +464,7 @@ impl StorageCache {
 			// Sanity check on the block number, as we use i64 to represent them in SQLite but
 			// Substrate blocks are u32
 			Some(BlockRow { number, .. }) if number < 0 || number > u32::MAX.into() =>
-				Err(CacheError::DataCorruption("block number out of u32 range".into())),
+				Err(CacheError::DataCorruption(errors::BLOCK_NUMBER_OUT_OF_U32_RANGE.into())),
 			row @ Some(_) => Ok(row),
 			None => Ok(None),
 		}
@@ -514,7 +516,7 @@ fn is_locked_error(e: &DieselError) -> bool {
 	match e {
 		DieselError::DatabaseError(_, info) => {
 			let msg = info.message().to_ascii_lowercase();
-			msg.contains("database is locked") || msg.contains("busy")
+			msg.contains(lock_patterns::DATABASE_IS_LOCKED) || msg.contains(lock_patterns::BUSY)
 		},
 		_ => false,
 	}
@@ -659,10 +661,10 @@ mod tests {
 
 		// Get block should fail with DataCorruption error
 		assert!(
-			matches!(cache.get_block(hash1).await, Err(CacheError::DataCorruption(msg)) if msg == "block number out of u32 range")
+			matches!(cache.get_block(hash1).await, Err(CacheError::DataCorruption(msg)) if msg == errors::BLOCK_NUMBER_OUT_OF_U32_RANGE)
 		);
 		assert!(
-			matches!(cache.get_block(hash2).await, Err(CacheError::DataCorruption(msg)) if msg == "block number out of u32 range")
+			matches!(cache.get_block(hash2).await, Err(CacheError::DataCorruption(msg)) if msg == errors::BLOCK_NUMBER_OUT_OF_U32_RANGE)
 		);
 	}
 
