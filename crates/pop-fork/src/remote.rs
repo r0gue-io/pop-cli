@@ -64,7 +64,7 @@ use subxt::config::substrate::H256;
 ///
 /// The layer is `Send + Sync` and can be shared across async tasks. The underlying
 /// cache handles concurrent access safely.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RemoteStorageLayer {
 	rpc: ForkRpcClient,
 	cache: StorageCache,
@@ -243,7 +243,47 @@ impl RemoteStorageLayer {
 	}
 }
 
-// Unit tests for RemoteStorageLayer are limited without a live RPC endpoint.
-// The cache behavior is thoroughly tested in cache.rs.
 // Full integration tests covering the RPC -> cache flow are in tests/remote.rs
 // with the `integration-tests` feature flag.
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn remote_storage_layer_is_send_sync() {
+		// Compile-time check that RemoteStorageLayer is Send + Sync
+		fn assert_send_sync<T: Send + Sync>() {}
+		assert_send_sync::<RemoteStorageLayer>();
+	}
+
+	#[test]
+	fn remote_storage_layer_is_debug() {
+		// Compile-time check that RemoteStorageLayer implements Debug
+		fn assert_debug<T: std::fmt::Debug>() {}
+		assert_debug::<RemoteStorageLayer>();
+	}
+
+	#[test]
+	fn remote_storage_error_is_send_sync() {
+		// Compile-time check that RemoteStorageError is Send + Sync
+		fn assert_send_sync<T: Send + Sync>() {}
+		assert_send_sync::<RemoteStorageError>();
+	}
+
+	#[test]
+	fn error_display_rpc() {
+		use crate::error::RpcClientError;
+		let inner = RpcClientError::InvalidResponse("test".to_string());
+		let err = RemoteStorageError::Rpc(inner);
+		assert!(err.to_string().contains("RPC error"));
+	}
+
+	#[test]
+	fn error_display_cache() {
+		use crate::error::CacheError;
+		let inner = CacheError::DataCorruption("test".to_string());
+		let err = RemoteStorageError::Cache(inner);
+		assert!(err.to_string().contains("Cache error"));
+	}
+}
