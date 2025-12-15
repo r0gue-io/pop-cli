@@ -260,16 +260,13 @@ impl ForkRpcClient {
 		start_key: Option<&[u8]>,
 		at: H256,
 	) -> Result<Vec<Vec<u8>>, RpcClientError> {
-		let keys = self
-			.legacy
+		self.legacy
 			.state_get_keys_paged(prefix, count, start_key, Some(at))
 			.await
 			.map_err(|e| RpcClientError::RequestFailed {
 				method: "state_getKeysPaged",
 				message: e.to_string(),
-			})?;
-
-		Ok(keys.into_iter().map(|k| k.to_vec()).collect())
+			})
 	}
 
 	/// Get runtime metadata at a specific block.
