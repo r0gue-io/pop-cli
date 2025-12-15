@@ -60,7 +60,7 @@
 //! ```
 
 use subxt::{
-	PolkadotConfig,
+	SubstrateConfig,
 	backend::{legacy::LegacyRpcMethods, rpc::RpcClient},
 	config::substrate::H256,
 };
@@ -74,8 +74,19 @@ pub enum RpcClientError {
 	#[error("Failed to connect to {endpoint}: {message}")]
 	ConnectionFailed { endpoint: String, message: String },
 	/// RPC request failed.
-	#[error("RPC request failed: {0}")]
-	RequestFailed(String),
+	#[error("RPC request `{method}` failed: {message}")]
+	RequestFailed {
+		/// The RPC method that failed.
+		method: &'static str,
+		/// The error message.
+		message: String,
+	},
+	/// RPC request timed out.
+	#[error("RPC request `{method}` timed out")]
+	Timeout {
+		/// The RPC method that timed out.
+		method: &'static str,
+	},
 	/// Invalid response from RPC.
 	#[error("Invalid RPC response: {0}")]
 	InvalidResponse(String),
@@ -100,9 +111,9 @@ pub enum RpcClientError {
 /// let metadata = client.metadata(block_hash).await?;
 /// let storage_value = client.storage(&key, block_hash).await?;
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ForkRpcClient {
-	legacy: LegacyRpcMethods<PolkadotConfig>,
+	legacy: LegacyRpcMethods<SubstrateConfig>,
 	endpoint: Url,
 }
 
@@ -142,7 +153,10 @@ impl ForkRpcClient {
 		self.legacy
 			.chain_get_finalized_head()
 			.await
-			.map_err(|e| RpcClientError::RequestFailed(e.to_string()))
+			.map_err(|e| RpcClientError::RequestFailed {
+				method: "chain_getFinalisedHead",
+				message: e.to_string(),
+			})
 	}
 
 	/// Get block header by hash.
@@ -152,11 +166,14 @@ impl ForkRpcClient {
 	pub async fn header(
 		&self,
 		hash: H256,
-	) -> Result<<PolkadotConfig as subxt::Config>::Header, RpcClientError> {
+	) -> Result<<SubstrateConfig as subxt::Config>::Header, RpcClientError> {
 		self.legacy
 			.chain_get_header(Some(hash))
 			.await
-			.map_err(|e| RpcClientError::RequestFailed(e.to_string()))?
+			.map_err(|e| RpcClientError::RequestFailed {
+				method: "chain_getHeader",
+				message: e.to_string(),
+			})?
 			.ok_or_else(|| RpcClientError::InvalidResponse(format!("No header found for {hash:?}")))
 	}
 
@@ -171,10 +188,9 @@ impl ForkRpcClient {
 	/// * `Ok(None)` - Storage key doesn't exist (empty)
 	/// * `Err(_)` - RPC error
 	pub async fn storage(&self, key: &[u8], at: H256) -> Result<Option<Vec<u8>>, RpcClientError> {
-		self.legacy
-			.state_get_storage(key, Some(at))
-			.await
-			.map_err(|e| RpcClientError::RequestFailed(e.to_string()))
+		self.legacy.state_get_storage(key, Some(at)).await.map_err(|e| {
+			RpcClientError::RequestFailed { method: "state_getStorage", message: e.to_string() }
+		})
 	}
 
 	/// Get multiple storage values in a single batch request.
@@ -200,11 +216,13 @@ impl ForkRpcClient {
 		// Use state_queryStorageAt for batch fetching
 		let keys_refs: Vec<&[u8]> = keys.iter().map(|k| k.as_slice()).collect();
 
-		let result = self
-			.legacy
-			.state_query_storage_at(keys_refs, Some(at))
-			.await
-			.map_err(|e| RpcClientError::RequestFailed(e.to_string()))?;
+		let result =
+			self.legacy.state_query_storage_at(keys_refs, Some(at)).await.map_err(|e| {
+				RpcClientError::RequestFailed {
+					method: "state_queryStorageAt",
+					message: e.to_string(),
+				}
+			})?;
 
 		// Build a map of key -> value from the response
 		let changes: std::collections::HashMap<Vec<u8>, Option<Vec<u8>>> = result
@@ -244,7 +262,10 @@ impl ForkRpcClient {
 			.legacy
 			.state_get_keys_paged(prefix, count, start_key, Some(at))
 			.await
-			.map_err(|e| RpcClientError::RequestFailed(e.to_string()))?;
+			.map_err(|e| RpcClientError::RequestFailed {
+				method: "state_getKeysPaged",
+				message: e.to_string(),
+			})?;
 
 		Ok(keys.into_iter().map(|k| k.to_vec()).collect())
 	}
@@ -253,11 +274,9 @@ impl ForkRpcClient {
 	///
 	/// Returns the raw metadata bytes which can be parsed using `subxt::Metadata`.
 	pub async fn metadata(&self, at: H256) -> Result<Vec<u8>, RpcClientError> {
-		let metadata = self
-			.legacy
-			.state_get_metadata(Some(at))
-			.await
-			.map_err(|e| RpcClientError::RequestFailed(e.to_string()))?;
+		let metadata = self.legacy.state_get_metadata(Some(at)).await.map_err(|e| {
+			RpcClientError::RequestFailed { method: "state_getMetadata", message: e.to_string() }
+		})?;
 
 		Ok(metadata.into_raw())
 	}
@@ -276,10 +295,10 @@ impl ForkRpcClient {
 
 	/// Get the chain name from system properties.
 	pub async fn system_chain(&self) -> Result<String, RpcClientError> {
-		self.legacy
-			.system_chain()
-			.await
-			.map_err(|e| RpcClientError::RequestFailed(e.to_string()))
+		self.legacy.system_chain().await.map_err(|e| RpcClientError::RequestFailed {
+			method: "system_chain",
+			message: e.to_string(),
+		})
 	}
 
 	/// Get system properties (token decimals, symbols, etc.).
@@ -289,7 +308,10 @@ impl ForkRpcClient {
 		self.legacy
 			.system_properties()
 			.await
-			.map_err(|e| RpcClientError::RequestFailed(e.to_string()))
+			.map_err(|e| RpcClientError::RequestFailed {
+				method: "system_properties",
+				message: e.to_string(),
+			})
 	}
 }
 
@@ -308,8 +330,17 @@ mod tests {
 
 	#[test]
 	fn error_display_request_failed() {
-		let err = RpcClientError::RequestFailed("timeout".to_string());
-		assert_eq!(err.to_string(), "RPC request failed: timeout");
+		let err = RpcClientError::RequestFailed {
+			method: "state_getStorage",
+			message: "connection reset".to_string(),
+		};
+		assert_eq!(err.to_string(), "RPC request `state_getStorage` failed: connection reset");
+	}
+
+	#[test]
+	fn error_display_timeout() {
+		let err = RpcClientError::Timeout { method: "state_getMetadata" };
+		assert_eq!(err.to_string(), "RPC request `state_getMetadata` timed out");
 	}
 
 	#[test]

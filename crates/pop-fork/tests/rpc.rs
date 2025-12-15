@@ -26,7 +26,8 @@
 #![cfg(feature = "integration-tests")]
 
 use pop_common::test_env::TestNode;
-use pop_fork::ForkRpcClient;
+use pop_fork::{ForkRpcClient, RpcClientError};
+use subxt::config::substrate::H256;
 use url::Url;
 
 // Well-known storage keys for testing.
@@ -165,4 +166,86 @@ async fn fetch_system_properties() {
 
 	// Just verify the call succeeds - ink-node may not have all standard properties
 	let _properties = client.system_properties().await.unwrap();
+}
+
+// =============================================================================
+// Error path tests
+// =============================================================================
+
+#[tokio::test]
+async fn connect_to_invalid_endpoint_fails() {
+	// Use a port that's unlikely to have anything listening
+	let endpoint: Url = "ws://127.0.0.1:19999".parse().unwrap();
+	let result = ForkRpcClient::connect(&endpoint).await;
+
+	assert!(result.is_err());
+	let err = result.unwrap_err();
+	assert!(
+		matches!(err, RpcClientError::ConnectionFailed { .. }),
+		"Expected ConnectionFailed, got: {err:?}"
+	);
+}
+
+#[tokio::test]
+async fn fetch_header_non_existent_block_fails() {
+	let node = TestNode::spawn().await.expect("Failed to spawn test node");
+	let endpoint: Url = node.ws_url().parse().unwrap();
+	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
+
+	// Use a fabricated block hash that doesn't exist
+	let non_existent_hash = H256::from([0xde; 32]);
+	let result = client.header(non_existent_hash).await;
+
+	assert!(result.is_err());
+	let err = result.unwrap_err();
+	assert!(
+		matches!(err, RpcClientError::InvalidResponse(_)),
+		"Expected InvalidResponse for non-existent block, got: {err:?}"
+	);
+}
+
+#[tokio::test]
+async fn fetch_storage_non_existent_key_returns_none() {
+	let node = TestNode::spawn().await.expect("Failed to spawn test node");
+	let endpoint: Url = node.ws_url().parse().unwrap();
+	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
+	let hash = client.finalized_head().await.unwrap();
+
+	// Use a fabricated storage key that doesn't exist
+	let non_existent_key = vec![0xff; 32];
+	let result = client.storage(&non_existent_key, hash).await.unwrap();
+
+	// Non-existent storage returns None, not an error
+	assert!(result.is_none());
+}
+
+#[tokio::test]
+async fn fetch_storage_batch_with_mixed_keys() {
+	let node = TestNode::spawn().await.expect("Failed to spawn test node");
+	let endpoint: Url = node.ws_url().parse().unwrap();
+	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
+	let hash = client.finalized_head().await.unwrap();
+
+	// Mix of existing and non-existing keys
+	let keys = vec![
+		hex::decode(SYSTEM_NUMBER_KEY).unwrap(), // exists
+		vec![0xff; 32],                          // doesn't exist
+	];
+	let values = client.storage_batch(&keys, hash).await.unwrap();
+
+	assert_eq!(values.len(), 2);
+	assert!(values[0].is_some(), "System::Number should exist");
+	assert!(values[1].is_none(), "Fabricated key should not exist");
+}
+
+#[tokio::test]
+async fn fetch_storage_batch_empty_keys() {
+	let node = TestNode::spawn().await.expect("Failed to spawn test node");
+	let endpoint: Url = node.ws_url().parse().unwrap();
+	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
+	let hash = client.finalized_head().await.unwrap();
+
+	// Empty keys should return empty results
+	let values = client.storage_batch(&[], hash).await.unwrap();
+	assert!(values.is_empty());
 }
