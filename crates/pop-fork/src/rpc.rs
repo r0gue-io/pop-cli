@@ -59,6 +59,7 @@
 //! cargo nextest run -p pop-fork --features integration-tests --test rpc -j 1
 //! ```
 
+use crate::strings::rpc::{methods, storage_keys};
 use subxt::{
 	SubstrateConfig,
 	backend::{legacy::LegacyRpcMethods, rpc::RpcClient},
@@ -154,7 +155,7 @@ impl ForkRpcClient {
 			.chain_get_finalized_head()
 			.await
 			.map_err(|e| RpcClientError::RequestFailed {
-				method: "chain_getFinalisedHead",
+				method: methods::CHAIN_GET_FINALIZED_HEAD,
 				message: e.to_string(),
 			})
 	}
@@ -171,7 +172,7 @@ impl ForkRpcClient {
 			.chain_get_header(Some(hash))
 			.await
 			.map_err(|e| RpcClientError::RequestFailed {
-				method: "chain_getHeader",
+				method: methods::CHAIN_GET_HEADER,
 				message: e.to_string(),
 			})?
 			.ok_or_else(|| RpcClientError::InvalidResponse(format!("No header found for {hash:?}")))
@@ -189,7 +190,10 @@ impl ForkRpcClient {
 	/// * `Err(_)` - RPC error
 	pub async fn storage(&self, key: &[u8], at: H256) -> Result<Option<Vec<u8>>, RpcClientError> {
 		self.legacy.state_get_storage(key, Some(at)).await.map_err(|e| {
-			RpcClientError::RequestFailed { method: "state_getStorage", message: e.to_string() }
+			RpcClientError::RequestFailed {
+				method: methods::STATE_GET_STORAGE,
+				message: e.to_string(),
+			}
 		})
 	}
 
@@ -219,7 +223,7 @@ impl ForkRpcClient {
 		let result =
 			self.legacy.state_query_storage_at(keys_refs, Some(at)).await.map_err(|e| {
 				RpcClientError::RequestFailed {
-					method: "state_queryStorageAt",
+					method: methods::STATE_QUERY_STORAGE_AT,
 					message: e.to_string(),
 				}
 			})?;
@@ -264,7 +268,7 @@ impl ForkRpcClient {
 			.state_get_keys_paged(prefix, count, start_key, Some(at))
 			.await
 			.map_err(|e| RpcClientError::RequestFailed {
-				method: "state_getKeysPaged",
+				method: methods::STATE_GET_KEYS_PAGED,
 				message: e.to_string(),
 			})
 	}
@@ -274,7 +278,10 @@ impl ForkRpcClient {
 	/// Returns the raw metadata bytes which can be parsed using `subxt::Metadata`.
 	pub async fn metadata(&self, at: H256) -> Result<Vec<u8>, RpcClientError> {
 		let metadata = self.legacy.state_get_metadata(Some(at)).await.map_err(|e| {
-			RpcClientError::RequestFailed { method: "state_getMetadata", message: e.to_string() }
+			RpcClientError::RequestFailed {
+				method: methods::STATE_GET_METADATA,
+				message: e.to_string(),
+			}
 		})?;
 
 		Ok(metadata.into_raw())
@@ -289,13 +296,13 @@ impl ForkRpcClient {
 
 		self.storage(code_key, at)
 			.await?
-			.ok_or_else(|| RpcClientError::StorageNotFound(":code".to_string()))
+			.ok_or_else(|| RpcClientError::StorageNotFound(storage_keys::CODE.to_string()))
 	}
 
 	/// Get the chain name from system properties.
 	pub async fn system_chain(&self) -> Result<String, RpcClientError> {
 		self.legacy.system_chain().await.map_err(|e| RpcClientError::RequestFailed {
-			method: "system_chain",
+			method: methods::SYSTEM_CHAIN,
 			message: e.to_string(),
 		})
 	}
@@ -308,7 +315,7 @@ impl ForkRpcClient {
 			.system_properties()
 			.await
 			.map_err(|e| RpcClientError::RequestFailed {
-				method: "system_properties",
+				method: methods::SYSTEM_PROPERTIES,
 				message: e.to_string(),
 			})
 	}
@@ -330,16 +337,22 @@ mod tests {
 	#[test]
 	fn error_display_request_failed() {
 		let err = RpcClientError::RequestFailed {
-			method: "state_getStorage",
+			method: methods::STATE_GET_STORAGE,
 			message: "connection reset".to_string(),
 		};
-		assert_eq!(err.to_string(), "RPC request `state_getStorage` failed: connection reset");
+		assert_eq!(
+			err.to_string(),
+			format!("RPC request `{}` failed: connection reset", methods::STATE_GET_STORAGE)
+		);
 	}
 
 	#[test]
 	fn error_display_timeout() {
-		let err = RpcClientError::Timeout { method: "state_getMetadata" };
-		assert_eq!(err.to_string(), "RPC request `state_getMetadata` timed out");
+		let err = RpcClientError::Timeout { method: methods::STATE_GET_METADATA };
+		assert_eq!(
+			err.to_string(),
+			format!("RPC request `{}` timed out", methods::STATE_GET_METADATA)
+		);
 	}
 
 	#[test]
@@ -350,7 +363,10 @@ mod tests {
 
 	#[test]
 	fn error_display_storage_not_found() {
-		let err = RpcClientError::StorageNotFound(":code".to_string());
-		assert_eq!(err.to_string(), "Required storage key not found: :code");
+		let err = RpcClientError::StorageNotFound(storage_keys::CODE.to_string());
+		assert_eq!(
+			err.to_string(),
+			format!("Required storage key not found: {}", storage_keys::CODE)
+		);
 	}
 }
