@@ -109,6 +109,7 @@ pub fn guide_user_to_select_command(cli: &mut impl Cli) -> AnyhowResult<Command>
 			initial_endowment: None,
 			verify: false,
 			with_frontend: None,
+			package_manager: None,
 		})),
 		#[cfg(feature = "chain")]
 		"pallet" => Ok(Command::Pallet(pallet::NewPalletCommand {
@@ -122,6 +123,7 @@ pub fn guide_user_to_select_command(cli: &mut impl Cli) -> AnyhowResult<Command>
 			name: None,
 			template: None,
 			with_frontend: None,
+			package_manager: None,
 		})),
 		_ => Err(anyhow::anyhow!("Invalid selection")),
 	}

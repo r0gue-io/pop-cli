@@ -196,7 +196,7 @@ pub(crate) fn update_live_state(
 /// * `runtime`: The runtime to update.
 /// * `profile`: The build profile.
 /// * `no_build`: Whether to build the runtime.
-pub(crate) fn update_runtime_source(
+pub(crate) async fn update_runtime_source(
 	cli: &mut impl Cli,
 	prompt: &str,
 	user_provided_args: &[String],
@@ -227,7 +227,9 @@ pub(crate) fn update_runtime_source(
 			!no_build,
 			false,
 			&None,
-		)?;
+			None,
+		)
+		.await?;
 		*runtime = Runtime::Path(binary_path);
 	}
 	Ok(())
@@ -692,8 +694,8 @@ mod tests {
 		Ok(())
 	}
 
-	#[test]
-	fn update_runtime_source_works() -> anyhow::Result<()> {
+	#[tokio::test]
+	async fn update_runtime_source_works() -> anyhow::Result<()> {
 		let mut runtime = Runtime::Existing;
 		let mut profile = None;
 		let mut cli = MockCli::new()
@@ -732,7 +734,8 @@ mod tests {
 			&mut runtime,
 			&mut profile,
 			true,
-		)?;
+		)
+		.await?;
 		cli.verify()?;
 		match runtime {
 			Runtime::Existing => panic!("Unexpected runtime"),
@@ -751,7 +754,8 @@ mod tests {
 			&mut runtime,
 			&mut profile,
 			true,
-		)?;
+		)
+		.await?;
 		cli.verify()?;
 		Ok(())
 	}

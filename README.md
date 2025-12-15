@@ -16,7 +16,7 @@
 
 ## Installation
 
-You can install Pop CLI 
+You can install Pop CLI
 - from homebrew:
 ```shell
 brew install r0gue-io/pop-cli/pop
@@ -25,8 +25,12 @@ brew install r0gue-io/pop-cli/pop
 ```shell
 cargo install --force --locked pop-cli
 ```
+- from Debian package (download from [releases](https://github.com/r0gue-io/pop-cli/releases)):
+```shell
+sudo dpkg -i pop-cli_*.deb
+```
 
-> :information_source: Pop CLI requires Rust 1.91 or later.
+> :information_source: Pop CLI requires Rust 1.91.1 or later.
 
 You can also install Pop CLI using the [Pop CLI GitHub repo](https://github.com/r0gue-io/pop-cli):
 

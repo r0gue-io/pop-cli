@@ -6568,7 +6568,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tracing",
  "url",
- "webpki-roots 0.25.4",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -9028,7 +9028,6 @@ dependencies = [
  "sp-runtime 44.0.0",
  "sp-statement-store",
  "sp-version 42.0.0",
- "srtool-lib",
  "strum 0.26.3",
  "strum_macros 0.26.4",
  "subxt 0.44.0",
@@ -9069,6 +9068,7 @@ dependencies = [
  "regex",
  "reqwest",
  "rustilities",
+ "scale-info",
  "scale-value",
  "serde",
  "serde_json",
@@ -9115,6 +9115,7 @@ dependencies = [
  "subxt 0.44.0",
  "subxt-signer 0.44.0",
  "tar",
+ "temp-env",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
@@ -9148,6 +9149,7 @@ dependencies = [
  "thiserror 1.0.69",
  "tokio",
  "tokio-test",
+ "toml 0.5.11",
  "url",
 ]
 
@@ -13521,18 +13523,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "srtool-lib"
-version = "0.13.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9dbb79b4db5ac7e4628e6537551c905661d0525dfe34051d14137cd347f85e21"
-dependencies = [
- "log",
- "serde_json",
- "thiserror 2.0.17",
- "ureq",
-]
-
-[[package]]
 name = "ss58-registry"
 version = "1.51.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14322,6 +14312,15 @@ name = "target-lexicon"
 version = "0.13.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df7f62577c25e07834649fc3b39fafdc597c0a3527dc1c60129201ccfcbaa50c"
+
+[[package]]
+name = "temp-env"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96374855068f47402c3121c6eed88d29cb1de8f3ab27090e273e420bdabcf050"
+dependencies = [
+ "parking_lot 0.12.5",
+]
 
 [[package]]
 name = "tempfile"
@@ -15209,35 +15208,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
 [[package]]
-name = "ureq"
-version = "3.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d39cb1dbab692d82a977c0392ffac19e188bd9186a9f32806f0aaa859d75585a"
-dependencies = [
- "base64 0.22.1",
- "flate2",
- "log",
- "percent-encoding",
- "rustls 0.23.35",
- "rustls-pki-types",
- "ureq-proto",
- "utf-8",
- "webpki-roots 1.0.4",
-]
-
-[[package]]
-name = "ureq-proto"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60b4531c118335662134346048ddb0e54cc86bd7e81866757873055f0e38f5d2"
-dependencies = [
- "base64 0.22.1",
- "http 1.3.1",
- "httparse",
- "log",
-]
-
-[[package]]
 name = "url"
 version = "2.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -15952,15 +15922,6 @@ name = "webpki-roots"
 version = "0.25.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5f20c57d8d7db6d3b86154206ae5d8fba62dd39573114de97c2cb0578251f8e1"
-
-[[package]]
-name = "webpki-roots"
-version = "1.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2878ef029c47c6e8cf779119f20fcf52bde7ad42a731b2a304bc221df17571e"
-dependencies = [
- "rustls-pki-types",
-]
 
 [[package]]
 name = "which"

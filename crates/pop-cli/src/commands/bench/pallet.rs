@@ -313,7 +313,7 @@ impl BenchmarkPallet {
 			},
 			None => true,
 		};
-		if invalid_runtime && let Err(e) = self.update_runtime_path(cli) {
+		if invalid_runtime && let Err(e) = self.update_runtime_path(cli).await {
 			return display_message(&e.to_string(), false, cli);
 		}
 
@@ -711,7 +711,7 @@ impl BenchmarkPallet {
 		Ok(())
 	}
 
-	fn update_runtime_path(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	async fn update_runtime_path(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		let profile = guide_user_to_select_profile(cli)?;
 		let (binary_path, project_path) = ensure_runtime_binary_exists(
 			cli,
@@ -721,7 +721,9 @@ impl BenchmarkPallet {
 			!self.no_build,
 			false,
 			&self.runtime,
-		)?;
+			None,
+		)
+		.await?;
 		self.runtime_binary = Some(binary_path);
 		self.runtime = Some(get_relative_path(project_path.as_path()));
 		Ok(())
@@ -916,7 +918,7 @@ impl BenchmarkPalletMenuOption {
 			Extrinsics => cmd.update_extrinsics(cli, registry).await?,
 			ExcludedPallets => cmd.update_excluded_pallets(cli, registry).await?,
 			ExcludedExtrinsics => cmd.update_excluded_extrinsics(cli, registry).await?,
-			Runtime => cmd.update_runtime_path(cli)?,
+			Runtime => cmd.update_runtime_path(cli).await?,
 			GenesisBuilder =>
 				cmd.genesis_builder =
 					Some(guide_user_to_select_genesis_policy(cli, &cmd.genesis_builder)?),
@@ -1328,7 +1330,7 @@ mod tests {
 		},
 	};
 	use anyhow::Ok;
-	use pop_common::{Profile, helpers::with_current_dir};
+	use pop_common::{Profile, helpers::with_current_dir_async};
 	use std::fs::{self, File};
 	use strum::EnumMessage;
 	use tempfile::tempdir;
@@ -2001,8 +2003,8 @@ mod tests {
 		Ok(())
 	}
 
-	#[test]
-	fn update_runtime_path_works() -> anyhow::Result<()> {
+	#[tokio::test]
+	async fn update_runtime_path_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 		let temp_path = temp_dir.path().to_path_buf();
 
@@ -2059,7 +2061,9 @@ runtime-benchmarks = []
 			)
 			.expect_info(format!("Using runtime at {}", canonicalized_runtime.display()));
 		let mut cmd = BenchmarkPallet { no_build: true, ..Default::default() };
-		let result = with_current_dir(&temp_path, || cmd.update_runtime_path(&mut cli));
+		let result =
+			with_current_dir_async(&temp_path, async || cmd.update_runtime_path(&mut cli).await)
+				.await;
 
 		assert!(result.is_ok(), "Failed to update runtime path: {:?}", result);
 		assert_eq!(cmd.runtime, Some(PathBuf::from("runtime")));
