@@ -47,7 +47,7 @@ async fn get_fetches_and_caches() {
 	assert!(value1.is_some(), "System::Number should exist");
 
 	// Verify it was cached
-	let cached = layer.cache().get(layer.block_hash(), &key).await.unwrap();
+	let cached = layer.cache().get_storage(layer.block_hash(), &key).await.unwrap();
 	assert!(cached.is_some(), "Value should be cached after first get");
 	assert_eq!(cached.unwrap(), value1);
 
@@ -68,7 +68,7 @@ async fn get_caches_empty_values() {
 	assert!(value.is_none(), "Nonexistent key should return None");
 
 	// Verify it was cached as empty (Some(None))
-	let cached = layer.cache().get(layer.block_hash(), nonexistent_key).await.unwrap();
+	let cached = layer.cache().get_storage(layer.block_hash(), nonexistent_key).await.unwrap();
 	assert_eq!(cached, Some(None), "Empty value should be cached as Some(None)");
 }
 
@@ -91,7 +91,7 @@ async fn get_batch_fetches_mixed() {
 
 	// Verify all were cached
 	for (i, key) in keys.iter().enumerate() {
-		let cached = layer.cache().get(layer.block_hash(), key).await.unwrap();
+		let cached = layer.cache().get_storage(layer.block_hash(), key).await.unwrap();
 		assert!(cached.is_some(), "Key {} should be cached", i);
 	}
 }
@@ -129,7 +129,7 @@ async fn prefetch_prefix() {
 
 	// Verify some values were cached
 	let key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
-	let cached = layer.cache().get(layer.block_hash(), &key).await.unwrap();
+	let cached = layer.cache().get_storage(layer.block_hash(), &key).await.unwrap();
 	assert!(cached.is_some(), "Prefetched key should be cached");
 }
 
