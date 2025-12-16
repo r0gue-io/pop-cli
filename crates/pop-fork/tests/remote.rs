@@ -36,7 +36,7 @@ async fn create_test_layer() -> RemoteStorageLayer {
 	RemoteStorageLayer::new(rpc, cache, block_hash)
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn get_fetches_and_caches() {
 	let layer = create_test_layer().await;
 
@@ -56,7 +56,7 @@ async fn get_fetches_and_caches() {
 	assert_eq!(value1, value2);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn get_caches_empty_values() {
 	let layer = create_test_layer().await;
 
@@ -72,7 +72,7 @@ async fn get_caches_empty_values() {
 	assert_eq!(cached, Some(None), "Empty value should be cached as Some(None)");
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn get_batch_fetches_mixed() {
 	let layer = create_test_layer().await;
 
@@ -96,7 +96,7 @@ async fn get_batch_fetches_mixed() {
 	}
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn get_batch_uses_cache() {
 	let layer = create_test_layer().await;
 
@@ -115,17 +115,16 @@ async fn get_batch_uses_cache() {
 	assert!(results[1].is_some(), "Uncached value should be fetched");
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn prefetch_prefix() {
 	let layer = create_test_layer().await;
 
 	let prefix = hex::decode(SYSTEM_PALLET_PREFIX).unwrap();
 
-	// Prefetch a small number of System storage items
+	// Prefetch all System storage items (page_size is the batch size per RPC call)
 	let count = layer.prefetch_prefix(&prefix, 5).await.unwrap();
 
 	assert!(count > 0, "Should have prefetched some keys");
-	assert!(count <= 5, "Should respect page size limit");
 
 	// Verify some values were cached
 	let key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
@@ -133,7 +132,7 @@ async fn prefetch_prefix() {
 	assert!(cached.is_some(), "Prefetched key should be cached");
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn layer_is_cloneable() {
 	let layer = create_test_layer().await;
 
@@ -149,7 +148,7 @@ async fn layer_is_cloneable() {
 	assert_eq!(value1, value2);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn accessor_methods() {
 	let layer = create_test_layer().await;
 
