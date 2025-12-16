@@ -166,4 +166,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cargo nextest run --locked --features "integration-tests" -p pop-fork --test rpc -j 1 --no-fail-fast --nocapture --status-level all
+          cargo nextest run --locked --features "integration-tests" -p pop-fork --test rpc --test remote -j 1 --no-fail-fast --nocapture --status-level all
