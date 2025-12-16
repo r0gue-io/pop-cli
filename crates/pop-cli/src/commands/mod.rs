@@ -398,6 +398,18 @@ mod tests {
 				}),
 				"bench pallet",
 			),
+			// Verify
+			(
+				Command::Verify(verify::VerifyCommand {
+					path: None,
+					path_pos: None,
+					contract_path: Some(std::path::PathBuf::from("test.contract")),
+					url: None,
+					address: None,
+					image: None,
+				}),
+				"verify",
+			),
 		];
 
 		for (command, expected) in test_cases {

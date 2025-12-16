@@ -28,13 +28,24 @@ pub fn build_smart_contract<T: ComposeBuildArgs>(
 ) -> anyhow::Result<BuildResult> {
 	let manifest_path = get_manifest_path(path)?;
 
+	let target_dir = manifest_path
+		.absolute_directory()
+		.ok()
+		.map(|project_dir| project_dir.join("target"));
+
 	let metadata_spec = match metadata_spec {
 		s @ Some(_) => s,
 		None => resolve_metadata_spec(manifest_path.as_ref())?,
 	};
 
-	let mut args =
-		ExecuteArgs { manifest_path, build_mode, verbosity, metadata_spec, ..Default::default() };
+	let mut args = ExecuteArgs {
+		manifest_path,
+		build_mode,
+		verbosity,
+		metadata_spec,
+		target_dir,
+		..Default::default()
+	};
 
 	if let Some(image) = image {
 		args.image = image;

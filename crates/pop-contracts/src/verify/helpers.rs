@@ -62,8 +62,7 @@ pub(super) fn get_build_info_parsed_from_contract_bundle(
 	}
 }
 
-/// Compare the local toolchain used in the operating system with the one specified in a concrete
-/// `BuildInfo`
+/// Compare the local toolchain with `BuildInfo`.
 ///
 /// # Arguments
 /// - `build_info` - The `BuildInfo` compared to the local toolchain
@@ -78,7 +77,7 @@ pub(super) fn compare_local_toolchain(build_info: &BuildInfo) -> Result<(), Erro
 		return Err(Error::InvalidToolchain(
 			"You are trying to `verify` a contract using the following toolchain:\n\
                 {rust_toolchain}\n\n\
-                However, the original contract was built using this one:\n\
+                However, the original contract was built using:\n\
                 {expected_rust_toolchain}\n\n\
                 Please install the correct toolchain and re-run the `verify` command:\n\
                 rustup install {expected_rust_toolchain}"
@@ -88,7 +87,7 @@ pub(super) fn compare_local_toolchain(build_info: &BuildInfo) -> Result<(), Erro
 
 	if build_info.cargo_contract_version != *CARGO_CONTRACT_VERSION {
 		return Err(Error::InvalidToolchain(format!(
-			"\nYou are trying to `verify` a contract using `cargo-contract` version \
+			"\nYou are trying to verify a contract using `cargo-contract` version \
                 `{}`.\n\n\
                 However, the original contract was built using `cargo-contract` version \
                 `{}`.\n\n\". The cargo contract version is implied by the `pop` version used.",
@@ -122,9 +121,7 @@ pub(super) fn verify_polkavm_code_hash_against_build_result(
 		return Err(Error::ContractMetadata("The metadata for the workspace contract does not contain a contract binary, therefore we are unable to verify the contract.".to_owned()))
 	};
 
-	let target_bundle = &built_contract_path.dest_bundle;
-
-	let file = File::open(target_bundle.clone())?;
+	let file = File::open(&built_contract_path.dest_bundle)?;
 	let built_contract: ContractMetadata = serde_json::from_reader(file)?;
 
 	if polkavm_code_hash.0 != built_contract.source.hash.0 {

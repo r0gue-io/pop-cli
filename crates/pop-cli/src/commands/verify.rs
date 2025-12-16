@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{cli::traits::Cli, common::builds::PopComposeBuildArgs};
+use crate::{
+	cli::traits::Cli,
+	common::builds::{PopComposeBuildArgs, ensure_project_path},
+};
 use anyhow::Result;
 use clap::{ArgGroup, Args};
 use pop_contracts::{DeployedContract, ImageVariant, VerifyContract};
@@ -8,52 +11,56 @@ use serde::Serialize;
 use std::path::PathBuf;
 
 #[derive(Args, Serialize)]
-#[command(group = ArgGroup::new("deployed_contract")
-	.multiple(true)
-	.conflicts_with("contract_path")
+#[command(
+	group = ArgGroup::new("deployed_contract")
+		.args(["url", "address", "image"])
+		.multiple(true)
+		.requires_all(["url", "address", "image"]),
+	group = ArgGroup::new("verification_mode")
+		.required(true)
+		.args(["contract_path", "url"])
 )]
 pub(crate) struct VerifyCommand {
-	/// Directory path with flag for your project manifest [default: current directory manifest if
-	/// exists]
+	/// Directory path with flag for your project directory [default: current directory]
 	#[clap(short, long)]
-	manifest_path: Option<PathBuf>,
-	/// Directory path without flag for your project [default: current directory manifest if
-	/// exists]
-	#[arg(value_name = "PATH", index = 1, conflicts_with = "manifest_path")]
+	pub(crate) path: Option<PathBuf>,
+	/// Directory path without flag for your project  directory [default: current directory]
+	#[arg(value_name = "PATH", index = 1, conflicts_with = "path")]
 	pub(crate) path_pos: Option<PathBuf>,
 	/// The reference `.contract` file (`*.contract`) that the selected
 	/// contract will be checked against, if verifying against a local project.
-	#[arg(short, long)]
-	contract_path: Option<PathBuf>,
+	#[arg(short, long, group = "verification_mode")]
+	pub(crate) contract_path: Option<PathBuf>,
 	/// The URL to the chain where the contract is deployed, if verifying against a deployed
 	/// contract. Only chains using latest revive versions are guaranteed to be supported by this
 	/// feature, as revive is still in an unstable phase.
-	#[arg(short, long, group = "deployed_contract", requires_all = ["address", "image"])]
-	url: Option<String>,
+	#[arg(short, long, group = "deployed_contract", group = "verification_mode")]
+	pub(crate) url: Option<String>,
 	/// The address on which the contract is deployed, if verifying against a deployed contract.
-	#[arg(short, long, group = "deployed_contract", requires_all = ["url", "image"])]
-	address: Option<String>,
+	#[arg(short, long, group = "deployed_contract")]
+	pub(crate) address: Option<String>,
 	/// The image used to compile the deployed contract, if verifying against a deployed contract.
-	#[arg(short, long, group = "deployed_contract", requires_all = ["url", "address"])]
-	image: Option<String>,
+	#[arg(short, long, group = "deployed_contract")]
+	pub(crate) image: Option<String>,
 }
 
 impl VerifyCommand {
 	pub(crate) async fn execute(&self, cli: &mut impl Cli) -> Result<()> {
-		cli.intro("Start verifying your contract, this make take a bit ⏳")?;
+		cli.intro("Start verifying your contract, this may take a bit ⏳")?;
 
-		let project_path = crate::common::builds::ensure_project_path(
-			self.manifest_path.clone(),
-			self.path_pos.clone(),
-		);
+		let project_path = ensure_project_path(self.path.clone(), self.path_pos.clone());
 
 		if let Some(contract_path) = self.contract_path.as_ref() {
 			<VerifyContract<PopComposeBuildArgs>>::new_local(project_path, contract_path.clone())
 				.execute()
 				.await?;
-		} else if let (Some(url), Some(address), Some(image)) =
-			(self.url.as_ref(), self.address.as_ref(), self.image.as_ref())
-		{
+		} else {
+			// SAFETY: clap enforces that if contract_path is not present,
+			// then url, address, and image must all be present
+			let url = self.url.as_ref().expect("url required by clap");
+			let address = self.address.as_ref().expect("address required by clap");
+			let image = self.image.as_ref().expect("image required by clap");
+
 			<VerifyContract<PopComposeBuildArgs>>::new_deployed(
 				project_path,
 				DeployedContract {
@@ -64,10 +71,6 @@ impl VerifyCommand {
 			)
 			.execute()
 			.await?;
-		} else {
-			anyhow::bail!(
-				"Either specify a local contract bundle or a deployed contract to verify."
-			);
 		}
 
 		let _ = cli.success("The contract verification completed successfully ✅");

@@ -153,36 +153,43 @@ pub(crate) struct PopComposeBuildArgs;
 #[cfg(feature = "contract")]
 impl ComposeBuildArgs for PopComposeBuildArgs {
 	fn compose_build_args() -> anyhow::Result<Vec<String>> {
-		let mut args: Vec<String> = Vec::new();
-		// match pop related args in pop build --verifiable or pop verify that shouldn't be passed
-		// to Docker image. --path-pos and its following value should be ignored anyway
-		let path_pos_regex = Regex::new(r#"(--path-pos)[ ]*[^ ]*[ ]*"#).expect("Valid regex; qed;");
-		// If --image is passed in build command, remove it
-		let image_regex = Regex::new(r#"(--image)[ ]*[^ ]*[ ]*"#).expect("Valid regex; qed;");
-		// If verify, we ignore --contract-path and its value, --url and its value and --address and
-		// its value
-		let verify_regex = Regex::new(r#"(--contract-path|--url|--address)[ ]*[^ ]*[ ]*"#)
-			.expect("Valid regex; qed;");
-
-		// we join the args together, so we can remove `--image <arg>`. Skip the first argument (the
-		// binary name)
-		let args_string: String = std::env::args().skip(1).collect::<Vec<String>>().join(" ");
-		let args_string = path_pos_regex.replace_all(&args_string, "").to_string();
-		let args_string = image_regex.replace_all(&args_string, "").to_string();
-		let args_string = verify_regex.replace_all(&args_string, "").to_string();
-
-		// and then we turn it back to the vec, filtering out commands and arguments
-		// that should not be passed to the docker build command
-		let mut os_args: Vec<String> = args_string
-			.split_ascii_whitespace()
-			.filter(|a| a != &"--verifiable" && a != &"verify" && a != &"build")
-			.map(|s| s.to_string())
-			.collect();
-
-		args.append(&mut os_args);
-
-		Ok(args)
+		process_build_args(std::env::args())
 	}
+}
+
+/// Process build arguments by filtering and transforming them for Docker builds.
+#[cfg(feature = "contract")]
+fn process_build_args<I>(args: I) -> anyhow::Result<Vec<String>>
+where
+	I: IntoIterator<Item = String>,
+{
+	// Match `pop` related args in `pop build --verifiable` or `pop verify` that shouldn't be passed
+	// to Docker image. `--path-pos` should also be ignored.
+	let path_pos_regex = Regex::new(r#"(--path-pos)[ ]*[^ ]*[ ]*"#).expect("Valid regex; qed;");
+	// If `--image` is passed in build command, remove it.
+	let image_regex = Regex::new(r#"(--image)[ ]*[^ ]*[ ]*"#).expect("Valid regex; qed;");
+	// If verify, we ignore `--contract-path`, `--url` and `--address`.
+	let verify_regex =
+		Regex::new(r#"(--contract-path|--url|--address)[ ]*[^ ]*[ ]*"#).expect("Valid regex; qed;");
+	// Remove `--manifest-path`.
+	let path_regex = Regex::new(r#"(--path)[ ]*[^ ]*[ ]*"#).expect("Valid regex; qed;");
+
+	//Skip the first argument (the binary name).
+	let args_string: String = args.into_iter().skip(1).collect::<Vec<String>>().join(" ");
+	let args_string = path_pos_regex.replace_all(&args_string, "").to_string();
+	let args_string = image_regex.replace_all(&args_string, "").to_string();
+	let args_string = verify_regex.replace_all(&args_string, "").to_string();
+	let args_string = path_regex.replace_all(&args_string, "").to_string();
+
+	// Turn it back to a vec, filtering out commands and arguments
+	// that should not be passed to the docker build command
+	let os_args: Vec<String> = args_string
+		.split_ascii_whitespace()
+		.filter(|a| a != &"--verifiable" && a != &"verify" && a != &"build")
+		.map(|s| s.to_string())
+		.collect();
+
+	Ok(os_args)
 }
 
 #[cfg(test)]
@@ -568,5 +575,52 @@ name = "test-workspace"
 			},
 			_ => panic!("The dir doesn't exist"),
 		}
+	}
+
+	#[test]
+	#[cfg(feature = "contract")]
+	fn process_build_args_removes_path() {
+		let args =
+			vec!["pop".to_string(), "build".to_string(), "--path".to_string(), ".".to_string()];
+
+		let result = process_build_args(args).unwrap();
+		assert_eq!(result, Vec::<String>::new());
+	}
+
+	#[test]
+	#[cfg(feature = "contract")]
+	fn process_build_args_removes_pop_specific_args() {
+		let args = vec![
+			"pop".to_string(),
+			"build".to_string(),
+			"--verifiable".to_string(),
+			"--image".to_string(),
+			"some-image".to_string(),
+			"--path-pos".to_string(),
+			"./path".to_string(),
+			"--release".to_string(),
+		];
+
+		let result = process_build_args(args).unwrap();
+		assert_eq!(result, vec!["--release".to_string()]);
+	}
+
+	#[test]
+	#[cfg(feature = "contract")]
+	fn process_build_args_removes_verify_specific_args() {
+		let args = vec![
+			"pop".to_string(),
+			"verify".to_string(),
+			"--contract-path".to_string(),
+			"bundle.contract".to_string(),
+			"--url".to_string(),
+			"wss://example.com".to_string(),
+			"--address".to_string(),
+			"0x123".to_string(),
+			"--release".to_string(),
+		];
+
+		let result = process_build_args(args).unwrap();
+		assert_eq!(result, vec!["--release".to_string()]);
 	}
 }

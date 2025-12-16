@@ -50,7 +50,7 @@ pub(crate) struct BuildArgs {
 	#[cfg(feature = "chain")]
 	pub command: Option<Command>,
 	/// Directory path with flag for your project [default: current directory]
-	#[arg(long, visible_alias = "manifest-path")]
+	#[arg(long)]
 	#[serde(skip_serializing)]
 	pub(crate) path: Option<PathBuf>,
 	/// Directory path without flag for your project [default: current directory]
@@ -93,12 +93,11 @@ pub(crate) struct BuildArgs {
 	#[clap(long, help_heading = CONTRACT_HELP_HEADER)]
 	#[cfg(feature = "contract")]
 	pub(crate) metadata: Option<MetadataSpec>,
-	/// Whether to build in a way that the contract is verifiable. For verifiable contracts, use
-	/// --manifest-path instead of --path to directly point to your contracts Cargo.toml
+	/// Whether to build in a way that the contract is verifiable.
 	#[clap(long, conflicts_with_all = ["release", "profile"], help_heading = CONTRACT_HELP_HEADER)]
 	#[cfg(feature = "contract")]
 	pub(crate) verifiable: bool,
-	/// Custom image for verifiable builds
+	/// Custom image for verifiable builds.
 	#[clap(long, requires = "verifiable", help_heading = CONTRACT_HELP_HEADER)]
 	#[cfg(feature = "contract")]
 	pub(crate) image: Option<String>,

@@ -2,11 +2,6 @@
 
 #![doc = include_str!("../README.md")]
 
-use anyhow::Result;
-use cargo_toml::{Dependency, Manifest};
-use once_cell::sync::Lazy;
-use semver::Version;
-
 mod build;
 mod call;
 mod errors;
@@ -58,37 +53,189 @@ pub use sp_weights::Weight;
 pub use up::{get_instantiate_payload, get_upload_payload};
 pub use utils::map_account::AccountMapper;
 
-const FALLBACK_CARGO_CONTRACT_VERSION: &str = "6.0.0-beta.1";
-/// cargo-contract used version
-pub(crate) static CARGO_CONTRACT_VERSION: Lazy<Version> = Lazy::new(|| {
-	let cargo_contract_version: Result<String> = || -> Result<String> {
-		let current_dir = std::env::current_dir()?;
-		let workspace_manifest = rustilities::manifest::find_workspace_manifest(current_dir)
-			.ok_or(anyhow::anyhow!("Not interesting error"))?;
-		let manifest = Manifest::from_path(workspace_manifest)?;
+use cargo_toml::{Dependency, Manifest};
+use once_cell::sync::Lazy;
+use semver::Version;
+use std::path::PathBuf;
 
-		manifest
-			.workspace
-			.and_then(|workspace| {
-				if let Some(contract_build_dep) = workspace.dependencies.get("contract-build") {
-					match contract_build_dep {
-						Dependency::Simple(version) => Some(version.clone()),
-						Dependency::Detailed(detailed) if detailed.version.as_ref().is_some() =>
-							Some(
-								detailed
-									.version
-									.as_ref()
-									.expect("The match guard protects us; qed")
-									.clone(),
-							),
-						_ => None,
-					}
-				} else {
-					None
-				}
-			})
-			.ok_or(anyhow::anyhow!("Not interesting error"))
+const FALLBACK_CARGO_CONTRACT_VERSION: &str = "6.0.0-beta.1";
+
+/// `cargo-contract` used version
+pub(crate) static CARGO_CONTRACT_VERSION: Lazy<Version> = Lazy::new(|| {
+	let maybe_workspace_manifest: Option<PathBuf> = || -> Option<PathBuf> {
+		let current_dir = std::env::current_dir().ok()?;
+		rustilities::manifest::find_workspace_manifest(current_dir)
 	}();
 
-	Version::parse(cargo_contract_version.as_deref().unwrap_or(FALLBACK_CARGO_CONTRACT_VERSION)).expect("The fallback version is always valid; if cargo_contract_version is Ok it contains a valid semver as well; qed;")
+	get_used_cargo_contract_version(maybe_workspace_manifest)
 });
+
+fn get_used_cargo_contract_version(manifest_path: Option<PathBuf>) -> Version {
+	let fallback_version = Version::parse(FALLBACK_CARGO_CONTRACT_VERSION)
+		.expect("The fallback version is always valid; qed;");
+
+	let manifest = match manifest_path {
+		Some(path) => match Manifest::from_path(path) {
+			Ok(manifest) => manifest,
+			_ => return fallback_version,
+		},
+		_ => return fallback_version,
+	};
+
+	let cargo_contract_version = manifest
+		.workspace
+		.and_then(|workspace| {
+			if let Some(contract_build_dep) = workspace.dependencies.get("contract-build") {
+				match contract_build_dep {
+					Dependency::Simple(version) => Some(version.clone()),
+					Dependency::Detailed(detailed) if detailed.version.as_ref().is_some() => Some(
+						detailed
+							.version
+							.as_ref()
+							.expect("The match guard protects us; qed")
+							.clone(),
+					),
+					_ => None,
+				}
+			} else {
+				None
+			}
+		})
+		.map(|version| Version::parse(&version));
+
+	match cargo_contract_version {
+		Some(Ok(version)) => version,
+		_ => fallback_version,
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use std::fs::File;
+	use tempfile::TempDir;
+
+	struct TestBuilder {
+		temp_dir: TempDir,
+	}
+
+	impl Default for TestBuilder {
+		fn default() -> Self {
+			Self { temp_dir: tempfile::tempdir().unwrap() }
+		}
+	}
+
+	impl TestBuilder {
+		fn with_manifest_containing_cargo_contract(self) -> Self {
+			let manifest_path = self.temp_dir.path().join("Cargo.toml");
+			let contents = r#"[workspace]
+members = ["crate1", "crate2"]
+
+[workspace.dependencies]
+contract-build = "0.1.0"
+"#;
+			File::create(&manifest_path).unwrap();
+			std::fs::write(&manifest_path, contents).unwrap();
+			self
+		}
+
+		fn with_manifest_containing_cargo_contract_with_complex_declaration(self) -> Self {
+			let manifest_path = self.temp_dir.path().join("Cargo.toml");
+			let contents = r#"[workspace]
+members = ["crate1", "crate2"]
+
+[workspace.dependencies]
+contract-build = { version = "0.1.0", default-features = false }
+"#;
+			File::create(&manifest_path).unwrap();
+			std::fs::write(&manifest_path, contents).unwrap();
+			self
+		}
+
+		fn with_manifest_not_containing_cargo_contract(self) -> Self {
+			let manifest_path = self.temp_dir.path().join("Cargo.toml");
+			let contents = r#"[workspace]
+members = ["crate1", "crate2"]
+"#;
+			File::create(&manifest_path).unwrap();
+			std::fs::write(&manifest_path, contents).unwrap();
+			self
+		}
+
+		fn with_invalid_manifest(self) -> Self {
+			let manifest_path = self.temp_dir.path().join("Cargo.toml");
+			File::create(&manifest_path).unwrap();
+			std::fs::write(&manifest_path, "test").unwrap();
+			self
+		}
+
+		fn execute<Test>(self, test: Test)
+		where
+			Test: FnOnce(Self),
+		{
+			test(self)
+		}
+	}
+
+	#[test]
+	fn get_used_cargo_contract_version_works_with_simple_versions() {
+		TestBuilder::default()
+			.with_manifest_containing_cargo_contract()
+			.execute(|builder| {
+				assert_eq!(
+					Version::parse("0.1.0").unwrap(),
+					get_used_cargo_contract_version(Some(
+						builder.temp_dir.path().join("Cargo.toml")
+					))
+				);
+			});
+	}
+
+	#[test]
+	fn get_used_cargo_contract_version_works_with_complex_version() {
+		TestBuilder::default()
+			.with_manifest_containing_cargo_contract_with_complex_declaration()
+			.execute(|builder| {
+				assert_eq!(
+					Version::parse("0.1.0").unwrap(),
+					get_used_cargo_contract_version(Some(
+						builder.temp_dir.path().join("Cargo.toml")
+					))
+				);
+			});
+	}
+
+	#[test]
+	fn get_used_cargo_contract_version_returns_fallback_if_contract_build_not_present() {
+		TestBuilder::default()
+			.with_manifest_not_containing_cargo_contract()
+			.execute(|builder| {
+				assert_eq!(
+					Version::parse(FALLBACK_CARGO_CONTRACT_VERSION).unwrap(),
+					get_used_cargo_contract_version(Some(
+						builder.temp_dir.path().join("Cargo.toml")
+					))
+				);
+			});
+	}
+
+	#[test]
+	fn get_used_cargo_contract_version_returns_fallback_if_invalid_manifest() {
+		TestBuilder::default().with_invalid_manifest().execute(|builder| {
+			assert_eq!(
+				Version::parse(FALLBACK_CARGO_CONTRACT_VERSION).unwrap(),
+				get_used_cargo_contract_version(Some(builder.temp_dir.path().join("Cargo.toml")))
+			);
+		});
+	}
+
+	#[test]
+	fn get_used_cargo_contract_version_returns_fallback_if_none() {
+		TestBuilder::default().execute(|_builder| {
+			assert_eq!(
+				Version::parse(FALLBACK_CARGO_CONTRACT_VERSION).unwrap(),
+				get_used_cargo_contract_version(None)
+			);
+		});
+	}
+}
