@@ -171,15 +171,17 @@ where
 	// If verify, we ignore `--contract-path`, `--url` and `--address`.
 	let verify_regex =
 		Regex::new(r#"(--contract-path|--url|--address)[ ]*[^ ]*[ ]*"#).expect("Valid regex; qed;");
-	// Remove `--manifest-path`.
-	let path_regex = Regex::new(r#"(--path)[ ]*[^ ]*[ ]*"#).expect("Valid regex; qed;");
+	// Replace `--path <value>` with `--manifest-path <value>/Cargo.toml`.
+	let path_regex = Regex::new(r#"--path\s+([^\s]+)"#).expect("Valid regex; qed;");
 
 	//Skip the first argument (the binary name).
 	let args_string: String = args.into_iter().skip(1).collect::<Vec<String>>().join(" ");
 	let args_string = path_pos_regex.replace_all(&args_string, "").to_string();
 	let args_string = image_regex.replace_all(&args_string, "").to_string();
 	let args_string = verify_regex.replace_all(&args_string, "").to_string();
-	let args_string = path_regex.replace_all(&args_string, "").to_string();
+	let args_string = path_regex
+		.replace_all(&args_string, "--manifest-path $1/Cargo.toml")
+		.to_string();
 
 	// Turn it back to a vec, filtering out commands and arguments
 	// that should not be passed to the docker build command
@@ -579,12 +581,12 @@ name = "test-workspace"
 
 	#[test]
 	#[cfg(feature = "contract")]
-	fn process_build_args_removes_path() {
+	fn process_build_args_transforms_path_to_manifest_path() {
 		let args =
 			vec!["pop".to_string(), "build".to_string(), "--path".to_string(), ".".to_string()];
 
 		let result = process_build_args(args).unwrap();
-		assert_eq!(result, Vec::<String>::new());
+		assert_eq!(result, vec!["--manifest-path".to_string(), "./Cargo.toml".to_string()]);
 	}
 
 	#[test]
