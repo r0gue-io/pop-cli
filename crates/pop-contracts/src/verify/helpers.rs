@@ -90,7 +90,7 @@ pub(super) fn compare_local_toolchain(build_info: &BuildInfo) -> Result<(), Erro
 			"\nYou are trying to verify a contract using `cargo-contract` version \
                 `{}`.\n\n\
                 However, the original contract was built using `cargo-contract` version \
-                `{}`.\n\n\". The cargo contract version is implied by the `pop` version used.",
+                `{}`.\n\n\". The `cargo contract` version is implied by the `pop` version used.",
 			*CARGO_CONTRACT_VERSION, build_info.cargo_contract_version,
 		)));
 	}
@@ -479,7 +479,7 @@ mod tests {
 		let result = compare_local_toolchain(&build_info);
 		let expected_msg = "You are trying to `verify` a contract using the following toolchain:\n\
                 {rust_toolchain}\n\n\
-                However, the original contract was built using this one:\n\
+                However, the original contract was built using:\n\
                 {expected_rust_toolchain}\n\n\
                 Please install the correct toolchain and re-run the `verify` command:\n\
                 rustup install {expected_rust_toolchain}";
@@ -499,12 +499,13 @@ mod tests {
 
 		let result = compare_local_toolchain(&build_info);
 		let expected_msg = format!(
-			"\nYou are trying to `verify` a contract using `cargo-contract` version \
+			"\nYou are trying to verify a contract using `cargo-contract` version \
                 `{}`.\n\n\
                 However, the original contract was built using `cargo-contract` version \
-                `{}`.\n\n\". The cargo contract version is implied by the `pop` version used.",
+                `{}`.\n\n\". The `cargo contract` version is implied by the `pop` version used.",
 			*CARGO_CONTRACT_VERSION, "1.0.0"
 		);
+		println!("{:?}", result);
 		assert!(matches!(result, Err(Error::InvalidToolchain(msg)) if msg == expected_msg));
 	}
 
