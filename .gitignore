@@ -17,3 +17,7 @@ debian/debhelper-build-stamp
 debian/files
 debian/pop-cli.substvars
 debian/.debhelper
+
+
+# Diesel
+.diesel_lock
