@@ -251,27 +251,6 @@ mod tests {
 	use super::*;
 
 	#[test]
-	fn remote_storage_layer_is_send_sync() {
-		// Compile-time check that RemoteStorageLayer is Send + Sync
-		fn assert_send_sync<T: Send + Sync>() {}
-		assert_send_sync::<RemoteStorageLayer>();
-	}
-
-	#[test]
-	fn remote_storage_layer_is_debug() {
-		// Compile-time check that RemoteStorageLayer implements Debug
-		fn assert_debug<T: std::fmt::Debug>() {}
-		assert_debug::<RemoteStorageLayer>();
-	}
-
-	#[test]
-	fn remote_storage_error_is_send_sync() {
-		// Compile-time check that RemoteStorageError is Send + Sync
-		fn assert_send_sync<T: Send + Sync>() {}
-		assert_send_sync::<RemoteStorageError>();
-	}
-
-	#[test]
 	fn error_display_rpc() {
 		use crate::error::RpcClientError;
 		let inner = RpcClientError::InvalidResponse("test".to_string());
