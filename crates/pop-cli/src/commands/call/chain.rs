@@ -1036,7 +1036,7 @@ mod tests {
 				call_config.prepare_extrinsic(&client, &mut cli),
 				Err(message)
 					if message.to_string().contains("Failed to encode call data: Pallet with name WrongName not found")));
-		let pallets = parse_chain_metadata(&client)?;
+		let pallets = parse_chain_metadata(&client.metadata())?;
 		if let CallItem::Function(ref mut function) = call_config.function {
 			function.pallet = "System".to_string();
 		}
@@ -1209,7 +1209,7 @@ mod tests {
 		// Spawn a test node
 		let node = TestNode::spawn().await?;
 		let client = set_up_client(node.ws_url()).await?;
-		let pallets = parse_chain_metadata(&client)?;
+		let pallets = parse_chain_metadata(&client.metadata())?;
 
 		// Find the System pallet
 		let system_pallet =
@@ -1262,7 +1262,7 @@ mod tests {
 		// Spawn a test node
 		let node = TestNode::spawn().await?;
 		let client = set_up_client(node.ws_url()).await?;
-		let pallets = parse_chain_metadata(&client)?;
+		let pallets = parse_chain_metadata(&client.metadata())?;
 
 		// Find the System pallet
 		let system_pallet =

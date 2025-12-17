@@ -19,7 +19,7 @@ const POLKADOT_NETWORK_URL: &str = "wss://polkadot-rpc.publicnode.com";
 #[tokio::test]
 async fn construct_proxy_extrinsic_work() -> Result<()> {
 	let client = set_up_client(POLKADOT_NETWORK_URL).await?;
-	let pallets = parse_chain_metadata(&client)?;
+	let pallets = parse_chain_metadata(&client.metadata())?;
 	let call_item = find_callable_by_name(&pallets, "System", "remark")?;
 	let remark_dispatchable = call_item.as_function().unwrap();
 	let remark = construct_extrinsic(remark_dispatchable, ["0x11".to_string()].to_vec())?;
@@ -41,7 +41,7 @@ async fn construct_proxy_extrinsic_work() -> Result<()> {
 async fn encode_and_decode_call_data_works() -> Result<()> {
 	let node = TestNode::spawn().await?;
 	let client = set_up_client(node.ws_url()).await?;
-	let pallets = parse_chain_metadata(&client)?;
+	let pallets = parse_chain_metadata(&client.metadata())?;
 	let call_item = find_callable_by_name(&pallets, "System", "remark")?;
 	let remark = call_item.as_function().unwrap();
 	let xt = construct_extrinsic(remark, vec!["0x11".to_string()])?;
@@ -80,7 +80,7 @@ async fn sign_and_submit_wrong_extrinsic_fails() -> Result<()> {
 async fn parse_chain_metadata_works() -> Result<()> {
 	let node = TestNode::spawn().await?;
 	let client = set_up_client(node.ws_url()).await?;
-	let pallets = parse_chain_metadata(&client)?;
+	let pallets = parse_chain_metadata(&client.metadata())?;
 	// Test the first pallet is parsed correctly
 	let first_pallet = pallets.first().unwrap();
 	assert_eq!(first_pallet.name, "System");
@@ -109,7 +109,7 @@ async fn parse_chain_metadata_works() -> Result<()> {
 async fn find_pallet_by_name_works() -> Result<()> {
 	let node = TestNode::spawn().await?;
 	let client = set_up_client(node.ws_url()).await?;
-	let pallets = parse_chain_metadata(&client)?;
+	let pallets = parse_chain_metadata(&client.metadata())?;
 	assert!(matches!(
         find_pallet_by_name(&pallets, "WrongName"),
         Err(Error::PalletNotFound(pallet)) if pallet == *"WrongName"));
@@ -123,7 +123,7 @@ async fn find_pallet_by_name_works() -> Result<()> {
 async fn find_dispatchable_by_name_works() -> Result<()> {
 	let node = TestNode::spawn().await?;
 	let client = set_up_client(node.ws_url()).await?;
-	let pallets = parse_chain_metadata(&client)?;
+	let pallets = parse_chain_metadata(&client.metadata())?;
 	assert!(matches!(
         find_callable_by_name(&pallets, "WrongName", "wrong_name"),
         Err(Error::PalletNotFound(pallet)) if pallet == *"WrongName"));

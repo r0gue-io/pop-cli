@@ -539,12 +539,10 @@ fn extract_functions_from_pallet_metadata(
 /// Parses the chain metadata to extract information about pallets and their dispatchable functions.
 ///
 /// # Arguments
-/// * `client`: The client to interact with the chain.
+/// * `metadata`: The chain metadata.
 ///
 /// NOTE: pallets are ordered by their index within the runtime by default.
-pub fn parse_chain_metadata(client: &OnlineClient<SubstrateConfig>) -> Result<Vec<Pallet>, Error> {
-	let metadata: Metadata = client.metadata();
-
+pub fn parse_chain_metadata(metadata: &Metadata) -> Result<Vec<Pallet>, Error> {
 	let pallets = metadata
 		.pallets()
 		.map(|pallet| {
@@ -552,8 +550,8 @@ pub fn parse_chain_metadata(client: &OnlineClient<SubstrateConfig>) -> Result<Ve
 				name: pallet.name().to_string(),
 				index: pallet.index(),
 				docs: pallet.docs().join("").trim().to_string(),
-				functions: extract_functions_from_pallet_metadata(&pallet, &metadata)?,
-				constants: extract_constants_from_pallet_metadata(&pallet, &metadata)?,
+				functions: extract_functions_from_pallet_metadata(&pallet, metadata)?,
+				constants: extract_constants_from_pallet_metadata(&pallet, metadata)?,
 				state: extract_chain_state_from_pallet_metadata(&pallet)?,
 			})
 		})
@@ -1239,7 +1237,7 @@ mod tests {
 		// Spawn a test node
 		let node = TestNode::spawn().await?;
 		let client = set_up_client(node.ws_url()).await?;
-		let pallets = parse_chain_metadata(&client)?;
+		let pallets = parse_chain_metadata(&client.metadata())?;
 
 		// Find a storage item (System::Number is a simple storage item that always exists)
 		let storage = pallets
@@ -1267,7 +1265,7 @@ mod tests {
 		// Spawn a test node
 		let node = TestNode::spawn().await?;
 		let client = set_up_client(node.ws_url()).await?;
-		let pallets = parse_chain_metadata(&client)?;
+		let pallets = parse_chain_metadata(&client.metadata())?;
 
 		// Find a map storage item (System::Account requires a key)
 		let storage = pallets

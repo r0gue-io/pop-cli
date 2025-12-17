@@ -217,7 +217,7 @@ mod tests {
 		// Test Local Node.
 		let client: subxt::OnlineClient<subxt::SubstrateConfig> =
 			set_up_client(node.ws_url()).await?;
-		let actions = supported_actions(&parse_chain_metadata(&client)?);
+		let actions = supported_actions(&parse_chain_metadata(&client.metadata())?);
 		assert_eq!(actions, vec![Transfer, CreateAsset, MintAsset, Remark, MapAccount]);
 		Ok(())
 	}
