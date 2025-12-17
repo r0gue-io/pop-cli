@@ -2,17 +2,19 @@
 
 //! Integration tests for RemoteStorageLayer.
 //!
-//! These tests require a live RPC endpoint and are gated behind the `integration-tests` feature.
+//! These tests spawn local test nodes (ink-node) and are gated behind the `integration-tests`
+//! feature.
 //!
 //! Run with: `cargo nextest run -p pop-fork --features integration-tests --test remote`
+//!
+//! For reliable execution, run sequentially to avoid concurrent node downloads:
+//! `cargo nextest run -p pop-fork --features integration-tests --test remote -j 1`
 
 #![cfg(feature = "integration-tests")]
 
+use pop_common::test_env::TestNode;
 use pop_fork::{ForkRpcClient, RemoteStorageLayer, StorageCache};
 use url::Url;
-
-/// Paseo testnet public RPC endpoint.
-const PASEO_ENDPOINT: &str = "wss://rpc.ibp.network/paseo";
 
 // Well-known storage keys for testing.
 // These are derived from twox128 hashes of pallet and storage item names.
@@ -27,18 +29,29 @@ const SYSTEM_PARENT_HASH_KEY: &str =
 /// System pallet prefix: twox128("System")
 const SYSTEM_PALLET_PREFIX: &str = "26aa394eea5630e07c48ae0c9558cef7";
 
-async fn create_test_layer() -> RemoteStorageLayer {
-	let endpoint: Url = PASEO_ENDPOINT.parse().unwrap();
+/// Helper struct to hold the test node and layer together.
+/// This ensures the node stays alive for the duration of the test.
+struct TestContext {
+	#[allow(dead_code)]
+	node: TestNode,
+	layer: RemoteStorageLayer,
+}
+
+async fn create_test_context() -> TestContext {
+	let node = TestNode::spawn().await.expect("Failed to spawn test node");
+	let endpoint: Url = node.ws_url().parse().unwrap();
 	let rpc = ForkRpcClient::connect(&endpoint).await.unwrap();
 	let cache = StorageCache::in_memory().await.unwrap();
 	let block_hash = rpc.finalized_head().await.unwrap();
+	let layer = RemoteStorageLayer::new(rpc, cache, block_hash);
 
-	RemoteStorageLayer::new(rpc, cache, block_hash)
+	TestContext { node, layer }
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn get_fetches_and_caches() {
-	let layer = create_test_layer().await;
+	let ctx = create_test_context().await;
+	let layer = &ctx.layer;
 
 	let key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 
@@ -58,7 +71,8 @@ async fn get_fetches_and_caches() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn get_caches_empty_values() {
-	let layer = create_test_layer().await;
+	let ctx = create_test_context().await;
+	let layer = &ctx.layer;
 
 	// Use a key that definitely doesn't exist
 	let nonexistent_key = b"this_key_definitely_does_not_exist_12345";
@@ -74,7 +88,8 @@ async fn get_caches_empty_values() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn get_batch_fetches_mixed() {
-	let layer = create_test_layer().await;
+	let ctx = create_test_context().await;
+	let layer = &ctx.layer;
 
 	let key1 = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 	let key2 = hex::decode(SYSTEM_PARENT_HASH_KEY).unwrap();
@@ -98,7 +113,8 @@ async fn get_batch_fetches_mixed() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn get_batch_uses_cache() {
-	let layer = create_test_layer().await;
+	let ctx = create_test_context().await;
+	let layer = &ctx.layer;
 
 	let key1 = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 	let key2 = hex::decode(SYSTEM_PARENT_HASH_KEY).unwrap();
@@ -117,7 +133,8 @@ async fn get_batch_uses_cache() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn prefetch_prefix() {
-	let layer = create_test_layer().await;
+	let ctx = create_test_context().await;
+	let layer = &ctx.layer;
 
 	let prefix = hex::decode(SYSTEM_PALLET_PREFIX).unwrap();
 
@@ -134,7 +151,8 @@ async fn prefetch_prefix() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn layer_is_cloneable() {
-	let layer = create_test_layer().await;
+	let ctx = create_test_context().await;
+	let layer = &ctx.layer;
 
 	// Clone the layer
 	let layer2 = layer.clone();
@@ -150,9 +168,11 @@ async fn layer_is_cloneable() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn accessor_methods() {
-	let layer = create_test_layer().await;
+	let ctx = create_test_context().await;
+	let layer = &ctx.layer;
 
 	// Test accessor methods
 	assert!(!layer.block_hash().is_zero());
-	assert_eq!(layer.rpc().endpoint().as_str(), PASEO_ENDPOINT);
+	// Verify endpoint is a valid WebSocket URL (from our local test node)
+	assert!(layer.rpc().endpoint().as_str().starts_with("ws://"));
 }
