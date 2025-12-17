@@ -458,7 +458,8 @@ mod tests {
 				hex::decode(SYSTEM_NUMBER_KEY).unwrap(),
 				hex::decode(SYSTEM_PARENT_HASH_KEY).unwrap(),
 			];
-			let values = client.storage_batch(&keys, hash).await.unwrap();
+			let key_refs: Vec<&[u8]> = keys.iter().map(|k| k.as_slice()).collect();
+			let values = client.storage_batch(&key_refs, hash).await.unwrap();
 
 			assert_eq!(values.len(), 2);
 			// Both System::Number and System::ParentHash should exist
@@ -533,7 +534,8 @@ mod tests {
 				hex::decode(SYSTEM_NUMBER_KEY).unwrap(), // exists
 				vec![0xff; 32],                          // doesn't exist
 			];
-			let values = client.storage_batch(&keys, hash).await.unwrap();
+			let key_refs: Vec<&[u8]> = keys.iter().map(|k| k.as_slice()).collect();
+			let values = client.storage_batch(&key_refs, hash).await.unwrap();
 
 			assert_eq!(values.len(), 2);
 			assert!(values[0].is_some(), "System::Number should exist");
