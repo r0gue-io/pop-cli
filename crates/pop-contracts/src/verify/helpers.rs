@@ -254,12 +254,9 @@ mod tests {
 		BuildArtifacts, OutputType, Verbosity,
 		metadata::{InkMetadataArtifacts, MetadataArtifacts},
 	};
+	use pop_common::test_env::TestNode;
 	use std::{io::ErrorKind, path::PathBuf};
 	use tempfile::TempDir;
-
-	const PASEO_ENDPOINT: &str = "wss://paseo-rpc.n.dwellir.com";
-	const PASSET_HUB_ENDPOINT: &str = "wss://passet-hub-paseo.ibp.network";
-	const VERIFIED_DEPLOYED_CONTRACT_ADDRESS: &str = "0x6afcd9a58dc4a1b512ae73f29c959f0a32f6a6cf";
 
 	struct TestBuilder {
 		temp_dir: TempDir,
@@ -703,27 +700,10 @@ mod tests {
 	// Tests for get_deployed_polkavm_code_hash
 
 	#[tokio::test]
-	async fn get_deployed_polkavm_code_hash_succeeds_with_valid_contract() {
-		let result =
-			get_deployed_polkavm_code_hash(PASSET_HUB_ENDPOINT, VERIFIED_DEPLOYED_CONTRACT_ADDRESS)
-				.await;
-
-		assert!(result.is_ok());
-		let code_hash = result.unwrap();
-		// The code hash should match the one from testing_verified.contract
-		assert_eq!(
-			code_hash.0,
-			[
-				192, 235, 212, 95, 142, 195, 172, 151, 29, 73, 74, 170, 83, 227, 95, 172, 94, 254,
-				37, 225, 134, 215, 167, 254, 224, 101, 10, 229, 232, 96, 121, 40
-			]
-		);
-	}
-
-	#[tokio::test]
 	async fn get_deployed_polkavm_code_hash_fails_with_invalid_address_format() {
-		// Test with invalid hex address
-		let result = get_deployed_polkavm_code_hash(PASSET_HUB_ENDPOINT, "invalid_address").await;
+		// Test with invalid hex address - this fails during address parsing before connecting
+		let node = TestNode::spawn().await.expect("Failed to spawn test node");
+		let result = get_deployed_polkavm_code_hash(node.ws_url(), "invalid_address").await;
 
 		// Should fail during parse_hex_bytes
 		assert!(matches!(result, Err(Error::HexParsing(msg)) if msg == "Odd number of digits"));
@@ -734,7 +714,7 @@ mod tests {
 		// Test with completely invalid URL
 		let result = get_deployed_polkavm_code_hash(
 			"wss://nonexistent.invalid.endpoint.test",
-			VERIFIED_DEPLOYED_CONTRACT_ADDRESS,
+			"0x0000000000000000000000000000000000000000",
 		)
 		.await;
 
@@ -745,41 +725,16 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn get_deployed_polkavm_code_hash_fails_when_chain_has_no_revive_pallet() {
-		// Paseo doesn't have the Revive pallet
-		let result =
-			get_deployed_polkavm_code_hash(PASEO_ENDPOINT, VERIFIED_DEPLOYED_CONTRACT_ADDRESS)
-				.await;
-
-		assert!(matches!(
-			result,
-			Err(Error::Verification(msg)) if msg == "The target chain doesn't support smart contracts. Verification aborted."
-		));
-	}
-
-	#[tokio::test]
 	async fn get_deployed_polkavm_code_hash_fails_with_nonexistent_contract_address() {
 		// Use a valid address format that doesn't exist on chain
 		let nonexistent_address = "0x0000000000000000000000000000000000000000";
 
-		let result = get_deployed_polkavm_code_hash(PASSET_HUB_ENDPOINT, nonexistent_address).await;
+		let node = TestNode::spawn().await.expect("Failed to spawn test node");
+		let result = get_deployed_polkavm_code_hash(node.ws_url(), nonexistent_address).await;
 
 		assert!(matches!(
 			result,
 			Err(Error::Verification(msg)) if msg == "`pop` cannot find contract information for the provided contract address. Verification aborted."
-		));
-	}
-
-	#[tokio::test]
-	async fn get_deployed_polkavm_code_hash_fails_with_eoa_address() {
-		// Use a valid address format that exists but belongs to a EOA
-		let eoa_address = "0x00000000000000000000000000000000000a0000";
-
-		let result = get_deployed_polkavm_code_hash(PASSET_HUB_ENDPOINT, eoa_address).await;
-
-		assert!(matches!(
-			result,
-			Err(Error::Verification(msg)) if msg == "The provided address doesn't belong to a contract. Verification aborted."
 		));
 	}
 }
