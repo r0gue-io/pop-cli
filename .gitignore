@@ -19,3 +19,6 @@ debian/pop-cli.substvars
 debian/.debhelper
 
 vendor/
+
+# Diesel
+.diesel_lock
