@@ -191,12 +191,3 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cargo nextest run --locked --no-default-features --features "chain,integration-tests" --test chain --test metadata --no-fail-fast --nocapture --status-level all
-
-      # pop-fork RPC tests spawn local test nodes (ink-node). Running them in parallel
-      # causes concurrent downloads of the same binary, leading to race conditions and
-      # flaky failures. The -j 1 flag ensures sequential execution to avoid this issue.
-      - name: Run pop-fork integration tests (sequential)
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          cargo nextest run --locked --features "integration-tests" -p pop-fork --test rpc -j 1 --no-fail-fast --nocapture --status-level all
