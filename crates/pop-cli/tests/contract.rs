@@ -365,6 +365,9 @@ async fn verifiable_contract_lifecycle() -> Result<()> {
 	let weight_limit = dry_run_gas_estimate_instantiate(&instantiate_exec).await?;
 	let contract_info = instantiate_smart_contract(instantiate_exec, weight_limit).await?;
 
+	// Wait for the contract to be finalized in storage
+	sleep(Duration::from_secs(10)).await;
+
 	// Verify the contract against the live deployment using CLI
 	command = pop(
 		&temp_dir,
