@@ -9298,6 +9298,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "pop-fork"
+version = "0.12.1"
+dependencies = [
+ "bb8",
+ "bytes",
+ "diesel",
+ "diesel-async",
+ "diesel_migrations",
+ "hex",
+ "pop-common",
+ "sp-core",
+ "subxt 0.44.0",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tokio",
+ "tokio-test",
+ "url",
+]
+
+[[package]]
 name = "pop-telemetry"
 version = "0.12.1"
 dependencies = [
@@ -13673,6 +13693,21 @@ checksum = "d91ed6c858b01f942cd56b37a94b3e0a1798290327d1236e4d9cf4eaca44d29d"
 dependencies = [
  "base64ct",
  "der",
+]
+
+[[package]]
+name = "sqlite-wasm-rs"
+version = "0.4.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "60bdd87fcb4c9764b024805fb2df5f1d659bea6e629fdbdcdcfc4042b9a640d0"
+dependencies = [
+ "js-sys",
+ "once_cell",
+ "thiserror 2.0.17",
+ "tokio",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]
