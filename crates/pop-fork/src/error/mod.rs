@@ -9,7 +9,9 @@
 //! - [`rpc::RpcClientError`] - Errors from RPC client operations.
 
 pub mod cache;
+pub mod metadata;
 pub mod rpc;
 
 pub use cache::CacheError;
+pub use metadata::MetadataError;
 pub use rpc::RpcClientError;
