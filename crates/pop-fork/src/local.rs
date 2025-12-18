@@ -6,7 +6,8 @@ use std::{
 	sync::{Arc, RwLock},
 };
 
-type Modifications = HashMap<Vec<u8>, Option<Vec<u8>>>;
+type SharedStorageValue = Arc<Vec<u8>>;
+type Modifications = HashMap<Vec<u8>, Option<SharedStorageValue>>;
 type DeletedPrefixes = Vec<Vec<u8>>;
 
 #[derive(Clone, Debug)]
@@ -25,10 +26,10 @@ impl LocalStorageLayer {
 		}
 	}
 
-    fn get(&self, key: &[u8]) -> Result<Option<&[u8]>, LocalStorageError<Modifications>>{
-        let modifications_lock = self.modifications.try_read()?;
+    fn get(&self, key: &[u8]) -> Result<Option<SharedStorageValue>, LocalStorageError>{
+        let modifications_lock = self.modifications.try_read().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
         match modifications_lock.get(key){
-            Some(value)  => Ok(value.as_deref()),
+            Some(value)  => Ok(value.clone()),
             _ => Ok(None)
         }
     }

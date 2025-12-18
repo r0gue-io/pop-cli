@@ -4,12 +4,10 @@
 
 use crate::error::{CacheError, RpcClientError};
 use thiserror::Error;
-use std::sync::TryLockError;
-use std::sync::RwLockReadGuard;
 
 /// Errors that can occur when accessing the local storage layer.
 #[derive(Debug, Error)]
-pub enum LocalStorageError<T: 'static> {
+pub enum LocalStorageError {
 	/// RPC client error when fetching from the live chain.
 	#[error("RPC error: {0}")]
 	Rpc(#[from] RpcClientError),
@@ -18,5 +16,5 @@ pub enum LocalStorageError<T: 'static> {
 	Cache(#[from] CacheError),
     /// Lock acquire error
     #[error("Local storage acquire error: {0}")]
-    Lock(#[from] TryLockError<RwLockReadGuard<'static, T>>)
+    Lock(String)
 }
