@@ -7,9 +7,12 @@
 //!
 //! - [`cache::CacheError`] - Errors from SQLite storage cache operations.
 //! - [`rpc::RpcClientError`] - Errors from RPC client operations.
+//! - [`remote::RemoteStorageError`] - Errors from remote storage layer operations.
 
 pub mod cache;
+pub mod remote;
 pub mod rpc;
 
 pub use cache::CacheError;
+pub use remote::RemoteStorageError;
 pub use rpc::RpcClientError;

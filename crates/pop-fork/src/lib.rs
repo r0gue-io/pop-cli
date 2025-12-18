@@ -28,15 +28,23 @@
 //! │  └─────────────┘  └─────────────┘  └─────────────────────────┘  │
 //! └─────────────────────────────────────────────────────────────────┘
 //! ```
+//!
+//! # Main Types
+//!
+//! - [`ForkRpcClient`] - RPC client for connecting to live chains
+//! - [`StorageCache`] - SQLite-based persistent cache for storage values
+//! - [`RemoteStorageLayer`] - Cache-through layer that lazily fetches from RPC
 
 mod cache;
 pub mod error;
 mod models;
+mod remote;
 mod rpc;
 mod schema;
 mod strings;
 
 pub use cache::StorageCache;
-pub use error::{CacheError, RpcClientError};
+pub use error::{CacheError, RemoteStorageError, RpcClientError};
 pub use models::BlockRow;
+pub use remote::RemoteStorageLayer;
 pub use rpc::ForkRpcClient;

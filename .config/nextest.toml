@@ -1,6 +1,10 @@
 [test-groups]
-pop-fork-rpc = { max-threads = 1 }
+pop-fork-sequential = { max-threads = 1 }
 
 [[profile.default.overrides]]
 filter = 'package(pop-fork) and test(rpc::tests::sequential::)'
-test-group = 'pop-fork-rpc'
+test-group = 'pop-fork-sequential'
+
+[[profile.default.overrides]]
+filter = 'package(pop-fork) and test(remote::tests::sequential::)'
+test-group = 'pop-fork-sequential'

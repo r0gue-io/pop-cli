@@ -49,7 +49,7 @@ const MAX_LOCK_RETRIES: u32 = 30;
 ///
 /// Enables fast restarts without re-fetching all data from live chains
 /// and reduces load on public RPC endpoints.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct StorageCache {
 	inner: StorageConn,
 }
@@ -65,6 +65,15 @@ enum StorageConn {
 	/// In-memory databases don't benefit from connection pools since all connections share the
 	/// same memory state.
 	Single(Arc<Mutex<SyncConnectionWrapper<SqliteConnection>>>),
+}
+
+impl std::fmt::Debug for StorageConn {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			StorageConn::Pool(_) => f.debug_tuple("Pool").field(&"...").finish(),
+			StorageConn::Single(_) => f.debug_tuple("Single").field(&"...").finish(),
+		}
+	}
 }
 
 /// Connection guard that handles both pool and single connection types.
