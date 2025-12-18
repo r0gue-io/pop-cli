@@ -267,7 +267,6 @@ mod tests {
 	///
 	/// These tests are run sequentially via nextest configuration to avoid
 	/// concurrent node downloads causing race conditions.
-	#[cfg(feature = "integration-tests")]
 	mod sequential {
 		use super::*;
 		use pop_common::test_env::TestNode;
