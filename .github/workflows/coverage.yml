@@ -69,7 +69,7 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@cargo-nextest
 
-      - name: Generate code coverage
+      - name: Generate code coverage (no report)
         run: |
           cargo llvm-cov nextest \
           --locked \
@@ -77,24 +77,49 @@ jobs:
           --lib \
           --bins \
           --partition count:${{ matrix.partition }}/5 \
-          --codecov \
-          --output-path codecov.json \
-           --no-fail-fast \
-           --nocapture \
-           --status-level all
+          --no-report \
+          --no-fail-fast \
+          --nocapture \
+          --status-level all
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload coverage data
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-data-${{ matrix.partition }}
+          path: target/llvm-cov-target/**
+          retention-days: 1
+
+  merge-coverage:
+    needs: coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+          cache-on-failure: true
+          shared-key: shared-coverage-${{ github.head_ref || github.ref_name }}
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Download coverage data
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-data-*
+          merge-multiple: true
+          path: target/llvm-cov-target
+
+      - name: Generate merged coverage report
+        run: cargo llvm-cov report --codecov --output-path codecov.json
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: codecov.json
-          flags: partition-${{ matrix.partition }}
           fail_ci_if_error: true
-
-      - name: Clean up
-        shell: bash
-        if: always()
-        run: |
-          cargo llvm-cov clean --workspace --profraw-only
