@@ -170,22 +170,20 @@ impl ForkRpcClient {
 	/// A vector of optional values, in the same order as the input keys.
 	pub async fn storage_batch(
 		&self,
-		keys: &[Vec<u8>],
+		keys: &[&[u8]],
 		at: H256,
 	) -> Result<Vec<Option<Vec<u8>>>, RpcClientError> {
 		if keys.is_empty() {
 			return Ok(vec![]);
 		}
 
-		// Use state_queryStorageAt for batch fetching
-		let keys_refs: Vec<&[u8]> = keys.iter().map(|k| k.as_slice()).collect();
-
-		let result =
-			self.legacy.state_query_storage_at(keys_refs, Some(at)).await.map_err(|e| {
-				RpcClientError::RequestFailed {
-					method: methods::STATE_QUERY_STORAGE_AT,
-					message: e.to_string(),
-				}
+		let result = self
+			.legacy
+			.state_query_storage_at(keys.iter().copied(), Some(at))
+			.await
+			.map_err(|e| RpcClientError::RequestFailed {
+				method: methods::STATE_QUERY_STORAGE_AT,
+				message: e.to_string(),
 			})?;
 
 		// Build a map of key -> value from the response
@@ -203,7 +201,7 @@ impl ForkRpcClient {
 		// Return values in the same order as input keys.
 		// Use remove() to avoid cloning potentially large storage values.
 		// Note: If duplicate keys are passed, only the first occurrence gets the value.
-		let values = keys.iter().map(|key| changes.remove(key).flatten()).collect();
+		let values = keys.iter().map(|key| changes.remove(*key).flatten()).collect();
 
 		Ok(values)
 	}
@@ -456,11 +454,12 @@ mod tests {
 			let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 			let hash = client.finalized_head().await.unwrap();
 
-			let keys = vec![
+			let keys = [
 				hex::decode(SYSTEM_NUMBER_KEY).unwrap(),
 				hex::decode(SYSTEM_PARENT_HASH_KEY).unwrap(),
 			];
-			let values = client.storage_batch(&keys, hash).await.unwrap();
+			let key_refs: Vec<&[u8]> = keys.iter().map(|k| k.as_slice()).collect();
+			let values = client.storage_batch(&key_refs, hash).await.unwrap();
 
 			assert_eq!(values.len(), 2);
 			// Both System::Number and System::ParentHash should exist
@@ -531,11 +530,12 @@ mod tests {
 			let hash = client.finalized_head().await.unwrap();
 
 			// Mix of existing and non-existing keys
-			let keys = vec![
+			let keys = [
 				hex::decode(SYSTEM_NUMBER_KEY).unwrap(), // exists
 				vec![0xff; 32],                          // doesn't exist
 			];
-			let values = client.storage_batch(&keys, hash).await.unwrap();
+			let key_refs: Vec<&[u8]> = keys.iter().map(|k| k.as_slice()).collect();
+			let values = client.storage_batch(&key_refs, hash).await.unwrap();
 
 			assert_eq!(values.len(), 2);
 			assert!(values[0].is_some(), "System::Number should exist");
