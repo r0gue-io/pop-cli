@@ -79,6 +79,13 @@ jobs:
           path: nextest-archive.tar.zst
           retention-days: 1
 
+      - name: Upload instrumented binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: instrumented-binaries
+          path: target/llvm-cov-target/
+          retention-days: 1
+
   run-tests:
     needs: build-tests
     runs-on: ubuntu-latest
@@ -144,13 +151,11 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@cargo-nextest
 
-      - name: Download test archive
+      - name: Download instrumented binaries
         uses: actions/download-artifact@v4
         with:
-          name: nextest-archive
-
-      - name: Extract binaries from archive
-        run: tar -xf nextest-archive.tar.zst
+          name: instrumented-binaries
+          path: target/llvm-cov-target
 
       - name: Download coverage data
         uses: actions/download-artifact@v4
