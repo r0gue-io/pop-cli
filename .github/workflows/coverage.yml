@@ -30,6 +30,10 @@ concurrency:
 jobs:
   coverage:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        partition: [1,2,3,4,5] ## <- ~700 tests right now, ~140 per partition
     steps:
       - name: Setup Ubuntu dependencies
         shell: bash
@@ -67,7 +71,17 @@ jobs:
 
       - name: Generate code coverage
         run: |
-          cargo llvm-cov nextest --locked --workspace --lib --bins --codecov --output-path codecov.json --no-fail-fast --nocapture --status-level all
+          cargo llvm-cov nextest \
+          --locked \
+          --workspace \
+          --lib \
+          --bins \
+          --partition count:${{ matrix.partition }}/5 \
+          --codecov \
+          --output-path codecov.json \
+           --no-fail-fast \
+           --nocapture \
+           --status-level all
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
