@@ -239,7 +239,7 @@ impl LocalStorageLayer {
 		let mut modifications_lock =
 			self.modifications.write().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
 
-		modifications_lock.insert(key.to_vec(), value.map(|value| Arc::new(value.to_vec())));
+        modifications_lock.insert(key.to_vec(), value.map(|value| Arc::new(value.to_vec())));
 
 		Ok(())
 	}

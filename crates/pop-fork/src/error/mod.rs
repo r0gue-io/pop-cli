@@ -18,5 +18,4 @@ pub mod local;
 pub use cache::CacheError;
 pub use local::LocalStorageError;
 pub use remote::RemoteStorageError;
-pub use local::LocalStorageError;
 pub use rpc::RpcClientError;
