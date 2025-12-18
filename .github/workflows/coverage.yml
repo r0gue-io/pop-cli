@@ -59,16 +59,11 @@ jobs:
           cache-on-failure: true
           shared-key: shared-coverage-${{ github.head_ref || github.ref_name }}
 
-      - name: Install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
-
       - name: Install cargo-nextest
         uses: taiki-e/install-action@cargo-nextest
 
       - name: Build and archive tests
-        run: |
-          cargo llvm-cov nextest --no-run --locked --workspace --lib --bins
-          cargo nextest archive --locked --workspace --lib --bins --archive-file nextest-archive.tar.zst
+        run: cargo nextest archive --locked --workspace --lib --bins --archive-file nextest-archive.tar.zst
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
