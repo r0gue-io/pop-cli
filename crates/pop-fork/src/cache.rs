@@ -1132,6 +1132,7 @@ mod tests {
 	async fn concurrent_access() {
 		let temp_dir = tempfile::tempdir().unwrap();
 		let db_path = temp_dir.path().join("concurrent_test.db");
+		let cache = StorageCache::open(Some(&db_path)).await.unwrap();
 
 		let block_hash = H256::from([9u8; 32]);
 
