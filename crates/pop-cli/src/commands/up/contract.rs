@@ -7,7 +7,6 @@ use crate::{
 	},
 	commands::call::contract::CallContractCommand,
 	common::{
-		builds::PopComposeBuildArgs,
 		contracts::{
 			check_ink_node_and_prompt, has_contract_been_built, map_account, normalize_call_args,
 			resolve_function_args, resolve_signer, terminate_nodes,
@@ -163,7 +162,7 @@ impl UpContractCommand {
 			}
 			let spinner = spinner();
 			spinner.start("Building contract in RELEASE mode...");
-			let result = match build_smart_contract::<PopComposeBuildArgs>(
+			let result = match build_smart_contract(
 				&self.path,
 				BuildMode::Release,
 				Verbosity::Quiet,

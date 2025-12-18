@@ -3,7 +3,7 @@
 use crate::{
 	cli::traits::{Cli, Confirm, Input, Select},
 	common::{
-		builds::{PopComposeBuildArgs, ensure_project_path, get_project_path},
+		builds::{ensure_project_path, get_project_path},
 		contracts::{
 			has_contract_been_built, map_account, normalize_call_args, resolve_function_args,
 			resolve_signer,
@@ -212,7 +212,7 @@ impl CallContractCommand {
 		cli.warning("NOTE: contract has not yet been built.")?;
 		let spinner = spinner();
 		spinner.start("Building contract in RELEASE mode...");
-		let result = match build_smart_contract::<PopComposeBuildArgs>(
+		let result = match build_smart_contract(
 			&project_path,
 			BuildMode::Release,
 			Verbosity::Quiet,

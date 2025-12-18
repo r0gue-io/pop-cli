@@ -3,8 +3,6 @@
 mod helpers;
 
 use crate::{BuildMode, Error, ImageVariant, Verbosity};
-use contract_build::ComposeBuildArgs;
-use core::marker::PhantomData;
 use pop_common::Docker;
 use std::path::PathBuf;
 
@@ -25,15 +23,14 @@ enum ReferenceContract {
 }
 
 /// Used to verify a contract
-pub struct VerifyContract<T: ComposeBuildArgs> {
+pub struct VerifyContract {
 	/// The path containing the source contract to be verified against `reference_contract`.
 	verifying_path: PathBuf,
 	/// The reference contract to verify against
 	reference_contract: ReferenceContract,
-	_marker: PhantomData<T>,
 }
 
-impl<T: ComposeBuildArgs> VerifyContract<T> {
+impl VerifyContract {
 	/// Creates a new `VerifyContract` instance used to verify against a local bundle.
 	///
 	/// # Arguments
@@ -43,7 +40,6 @@ impl<T: ComposeBuildArgs> VerifyContract<T> {
 		Self {
 			verifying_path,
 			reference_contract: ReferenceContract::Local(reference_contract_bundle_path),
-			_marker: PhantomData,
 		}
 	}
 
@@ -59,7 +55,6 @@ impl<T: ComposeBuildArgs> VerifyContract<T> {
 		Self {
 			verifying_path,
 			reference_contract: ReferenceContract::Deployed(reference_deployed_contract),
-			_marker: PhantomData,
 		}
 	}
 
@@ -100,7 +95,7 @@ impl<T: ComposeBuildArgs> VerifyContract<T> {
 			},
 		};
 
-		let build_result = crate::build_smart_contract::<T>(
+		let build_result = crate::build_smart_contract(
 			&self.verifying_path,
 			build_mode,
 			Verbosity::default(),

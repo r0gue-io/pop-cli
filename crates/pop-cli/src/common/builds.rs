@@ -12,8 +12,6 @@ use {
 	std::path::Path,
 	strum::{EnumMessage, VariantArray},
 };
-#[cfg(feature = "contract")]
-use {pop_contracts::ComposeBuildArgs, regex::Regex};
 
 /// This method is used to get the proper project path format (with or without cli flag)
 pub fn get_project_path(path_flag: Option<PathBuf>, path_pos: Option<PathBuf>) -> Option<PathBuf> {
@@ -146,52 +144,6 @@ pub fn guide_user_to_select_profile(cli: &mut impl Cli) -> anyhow::Result<Profil
 		);
 	}
 	Ok(*prompt.interact()?)
-}
-
-#[cfg(feature = "contract")]
-pub(crate) struct PopComposeBuildArgs;
-#[cfg(feature = "contract")]
-impl ComposeBuildArgs for PopComposeBuildArgs {
-	fn compose_build_args() -> anyhow::Result<Vec<String>> {
-		process_build_args(std::env::args())
-	}
-}
-
-/// Process build arguments by filtering and transforming them for Docker builds.
-#[cfg(feature = "contract")]
-fn process_build_args<I>(args: I) -> anyhow::Result<Vec<String>>
-where
-	I: IntoIterator<Item = String>,
-{
-	// Match `pop` related args in `pop build --verifiable` or `pop verify` that shouldn't be passed
-	// to Docker image. `--path-pos` should also be ignored.
-	let path_pos_regex = Regex::new(r#"(--path-pos)[ ]*[^ ]*[ ]*"#).expect("Valid regex; qed;");
-	// If `--image` is passed in build command, remove it.
-	let image_regex = Regex::new(r#"(--image)[ ]*[^ ]*[ ]*"#).expect("Valid regex; qed;");
-	// If verify, we ignore `--contract-path`, `--url` and `--address`.
-	let verify_regex =
-		Regex::new(r#"(--contract-path|--url|--address)[ ]*[^ ]*[ ]*"#).expect("Valid regex; qed;");
-	// Replace `--path <value>` with `--manifest-path <value>/Cargo.toml`.
-	let path_regex = Regex::new(r#"--path\s+([^\s]+)"#).expect("Valid regex; qed;");
-
-	//Skip the first argument (the binary name).
-	let args_string: String = args.into_iter().skip(1).collect::<Vec<String>>().join(" ");
-	let args_string = path_pos_regex.replace_all(&args_string, "").to_string();
-	let args_string = image_regex.replace_all(&args_string, "").to_string();
-	let args_string = verify_regex.replace_all(&args_string, "").to_string();
-	let args_string = path_regex
-		.replace_all(&args_string, "--manifest-path $1/Cargo.toml")
-		.to_string();
-
-	// Turn it back to a vec, filtering out commands and arguments
-	// that should not be passed to the docker build command
-	let os_args: Vec<String> = args_string
-		.split_ascii_whitespace()
-		.filter(|a| a != &"--verifiable" && a != &"verify" && a != &"build")
-		.map(|s| s.to_string())
-		.collect();
-
-	Ok(os_args)
 }
 
 #[cfg(test)]
@@ -577,52 +529,5 @@ name = "test-workspace"
 			},
 			_ => panic!("The dir doesn't exist"),
 		}
-	}
-
-	#[test]
-	#[cfg(feature = "contract")]
-	fn process_build_args_transforms_path_to_manifest_path() {
-		let args =
-			vec!["pop".to_string(), "build".to_string(), "--path".to_string(), ".".to_string()];
-
-		let result = process_build_args(args).unwrap();
-		assert_eq!(result, vec!["--manifest-path".to_string(), "./Cargo.toml".to_string()]);
-	}
-
-	#[test]
-	#[cfg(feature = "contract")]
-	fn process_build_args_removes_pop_specific_args() {
-		let args = vec![
-			"pop".to_string(),
-			"build".to_string(),
-			"--verifiable".to_string(),
-			"--image".to_string(),
-			"some-image".to_string(),
-			"--path-pos".to_string(),
-			"./path".to_string(),
-			"--release".to_string(),
-		];
-
-		let result = process_build_args(args).unwrap();
-		assert_eq!(result, vec!["--release".to_string()]);
-	}
-
-	#[test]
-	#[cfg(feature = "contract")]
-	fn process_build_args_removes_verify_specific_args() {
-		let args = vec![
-			"pop".to_string(),
-			"verify".to_string(),
-			"--contract-path".to_string(),
-			"bundle.contract".to_string(),
-			"--url".to_string(),
-			"wss://example.com".to_string(),
-			"--address".to_string(),
-			"0x123".to_string(),
-			"--release".to_string(),
-		];
-
-		let result = process_build_args(args).unwrap();
-		assert_eq!(result, vec!["--release".to_string()]);
 	}
 }

@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{
-	cli::traits::Cli,
-	common::builds::{PopComposeBuildArgs, ensure_project_path},
-};
+use crate::{cli::traits::Cli, common::builds::ensure_project_path};
 use anyhow::Result;
 use clap::{ArgGroup, Args};
 use pop_contracts::{DeployedContract, ImageVariant, VerifyContract};
@@ -51,9 +48,7 @@ impl VerifyCommand {
 		let project_path = ensure_project_path(self.path.clone(), self.path_pos.clone());
 
 		if let Some(contract_path) = self.contract_path.as_ref() {
-			<VerifyContract<PopComposeBuildArgs>>::new_local(project_path, contract_path.clone())
-				.execute()
-				.await?;
+			VerifyContract::new_local(project_path, contract_path.clone()).execute().await?;
 		} else {
 			// SAFETY: clap enforces that if contract_path is not present,
 			// then url, address, and image must all be present
@@ -61,7 +56,7 @@ impl VerifyCommand {
 			let address = self.address.as_ref().expect("address required by clap");
 			let image = self.image.as_ref().expect("image required by clap");
 
-			<VerifyContract<PopComposeBuildArgs>>::new_deployed(
+			VerifyContract::new_deployed(
 				project_path,
 				DeployedContract {
 					rpc_endpoint: url.clone(),

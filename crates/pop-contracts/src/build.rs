@@ -3,15 +3,57 @@
 use crate::{errors::Error, utils::get_manifest_path};
 pub use contract_build::{BuildMode, ComposeBuildArgs, ImageVariant, MetadataSpec, Verbosity};
 use contract_build::{BuildResult, ExecuteArgs, execute};
+use regex::Regex;
 use std::{fs, path::Path};
 use toml::Value;
+
+pub(crate) struct PopComposeBuildArgs;
+impl ComposeBuildArgs for PopComposeBuildArgs {
+	fn compose_build_args() -> anyhow::Result<Vec<String>> {
+		process_build_args(std::env::args())
+	}
+}
+
+/// Process build arguments by filtering and transforming them for Docker builds.
+fn process_build_args<I>(args: I) -> anyhow::Result<Vec<String>>
+where
+	I: IntoIterator<Item = String>,
+{
+	// Match `pop` related args in `pop build --verifiable` or `pop verify` that shouldn't be passed
+	// to Docker image. `--path-pos` should also be ignored.
+	let path_pos_regex = Regex::new(r#"(--path-pos)[ ]*[^ ]*[ ]*"#).expect("Valid regex; qed;");
+	// If `--image` is passed in build command, remove it.
+	let image_regex = Regex::new(r#"(--image)[ ]*[^ ]*[ ]*"#).expect("Valid regex; qed;");
+	// If verify, we ignore `--contract-path`, `--url` and `--address`.
+	let verify_regex =
+		Regex::new(r#"(--contract-path|--url|--address)[ ]*[^ ]*[ ]*"#).expect("Valid regex; qed;");
+	// Replace `--path <value>` with `--manifest-path <value>/Cargo.toml`.
+	let path_regex = Regex::new(r#"--path\s+([^\s]+)"#).expect("Valid regex; qed;");
+
+	//Skip the first argument (the binary name).
+	let args_string: String = args.into_iter().skip(1).collect::<Vec<String>>().join(" ");
+	let args_string = path_pos_regex.replace_all(&args_string, "").to_string();
+	let args_string = image_regex.replace_all(&args_string, "").to_string();
+	let args_string = verify_regex.replace_all(&args_string, "").to_string();
+	let args_string = path_regex
+		.replace_all(&args_string, "--manifest-path $1/Cargo.toml")
+		.to_string();
+
+	// Turn it back to a vec, filtering out commands and arguments
+	// that should not be passed to the docker build command
+	let os_args: Vec<String> = args_string
+		.split_ascii_whitespace()
+		.filter(|a| a != &"--verifiable" && a != &"verify" && a != &"build")
+		.map(|s| s.to_string())
+		.collect();
+
+	Ok(os_args)
+}
 
 /// Build the smart contract located at the specified `path` in `build_release` mode.
 ///
 /// If `build_mode` is `Verifiable`, this function will call a docker image running a verifiable
-/// build using some CLI (by default, `cargo contract`). The generic type `T` can be used here to
-/// determine how to handle the arguments passed to the docker container, as the CLI called inside
-/// might not recognize some commands passed by the user
+/// build using some CLI (by default, `cargo contract`).
 ///
 /// # Arguments
 /// * `path` - The optional path to the smart contract manifest, defaulting to the current directory
@@ -19,7 +61,7 @@ use toml::Value;
 /// * `release` - Whether the smart contract should be built without any debugging functionality.
 /// * `verbosity` - The build output verbosity.
 /// * `metadata_spec` - Optionally specify the contract metadata format/version.
-pub fn build_smart_contract<T: ComposeBuildArgs>(
+pub fn build_smart_contract(
 	path: &Path,
 	build_mode: BuildMode,
 	verbosity: Verbosity,
@@ -54,8 +96,9 @@ pub fn build_smart_contract<T: ComposeBuildArgs>(
 	// Execute the build and log the output of the build
 	match build_mode {
 		// For verifiable contracts, execute calls docker_build (https://github.com/use-ink/cargo-contract/blob/master/crates/build/src/lib.rs#L595) which launches a blocking tokio runtime to handle the async operations (https://github.com/use-ink/cargo-contract/blob/master/crates/build/src/docker.rs#L135). The issue is that pop is itself a tokio runtime, launching another blocking one isn't allowed by tokio. So for verifiable contracts we need to first block the main pop tokio runtime before calling execute
-		BuildMode::Verifiable => tokio::task::block_in_place(|| execute::<T>(args)),
-		_ => execute::<T>(args),
+		BuildMode::Verifiable =>
+			tokio::task::block_in_place(|| execute::<PopComposeBuildArgs>(args)),
+		_ => execute::<PopComposeBuildArgs>(args),
 	}
 }
 
