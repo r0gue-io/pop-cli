@@ -37,6 +37,7 @@
 
 mod cache;
 pub mod error;
+mod local;
 mod models;
 mod remote;
 mod rpc;
