@@ -454,7 +454,7 @@ mod tests {
 			let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 			let hash = client.finalized_head().await.unwrap();
 
-			let keys = vec![
+			let keys = [
 				hex::decode(SYSTEM_NUMBER_KEY).unwrap(),
 				hex::decode(SYSTEM_PARENT_HASH_KEY).unwrap(),
 			];
@@ -530,7 +530,7 @@ mod tests {
 			let hash = client.finalized_head().await.unwrap();
 
 			// Mix of existing and non-existing keys
-			let keys = vec![
+			let keys = [
 				hex::decode(SYSTEM_NUMBER_KEY).unwrap(), // exists
 				vec![0xff; 32],                          // doesn't exist
 			];
