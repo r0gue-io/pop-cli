@@ -1,14 +1,24 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use std::sync::{Arc, RwLock};
-use std::collections::HashMap;
-use crate::remote::RemoteStorageLayer;
-use crate::rpc::ForkRpcClient;
-use crate::cache::StorageCache;
+use crate::{cache::StorageCache, remote::RemoteStorageLayer, rpc::ForkRpcClient};
+use std::{
+	collections::HashMap,
+	sync::{Arc, RwLock},
+};
 
-#[derive(Clone)]
-pub struct LocalStorageLayer{
-    parent: RemoteStorageLayer,
-    modifications: Arc<RwLock<HashMap<Vec<u8>, Option<Vec<u8>>>>>,
-    deleted_prefixes: Arc<RwLock<Vec<Vec<u8>>>>
+#[derive(Clone, Debug)]
+pub struct LocalStorageLayer {
+	parent: RemoteStorageLayer,
+	modifications: Arc<RwLock<HashMap<Vec<u8>, Option<Vec<u8>>>>>,
+	deleted_prefixes: Arc<RwLock<Vec<Vec<u8>>>>,
+}
+
+impl LocalStorageLayer {
+	fn new(parent: RemoteStorageLayer) -> Self {
+		Self {
+			parent,
+			modifications: Arc::new(RwLock::new(HashMap::new())),
+			deleted_prefixes: Arc::new(RwLock::new(Vec::new())),
+		}
+	}
 }
