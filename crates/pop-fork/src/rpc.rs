@@ -282,7 +282,6 @@ impl ForkRpcClient {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use pop_common::test_env::TestNode;
 
 	#[test]
 	fn error_display_connection_failed() {
