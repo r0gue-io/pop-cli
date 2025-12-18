@@ -8,10 +8,10 @@ use thiserror::Error;
 /// Errors that can occur when accessing the local storage layer.
 #[derive(Debug, Error)]
 pub enum LocalStorageError {
-    /// Remote storage error
-    #[error(transparent)]
-    RemoteStorage(#[from] RemoteStorageError),
-    /// Lock acquire error
-    #[error("Local storage acquire error: {0}")]
-    Lock(String)
+	/// Remote storage error
+	#[error(transparent)]
+	RemoteStorage(#[from] RemoteStorageError),
+	/// Lock acquire error
+	#[error("Local storage acquire error: {0}")]
+	Lock(String),
 }
