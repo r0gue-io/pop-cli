@@ -506,8 +506,6 @@ impl StorageCache {
 		use crate::schema::{
 			blocks::columns as bc, prefix_scans::columns as psc, storage::columns as sc,
 		};
-		let orig_bh_vec = hash.as_bytes().to_vec();
-		use crate::schema::{blocks::columns as bc, storage::columns as sc};
 		let block_hash = Arc::new(hash.as_bytes());
 
 		// Retry loop for transient SQLite lock/busy errors.
@@ -1178,7 +1176,7 @@ mod tests {
 			(b"balances:alice", Some(b"50")),
 			(b"balances:bob", Some(b"75")),
 		];
-		cache.set_batch(block_hash, &entries).await.unwrap();
+		cache.set_storage_batch(block_hash, &entries).await.unwrap();
 
 		// Get keys with "tokens:" prefix
 		let token_keys = cache.get_keys_by_prefix(block_hash, b"tokens:").await.unwrap();
@@ -1210,7 +1208,7 @@ mod tests {
 			(b"prefix_a:3", Some(b"v3")),
 			(b"prefix_b:1", Some(b"v4")),
 		];
-		cache.set_batch(block_hash, &entries).await.unwrap();
+		cache.set_storage_batch(block_hash, &entries).await.unwrap();
 
 		assert_eq!(cache.count_keys_by_prefix(block_hash, b"prefix_a:").await.unwrap(), 3);
 		assert_eq!(cache.count_keys_by_prefix(block_hash, b"prefix_b:").await.unwrap(), 1);
