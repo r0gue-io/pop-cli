@@ -12,7 +12,9 @@
 pub mod cache;
 pub mod remote;
 pub mod rpc;
+pub mod local;
 
 pub use cache::CacheError;
 pub use remote::RemoteStorageError;
+pub use local::LocalStorageError;
 pub use rpc::RpcClientError;
