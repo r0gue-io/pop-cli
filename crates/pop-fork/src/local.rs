@@ -6,8 +6,8 @@ use std::{
 	sync::{Arc, RwLock},
 };
 
-type SharedStorageValue = Arc<Vec<u8>>;
-type Modifications = HashMap<Vec<u8>, Option<SharedStorageValue>>;
+type SharedValue = Arc<Vec<u8>>;
+type Modifications = HashMap<Vec<u8>, Option<SharedValue>>;
 type DeletedPrefixes = Vec<Vec<u8>>;
 
 #[derive(Clone, Debug)]
@@ -26,11 +26,21 @@ impl LocalStorageLayer {
 		}
 	}
 
-    fn get(&self, key: &[u8]) -> Result<Option<SharedStorageValue>, LocalStorageError>{
+    async fn get(&self, key: &[u8]) -> Result<Option<SharedValue>, LocalStorageError>{
         let modifications_lock = self.modifications.try_read().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
+        let deleted_prefixes_lock = self.deleted_prefixes.try_read().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
         match modifications_lock.get(key){
             Some(value)  => Ok(value.clone()),
-            _ => Ok(None)
+            None if deleted_prefixes_lock.iter().any(|deleted| deleted.as_slice() == key)=> Ok(None),
+             _ => Ok(self.parent.get(key).await?.map(|value| Arc::new(value)))
         }
+    }
+
+    fn set(&self, key: &[u8], value: Option<&[u8]>) -> Result<(), LocalStorageError>{
+        let mut modifications_lock = self.modifications.try_write().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
+
+        modifications_lock.insert(key.to_vec(), value.map(|value| Arc::new(value.to_vec())));
+
+        Ok(())
     }
 }
