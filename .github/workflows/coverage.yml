@@ -90,6 +90,7 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: codecov.json
+          flags: partition-${{ matrix.partition }}
           fail_ci_if_error: true
 
       - name: Clean up
