@@ -82,6 +82,19 @@ jobs:
       matrix:
         partition: [1,2,3,4,5] ## <- ~700 tests right now, ~140 per partition
     steps:
+      - name: Free up space on runner
+        shell: bash
+        run: |
+          set -xeuo pipefail
+          sudo rm -rf /usr/local/lib/android &
+          sudo rm -rf /usr/share/dotnet &
+          sudo rm -rf /usr/share/swift &
+          if command -v docker &> /dev/null; then
+            sudo docker image prune -af &
+          fi
+          sudo apt-get clean &
+          wait
+
       - uses: actions/checkout@v4
 
       - name: Install cargo-llvm-cov
