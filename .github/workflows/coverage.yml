@@ -74,7 +74,7 @@ jobs:
           path: nextest-archive.tar.zst
           retention-days: 1
 
-  coverage:
+  run-tests:
     needs: build-tests
     runs-on: ubuntu-latest
     strategy:
@@ -124,39 +124,30 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage-data-${{ matrix.partition }}
-          path: target/llvm-cov-target/**/*.profraw
+          path: target/llvm-cov-target/**
           retention-days: 1
 
-      - name: Upload binaries (only from partition 1)
-        if: matrix.partition == 1
-        uses: actions/upload-artifact@v4
-        with:
-          name: instrumented-binaries
-          path: |
-            target/llvm-cov-target/debug/
-          retention-days: 1
-
-  merge-coverage:
-    needs: coverage
+  upload-coverage:
+    needs: run-tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-all-crates: true
-          cache-on-failure: true
-          shared-key: shared-coverage-${{ github.head_ref || github.ref_name }}
-
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Download instrumented binaries
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@cargo-nextest
+
+      - name: Download test archive
         uses: actions/download-artifact@v4
         with:
-          name: instrumented-binaries
-          path: target/llvm-cov-target/debug
+          name: nextest-archive
+
+      - name: Extract binaries from archive
+        run: |
+          mkdir -p target/llvm-cov-target/debug
+          tar -xf nextest-archive.tar.zst -C target/llvm-cov-target/debug
 
       - name: Download coverage data
         uses: actions/download-artifact@v4
