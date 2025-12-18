@@ -52,4 +52,3 @@ pub use local::LocalStorageLayer;
 pub use models::BlockRow;
 pub use remote::RemoteStorageLayer;
 pub use rpc::ForkRpcClient;
-pub use local::LocalStorageLayer;

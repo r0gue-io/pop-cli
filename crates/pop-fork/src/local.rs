@@ -221,20 +221,6 @@ impl LocalStorageLayer {
 		}
 	}
 
-	/// Set a storage value locally.
-	///
-	/// # Arguments
-	/// * `key` - The storage key to set
-	/// * `value` - The value to set, or `None` to mark as deleted
-	///
-	/// # Returns
-	/// * `Ok(())` - Value was set successfully
-	/// * `Err(_)` - Lock error
-	///
-	/// # Behavior
-	/// - Does not affect the parent layer or underlying cache
-	/// - Overwrites any previous local modification for this key
-	/// - Passing `None` marks the key as explicitly deleted (different from never set)
 	pub fn set(&self, key: &[u8], value: Option<&[u8]>) -> Result<(), LocalStorageError> {
 		let mut modifications_lock =
 			self.modifications.write().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
