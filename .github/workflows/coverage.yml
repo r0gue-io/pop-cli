@@ -28,12 +28,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  coverage:
+  build-tests:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        partition: [1,2,3,4,5] ## <- ~700 tests right now, ~140 per partition
     steps:
       - name: Setup Ubuntu dependencies
         shell: bash
@@ -69,13 +65,45 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@cargo-nextest
 
-      - name: Generate code coverage (no report)
+      - name: Build and archive tests
+        run: |
+          cargo llvm-cov nextest --no-run --locked --workspace --lib --bins
+          cargo nextest archive --locked --workspace --lib --bins --archive-file nextest-archive.tar.zst
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload test archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextest-archive
+          path: nextest-archive.tar.zst
+          retention-days: 1
+
+  coverage:
+    needs: build-tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        partition: [1,2,3,4,5] ## <- ~700 tests right now, ~140 per partition
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@cargo-nextest
+
+      - name: Download test archive
+        uses: actions/download-artifact@v4
+        with:
+          name: nextest-archive
+
+      - name: Run tests with coverage
         run: |
           cargo llvm-cov nextest \
-          --locked \
-          --workspace \
-          --lib \
-          --bins \
+          --archive-file nextest-archive.tar.zst \
           --partition count:${{ matrix.partition }}/5 \
           --no-report \
           --no-fail-fast \
