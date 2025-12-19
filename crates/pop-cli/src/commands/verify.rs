@@ -68,7 +68,16 @@ impl VerifyCommand {
 			.await?;
 		}
 
-		let _ = cli.success("The contract verification completed successfully ✅");
+		let success_message = if let (Some(endpoint), Some(address)) = (self.url, self.address) {
+			format!(
+				"The contract deployed in {} at address {} has been succesfully verified ✅",
+				endpoint, address
+			);
+		} else {
+			"The contract verification completed successfully ✅".to_string()
+		};
+
+		let _ = cli.success(success_message);
 
 		Ok(())
 	}
