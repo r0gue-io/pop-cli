@@ -60,7 +60,25 @@ use std::path::PathBuf;
 
 const FALLBACK_CARGO_CONTRACT_VERSION: &str = "6.0.0-beta.1";
 
-/// `cargo-contract` used version
+/// The version of `cargo-contract` used by pop-cli.
+///
+/// This constant attempts to extract the version from the `contract-build` dependency
+/// in the workspace's `Cargo.toml` manifest at compile time. The version is used for
+/// features like contract verification to ensure compatibility between the version used
+/// to build contracts and the version that compiled them.
+///
+/// # Fallback Behavior
+///
+/// If the version cannot be extracted from the workspace manifest (for example, when using
+/// a git commit instead of a released version like `rev = "79c4d3d"`), it falls back to
+/// [`FALLBACK_CARGO_CONTRACT_VERSION`]. This fallback ensures compilation succeeds even
+/// during development when using unreleased commits of `cargo-contract`.
+///
+/// # Important
+///
+/// When the workspace upgrades to a stable release version (e.g., from `6.0.0-beta.1` to `6.0.0`),
+/// [`FALLBACK_CARGO_CONTRACT_VERSION`] should be updated to match. A test exists to verify this
+/// and will fail if a stable version is detected that doesn't match the fallback.
 pub(crate) static CARGO_CONTRACT_VERSION: Lazy<Version> = Lazy::new(|| {
 	let maybe_workspace_manifest: Option<PathBuf> = || -> Option<PathBuf> {
 		let current_dir = std::env::current_dir().ok()?;
@@ -232,5 +250,43 @@ members = ["crate1", "crate2"]
 				get_used_cargo_contract_version(None)
 			);
 		});
+	}
+
+	/// Test to ensure the fallback version is kept up to date with the workspace version.
+	///
+	/// This test verifies that when the workspace uses a stable version of `contract-build`
+	/// (i.e., a version without prerelease identifiers like `-beta`, `-rc`, etc.), the
+	/// fallback constant matches it.
+	///
+	/// # Why this test exists
+	///
+	/// When developing, we often use git commits of `cargo-contract` which can't be parsed
+	/// as versions, so the fallback is used. When we upgrade to a stable release (e.g., from
+	/// `6.0.0-beta.1` to `6.0.0`), this test will fail to remind us to update
+	/// `FALLBACK_CARGO_CONTRACT_VERSION`.
+	///
+	/// # When this test fails
+	///
+	/// - The workspace uses a new version (e.g., `6.0.0`) that differs from the fallback
+	/// - This indicates `FALLBACK_CARGO_CONTRACT_VERSION` needs to be updated
+	#[test]
+	fn fallback_version_is_up_to_date_with_workspace() {
+		let workspace_manifest = std::env::current_dir()
+			.ok()
+			.and_then(|dir| rustilities::manifest::find_workspace_manifest(dir));
+
+		let computed_version = get_used_cargo_contract_version(workspace_manifest);
+		let fallback_version =
+			Version::parse(FALLBACK_CARGO_CONTRACT_VERSION).expect("Fallback version is valid");
+
+		// If the computed version is different from the fallback
+		if computed_version != fallback_version {
+			panic!(
+				"The workspace is using a version of contract-build ({}) that differs \
+				 from FALLBACK_CARGO_CONTRACT_VERSION ({}).\n\
+				 Please update FALLBACK_CARGO_CONTRACT_VERSION to \"{}\" in lib.rs",
+				computed_version, fallback_version, computed_version
+			);
+		}
 	}
 }
