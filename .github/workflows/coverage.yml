@@ -100,7 +100,6 @@ jobs:
 
       - name: Run tests with coverage
         run: |
-          source <(cargo llvm-cov show-env --export-prefix)
           cargo llvm-cov nextest \
           --archive-file nextest-archive.tar.zst \
           --partition count:${{ matrix.partition }}/5 \
