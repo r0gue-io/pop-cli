@@ -31,7 +31,7 @@ impl Docker {
 	}
 
 	fn detect_docker() -> Result<Self, Error> {
-		match Command::new("docker").arg("info").output() {
+		match Command::new("docker").arg("info").timeout(Duration::from_secs(5)).output() {
 			Ok(output) if output.status.success() => Ok(Docker::Running),
 			Ok(_) => Ok(Docker::Installed),
 			Err(err) if err.kind() == ErrorKind::NotFound => Ok(Docker::NotInstalled),
@@ -445,10 +445,10 @@ fi"#,
 	fn pull_image_fails_when_pull_command_fails() {
 		let command_mock = CommandMock::default();
 		let docker_info_script = r#"#!/bin/sh
-if [ "$1" = "info" ]; then 
-    exit 0; 
-else 
-    exit 1; 
+if [ "$1" = "info" ]; then
+    exit 0;
+else
+    exit 1;
 fi"#;
 
 		command_mock.with_command_script("docker", docker_info_script).execute(|| {
