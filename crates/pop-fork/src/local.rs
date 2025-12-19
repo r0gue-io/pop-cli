@@ -123,7 +123,7 @@ impl LocalStorageLayer {
 				.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
 			match modifications_lock.get(key) {
 				Some(value) => return Ok(value.clone()),
-				None if deleted_prefixes_lock.iter().any(|prefix| prefix.as_slice() == key) =>
+				None if deleted_prefixes_lock.iter().any(|prefix| key.starts_with(prefix.as_slice())) =>
 					return Ok(None),
 				_ => (),
 			}
