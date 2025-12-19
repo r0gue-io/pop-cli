@@ -74,21 +74,20 @@ pub(super) fn compare_local_toolchain(build_info: &BuildInfo) -> Result<(), Erro
 	validate_toolchain_name(expected_rust_toolchain)?;
 
 	if rust_toolchain != *expected_rust_toolchain {
-		return Err(Error::InvalidToolchain(
+		return Err(Error::InvalidToolchain(format!(
 			"You are trying to `verify` a contract using the following toolchain:\n\
-                {rust_toolchain}\n\n\
+                {rust_toolchain}\n\n
                 However, the original contract was built using:\n\
                 {expected_rust_toolchain}\n\n\
                 Please install the correct toolchain and re-run the `verify` command:\n\
                 rustup install {expected_rust_toolchain}"
-				.to_owned(),
-		));
+		)));
 	}
 
 	if build_info.cargo_contract_version != *CARGO_CONTRACT_VERSION {
 		return Err(Error::InvalidToolchain(format!(
 			"\nYou are trying to verify a contract using `cargo-contract` version \
-                `{}`.\n\n\
+                `{}`.\n\n
                 However, the original contract was built using `cargo-contract` version \
                 `{}`.\n\n\". The `cargo contract` version is implied by the `pop` version used.",
 			*CARGO_CONTRACT_VERSION, build_info.cargo_contract_version,
@@ -190,7 +189,7 @@ pub(super) async fn get_deployed_polkavm_code_hash(
 	let contract_address = crate::utils::parse_hex_bytes(contract_address)?.0;
 	let client = pop_chains::set_up_client(rpc_endpoint).await.map_err(|_| {
 		Error::Verification(
-			"pop couldn't connect to the provided rpc enpoint. Verification aborted.".to_owned(),
+			"pop couldn't connect to the provided rpc endpoint. Verification aborted.".to_owned(),
 		)
 	})?;
 
@@ -472,14 +471,20 @@ mod tests {
 			cargo_contract_version: CARGO_CONTRACT_VERSION.clone(),
 			build_mode: BuildMode::Release,
 		};
+		let expected_rust_toolchain = "nightly-2020-01-01";
+		let rust_toolchain = contract_build::util::rust_toolchain()
+			.expect("`rustc` always has a version associated with it.");
 
 		let result = compare_local_toolchain(&build_info);
-		let expected_msg = "You are trying to `verify` a contract using the following toolchain:\n\
-                {rust_toolchain}\n\n\
+		let expected_msg = format!(
+			"You are trying to `verify` a contract using the following toolchain:\n\
+                {rust_toolchain}\n\n
                 However, the original contract was built using:\n\
                 {expected_rust_toolchain}\n\n\
                 Please install the correct toolchain and re-run the `verify` command:\n\
-                rustup install {expected_rust_toolchain}";
+                rustup install {expected_rust_toolchain}"
+		);
+
 		assert!(matches!(result, Err(Error::InvalidToolchain(msg)) if msg == expected_msg));
 	}
 
@@ -497,7 +502,7 @@ mod tests {
 		let result = compare_local_toolchain(&build_info);
 		let expected_msg = format!(
 			"\nYou are trying to verify a contract using `cargo-contract` version \
-                `{}`.\n\n\
+                `{}`.\n\n
                 However, the original contract was built using `cargo-contract` version \
                 `{}`.\n\n\". The `cargo contract` version is implied by the `pop` version used.",
 			*CARGO_CONTRACT_VERSION, "1.0.0"
@@ -720,7 +725,7 @@ mod tests {
 
 		assert!(matches!(
 			result,
-			Err(Error::Verification(msg)) if msg == "pop couldn't connect to the provided rpc enpoint. Verification aborted."
+			Err(Error::Verification(msg)) if msg == "pop couldn't connect to the provided rpc endpoint. Verification aborted."
 		));
 	}
 

@@ -233,7 +233,7 @@ version = "0.1.0"
 		Ok(())
 	}
 
-    #[test]
+	#[test]
 	fn process_build_args_transforms_path_to_manifest_path() {
 		let args =
 			vec!["pop".to_string(), "build".to_string(), "--path".to_string(), ".".to_string()];

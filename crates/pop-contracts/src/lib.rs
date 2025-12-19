@@ -112,7 +112,6 @@ fn get_used_cargo_contract_version(manifest_path: Option<PathBuf>) -> Version {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::fs::File;
 	use tempfile::TempDir;
 
 	struct TestBuilder {
