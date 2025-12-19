@@ -68,11 +68,11 @@ impl VerifyCommand {
 			.await?;
 		}
 
-		let success_message = if let (Some(endpoint), Some(address)) = (self.url, self.address) {
+		let success_message = if let (Some(endpoint), Some(address)) = (&self.url, &self.address) {
 			format!(
 				"The contract deployed in {} at address {} has been succesfully verified ✅",
 				endpoint, address
-			);
+			)
 		} else {
 			"The contract verification completed successfully ✅".to_string()
 		};

@@ -53,7 +53,7 @@ pub use sp_weights::Weight;
 pub use up::{get_instantiate_payload, get_upload_payload};
 pub use utils::map_account::AccountMapper;
 
-use cargo_toml::{Dependency, Manifest};
+use cargo_toml::Dependency;
 use once_cell::sync::Lazy;
 use semver::Version;
 use std::path::PathBuf;
@@ -75,7 +75,7 @@ fn get_used_cargo_contract_version(manifest_path: Option<PathBuf>) -> Version {
 		.expect("The fallback version is always valid; qed;");
 
 	let manifest = match manifest_path {
-		Some(path) => match Manifest::from_path(path) {
+		Some(path) => match pop_common::manifest::from_path(&path) {
 			Ok(manifest) => manifest,
 			_ => return fallback_version,
 		},
