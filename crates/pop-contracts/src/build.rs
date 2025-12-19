@@ -232,4 +232,51 @@ version = "0.1.0"
 		assert!(spec.is_none());
 		Ok(())
 	}
+
+    #[test]
+	#[cfg(feature = "contract")]
+	fn process_build_args_transforms_path_to_manifest_path() {
+		let args =
+			vec!["pop".to_string(), "build".to_string(), "--path".to_string(), ".".to_string()];
+
+		let result = process_build_args(args).unwrap();
+		assert_eq!(result, vec!["--manifest-path".to_string(), "./Cargo.toml".to_string()]);
+	}
+
+	#[test]
+	#[cfg(feature = "contract")]
+	fn process_build_args_removes_pop_specific_args() {
+		let args = vec![
+			"pop".to_string(),
+			"build".to_string(),
+			"--verifiable".to_string(),
+			"--image".to_string(),
+			"some-image".to_string(),
+			"--path-pos".to_string(),
+			"./path".to_string(),
+			"--release".to_string(),
+		];
+
+		let result = process_build_args(args).unwrap();
+		assert_eq!(result, vec!["--release".to_string()]);
+	}
+
+	#[test]
+	#[cfg(feature = "contract")]
+	fn process_build_args_removes_verify_specific_args() {
+		let args = vec![
+			"pop".to_string(),
+			"verify".to_string(),
+			"--contract-path".to_string(),
+			"bundle.contract".to_string(),
+			"--url".to_string(),
+			"wss://example.com".to_string(),
+			"--address".to_string(),
+			"0x123".to_string(),
+			"--release".to_string(),
+		];
+
+		let result = process_build_args(args).unwrap();
+		assert_eq!(result, vec!["--release".to_string()]);
+	}
 }
