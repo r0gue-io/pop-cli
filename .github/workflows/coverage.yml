@@ -75,8 +75,6 @@ jobs:
   run-tests:
     needs: build-tests
     runs-on: ubuntu-latest
-    env:
-      CARGO_TARGET_DIR: target/llvm-cov-target
     strategy:
       fail-fast: false
       matrix:
