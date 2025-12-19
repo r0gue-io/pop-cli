@@ -40,6 +40,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Free up space on runner
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          set -xeuo pipefail
+          sudo rm -rf /usr/local/lib/android &
+          sudo rm -rf /usr/share/dotnet &
+          sudo rm -rf /usr/share/swift &
+          if command -v docker &> /dev/null; then
+            sudo docker image prune -af &
+          fi
+          sudo apt-get clean &
+          wait
+
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
         with:
