@@ -234,7 +234,6 @@ version = "0.1.0"
 	}
 
     #[test]
-	#[cfg(feature = "contract")]
 	fn process_build_args_transforms_path_to_manifest_path() {
 		let args =
 			vec!["pop".to_string(), "build".to_string(), "--path".to_string(), ".".to_string()];
@@ -244,7 +243,6 @@ version = "0.1.0"
 	}
 
 	#[test]
-	#[cfg(feature = "contract")]
 	fn process_build_args_removes_pop_specific_args() {
 		let args = vec![
 			"pop".to_string(),
@@ -262,7 +260,6 @@ version = "0.1.0"
 	}
 
 	#[test]
-	#[cfg(feature = "contract")]
 	fn process_build_args_removes_verify_specific_args() {
 		let args = vec![
 			"pop".to_string(),
