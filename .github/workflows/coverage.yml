@@ -79,13 +79,6 @@ jobs:
           path: nextest-archive.tar.zst
           retention-days: 1
 
-      - name: Upload instrumented binaries
-        uses: actions/upload-artifact@v4
-        with:
-          name: instrumented-binaries
-          path: target/llvm-cov-target/
-          retention-days: 1
-
   run-tests:
     needs: build-tests
     runs-on: ubuntu-latest
@@ -132,11 +125,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload coverage data
+      - name: Upload coverage data (profraw files only)
         uses: actions/upload-artifact@v4
         with:
           name: coverage-data-${{ matrix.partition }}
-          path: target/llvm-cov-target/**
+          path: target/llvm-cov-target/*.profraw
           retention-days: 1
 
   upload-coverage:
@@ -164,21 +157,28 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@cargo-nextest
 
-      - name: Download instrumented binaries
+      - name: Download test archive
         uses: actions/download-artifact@v4
         with:
-          name: instrumented-binaries
-          path: target/llvm-cov-target
+          name: nextest-archive
 
-      - name: Download coverage data
+      - name: Download coverage data (profraw files)
         uses: actions/download-artifact@v4
         with:
           pattern: coverage-data-*
           merge-multiple: true
           path: target/llvm-cov-target
 
+      - name: Setup llvm-cov environment and extract test binaries
+        run: |
+          source <(cargo llvm-cov show-env --export-prefix)
+          mkdir -p target/llvm-cov-target
+          tar --zstd -xf nextest-archive.tar.zst --strip-components=1 -C target/llvm-cov-target
+
       - name: Generate merged coverage report
-        run: cargo llvm-cov report --codecov --output-path codecov.json
+        run: |
+          source <(cargo llvm-cov show-env --export-prefix)
+          cargo llvm-cov report --codecov --output-path codecov.json
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v4
