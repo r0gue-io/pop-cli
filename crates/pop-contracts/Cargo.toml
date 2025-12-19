@@ -13,8 +13,14 @@ rust-version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+cargo_toml.workspace = true
 duct.workspace = true
+once_cell.workspace = true
+regex.workspace = true
 reqwest.workspace = true
+rustilities = { workspace = true, features = ["manifest"]}
+scale.workspace = true
+semver.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
@@ -36,9 +42,11 @@ toml.workspace = true
 contract-build.workspace = true
 contract-extrinsics.workspace = true
 contract-transcode.workspace = true
+contract-metadata.workspace = true
 scale-info.workspace = true
 
 # pop
+pop-chains = { path = "../pop-chains" }
 pop-common = { path = "../pop-common", version = "0.12.1" }
 
 [dev-dependencies]

@@ -16,6 +16,9 @@ pub enum Error {
 	/// Failed to call the smart contract.
 	#[error("{0}")]
 	CallContractError(String),
+	/// A contract metadata error happened
+	#[error("{0}")]
+	ContractMetadata(String),
 	/// A common error originating from `pop_common`.
 	#[error("{0}")]
 	CommonError(#[from] pop_common::Error),
@@ -54,6 +57,9 @@ pub enum Error {
 	/// The specified name is invalid.
 	#[error("Invalid name: {0}")]
 	InvalidName(String),
+	/// The current toolchain is invalid
+	#[error("Invalid toolchain: {0}")]
+	InvalidToolchain(String),
 	/// An I/O error occurred.
 	#[error("IO error: {0}")]
 	IO(#[from] std::io::Error),
@@ -75,6 +81,9 @@ pub enum Error {
 	/// The `Repository` property is missing from the template variant.
 	#[error("The `Repository` property is missing from the template variant")]
 	RepositoryMissing,
+	/// A `[serde_json::Error]` error occurred
+	#[error("Serde JSON error: {0}")]
+	SerdeJson(#[from] serde_json::Error),
 	/// An error occurred sourcing a binary.
 	#[error("Sourcing error {0}")]
 	SourcingError(SourcingError),
@@ -90,4 +99,7 @@ pub enum Error {
 	/// An error occurred while uploading the contract.
 	#[error("{0}")]
 	UploadContractError(String),
+	/// An error occurred while verifying a contract
+	#[error("{0}")]
+	Verification(String),
 }

@@ -50,7 +50,7 @@ pub(crate) struct BuildArgs {
 	#[cfg(feature = "chain")]
 	pub command: Option<Command>,
 	/// Directory path with flag for your project [default: current directory]
-	#[arg(long, visible_alias = "manifest-path")]
+	#[arg(long)]
 	#[serde(skip_serializing)]
 	pub(crate) path: Option<PathBuf>,
 	/// Directory path without flag for your project [default: current directory]
@@ -93,12 +93,11 @@ pub(crate) struct BuildArgs {
 	#[clap(long, help_heading = CONTRACT_HELP_HEADER)]
 	#[cfg(feature = "contract")]
 	pub(crate) metadata: Option<MetadataSpec>,
-	/// Whether to build in a way that the contract is verifiable. For verifiable contracts, use
-	/// --manifest-path instead of --path to directly point to your contracts Cargo.toml
+	/// Whether to build in a way that the contract is verifiable.
 	#[clap(long, conflicts_with_all = ["release", "profile"], help_heading = CONTRACT_HELP_HEADER)]
 	#[cfg(feature = "contract")]
 	pub(crate) verifiable: bool,
-	/// Custom image for verifiable builds
+	/// Custom image for verifiable builds.
 	#[clap(long, requires = "verifiable", help_heading = CONTRACT_HELP_HEADER)]
 	#[cfg(feature = "contract")]
 	pub(crate) image: Option<String>,
@@ -463,7 +462,8 @@ mod tests {
 			verifiable: false,
 			#[cfg(feature = "contract")]
 			image: None,
-		})?;
+		})
+		.await?;
 
 		Ok(())
 	}
@@ -514,7 +514,8 @@ mod tests {
 			verifiable: false,
 			#[cfg(feature = "contract")]
 			image: None,
-		})?;
+		})
+		.await?;
 
 		// Test 2: Execute with production profile
 		Command::execute(&BuildArgs {
@@ -542,7 +543,8 @@ mod tests {
 			verifiable: false,
 			#[cfg(feature = "contract")]
 			image: None,
-		})?;
+		})
+		.await?;
 
 		// Test 3: Execute with custom features
 		#[cfg(feature = "chain")]
@@ -566,7 +568,8 @@ mod tests {
 				verifiable: false,
 				#[cfg(feature = "contract")]
 				image: None,
-			})?;
+			})
+			.await?;
 		}
 
 		// Test 4: Execute with package parameter
@@ -595,7 +598,8 @@ mod tests {
 			verifiable: false,
 			#[cfg(feature = "contract")]
 			image: None,
-		})?;
+		})
+		.await?;
 
 		// Test 5: Execute with path_pos instead of path
 		Command::execute(&BuildArgs {
@@ -623,7 +627,8 @@ mod tests {
 			verifiable: false,
 			#[cfg(feature = "contract")]
 			image: None,
-		})?;
+		})
+		.await?;
 
 		// Test 6: Execute with benchmark and try_runtime flags
 		#[cfg(feature = "chain")]
@@ -647,7 +652,8 @@ mod tests {
 				verifiable: false,
 				#[cfg(feature = "contract")]
 				image: None,
-			})?;
+			})
+			.await?;
 		}
 
 		Ok(())

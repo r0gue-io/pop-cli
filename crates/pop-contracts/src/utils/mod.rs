@@ -15,14 +15,11 @@ pub mod metadata;
 /// Retrieves the manifest path for a contract project.
 ///
 /// # Arguments
-/// * `path` - A path to the project directory or directly to a Cargo.toml file.
+/// * `path` - A path to the project directory.
 pub fn get_manifest_path(path: &Path) -> Result<ManifestPath, Error> {
-	let full_path = if path.ends_with("Cargo.toml") {
-		path.to_path_buf()
-	} else {
-		PathBuf::from(path.to_string_lossy().to_string()).join("Cargo.toml")
-	}
-	.canonicalize()?;
+	let full_path = PathBuf::from(path.to_string_lossy().to_string())
+		.join("Cargo.toml")
+		.canonicalize()?;
 	ManifestPath::try_from(Some(full_path))
 		.map_err(|e| Error::ManifestPath(format!("Failed to get manifest path: {e}")))
 }
@@ -77,27 +74,12 @@ mod tests {
 	}
 
 	#[test]
-	fn get_manifest_path_from_directory() -> Result<(), Error> {
+	fn test_get_manifest_path() -> Result<(), Error> {
 		let temp_dir = setup_test_environment()?;
-		let contract_path = temp_dir.path().join("test_contract");
-		let manifest_path = get_manifest_path(&contract_path)?;
-		assert_eq!(
-			manifest_path.as_ref().canonicalize().unwrap(),
-			contract_path.join("Cargo.toml").canonicalize().unwrap()
-		);
-		Ok(())
-	}
-
-	#[test]
-	fn get_manifest_path_from_cargo_toml() -> Result<(), Error> {
-		let temp_dir = setup_test_environment()?;
-		let contract_path = temp_dir.path().join("test_contract");
-		let manifest_path =
-			get_manifest_path(&temp_dir.path().join("test_contract").join("Cargo.toml"))?;
-		assert_eq!(
-			manifest_path.as_ref().canonicalize().unwrap(),
-			contract_path.join("Cargo.toml").canonicalize().unwrap()
-		);
+		let contract_dir = temp_dir.path().join("test_contract");
+		let expected_manifest_path = contract_dir.join("Cargo.toml").canonicalize()?;
+		let manifest_path = get_manifest_path(&temp_dir.path().join("test_contract"))?;
+		assert_eq!(manifest_path.as_ref(), &expected_manifest_path);
 		Ok(())
 	}
 
