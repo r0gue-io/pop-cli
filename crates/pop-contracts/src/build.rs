@@ -38,7 +38,7 @@ pub fn build_smart_contract(
 	if let Some(workspace) = manifest.workspace {
 		for member in &workspace.members {
 			let path = ManifestPath::new(path.join(member).join("Cargo.toml").as_path())?;
-			if matches!(is_supported(&path.as_ref()), Ok(true)) {
+			if matches!(is_supported(path.as_ref()), Ok(true)) {
 				manifest_paths.push(path);
 			}
 		}
