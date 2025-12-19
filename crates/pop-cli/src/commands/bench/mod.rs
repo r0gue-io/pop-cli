@@ -46,7 +46,10 @@ pub enum Command {
 
 impl Command {
 	/// Executes the command.
-	pub(crate) async fn execute(args: &mut BenchmarkArgs) -> anyhow::Result<()> {
+	pub(crate) async fn execute(
+		args: &mut BenchmarkArgs,
+		json: bool,
+	) -> anyhow::Result<serde_json::Value> {
 		// Disable these log targets because they are spammy.
 		let unwanted_targets = [
 			"cranelift_codegen",
@@ -64,7 +67,7 @@ impl Command {
 			.with_env_filter(env_filter)
 			.with_writer(std::io::stderr)
 			.init();
-		let mut cli = cli::Cli;
+		let mut cli = cli::Cli { json };
 		match &mut args.command {
 			Command::Block(cmd) => cmd.execute(&mut cli).await,
 			Command::Machine(cmd) => cmd.execute(&mut cli).await,

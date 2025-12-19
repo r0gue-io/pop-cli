@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	cli::{self},
+	cli::{self, spinner, traits::Spinner},
 	common::{
 		bench::{check_omni_bencher_and_prompt, overwrite_weight_dir_command},
 		prompt::display_message,
 	},
 };
 use clap::Args;
-use cliclack::spinner;
 use pop_chains::{BenchmarkingCliCommand, bench::StorageCmd, generate_binary_benchmarks};
 use serde::Serialize;
 use std::path::PathBuf;
@@ -28,11 +27,17 @@ pub(crate) struct BenchmarkStorage {
 }
 
 impl BenchmarkStorage {
-	pub(crate) async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	pub(crate) async fn execute(
+		&mut self,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<serde_json::Value> {
 		self.benchmark(cli).await
 	}
 
-	async fn benchmark(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	async fn benchmark(
+		&mut self,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<serde_json::Value> {
 		cli.intro("Benchmarking the storage speed of a chain snapshot")?;
 
 		let spinner = spinner();
@@ -47,14 +52,20 @@ impl BenchmarkStorage {
 		// Display the benchmarking command.
 		cli.plain("\n")?;
 		cli.info(self.display())?;
-		if let Err(e) = result {
-			return display_message(&e.to_string(), false, cli);
-		}
-		display_message("Benchmark completed successfully!", true, cli)?;
-		Ok(())
+		let output = match result {
+			Ok(output) => {
+				display_message("Benchmark completed successfully!", true, cli)?;
+				output
+			},
+			Err(e) => {
+				display_message(&e.to_string(), false, cli)?;
+				return Err(e);
+			},
+		};
+		Ok(serde_json::to_value(crate::common::output::SuccessData { message: output })?)
 	}
 
-	fn run(&mut self, binary_path: PathBuf) -> anyhow::Result<()> {
+	fn run(&mut self, binary_path: PathBuf) -> anyhow::Result<String> {
 		let temp_dir = tempdir()?;
 		let original_weight_path = self
 			.command
@@ -66,7 +77,7 @@ impl BenchmarkStorage {
 		self.command.params.weight_params.weight_path = Some(temp_dir.path().to_path_buf());
 
 		// Run the benchmark with updated arguments.
-		generate_binary_benchmarks(
+		let output = generate_binary_benchmarks(
 			&binary_path,
 			BenchmarkingCliCommand::Storage,
 			|args| {
@@ -91,7 +102,7 @@ impl BenchmarkStorage {
 			&original_weight_path,
 			&self.collect_display_arguments(),
 		)?;
-		Ok(())
+		Ok(output)
 	}
 
 	fn display(&self) -> String {

@@ -7,7 +7,7 @@ use super::{
 	runtime::{Feature, ensure_runtime_binary_exists},
 };
 use crate::{
-	cli::traits::*,
+	cli::{spinner, traits::*},
 	common::{
 		binary::{BinaryGenerator, SemanticVersion, check_and_prompt},
 		urls,
@@ -15,7 +15,6 @@ use crate::{
 	impl_binary_generator,
 };
 use clap::Args;
-use cliclack::{ProgressBar, spinner};
 use console::style;
 use pop_chains::{
 	Runtime, SharedParams, parse, set_up_client,
@@ -76,7 +75,7 @@ impl BuildRuntimeParams {
 /// * `skip_confirm`: A boolean indicating whether to skip confirmation prompts.
 pub async fn check_try_runtime_and_prompt(
 	cli: &mut impl Cli,
-	spinner: &ProgressBar,
+	spinner: &dyn Spinner,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
 	Ok(if let Ok(path) = which_version(BINARY_NAME, &TARGET_BINARY_VERSION, &Ordering::Greater) {
@@ -94,7 +93,7 @@ pub async fn check_try_runtime_and_prompt(
 /// * `skip_confirm`: A boolean indicating whether to skip confirmation prompts.
 pub async fn source_try_runtime_binary(
 	cli: &mut impl Cli,
-	spinner: &ProgressBar,
+	spinner: &dyn Spinner,
 	cache_path: &Path,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {

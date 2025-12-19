@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::traits::{Cli, Select};
+use crate::cli::{
+	spinner,
+	traits::{Cli, Select, Spinner},
+};
 use anyhow::{Context, Result};
 use clap::Args;
-use cliclack::spinner;
 #[cfg(not(test))]
 use pop_common::{GitHub, polkadot_sdk::sort_by_latest_stable_version};
 use serde::Serialize;
@@ -55,7 +57,10 @@ pub(crate) struct Command;
 
 impl Command {
 	/// Executes the polkadot-sdk version upgrade.
-	pub(crate) async fn execute(args: &mut UpgradeArgs, cli: &mut impl Cli) -> Result<()> {
+	pub(crate) async fn execute(
+		args: &mut UpgradeArgs,
+		cli: &mut impl Cli,
+	) -> Result<serde_json::Value> {
 		cli.intro("Upgrade Polkadot SDK version")?;
 		let toml_file = if let Some(path) = &args.path {
 			if matches!(path.file_name().map(|n| n.to_str().unwrap()), Some(CARGO_TOML_FILE)) {
@@ -90,7 +95,7 @@ impl Command {
 		};
 
 		let spinner = spinner();
-		spinner.start(format!("Updating dependencies to {}...", version));
+		spinner.start(&format!("Updating dependencies to {}...", version));
 		let crates_versions = psvm::get_version_mapping_with_fallback(DEFAULT_GIT_SERVER, &version)
 			.await
 			.map_err(|e| anyhow::anyhow!("Failed to get version mapping: {}", e))?;
@@ -106,7 +111,7 @@ impl Command {
 		 If it does not, fix the compilation errors and try again.",
 		)?;
 		cli.success(format!("Polkadot SDK versions successfully upgraded to {}", version))?;
-		Ok(())
+		Ok(serde_json::json!({ "version": version }))
 	}
 }
 

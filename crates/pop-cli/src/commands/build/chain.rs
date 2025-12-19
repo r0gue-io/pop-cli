@@ -10,6 +10,7 @@ use crate::{
 	style::style,
 };
 use pop_common::Profile;
+use serde::Serialize;
 use std::{collections::HashSet, path::PathBuf};
 
 /// Configuration for building a parachain.
@@ -28,17 +29,26 @@ pub struct BuildChain {
 	pub(crate) features: Vec<String>,
 }
 
+/// The result of building a parachain.
+#[derive(Debug, Serialize, PartialEq)]
+pub struct BuildChainData {
+	/// The project that was built.
+	pub project: String,
+	/// The path to the generated binary.
+	pub binary: PathBuf,
+}
+
 impl BuildChain {
 	/// Executes the build process.
-	pub(crate) fn execute(self) -> anyhow::Result<&'static str> {
-		self.build(&mut cli::Cli)
+	pub(crate) fn execute(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<BuildChainData> {
+		self.build(cli)
 	}
 
 	/// Builds a chain.
 	///
 	/// # Arguments
 	/// * `cli` - The CLI implementation to be used.
-	fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
+	fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<BuildChainData> {
 		let project = if self.package.is_some() { PACKAGE } else { PARACHAIN };
 
 		// Enable the features based on the user's input.
@@ -86,7 +96,7 @@ impl BuildChain {
 			style("https://learn.onpop.io").magenta().underlined()
 		))?;
 
-		Ok(project)
+		Ok(BuildChainData { project: project.to_string(), binary })
 	}
 }
 
@@ -251,18 +261,16 @@ name = "test-workspace"
 			cli = cli.expect_warning("NOTE: this command now defaults to DEBUG builds. Please use `--release` (or simply `-r`) for a release build...");
 		}
 
-		assert_eq!(
-			BuildChain {
-				path: project_path.to_path_buf(),
-				package: package.clone(),
-				profile: *profile,
-				benchmark: features.contains(&Benchmark.as_ref()),
-				try_runtime: features.contains(&TryRuntime.as_ref()),
-				features: features.iter().map(|f| f.to_string()).collect(),
-			}
-			.build(&mut cli)?,
-			project
-		);
+		let data = BuildChain {
+			path: project_path.to_path_buf(),
+			package: package.clone(),
+			profile: *profile,
+			benchmark: features.contains(&Benchmark.as_ref()),
+			try_runtime: features.contains(&TryRuntime.as_ref()),
+			features: features.iter().map(|f| f.to_string()).collect(),
+		}
+		.build(&mut cli)?;
+		assert_eq!(data.project, project);
 		cli.verify()
 	}
 }

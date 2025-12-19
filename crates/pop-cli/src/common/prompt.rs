@@ -1,17 +1,22 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::traits::Cli;
+use crate::{cli::traits::Cli, common::output::SuccessData};
 use anyhow::Result;
 
 // Displays a message to the user, with formatting based on the success status.
 #[allow(dead_code)]
-pub(crate) fn display_message(message: &str, success: bool, cli: &mut impl Cli) -> Result<()> {
+pub(crate) fn display_message(
+	message: &str,
+	success: bool,
+	cli: &mut impl Cli,
+) -> Result<serde_json::Value> {
 	if success {
 		cli.outro(message)?;
+		Ok(serde_json::to_value(SuccessData { message: message.to_string() })?)
 	} else {
 		cli.outro_cancel(message)?;
+		Err(anyhow::anyhow!(message.to_string()))
 	}
-	Ok(())
 }
 
 #[cfg(test)]

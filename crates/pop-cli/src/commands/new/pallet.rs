@@ -7,7 +7,6 @@ use crate::{
 };
 
 use clap::{Args, Subcommand};
-use cliclack::multiselect;
 use pop_chains::{
 	TemplatePalletConfig, TemplatePalletConfigCommonTypes, TemplatePalletOptions,
 	TemplatePalletStorageTypes, create_pallet_template,
@@ -76,12 +75,18 @@ pub struct AdvancedMode {
 
 impl NewPalletCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
-		self.generate_pallet(&mut cli::Cli).await
+	pub(crate) async fn execute(
+		&self,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<serde_json::Value> {
+		self.generate_pallet(cli).await
 	}
 
 	/// Generates a pallet
-	async fn generate_pallet(&self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	async fn generate_pallet(
+		&self,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<serde_json::Value> {
 		cli.intro("Generate a pallet")?;
 
 		let mut pallet_default_config = false;
@@ -101,13 +106,15 @@ impl NewPalletCommand {
 
 				pallet_common_types = multiselect_pick!(
 					TemplatePalletConfigCommonTypes,
-					"Are you interested in adding one of these types and their usual configuration to your pallet?"
+					"Are you interested in adding one of these types and their usual configuration to your pallet?",
+					cli
 				);
 				cli.info("Generate the pallet's storage.")?;
 
 				pallet_storage = multiselect_pick!(
 					TemplatePalletStorageTypes,
-					"Are you interested in adding some of those storage items to your pallet?"
+					"Are you interested in adding some of those storage items to your pallet?",
+					cli
 				);
 
 				// If there's no common types, default_config is excluded from the multiselect
@@ -115,12 +122,14 @@ impl NewPalletCommand {
 					multiselect_pick!(
 						TemplatePalletOptions,
 						"Are you interested in adding one of these types and their usual configuration to your pallet?",
-						[TemplatePalletOptions::DefaultConfig]
+						[TemplatePalletOptions::DefaultConfig],
+						cli
 					)
 				} else {
 					multiselect_pick!(
 						TemplatePalletOptions,
-						"Are you interested in adding one of these types and their usual configuration to your pallet?"
+						"Are you interested in adding one of these types and their usual configuration to your pallet?",
+						cli
 					)
 				};
 
@@ -158,7 +167,7 @@ impl NewPalletCommand {
 		let workspace_toml = rustilities::manifest::find_workspace_manifest(&pallet_path);
 		check_destination_path(&pallet_path, cli)?;
 
-		let spinner = cliclack::spinner();
+		let spinner = cli.spinner();
 		spinner.start("Generating pallet...");
 		create_pallet_template(
 			pallet_path.clone(),
@@ -193,13 +202,9 @@ impl NewPalletCommand {
 			.output()?;
 
 		spinner.stop("Generation complete");
-		cli.outro(format!(
-			"cd into \"{}\" and enjoy hacking! 🚀",
-			pallet_path
-				.to_str()
-				.expect("If the path isn't valid, create_pallet_template detects it; qed")
-		))?;
-		Ok(())
+		let name = pallet_path.file_name().and_then(|s| s.to_str()).unwrap_or("pallet").to_string();
+		cli.outro(format!("cd into \"{}\" and enjoy hacking! 🚀", pallet_path.display()))?;
+		Ok(serde_json::to_value(crate::commands::new::NewProjectData { name, path: pallet_path })?)
 	}
 }
 

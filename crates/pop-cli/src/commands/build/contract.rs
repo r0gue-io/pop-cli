@@ -16,21 +16,24 @@ pub struct BuildContract {
 
 impl BuildContract {
 	/// Executes the command.
-	pub(crate) fn execute(self) -> anyhow::Result<&'static str> {
-		self.build(&mut cli::Cli)
+	pub(crate) fn execute(
+		self,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<serde_json::Value> {
+		self.build(cli)
 	}
 
 	/// Builds a smart contract
 	///
 	/// # Arguments
 	/// * `cli` - The CLI implementation to be used.
-	fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
+	fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<serde_json::Value> {
 		cli.intro("Building your contract")?;
 		// Build contract.
 		let build_result =
 			build_smart_contract(&self.path, self.release, Verbosity::Default, self.metadata)?;
 		cli.success(build_result.display())?;
 		cli.outro("Build completed successfully!")?;
-		Ok("contract")
+		Ok(serde_json::to_value(build_result)?)
 	}
 }

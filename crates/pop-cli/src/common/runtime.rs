@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{cli::traits::*, common::builds::find_runtime_dir};
-use cliclack::spinner;
+use crate::{
+	cli::{spinner, traits::*},
+	common::builds::find_runtime_dir,
+};
 use console::style;
 use pop_chains::utils::helpers::get_preset_names;
 #[cfg(feature = "chain")]
@@ -242,7 +244,7 @@ pub fn guide_user_to_select_genesis_preset(
 	if preset_names.is_empty() {
 		return Err(anyhow::anyhow!("No preset found for the runtime"));
 	}
-	spinner.stop(format!("Found {} genesis builder presets", preset_names.len()));
+	spinner.stop(&format!("Found {} genesis builder presets", preset_names.len()));
 	for preset in preset_names {
 		prompt = prompt.item(preset.to_string(), preset, "");
 	}

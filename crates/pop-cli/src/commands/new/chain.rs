@@ -88,11 +88,13 @@ pub struct NewChainCommand {
 
 impl NewChainCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(&self) -> Result<()> {
+	pub(crate) async fn execute(
+		&self,
+		cli: &mut impl cli::traits::Cli,
+	) -> Result<serde_json::Value> {
 		// If user doesn't select the name guide them to generate a parachain.
 		let parachain_config = if self.name.is_none() {
-			guide_user_to_generate_parachain(self.verify, self.with_frontend.clone(), &mut cli::Cli)
-				.await?
+			guide_user_to_generate_parachain(self.verify, self.with_frontend.clone(), cli).await?
 		} else {
 			self.clone()
 		};
@@ -107,13 +109,13 @@ impl NewChainCommand {
 			None => provider.default_template().expect("parachain templates have defaults; qed."), /* Each provider has a template by default */
 		};
 
-		is_template_supported(provider, &template, &mut cli::Cli)?;
+		is_template_supported(provider, &template, cli)?;
 		let config = get_customization_value(
 			&template,
 			parachain_config.symbol,
 			parachain_config.decimals,
 			parachain_config.initial_endowment,
-			&mut cli::Cli,
+			cli,
 		)?;
 
 		let tag_version = parachain_config.release_tag.clone();
@@ -123,7 +125,7 @@ impl NewChainCommand {
 			frontend_template =
 				if frontend_arg.is_empty() {
 					// User provided --with-frontend without value: prompt for template
-					Some(prompt_frontend_template(&FrontendType::Chain, &mut cli::Cli)?)
+					Some(prompt_frontend_template(&FrontendType::Chain, cli)?)
 				} else {
 					// User specified a template explicitly: parse and use it
 					Some(FrontendTemplate::from_str(frontend_arg).map_err(|_| {
@@ -131,7 +133,7 @@ impl NewChainCommand {
 					})?)
 				};
 		}
-		generate_parachain_from_template(
+		let path = generate_parachain_from_template(
 			name,
 			provider,
 			&template,
@@ -140,10 +142,13 @@ impl NewChainCommand {
 			parachain_config.verify,
 			frontend_template,
 			parachain_config.package_manager,
-			&mut cli::Cli,
+			cli,
 		)
 		.await?;
-		Ok(())
+		Ok(serde_json::to_value(crate::commands::new::NewProjectData {
+			name: name.to_string(),
+			path,
+		})?)
 	}
 }
 
@@ -232,7 +237,7 @@ async fn generate_parachain_from_template(
 	frontend_template: Option<FrontendTemplate>,
 	package_manager: Option<PackageManager>,
 	cli: &mut impl Cli,
-) -> Result<()> {
+) -> Result<std::path::PathBuf> {
 	cli.intro(format!(
 		"Generating \"{name_template}\" using {} from {}!",
 		template.name(),
@@ -241,7 +246,7 @@ async fn generate_parachain_from_template(
 
 	let destination_path = check_destination_path(Path::new(name_template), cli)?;
 
-	let spinner = cliclack::spinner();
+	let spinner = cli.spinner();
 	spinner.start("Generating parachain...");
 	let release = if let Some(tag_version) = tag_version {
 		Some(tag_version)
@@ -282,8 +287,8 @@ async fn generate_parachain_from_template(
 	if !template.is_audited() {
 		// warn about audit status and licensing
 		cli.warning(format!("NOTE: the resulting parachain is not guaranteed to be audited or reviewed for security vulnerabilities.\n{}",
-						style(format!("Please consult the source repository at {} to assess production suitability and licensing restrictions.", template.repository_url()?))
-							.dim()))?;
+							style(format!("Please consult the source repository at {} to assess production suitability and licensing restrictions.", template.repository_url()?))
+								.dim()))?;
 	}
 
 	// add next steps
@@ -299,8 +304,8 @@ async fn generate_parachain_from_template(
 	if let Some(frontend_template) = &frontend_template {
 		create_frontend(&destination_path, frontend_template, package_manager, cli).await?;
 		next_steps.push(format!(
-			"Frontend template created inside \"{name_template}\". To run it locally, use: `pop up frontend`. Navigate to the `frontend` folder to start customizing it for your chain."
-		))
+				"Frontend template created inside \"{name_template}\". To run it locally, use: `pop up frontend`. Navigate to the `frontend` folder to start customizing it for your chain."
+			))
 	};
 
 	let next_steps: Vec<_> = next_steps
@@ -313,7 +318,7 @@ async fn generate_parachain_from_template(
 		"Need help? Learn more at {}\n",
 		style("https://learn.onpop.io").magenta().underlined()
 	))?;
-	Ok(())
+	Ok(destination_path)
 }
 
 /// Determines whether the specified template is supported by the provider.

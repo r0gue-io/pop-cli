@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{cli, common::contracts::check_ink_node_and_prompt};
+use crate::{
+	cli,
+	cli::{spinner, traits::Spinner},
+	common::contracts::check_ink_node_and_prompt,
+};
 use clap::Args;
-use cliclack::spinner;
 use pop_common::test_project;
 use pop_contracts::test_e2e_smart_contract;
 use serde::Serialize;
@@ -33,7 +36,10 @@ pub(crate) struct TestContractCommand {
 
 impl TestContractCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	pub(crate) async fn execute(
+		&mut self,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<serde_json::Value> {
 		if self.e2e {
 			cli.intro("Starting end-to-end tests")?;
 			let spinner = spinner();
@@ -53,12 +59,11 @@ impl TestContractCommand {
 			spinner.clear();
 			test_e2e_smart_contract(&self.path, self.node.as_deref(), self.test.clone())?;
 			cli.outro("End-to-end testing complete")?;
-			Ok(())
 		} else {
 			cli.intro("Starting unit tests")?;
 			test_project(&self.path, self.test.clone())?;
 			cli.outro("Unit testing complete")?;
-			Ok(())
 		}
+		Ok(serde_json::to_value(super::TestData { success: true })?)
 	}
 }

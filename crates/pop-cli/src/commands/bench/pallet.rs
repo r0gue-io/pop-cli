@@ -2,8 +2,8 @@
 
 use crate::{
 	cli::{
-		self,
-		traits::{Confirm, Input, MultiSelect, Select},
+		self, spinner,
+		traits::{Confirm, Input, MultiSelect, Select, Spinner},
 	},
 	common::{
 		bench::{check_omni_bencher_and_prompt, overwrite_weight_file_command},
@@ -16,7 +16,6 @@ use crate::{
 	},
 };
 use clap::Args;
-use cliclack::spinner;
 use pop_chains::{
 	GENESIS_BUILDER_DEV_PRESET, GenesisBuilderPolicy, PalletExtrinsicsRegistry,
 	generate_pallet_benchmarks, load_pallet_extrinsics, utils::helpers::get_preset_names,
@@ -90,13 +89,9 @@ pub(crate) struct BenchmarkPallet {
 	#[arg(long, default_value_t = 1)]
 	external_repeat: u32,
 
-	/// Print the raw results in JSON format.
-	#[arg(long = "json")]
-	json_output: bool,
-
 	/// Write the raw results in JSON format into the given file.
 	#[serde(skip_serializing)]
-	#[arg(long, conflicts_with = "json_output")]
+	#[arg(long)]
 	json_file: Option<PathBuf>,
 
 	/// Don't print the median-slopes linear regression analysis.
@@ -241,7 +236,6 @@ impl Default for BenchmarkPallet {
 			highest_range_values: vec![],
 			repeat: 20,
 			external_repeat: 1,
-			json_output: false,
 			json_file: None,
 			no_median_slopes: false,
 			no_min_squares: false,
@@ -272,7 +266,10 @@ impl Default for BenchmarkPallet {
 }
 
 impl BenchmarkPallet {
-	pub async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	pub async fn execute(
+		&mut self,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<serde_json::Value> {
 		// If `all` is provided, we override the value of `pallet` and `extrinsic` to select all.
 		if self.all {
 			self.pallets = vec![ALL_SELECTED.to_string()];
@@ -402,12 +399,11 @@ impl BenchmarkPallet {
 		let result = self.run(cli);
 
 		// Display the benchmarking command.
-		cli.info(self.display())?;
+		cli.info(self.display(cli.is_json()))?;
 		if let Err(e) = result {
 			return display_message(&e.to_string(), false, cli);
 		}
-		display_message("Benchmark completed successfully!", true, cli)?;
-		Ok(())
+		display_message("Benchmark completed successfully!", true, cli)
 	}
 
 	fn run(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
@@ -418,7 +414,7 @@ impl BenchmarkPallet {
 				self.run_with_weight_dir(cli, original_weight_path)?;
 			}
 		} else {
-			generate_pallet_benchmarks(self.collect_run_arguments())?;
+			generate_pallet_benchmarks(self.collect_run_arguments(cli.is_json()))?;
 		}
 		Ok(())
 	}
@@ -432,7 +428,7 @@ impl BenchmarkPallet {
 		let temp_file_path = temp_dir.path().join("temp_weights.rs");
 		self.output = Some(temp_file_path.clone());
 
-		generate_pallet_benchmarks(self.collect_run_arguments())?;
+		generate_pallet_benchmarks(self.collect_run_arguments(cli.is_json()))?;
 		console::Term::stderr().clear_last_lines(1)?;
 		cli.info(format!("Weight file is generated to {:?}", weight_path.display()))?;
 
@@ -442,7 +438,7 @@ impl BenchmarkPallet {
 		overwrite_weight_file_command(
 			&temp_file_path,
 			&weight_path,
-			&self.collect_display_arguments(),
+			&self.collect_display_arguments(cli.is_json()),
 		)?;
 		Ok(())
 	}
@@ -456,7 +452,7 @@ impl BenchmarkPallet {
 		let temp_dir_path = temp_dir.path().to_path_buf();
 		self.output = Some(temp_dir_path.clone());
 
-		generate_pallet_benchmarks(self.collect_run_arguments())?;
+		generate_pallet_benchmarks(self.collect_run_arguments(cli.is_json()))?;
 		console::Term::stderr()
 			.clear_last_lines(fs::read_dir(temp_dir_path.clone()).iter().count() + 1)?;
 
@@ -471,7 +467,7 @@ impl BenchmarkPallet {
 			overwrite_weight_file_command(
 				&path,
 				&original_path,
-				&self.collect_display_arguments(),
+				&self.collect_display_arguments(cli.is_json()),
 			)?;
 			info.push_str(&format!("Created file: {:?}\n", original_path));
 		}
@@ -479,14 +475,14 @@ impl BenchmarkPallet {
 		Ok(())
 	}
 
-	fn display(&self) -> String {
-		self.collect_display_arguments().join(" ")
+	fn display(&self, json: bool) -> String {
+		self.collect_display_arguments(json).join(" ")
 	}
 
-	fn collect_display_arguments(&self) -> Vec<String> {
+	fn collect_display_arguments(&self, json: bool) -> Vec<String> {
 		let default_values = Self::default();
 		let mut args = vec!["pop".to_string(), "bench".to_string(), "pallet".to_string()];
-		let mut arguments = self.collect_arguments();
+		let mut arguments = self.collect_arguments(json);
 		if self.skip_parameters && self.skip_parameters != default_values.skip_parameters {
 			arguments.push("--skip-parameters".to_string());
 		}
@@ -503,15 +499,15 @@ impl BenchmarkPallet {
 		args
 	}
 
-	fn collect_run_arguments(&self) -> Vec<String> {
-		let mut arguments = self.collect_arguments();
+	fn collect_run_arguments(&self, json: bool) -> Vec<String> {
+		let mut arguments = self.collect_arguments(json);
 		if let Some(ref binary) = self.runtime_binary {
 			arguments.push(format!("--runtime={}", binary.display()));
 		}
 		arguments
 	}
 
-	fn collect_arguments(&self) -> Vec<String> {
+	fn collect_arguments(&self, json: bool) -> Vec<String> {
 		let default_values = Self::default();
 		let mut args = vec![];
 
@@ -574,7 +570,7 @@ impl BenchmarkPallet {
 		if self.additional_trie_layers != default_values.additional_trie_layers {
 			args.push(format!("--additional-trie-layers={}", self.additional_trie_layers));
 		}
-		if self.json_output && self.json_output != default_values.json_output {
+		if json {
 			args.push("--json".to_string());
 		}
 		if let Some(ref json_file) = self.json_file {

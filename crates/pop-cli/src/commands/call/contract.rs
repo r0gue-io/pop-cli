@@ -16,7 +16,6 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use clap::Args;
-use cliclack::spinner;
 use pop_common::{DefaultConfig, Keypair, parse_h160_account};
 use pop_contracts::{
 	CallExec, CallOpts, ContractCallable, ContractFunction, ContractStorage, DefaultEnvironment,
@@ -125,13 +124,18 @@ impl Default for CallContractCommand {
 	}
 }
 
+#[derive(Serialize)]
+pub struct CallContractData {
+	pub output: String,
+}
+
 impl CallContractCommand {
 	fn url(&self) -> Result<url::Url> {
 		self.url.as_ref().ok_or(anyhow::anyhow!("url not set")).cloned()
 	}
 
 	/// Executes the command.
-	pub(crate) async fn execute(mut self, cli: &mut impl Cli) -> Result<()> {
+	pub(crate) async fn execute(mut self, cli: &mut impl Cli) -> Result<serde_json::Value> {
 		// Check if message specified via command line argument.
 		let prompt_to_repeat_call = self.message.is_none();
 		// Configure the call based on command line arguments/call UI.
@@ -150,14 +154,11 @@ impl CallContractCommand {
 						display_message(&e.to_string(), false, cli)?;
 					},
 				}
-				return Ok(());
+				return Err(e);
 			},
 		};
 		// Finally execute the call.
-		if let Err(e) = self.execute_call(cli, prompt_to_repeat_call, callable).await {
-			display_message(&e.to_string(), false, cli)?;
-		}
-		Ok(())
+		self.execute_call(cli, prompt_to_repeat_call, callable).await
 	}
 
 	fn display(&self) -> String {
@@ -210,7 +211,7 @@ impl CallContractCommand {
 		let project_path = ensure_project_path(self.path.clone(), self.path_pos.clone());
 		// Build the contract in release mode
 		cli.warning("NOTE: contract has not yet been built.")?;
-		let spinner = spinner();
+		let spinner = cli.spinner();
 		spinner.start("Building contract in RELEASE mode...");
 		let result = match build_smart_contract(&project_path, true, Verbosity::Quiet, None) {
 			Ok(result) => result,
@@ -220,7 +221,7 @@ impl CallContractCommand {
 				)));
 			},
 		};
-		spinner.stop(format!(
+		spinner.stop(&format!(
 			"Your contract artifacts are ready. You can find them in: {}",
 			result.target_directory.display()
 		));
@@ -427,7 +428,11 @@ impl CallContractCommand {
 		Ok(callable.clone())
 	}
 
-	async fn read_storage(&mut self, cli: &mut impl Cli, storage: ContractStorage) -> Result<()> {
+	async fn read_storage(
+		&mut self,
+		cli: &mut impl Cli,
+		storage: ContractStorage,
+	) -> Result<String> {
 		let value = fetch_contract_storage_with_param(
 			&storage,
 			self.contract.as_ref().expect("no contract address specified"),
@@ -436,8 +441,8 @@ impl CallContractCommand {
 			self.storage_mapping_key.as_deref(),
 		)
 		.await?;
-		cli.success(value)?;
-		Ok(())
+		cli.success(value.clone())?;
+		Ok(value)
 	}
 
 	#[allow(deprecated)]
@@ -445,7 +450,7 @@ impl CallContractCommand {
 		&mut self,
 		cli: &mut impl Cli,
 		message: ContractFunction,
-	) -> Result<()> {
+	) -> Result<String> {
 		let project_path = ensure_project_path(self.path.clone(), self.path_pos.clone());
 		// Disable wallet signing and display warning if the call is read-only.
 		if !message.mutates && self.use_wallet {
@@ -489,27 +494,26 @@ impl CallContractCommand {
 		// Perform signing steps with wallet integration, skipping secure signing for query-only
 		// operations.
 		if self.use_wallet {
-			self.execute_with_wallet(call_exec, cli).await?;
-			return Ok(());
+			return self.execute_with_wallet(call_exec, cli).await;
 		}
 
 		// Check if the account is already mapped, and prompt the user to perform the mapping if
 		// it's required.
 		map_account(call_exec.opts(), cli).await?;
 
-		let spinner = spinner();
+		let spinner = cli.spinner();
 		spinner.start("Doing a dry run...");
 		let (call_dry_run_result, estimated_weight) =
 			match dry_run_gas_estimate_call(&call_exec).await {
 				Ok(w) => w,
 				Err(e) => {
-					spinner.error(format!("{e}"));
+					spinner.error(&format!("{e}"));
 					display_message("Call failed.", false, cli)?;
-					return Ok(());
+					return Err(anyhow!(format!("{e}")));
 				},
 			};
 
-		if self.execute {
+		let result = if self.execute {
 			let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
 				Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
 			} else {
@@ -521,13 +525,15 @@ impl CallContractCommand {
 				.await
 				.map_err(|err| anyhow!("ERROR: {err:?}"))?;
 			spinner.clear();
-			cli.info(call_result)?;
+			cli.info(call_result.clone())?;
+			call_result
 		} else {
-			cli.success(call_dry_run_result)?;
+			cli.success(call_dry_run_result.clone())?;
 			cli.warning("Your call has not been executed.")?;
-		}
+			call_dry_run_result
+		};
 
-		Ok(())
+		Ok(result)
 	}
 
 	/// Execute the function call or storage read.
@@ -536,12 +542,12 @@ impl CallContractCommand {
 		cli: &mut impl Cli,
 		prompt_to_repeat_call: bool,
 		callable: ContractCallable,
-	) -> Result<()> {
-		match callable {
+	) -> Result<serde_json::Value> {
+		let output = match callable {
 			ContractCallable::Function(f) => self.execute_message(cli, f).await,
 			ContractCallable::Storage(s) => self.read_storage(cli, s).await,
 		}?;
-		self.finalize_execute_call(cli, prompt_to_repeat_call).await
+		self.finalize_execute_call(cli, prompt_to_repeat_call, output).await
 	}
 
 	/// Finalize the current call, prompting the user to repeat or conclude the process.
@@ -549,11 +555,12 @@ impl CallContractCommand {
 		&mut self,
 		cli: &mut impl Cli,
 		prompt_to_repeat_call: bool,
-	) -> Result<()> {
+		output: String,
+	) -> Result<serde_json::Value> {
 		// Prompt for any additional calls.
 		if !prompt_to_repeat_call {
 			display_message("Call completed successfully!", true, cli)?;
-			return Ok(());
+			return Ok(serde_json::to_value(CallContractData { output })?);
 		}
 		if cli
 			.confirm("Do you want to perform another call using the existing smart contract?")
@@ -566,7 +573,7 @@ impl CallContractCommand {
 			Box::pin(new_call.execute(cli)).await
 		} else {
 			display_message("Contract calling complete.", true, cli)?;
-			Ok(())
+			Ok(serde_json::to_value(CallContractData { output })?)
 		}
 	}
 
@@ -575,7 +582,7 @@ impl CallContractCommand {
 		&self,
 		call_exec: CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 		cli: &mut impl Cli,
-	) -> Result<()> {
+	) -> Result<String> {
 		// Skip storage deposit estimation when using wallet (UI will handle it)
 		let storage_deposit_limit = call_exec.opts().storage_deposit_limit().unwrap_or(0);
 		let call_data = self
@@ -585,7 +592,7 @@ impl CallContractCommand {
 		let maybe_payload = request_signature(call_data, self.url()?.to_string()).await?;
 		if let Some(payload) = maybe_payload {
 			cli.success("Signed payload received.")?;
-			let spinner = spinner();
+			let spinner = cli.spinner();
 			spinner
 				.start("Calling the contract and waiting for finalization, please be patient...");
 
@@ -594,11 +601,12 @@ impl CallContractCommand {
 					.await
 					.map_err(|err| anyhow!("ERROR: {err:?}"))?;
 
-			cli.info(call_result)?;
+			cli.info(call_result.clone())?;
+			Ok(call_result)
 		} else {
 			display_message("No signed payload received.", false, cli)?;
+			Ok("No signed payload received.".to_string())
 		}
-		Ok(())
 	}
 
 	// Get the call data.

@@ -28,8 +28,10 @@ pub struct BuildRuntime {
 
 impl BuildRuntime {
 	/// Executes the build process.
-	pub(crate) async fn execute(self) -> anyhow::Result<()> {
-		let cli = &mut cli::Cli;
+	pub(crate) async fn execute(
+		self,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<serde_json::Value> {
 		let is_parachain = pop_chains::is_supported(&self.path);
 		let is_runtime = pop_chains::runtime::is_supported(&self.path);
 		// `pop build runtime` must be run inside a parachain project or a specific runtime folder.
@@ -40,10 +42,14 @@ impl BuildRuntime {
 				cli,
 			);
 		}
-		self.build(cli).await
+		let (binary_path, runtime_path) = self.build(cli).await?;
+		Ok(serde_json::json!({
+			"binary_path": binary_path,
+			"runtime_path": runtime_path,
+		}))
 	}
 
-	async fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	async fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<(PathBuf, PathBuf)> {
 		// Enable the features based on the user's input.
 		let mut features = HashSet::new();
 		self.features.iter().for_each(|f| {
@@ -82,8 +88,7 @@ impl BuildRuntime {
 			self.deterministic,
 			self.tag,
 		)
-		.await?;
-		Ok(())
+		.await
 	}
 }
 

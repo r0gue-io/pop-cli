@@ -37,6 +37,15 @@ pub struct NewArgs {
 	pub command: Option<Command>,
 }
 
+/// The result of creating a new project (parachain, pallet, or contract).
+#[derive(Serialize)]
+pub struct NewProjectData {
+	/// The name of the project.
+	pub name: String,
+	/// The path where the project was created.
+	pub path: std::path::PathBuf,
+}
+
 /// Generate a new parachain, pallet or smart contract.
 #[derive(Subcommand, Serialize)]
 pub enum Command {

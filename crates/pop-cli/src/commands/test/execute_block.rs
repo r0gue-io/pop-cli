@@ -2,6 +2,7 @@
 
 use crate::{
 	cli,
+	cli::{spinner, traits::Spinner},
 	common::{
 		prompt::display_message,
 		try_runtime::{
@@ -12,7 +13,6 @@ use crate::{
 	},
 };
 use clap::Args;
-use cliclack::spinner;
 use pop_chains::{
 	SharedParams, TryRuntimeCliCommand, parse_try_state_string, run_try_runtime,
 	state::{LiveState, State, StateCommand},
@@ -52,7 +52,10 @@ pub(crate) struct TestExecuteBlockCommand {
 }
 
 impl TestExecuteBlockCommand {
-	pub(crate) async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	pub(crate) async fn execute(
+		&mut self,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<serde_json::Value> {
 		self.execute_block(cli, std::env::args().skip(3).collect()).await
 	}
 
@@ -60,7 +63,7 @@ impl TestExecuteBlockCommand {
 		&mut self,
 		cli: &mut impl cli::traits::Cli,
 		user_provided_args: Vec<String>,
-	) -> anyhow::Result<()> {
+	) -> anyhow::Result<serde_json::Value> {
 		cli.intro("Testing block execution")?;
 		if let Err(e) = update_runtime_source(
 			cli,
@@ -72,12 +75,14 @@ impl TestExecuteBlockCommand {
 		)
 		.await
 		{
-			return display_message(&e.to_string(), false, cli);
+			display_message(&e.to_string(), false, cli)?;
+			return Err(e);
 		}
 
 		// Prompt the update the live state.
 		if let Err(e) = update_live_state(cli, &mut self.state, &mut None) {
-			return display_message(&e.to_string(), false, cli);
+			display_message(&e.to_string(), false, cli)?;
+			return Err(e);
 		};
 
 		// Prompt the user to select the try state if no `--try-state` argument is provided.
@@ -96,9 +101,12 @@ impl TestExecuteBlockCommand {
 		// Display the `execute-block` command.
 		cli.info(self.display(user_provided_args)?)?;
 		if let Err(e) = result {
-			return display_message(&e.to_string(), false, cli);
+			display_message(&e.to_string(), false, cli)?;
+			return Err(e);
 		}
-		display_message("Block executed successfully!", true, cli)
+		let msg = "Block executed successfully!";
+		display_message(msg, true, cli)?;
+		Ok(serde_json::to_value(super::TestData { success: true })?)
 	}
 
 	async fn run(

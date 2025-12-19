@@ -35,6 +35,15 @@ pub struct CleanCommandArgs {
 	pub(crate) all: bool,
 }
 
+/// The result of a clean command.
+#[derive(Serialize)]
+pub struct CleanData {
+	/// A human-readable message.
+	pub message: String,
+	/// The number of items (artifacts or processes) removed.
+	pub count: usize,
+}
+
 /// Removes cached artifacts.
 pub(crate) struct CleanCacheCommand<'a, CLI: Cli> {
 	/// The cli to be used.
@@ -47,27 +56,30 @@ pub(crate) struct CleanCacheCommand<'a, CLI: Cli> {
 
 impl<CLI: Cli> CleanCacheCommand<'_, CLI> {
 	/// Executes the command.
-	pub(crate) fn execute(self) -> Result<()> {
+	pub(crate) fn execute(self) -> Result<serde_json::Value> {
 		self.cli.intro("Remove cached artifacts")?;
 
 		// Get the cache contents
 		if !self.cache.exists() {
-			self.cli.outro_cancel("🚫 The cache does not exist.")?;
-			return Ok(());
+			let msg = "🚫 The cache does not exist.";
+			self.cli.outro_cancel(msg)?;
+			return Err(anyhow::anyhow!(msg));
 		};
 		let contents = contents(&self.cache)?;
 		if contents.is_empty() {
-			self.cli.outro(format!(
+			let msg = format!(
 				"ℹ️ The cache at {} is empty.",
 				self.cache.to_str().expect("expected local cache is invalid")
-			))?;
-			return Ok(());
+			);
+			self.cli.outro(&msg)?;
+			return Ok(serde_json::to_value(CleanData { message: msg, count: 0 })?);
 		}
 		self.cli.info(format!(
 			"ℹ️ The cache is located at {}",
 			self.cache.to_str().expect("expected local cache is invalid")
 		))?;
 
+		let mut count = 0;
 		if self.all {
 			// Display all artifacts to be deleted and get confirmation
 			let list = style(format!(
@@ -84,9 +96,10 @@ impl<CLI: Cli> CleanCacheCommand<'_, CLI> {
 			for (_, file, _) in &contents {
 				// confirm removal
 				remove_file(file)?;
+				count += 1;
 			}
 
-			self.cli.outro(format!("ℹ️ {} artifacts removed", contents.len()))?;
+			self.cli.outro(format!("ℹ️ {} artifacts removed", count))?;
 		} else {
 			// Prompt for selection of artifacts to be removed
 			let selected = {
@@ -100,8 +113,9 @@ impl<CLI: Cli> CleanCacheCommand<'_, CLI> {
 				prompt.interact()?
 			};
 			if selected.is_empty() {
-				self.cli.outro("ℹ️ No artifacts removed")?;
-				return Ok(());
+				let msg = "ℹ️ No artifacts removed";
+				self.cli.outro(msg)?;
+				return Ok(serde_json::to_value(CleanData { message: msg.to_string(), count: 0 })?);
 			};
 
 			// Confirm removal
@@ -113,19 +127,24 @@ impl<CLI: Cli> CleanCacheCommand<'_, CLI> {
 				),
 			};
 			if !self.cli.confirm(prompt).interact()? {
-				self.cli.outro("ℹ️ No artifacts removed")?;
-				return Ok(());
+				let msg = "ℹ️ No artifacts removed";
+				self.cli.outro(msg)?;
+				return Ok(serde_json::to_value(CleanData { message: msg.to_string(), count: 0 })?);
 			}
 
 			// Finally remove selected artifacts
 			for file in &selected {
-				remove_file(file)?
+				remove_file(file)?;
+				count += 1;
 			}
 
-			self.cli.outro(format!("ℹ️ {} artifacts removed", selected.len()))?;
+			self.cli.outro(format!("ℹ️ {} artifacts removed", count))?;
 		}
 
-		Ok(())
+		Ok(serde_json::to_value(CleanData {
+			message: format!("{} artifacts removed", count),
+			count,
+		})?)
 	}
 }
 
@@ -163,7 +182,7 @@ pub(crate) struct CleanNodesCommand<'a, CLI: Cli> {
 
 impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 	/// Executes the command.
-	pub(crate) fn execute(self) -> Result<()> {
+	pub(crate) fn execute(self) -> Result<serde_json::Value> {
 		self.cli.intro("Remove running nodes")?;
 
 		// Get running processes for both ink-node and eth-rpc
@@ -179,10 +198,12 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 		};
 
 		if processes.is_empty() {
-			self.cli.outro("ℹ️ No running nodes found.")?;
-			return Ok(());
+			let msg = "ℹ️ No running nodes found.";
+			self.cli.outro(msg)?;
+			return Ok(serde_json::to_value(CleanData { message: msg.to_string(), count: 0 })?);
 		}
 
+		let mut count = 0;
 		if self.all {
 			// Display all processes to be killed
 			let list = style(format!(
@@ -206,9 +227,10 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 				{
 					kill_process(pid)?
 				}
+				count += 1;
 			}
 
-			self.cli.outro(format!("ℹ️ {} processes killed", processes.len()))?;
+			self.cli.outro(format!("ℹ️ {} processes killed", count))?;
 		} else {
 			// Prompt for selection of processes to be killed
 			let selected = {
@@ -225,8 +247,9 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 			};
 
 			if selected.is_empty() {
-				self.cli.outro("ℹ️ No processes killed")?;
-				return Ok(());
+				let msg = "ℹ️ No processes killed";
+				self.cli.outro(msg)?;
+				return Ok(serde_json::to_value(CleanData { message: msg.to_string(), count: 0 })?);
 			}
 
 			// Confirm removal
@@ -238,8 +261,9 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 				),
 			};
 			if !self.cli.confirm(prompt).interact()? {
-				self.cli.outro("ℹ️ No processes killed")?;
-				return Ok(());
+				let msg = "ℹ️ No processes killed";
+				self.cli.outro(msg)?;
+				return Ok(serde_json::to_value(CleanData { message: msg.to_string(), count: 0 })?);
 			}
 
 			// Finally kill selected processes
@@ -252,12 +276,16 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 				{
 					kill_process(pid)?
 				}
+				count += 1;
 			}
 
-			self.cli.outro(format!("ℹ️ {} processes killed", selected.len()))?;
+			self.cli.outro(format!("ℹ️ {} processes killed", count))?;
 		}
 
-		Ok(())
+		Ok(serde_json::to_value(CleanData {
+			message: format!("{} processes killed", count),
+			count,
+		})?)
 	}
 }
 

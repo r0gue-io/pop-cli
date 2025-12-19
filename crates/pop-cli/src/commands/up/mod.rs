@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	cli::{self, Cli},
+	cli::{self},
 	common::builds::ensure_project_path,
 };
 use clap::{Args, Subcommand};
@@ -91,41 +91,43 @@ pub(crate) enum Command {
 
 impl Command {
 	/// Executes the command.
-	pub(crate) async fn execute(args: &mut UpArgs) -> anyhow::Result<()> {
-		Self::execute_project_deployment(args, &mut Cli).await
+	pub(crate) async fn execute(
+		args: &mut UpArgs,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<serde_json::Value> {
+		Self::execute_project_deployment(args, cli).await
 	}
 
 	/// Identifies the project type and executes the appropriate deployment process.
 	async fn execute_project_deployment(
 		args: &mut UpArgs,
 		cli: &mut impl cli::traits::Cli,
-	) -> anyhow::Result<()> {
+	) -> anyhow::Result<serde_json::Value> {
 		let project_path = ensure_project_path(args.path.clone(), args.path_pos.clone());
 		#[cfg(feature = "chain")]
 		if project_path.is_file() {
-			let cmd =
+			let mut cmd =
 				network::ConfigFileCommand { path: project_path.clone(), ..Default::default() };
-			cmd.execute(cli).await?;
-			return Ok(());
+			return cmd.execute(cli).await;
 		}
 
 		// If only contract feature enabled, deploy a contract
 		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(&project_path)? {
 			args.contract.path = project_path.clone();
-			args.contract.execute().await?;
-			return Ok(());
+			return args.contract.execute(cli).await;
 		}
 		#[cfg(feature = "chain")]
 		if pop_chains::is_supported(&project_path) {
 			args.rollup.path = project_path.clone();
-			args.rollup.execute(cli).await?;
-			return Ok(());
+			return args.rollup.execute(cli).await;
 		}
 		cli.warning(
 			"No contract or rollup detected. Ensure you are in a valid project directory.",
 		)?;
-		Ok(())
+		Err(anyhow::anyhow!(
+			"No contract or rollup detected. Ensure you are in a valid project directory."
+		))
 	}
 }
 

@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	cli::{
-		self, Cli,
-		traits::{Cli as _, *},
-	},
+	cli::{self, traits::*},
 	common::helpers::check_destination_path,
 	new::frontend::{PackageManager, create_frontend, prompt_frontend_template},
 };
@@ -54,12 +51,13 @@ pub struct NewContractCommand {
 
 impl NewContractCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(&mut self) -> Result<()> {
-		let mut cli = Cli;
-
+	pub(crate) async fn execute(
+		&mut self,
+		cli: &mut impl cli::traits::Cli,
+	) -> Result<serde_json::Value> {
 		// Prompt for missing fields interactively
 		if self.name.is_none() || self.template.is_none() {
-			guide_user_to_generate_contract(&mut cli, self).await?;
+			guide_user_to_generate_contract(cli, self).await?;
 		}
 
 		let path_project = self.name.as_ref().expect("name can not be none; qed");
@@ -68,8 +66,8 @@ impl NewContractCommand {
 
 		// Validate contract name.
 		if let Err(e) = is_valid_contract_name(name) {
-			cli.outro_cancel(e)?;
-			return Ok(());
+			cli.outro_cancel(e.to_string())?;
+			return Err(anyhow::anyhow!(e));
 		}
 
 		let template = self.template.clone().unwrap_or_default();
@@ -78,7 +76,7 @@ impl NewContractCommand {
 			frontend_template =
 				if frontend_arg.is_empty() {
 					// User provided --with-frontend without value: prompt for template
-					Some(prompt_frontend_template(&FrontendType::Contract, &mut cli)?)
+					Some(prompt_frontend_template(&FrontendType::Contract, cli)?)
 				} else {
 					// User specified a template explicitly: parse and use it
 					Some(FrontendTemplate::from_str(frontend_arg).map_err(|_| {
@@ -92,7 +90,7 @@ impl NewContractCommand {
 			&template,
 			frontend_template,
 			self.package_manager,
-			&mut cli,
+			cli,
 		)
 		.await?;
 
@@ -106,7 +104,10 @@ impl NewContractCommand {
 			)?;
 		}
 
-		Ok(())
+		Ok(serde_json::to_value(crate::commands::new::NewProjectData {
+			name: name.to_string(),
+			path: contract_path,
+		})?)
 	}
 }
 
@@ -169,7 +170,7 @@ async fn generate_contract_from_template(
 
 	let contract_path = check_destination_path(path, cli)?;
 	fs::create_dir_all(contract_path.as_path())?;
-	let spinner = cliclack::spinner();
+	let spinner = cli.spinner();
 	spinner.start("Generating contract...");
 	create_smart_contract(name, contract_path.as_path(), template)?;
 	spinner.clear();
@@ -232,13 +233,15 @@ mod tests {
 	async fn test_new_contract_command_execute_with_defaults_executes() -> Result<()> {
 		let dir = tempdir()?;
 		let dir_path = format!("{}/test_contract", dir.path().display());
-		let cli = Cli::parse_from(["pop", "new", "contract", &dir_path, "--template", "standard"]);
+		let cli_parsed =
+			Cli::parse_from(["pop", "new", "contract", &dir_path, "--template", "standard"]);
 
-		let New(NewArgs { command: Some(Contract(mut command)) }) = cli.command else {
+		let New(NewArgs { command: Some(Contract(mut command)) }) = cli_parsed.command else {
 			panic!("unable to parse command")
 		};
+		let mut cli = MockCli::new();
 		// Execute
-		command.execute().await?;
+		command.execute(&mut cli).await?;
 		Ok(())
 	}
 
@@ -329,7 +332,7 @@ edition = "2024"
 		std::env::set_current_dir(workspace_path)?;
 		// User runs: pop new contract flipper -t standard
 		// They pass just "flipper", not "./flipper"
-		let cli = Cli::parse_from([
+		let cli_parsed = Cli::parse_from([
 			"pop",
 			"new",
 			"contract",
@@ -337,10 +340,11 @@ edition = "2024"
 			"--template",
 			"standard", // Just the name, not a path like "./flipper"
 		]);
-		let New(NewArgs { command: Some(Contract(mut command)) }) = cli.command else {
+		let New(NewArgs { command: Some(Contract(mut command)) }) = cli_parsed.command else {
 			panic!("unable to parse command")
 		};
-		let result = command.execute().await;
+		let mut cli = MockCli::new();
+		let result = command.execute(&mut cli).await;
 		// Restore original directory
 		std::env::set_current_dir(original_dir)?;
 		result?;

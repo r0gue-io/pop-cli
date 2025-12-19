@@ -43,6 +43,13 @@ pub(crate) struct TestArgs {
 	pub(crate) test: Option<String>,
 }
 
+/// The result of running tests.
+#[derive(Serialize)]
+pub struct TestData {
+	/// Whether the tests passed.
+	pub success: bool,
+}
+
 /// Test a Rust project.
 #[derive(Subcommand, Serialize)]
 pub(crate) enum Command {
@@ -62,19 +69,17 @@ pub(crate) enum Command {
 }
 
 impl Command {
-	pub(crate) async fn execute(args: &mut TestArgs) -> anyhow::Result<()> {
-		Self::test(
-			args,
-			#[cfg(feature = "contract")]
-			&mut cli::Cli,
-		)
-		.await
+	pub(crate) async fn execute(
+		args: &mut TestArgs,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<serde_json::Value> {
+		Self::test(args, cli).await
 	}
 
 	async fn test(
 		args: &mut TestArgs,
-		#[cfg(feature = "contract")] cli: &mut impl cli::traits::Cli,
-	) -> anyhow::Result<()> {
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<serde_json::Value> {
 		// If user gave only one positional and it doesn’t resolve to a directory,
 		// treat it as the test filter and default the project path to CWD.
 		if args.test.is_none() &&
@@ -98,11 +103,7 @@ impl Command {
 
 		test_project(&project_path, args.test.clone())?;
 
-		#[cfg(feature = "chain")]
-		if pop_chains::is_supported(&project_path) {
-			return Ok(());
-		}
-		Ok(())
+		Ok(serde_json::to_value(TestData { success: true })?)
 	}
 }
 

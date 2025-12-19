@@ -76,12 +76,17 @@ pub(crate) enum Command {
 
 impl Command {
 	/// Executes the command.
-	pub(crate) fn execute(&self, cli: &mut impl Cli) -> Result<()> {
-		let output = match self {
-			Address { address } => convert_address(address.as_str())?,
-		};
-		cli.plain(&output)?;
-		Ok(())
+	pub(crate) fn execute(&self, cli: &mut impl Cli) -> Result<serde_json::Value> {
+		match self {
+			Address { address } => {
+				let output = convert_address(address.as_str())?;
+				cli.plain(&output)?;
+				Ok(serde_json::json!({
+					"input": address,
+					"output": output,
+				}))
+			},
+		}
 	}
 }
 

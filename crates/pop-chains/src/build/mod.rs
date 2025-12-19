@@ -250,7 +250,11 @@ pub fn build_project(
 		args.push(target);
 	}
 
-	cmd("cargo", args).dir(path).run()?;
+	let mut command = cmd("cargo", args).dir(path);
+	if pop_common::is_json() {
+		command = command.stdout_to_stderr();
+	}
+	command.run()?;
 	Ok(())
 }
 

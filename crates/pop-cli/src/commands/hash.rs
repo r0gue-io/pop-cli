@@ -72,10 +72,13 @@ pub(crate) enum Command {
 
 impl Command {
 	/// Executes the command.
-	pub(crate) fn execute(&self, cli: &mut impl Cli) -> Result<()> {
-		let output = &to_hex(&self.hash()?, false)[2..];
+	pub(crate) fn execute(&self, cli: &mut impl Cli) -> Result<serde_json::Value> {
+		let hash = self.hash()?;
+		let output = &to_hex(&hash, false)[2..];
 		cli.plain(output)?;
-		Ok(())
+		Ok(serde_json::json!({
+			"output": output,
+		}))
 	}
 
 	fn hash(&self) -> Result<Vec<u8>> {

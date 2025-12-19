@@ -12,6 +12,8 @@ pub(crate) mod traits {
 	/// A command line interface.
 	#[allow(dead_code)]
 	pub trait Cli {
+		/// Returns whether the output should be in JSON format.
+		fn is_json(&self) -> bool;
 		/// Constructs a new [`Confirm`] prompt.
 		fn confirm(&mut self, prompt: impl Display) -> impl Confirm;
 		/// Prints an error message.
@@ -39,6 +41,35 @@ pub(crate) mod traits {
 		fn warning(&mut self, message: impl Display) -> Result<()>;
 		/// Prints a plain message.
 		fn plain(&mut self, message: impl Display) -> Result<()>;
+		/// Constructs a new [`Spinner`].
+		fn spinner(&mut self) -> Box<dyn Spinner + Send>;
+		/// Constructs a new [`MultiProgress`].
+		fn multi_progress(&mut self, title: impl Display) -> Box<dyn MultiProgress + Send>;
+	}
+
+	/// A spinner.
+	pub trait Spinner: Send {
+		/// Starts the spinner.
+		fn start(&self, message: &str);
+		/// Sets the message of the spinner.
+		fn set_message(&self, message: &str);
+		/// Stops the spinner.
+		fn stop(&self, message: &str);
+		/// Stops the spinner with an error message.
+		fn error(&self, message: &str);
+		/// Stops the spinner with a cancel message.
+		#[allow(dead_code)]
+		fn cancel(&self, message: &str);
+		/// Clears the spinner.
+		fn clear(&self);
+	}
+
+	/// A multi-progress bar.
+	pub trait MultiProgress: Send {
+		/// Adds a spinner to the multi-progress bar.
+		fn add(&mut self, message: &str) -> Box<dyn Spinner + Send>;
+		/// Stops the multi-progress bar.
+		fn stop(&mut self);
 	}
 
 	/// A confirmation prompt.
@@ -103,30 +134,50 @@ pub(crate) mod traits {
 }
 
 /// A command line interface using cliclack.
-pub(crate) struct Cli;
+pub(crate) struct Cli {
+	pub(crate) json: bool,
+}
+
 impl traits::Cli for Cli {
+	fn is_json(&self) -> bool {
+		self.json
+	}
+
 	/// Constructs a new [`Confirm`] prompt.
 	fn confirm(&mut self, prompt: impl Display) -> impl traits::Confirm {
-		Confirm(cliclack::confirm(prompt))
+		Confirm { inner: cliclack::confirm(prompt), json: self.json }
 	}
 
 	/// Prints an error message.
 	fn error(&mut self, text: impl Display) -> Result<()> {
-		cliclack::log::error(text)
+		if self.json {
+			eprintln!("{}", text);
+			Ok(())
+		} else {
+			cliclack::log::error(text)
+		}
 	}
 
 	/// Prints an info message.
 	fn info(&mut self, text: impl Display) -> Result<()> {
-		cliclack::log::info(text)
+		if self.json {
+			eprintln!("{}", text);
+			Ok(())
+		} else {
+			cliclack::log::info(text)
+		}
 	}
 
 	/// Constructs a new [`Input`] prompt.
 	fn input(&mut self, prompt: impl Display) -> impl traits::Input {
-		Input(cliclack::input(prompt))
+		Input { inner: cliclack::input(prompt), json: self.json }
 	}
 
 	/// Prints a header of the prompt sequence.
 	fn intro(&mut self, title: impl Display) -> Result<()> {
+		if self.json {
+			return Ok(());
+		}
 		cliclack::clear_screen()?;
 		cliclack::set_theme(crate::style::Theme);
 		cliclack::intro(format!("{}: {title}", console::style(" Pop CLI ").black().on_magenta()))
@@ -134,159 +185,358 @@ impl traits::Cli for Cli {
 
 	/// Constructs a new [`MultiSelect`] prompt.
 	fn multiselect<T: Clone + Eq>(&mut self, prompt: impl Display) -> impl traits::MultiSelect<T> {
-		MultiSelect::<T>(cliclack::multiselect(prompt))
+		MultiSelect::<T> { inner: cliclack::multiselect(prompt), json: self.json }
 	}
 
 	/// Prints a footer of the prompt sequence.
 	fn outro(&mut self, message: impl Display) -> Result<()> {
-		cliclack::outro(message)
+		if self.json {
+			eprintln!("{}", message);
+			Ok(())
+		} else {
+			cliclack::outro(message)
+		}
 	}
 
 	/// Prints a footer of the prompt sequence with a failure style.
 	fn outro_cancel(&mut self, message: impl Display) -> Result<()> {
-		cliclack::outro_cancel(message)
+		if self.json {
+			eprintln!("{}", message);
+			Ok(())
+		} else {
+			cliclack::outro_cancel(message)
+		}
 	}
 
 	/// Constructs a new [`Password`] prompt.
 	fn password(&mut self, prompt: impl Display) -> impl traits::Password {
-		Password(cliclack::password(prompt))
+		Password { inner: cliclack::password(prompt), json: self.json }
 	}
 
 	/// Constructs a new [`Select`] prompt.
 	fn select<T: Clone + Eq>(&mut self, prompt: impl Display) -> impl traits::Select<T> {
-		Select::<T>(cliclack::select(prompt))
+		Select::<T> { inner: cliclack::select(prompt), json: self.json }
 	}
 
 	/// Prints a success message.
 	fn success(&mut self, message: impl Display) -> Result<()> {
-		cliclack::log::success(message)
+		if self.json {
+			eprintln!("{}", message);
+			Ok(())
+		} else {
+			cliclack::log::success(message)
+		}
 	}
 
 	/// Prints a warning message.
 	fn warning(&mut self, message: impl Display) -> Result<()> {
-		cliclack::log::warning(message)?;
-		#[cfg(not(test))]
-		sleep(Duration::from_secs(1));
-		Ok(())
+		if self.json {
+			eprintln!("{}", message);
+			Ok(())
+		} else {
+			cliclack::log::warning(message)?;
+			#[cfg(not(test))]
+			sleep(Duration::from_secs(1));
+			Ok(())
+		}
 	}
 
 	fn plain(&mut self, message: impl Display) -> Result<()> {
-		println!("{message}");
+		if self.json {
+			eprintln!("{}", message);
+		} else {
+			println!("{message}");
+		}
 		Ok(())
+	}
+
+	fn spinner(&mut self) -> Box<dyn traits::Spinner + Send> {
+		Box::new(Spinner {
+			inner: std::sync::Arc::new(std::sync::Mutex::new(None)),
+			json: self.json,
+		})
+	}
+
+	fn multi_progress(&mut self, title: impl Display) -> Box<dyn traits::MultiProgress + Send> {
+		if !self.json {
+			cliclack::intro(title).ok();
+		} else {
+			eprintln!("{}", title);
+		}
+		Box::new(MultiProgress {
+			inner: std::sync::Arc::new(std::sync::Mutex::new(if self.json {
+				None
+			} else {
+				Some(cliclack::multi_progress(""))
+			})),
+			json: self.json,
+		})
+	}
+}
+
+/// Constructs a new [`Spinner`].
+pub fn spinner() -> impl traits::Spinner {
+	Spinner { inner: std::sync::Arc::new(std::sync::Mutex::new(None)), json: pop_common::is_json() }
+}
+
+/// A spinner using cliclack.
+#[derive(Clone)]
+struct Spinner {
+	inner: std::sync::Arc<std::sync::Mutex<Option<cliclack::ProgressBar>>>,
+	json: bool,
+}
+
+impl traits::Spinner for Spinner {
+	fn start(&self, message: &str) {
+		if !self.json {
+			let s = cliclack::spinner();
+			s.start(message);
+			if let Ok(mut inner) = self.inner.lock() {
+				*inner = Some(s);
+			}
+		} else {
+			eprintln!("{}", message);
+		}
+	}
+
+	fn set_message(&self, message: &str) {
+		if let Ok(mut inner) = self.inner.lock() {
+			if let Some(ref mut s) = *inner {
+				s.set_message(message);
+			} else if self.json {
+				eprintln!("{}", message);
+			}
+		}
+	}
+
+	fn stop(&self, message: &str) {
+		if let Ok(mut inner) = self.inner.lock() {
+			if let Some(s) = inner.take() {
+				s.stop(message);
+			} else if self.json {
+				eprintln!("{}", message);
+			}
+		}
+	}
+
+	fn cancel(&self, message: &str) {
+		if let Ok(mut inner) = self.inner.lock() {
+			if let Some(s) = inner.take() {
+				s.cancel(message);
+			} else if self.json {
+				eprintln!("{}", message);
+			}
+		}
+	}
+
+	fn error(&self, message: &str) {
+		if let Ok(mut inner) = self.inner.lock() {
+			if let Some(s) = inner.take() {
+				s.error(message);
+			} else if self.json {
+				eprintln!("{}", message);
+			}
+		}
+	}
+
+	fn clear(&self) {
+		if let Ok(mut inner) = self.inner.lock() &&
+			let Some(s) = inner.take()
+		{
+			s.clear();
+		}
+	}
+}
+
+/// A multi-progress bar using cliclack.
+struct MultiProgress {
+	inner: std::sync::Arc<std::sync::Mutex<Option<cliclack::MultiProgress>>>,
+	json: bool,
+}
+
+impl traits::MultiProgress for MultiProgress {
+	fn add(&mut self, message: &str) -> Box<dyn traits::Spinner + Send> {
+		if let Ok(mut inner_multi) = self.inner.lock() {
+			if let Some(ref mut m) = *inner_multi {
+				let s = cliclack::spinner();
+				s.start(message);
+				let s = m.add(s);
+				Box::new(Spinner {
+					inner: std::sync::Arc::new(std::sync::Mutex::new(Some(s))),
+					json: self.json,
+				})
+			} else {
+				eprintln!("{}", message);
+				Box::new(Spinner {
+					inner: std::sync::Arc::new(std::sync::Mutex::new(None)),
+					json: self.json,
+				})
+			}
+		} else {
+			Box::new(Spinner {
+				inner: std::sync::Arc::new(std::sync::Mutex::new(None)),
+				json: self.json,
+			})
+		}
+	}
+
+	fn stop(&mut self) {
+		if let Ok(mut inner) = self.inner.lock() &&
+			let Some(m) = inner.take()
+		{
+			m.stop();
+		}
 	}
 }
 
 /// A confirmation prompt using cliclack.
-struct Confirm(cliclack::Confirm);
+struct Confirm {
+	inner: cliclack::Confirm,
+	json: bool,
+}
 
 impl traits::Confirm for Confirm {
 	/// Sets the initially selected value.
 	fn initial_value(mut self, initial_value: bool) -> Self {
-		self.0 = self.0.initial_value(initial_value);
+		self.inner = self.inner.initial_value(initial_value);
 		self
 	}
+
 	/// Starts the prompt interaction.
 	fn interact(&mut self) -> Result<bool> {
-		self.0.interact()
+		if self.json {
+			return Err(std::io::Error::other("Prompt required"));
+		}
+		self.inner.interact()
 	}
 }
 
 /// A input prompt using cliclack.
 #[allow(dead_code)]
-struct Input(cliclack::Input);
+struct Input {
+	inner: cliclack::Input,
+	json: bool,
+}
+
 impl traits::Input for Input {
 	/// Sets the default value for the input.
 	fn default_input(mut self, value: &str) -> Self {
-		self.0 = self.0.default_input(value);
+		self.inner = self.inner.default_input(value);
 		self
 	}
+
 	/// Starts the prompt interaction.
 	fn interact(&mut self) -> Result<String> {
-		self.0.interact()
+		if self.json {
+			return Err(std::io::Error::other("Prompt required"));
+		}
+		self.inner.interact()
 	}
+
 	/// Sets the placeholder (hint) text for the input.
 	fn placeholder(mut self, placeholder: &str) -> Self {
-		self.0 = self.0.placeholder(placeholder);
+		self.inner = self.inner.placeholder(placeholder);
 		self
 	}
+
 	/// Sets whether the input is required.
 	fn required(mut self, required: bool) -> Self {
-		self.0 = self.0.required(required);
+		self.inner = self.inner.required(required);
 		self
 	}
+
 	/// Sets a validation callback for the input that is called when the user submits.
 	fn validate(
 		mut self,
 		validator: impl Fn(&String) -> std::result::Result<(), &'static str> + 'static,
 	) -> Self {
-		self.0 = self.0.validate(validator);
+		self.inner = self.inner.validate(validator);
 		self
 	}
 }
 
 /// A multi-select prompt using cliclack.
-struct MultiSelect<T: Clone + Eq>(cliclack::MultiSelect<T>);
+struct MultiSelect<T: Clone + Eq> {
+	inner: cliclack::MultiSelect<T>,
+	json: bool,
+}
 
 impl<T: Clone + Eq> traits::MultiSelect<T> for MultiSelect<T> {
 	/// Starts the prompt interaction.
 	fn interact(&mut self) -> Result<Vec<T>> {
-		self.0.interact()
+		if self.json {
+			return Err(std::io::Error::other("Prompt required"));
+		}
+		self.inner.interact()
 	}
 
 	/// Adds an item to the list of options.
 	fn item(mut self, value: T, label: impl Display, hint: impl Display) -> Self {
-		self.0 = self.0.item(value, label, hint);
+		self.inner = self.inner.item(value, label, hint);
 		self
 	}
 
 	/// Sets whether the input is required.
 	fn required(mut self, required: bool) -> Self {
-		self.0 = self.0.required(required);
+		self.inner = self.inner.required(required);
 		self
 	}
 
 	/// The filter mode allows to filter the items by typing.
 	fn filter_mode(mut self) -> Self {
-		self.0 = self.0.filter_mode();
+		self.inner = self.inner.filter_mode();
 		self
 	}
 }
 
 /// A password prompt using cliclack.
 #[allow(dead_code)]
-struct Password(cliclack::Password);
+struct Password {
+	inner: cliclack::Password,
+	json: bool,
+}
+
 impl traits::Password for Password {
 	/// Starts the prompt interaction.
 	fn interact(&mut self) -> Result<String> {
-		self.0.interact()
+		if self.json {
+			return Err(std::io::Error::other("Prompt required"));
+		}
+		self.inner.interact()
 	}
 }
 
 /// A select prompt using cliclack.
 #[allow(dead_code)]
-struct Select<T: Clone + Eq>(cliclack::Select<T>);
+struct Select<T: Clone + Eq> {
+	inner: cliclack::Select<T>,
+	json: bool,
+}
 
 impl<T: Clone + Eq> traits::Select<T> for Select<T> {
 	/// Sets the initially selected value.
 	fn initial_value(mut self, initial_value: T) -> Self {
-		self.0 = self.0.initial_value(initial_value);
+		self.inner = self.inner.initial_value(initial_value);
 		self
 	}
 
 	/// Starts the prompt interaction.
 	fn interact(&mut self) -> Result<T> {
-		self.0.interact()
+		if self.json {
+			return Err(std::io::Error::other("Prompt required"));
+		}
+		self.inner.interact()
 	}
 
 	/// Adds an item to the selection prompt.
 	fn item(mut self, value: T, label: impl Display, hint: impl Display) -> Self {
-		self.0 = self.0.item(value, label, hint);
+		self.inner = self.inner.item(value, label, hint);
 		self
 	}
 
 	/// The filter mode allows to filter the items by typing.
 	fn filter_mode(mut self) -> Self {
-		self.0 = self.0.filter_mode();
+		self.inner = self.inner.filter_mode();
 		self
 	}
 }
@@ -299,6 +549,7 @@ pub(crate) mod tests {
 	/// Mock Cli with optional expectations
 	#[derive(Default)]
 	pub(crate) struct MockCli {
+		pub(crate) json: bool,
 		confirm_expectation: Vec<(String, bool)>,
 		error_expectations: Vec<String>,
 		info_expectations: Vec<String>,
@@ -469,6 +720,10 @@ pub(crate) mod tests {
 	}
 
 	impl Cli for MockCli {
+		fn is_json(&self) -> bool {
+			self.json
+		}
+
 		fn confirm(&mut self, prompt: impl Display) -> impl Confirm {
 			let prompt = prompt.to_string();
 			if let Some((expectation, confirm)) = self.confirm_expectation.pop() {
@@ -608,6 +863,37 @@ pub(crate) mod tests {
 			self.plain_expectations.retain(|x| *x != message);
 			Ok(())
 		}
+
+		fn spinner(&mut self) -> Box<dyn Spinner + Send> {
+			Box::new(MockSpinner {})
+		}
+
+		fn multi_progress(&mut self, _title: impl Display) -> Box<dyn MultiProgress + Send> {
+			Box::new(MockMultiProgress {})
+		}
+	}
+
+	/// Mock spinner
+	struct MockSpinner {}
+
+	impl Spinner for MockSpinner {
+		fn start(&self, _message: &str) {}
+		fn set_message(&self, _message: &str) {}
+		fn stop(&self, _message: &str) {}
+		fn cancel(&self, _message: &str) {}
+		fn error(&self, _message: &str) {}
+		fn clear(&self) {}
+	}
+
+	/// Mock multi-progress bar
+	struct MockMultiProgress {}
+
+	impl MultiProgress for MockMultiProgress {
+		fn add(&mut self, _message: &str) -> Box<dyn Spinner + Send> {
+			Box::new(MockSpinner {})
+		}
+
+		fn stop(&mut self) {}
 	}
 
 	/// Mock confirm prompt

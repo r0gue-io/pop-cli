@@ -5,7 +5,7 @@ use crate::{
 		BuildSpecCommand, ChainType, CodePathBuf, GenesisArtifacts, RelayChain, StatePathBuf,
 	},
 	call::chain::Call,
-	cli::traits::*,
+	cli::{spinner, traits::*},
 	common::{
 		chain::{Chain, configure},
 		urls,
@@ -16,7 +16,6 @@ use crate::{
 };
 use anyhow::Result;
 use clap::Args;
-use cliclack::spinner;
 use pop_chains::{
 	Action, ChainTemplate, DeploymentProvider, Payload, Reserved, SupportedChains,
 	construct_proxy_extrinsic, find_callable_by_name,
@@ -74,9 +73,15 @@ pub struct UpCommand {
 	pub(crate) profile: Option<Profile>,
 }
 
+#[derive(Serialize)]
+pub struct UpRollupData {
+	pub para_id: u32,
+	pub relay_chain_url: String,
+}
+
 impl UpCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(&mut self, cli: &mut impl Cli) -> Result<()> {
+	pub(crate) async fn execute(&mut self, cli: &mut impl Cli) -> Result<serde_json::Value> {
 		cli.intro("Deploy a rollup")?;
 		let mut deployment = self.prepare_for_deployment(cli)?;
 		let show_deployment_steps = self.should_show_deployment_steps(&deployment);
@@ -87,7 +92,7 @@ impl UpCommand {
 			Ok(chain) => chain,
 			Err(e) => {
 				cli.outro_cancel(e.to_string())?;
-				return Ok(());
+				return Err(e);
 			},
 		};
 		if !self.skip_registration {
@@ -124,24 +129,33 @@ impl UpCommand {
 						))
 						.black()
 					))?;
-					return Ok(());
+					return Err(e);
 				},
 			}
 		}
 		// If no API is provided, there's no need to deploy.
 		if deployment.api.is_none() {
-			return Ok(());
+			return Ok(serde_json::to_value(UpRollupData {
+				para_id: config.id,
+				relay_chain_url: config.chain.url.to_string(),
+			})?);
 		}
 		match deployment.deploy(&config, show_deployment_steps, cli).await {
-			Ok(result) => cli.success(format!(
-				"Deployment successful\n   {}\n   {}",
-				style(format!("{} Status: {}", console::Emoji("●", ">"), result.status)).dim(),
-				style(format!(
-					"{} View Deployment: {}",
-					console::Emoji("●", ">"),
-					style(result.message).magenta().underlined()
-				))
-			))?,
+			Ok(result) => {
+				cli.success(format!(
+					"Deployment successful\n   {}\n   {}",
+					style(format!("{} Status: {}", console::Emoji("●", ">"), result.status)).dim(),
+					style(format!(
+						"{} View Deployment: {}",
+						console::Emoji("●", ">"),
+						style(result.message).magenta().underlined()
+					))
+				))?;
+				return Ok(serde_json::to_value(UpRollupData {
+					para_id: config.id,
+					relay_chain_url: config.chain.url.to_string(),
+				})?);
+			},
 			Err(e) => {
 				cli.outro_cancel(format!(
 					"{}\n{}",
@@ -157,9 +171,9 @@ impl UpCommand {
 					))
 					.black()
 				))?;
+				return Err(e);
 			},
 		}
-		Ok(())
 	}
 
 	// Prepares the chain for deployment by setting up its configuration.

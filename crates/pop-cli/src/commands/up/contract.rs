@@ -2,8 +2,8 @@
 
 use crate::{
 	cli::{
-		Cli,
-		traits::{Cli as _, Confirm},
+		spinner,
+		traits::{self, Confirm, Spinner},
 	},
 	commands::call::contract::CallContractCommand,
 	common::{
@@ -18,7 +18,6 @@ use crate::{
 	style::style,
 };
 use clap::Args;
-use cliclack::spinner;
 use console::Emoji;
 use pop_contracts::{
 	FunctionType, UpOpts, Verbosity, Weight, build_smart_contract,
@@ -56,12 +55,26 @@ pub(crate) struct InkNodeCommand {
 	pub(crate) detach: bool,
 }
 
+/// The result of launching a local ink! node.
+#[derive(Serialize)]
+pub struct InkNodeData {
+	/// The port used for the ink! node.
+	pub ink_node_port: u16,
+	/// The port used for the Ethereum RPC node.
+	pub eth_rpc_port: u16,
+}
+
 impl InkNodeCommand {
-	pub(crate) async fn execute(&self, cli: &mut Cli) -> anyhow::Result<()> {
+	/// Executes the command.
+	pub(crate) async fn execute(
+		&self,
+		cli: &mut impl traits::Cli,
+	) -> anyhow::Result<serde_json::Value> {
 		cli.intro("Launch a local Ink! node")?;
 		let url = Url::parse(&format!("ws://localhost:{}", self.ink_node_port))?;
 		let ((mut ink_node_process, ink_node_log), (mut eth_rpc_process, eth_rpc_log)) =
-			start_ink_node(&url, self.skip_confirm, self.ink_node_port, self.eth_rpc_port).await?;
+			start_ink_node(&url, self.skip_confirm, self.ink_node_port, self.eth_rpc_port, cli)
+				.await?;
 
 		if !self.detach {
 			// Wait for the process to terminate
@@ -82,7 +95,10 @@ impl InkNodeCommand {
 				eth_rpc_process.id()
 			))?;
 		}
-		Ok(())
+		Ok(serde_json::to_value(InkNodeData {
+			ink_node_port: self.ink_node_port,
+			eth_rpc_port: self.eth_rpc_port,
+		})?)
 	}
 }
 
@@ -148,28 +164,48 @@ pub struct UpContractCommand {
 	pub(crate) skip_build: bool,
 }
 
+/// The result of deploying a smart contract.
+#[derive(Serialize)]
+pub struct UpContractData {
+	/// The address of the deployed contract, if any.
+	pub contract_address: Option<String>,
+}
+
+/// The result of uploading a smart contract.
+#[derive(Serialize)]
+pub struct UploadContractData {
+	/// The code hash of the uploaded contract.
+	pub code_hash: String,
+}
+
 impl UpContractCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(&mut self) -> anyhow::Result<()> {
-		Cli.intro("Deploy a smart contract")?;
+	pub(crate) async fn execute(
+		&mut self,
+		cli: &mut impl traits::Cli,
+	) -> anyhow::Result<serde_json::Value> {
+		cli.intro("Deploy a smart contract")?;
 
 		// Check if build exists in the specified "Contract build directory"
 		let contract_already_built = has_contract_been_built(&self.path);
 		if !self.skip_build || !contract_already_built {
 			// Build the contract in release mode
 			if !contract_already_built {
-				Cli.warning("NOTE: contract has not yet been built.")?;
+				cli.warning("NOTE: contract has not yet been built.")?;
 			}
 			let spinner = spinner();
 			spinner.start("Building contract in RELEASE mode...");
 			let result = match build_smart_contract(&self.path, true, Verbosity::Quiet, None) {
 				Ok(result) => result,
 				Err(e) => {
-					Cli.outro_cancel(format!("🚫 An error occurred building your contract: {e}\nUse `pop build` to retry with build output."))?;
-					return Ok(());
+					let msg = format!(
+						"🚫 An error occurred building your contract: {e}\nUse `pop build` to retry with build output."
+					);
+					cli.outro_cancel(msg.clone())?;
+					return Err(anyhow::anyhow!(msg));
 				},
 			};
-			spinner.stop(format!(
+			spinner.stop(&format!(
 				"Your contract artifacts are ready. You can find them in: {}",
 				result.target_directory.display()
 			));
@@ -177,12 +213,11 @@ impl UpContractCommand {
 
 		// Resolve who is deploying the contract. If a `suri` was provided via the command line,
 		// skip the prompt.
-		if let Err(e) =
-			resolve_signer(self.skip_confirm, &mut self.use_wallet, &mut self.suri, &mut Cli)
+		if let Err(e) = resolve_signer(self.skip_confirm, &mut self.use_wallet, &mut self.suri, cli)
 		{
-			Cli.error(e.to_string())?;
-			Cli.outro_cancel(FAILED)?;
-			return Ok(());
+			cli.error(e.to_string())?;
+			cli.outro_cancel(FAILED)?;
+			return Err(e.into());
 		}
 
 		let url = if let Some(url) = self.url.clone() {
@@ -195,43 +230,44 @@ impl UpContractCommand {
 				"Type the chain URL manually",
 				urls::LOCAL,
 				|n| n.supports_contracts,
-				&mut Cli,
+				cli,
 			)
 			.await?
 		};
 		self.url = Some(url.clone());
 
 		// Check if specified chain is accessible
-		let processes = if !is_chain_alive(url.clone()).await? {
-			let local_url = Url::parse(urls::LOCAL).expect("default url is valid");
-			if url == local_url {
-				if self.skip_confirm ||
-					Cli.confirm(
+		let processes =
+			if !is_chain_alive(url.clone()).await? {
+				let local_url = Url::parse(urls::LOCAL).expect("default url is valid");
+				if url == local_url {
+					if self.skip_confirm ||
+					cli.confirm(
 						"No local ink! node detected. Would you like to start it node in the background for testing?",
 					)
 					.initial_value(true)
 					.interact()?
 				{
-					Cli.info("Fetching and launching a local ink! node")?;
+					cli.info("Fetching and launching a local ink! node")?;
 					Some(
-						start_ink_node(&url, self.skip_confirm, DEFAULT_PORT, DEFAULT_ETH_RPC_PORT)
+						start_ink_node(&url, self.skip_confirm, DEFAULT_PORT, DEFAULT_ETH_RPC_PORT, cli)
 							.await?,
 					)
 				} else {
-					Cli.outro_cancel(
+					cli.outro_cancel(
 						"🚫 You need to specify an accessible endpoint to deploy the contract.",
 					)?;
-					return Ok(());
+					return Err(anyhow::anyhow!("No accessible endpoint found"));
+				}
+				} else {
+					cli.outro_cancel(
+						"🚫 You need to specify an accessible endpoint to deploy the contract.",
+					)?;
+					return Err(anyhow::anyhow!("No accessible endpoint found"));
 				}
 			} else {
-				Cli.outro_cancel(
-					"🚫 You need to specify an accessible endpoint to deploy the contract.",
-				)?;
-				return Ok(());
-			}
-		} else {
-			None
-		};
+				None
+			};
 
 		// Track the deployed contract address across both deployment flows.
 		let mut deployed_contract_address: Option<String> = None;
@@ -241,7 +277,7 @@ impl UpContractCommand {
 			let function =
 				extract_function(self.path.clone(), &self.constructor, FunctionType::Constructor)?;
 			if !function.args.is_empty() {
-				resolve_function_args(&function, &mut Cli, &mut self.args, self.skip_confirm)?;
+				resolve_function_args(&function, cli, &mut self.args, self.skip_confirm)?;
 			}
 			normalize_call_args(&mut self.args, &function);
 		}
@@ -251,16 +287,17 @@ impl UpContractCommand {
 			let (call_data, hash) = match self.get_contract_data().await {
 				Ok(data) => data,
 				Err(e) => {
-					Cli.error(format!("An error occurred getting the call data: {e}"))?;
-					terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
-					Cli.outro_cancel(FAILED)?;
-					return Ok(());
+					let msg = format!("An error occurred getting the call data: {e}");
+					cli.error(msg.clone())?;
+					terminate_nodes(cli, processes, self.skip_confirm).await?;
+					cli.outro_cancel(FAILED)?;
+					return Err(anyhow::anyhow!(msg));
 				},
 			};
 
 			let maybe_payload = request_signature(call_data, url.to_string()).await?;
 			if let Some(payload) = maybe_payload {
-				Cli.success("Signed payload received.")?;
+				cli.success("Signed payload received.")?;
 				let spinner = spinner();
 				spinner.start(
 					"Uploading the contract and waiting for finalization, please be patient...",
@@ -270,71 +307,69 @@ impl UpContractCommand {
 					#[allow(unused_variables)]
 					let upload_result = match upload_contract_signed(url.as_str(), payload).await {
 						Err(e) => {
-							spinner
-								.error(format!("An error occurred uploading your contract: {e}"));
-							terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
-							Cli.outro_cancel(FAILED)?;
-							return Ok(());
+							let msg = format!("An error occurred uploading your contract: {e}");
+							spinner.error(&msg);
+							terminate_nodes(cli, processes, self.skip_confirm).await?;
+							cli.outro_cancel(FAILED)?;
+							return Err(anyhow::anyhow!(msg));
 						},
 						Ok(result) => {
-							spinner.stop(format!(
+							spinner.stop(&format!(
 								"Contract uploaded: The code hash is {:?}",
 								to_hex(&hash, false)
 							));
 							result
 						},
 					};
-					Cli.warning("NOTE: The contract has not been instantiated.")?;
+					cli.warning("NOTE: The contract has not been instantiated.")?;
 				} else {
 					let instantiate_exec = match set_up_deployment(self.clone().into()).await {
 						Ok(i) => i,
 						Err(e) => {
-							Cli.error(format!(
-								"An error occurred instantiating the contract: {e}"
-							))?;
-							terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
-							Cli.outro_cancel(FAILED)?;
-							return Ok(());
+							let msg = format!("An error occurred instantiating the contract: {e}");
+							cli.error(msg.clone())?;
+							terminate_nodes(cli, processes, self.skip_confirm).await?;
+							cli.outro_cancel(FAILED)?;
+							return Err(anyhow::anyhow!(msg));
 						},
 					};
 					// Check if the account is already mapped, and prompt the user to perform the
 					// mapping if it's required.
-					map_account(instantiate_exec.opts(), &mut Cli).await?;
-					let contract_info = match instantiate_contract_signed(url.as_str(), payload)
-						.await
-					{
-						Err(e) => {
-							spinner
-								.error(format!("An error occurred uploading your contract: {e}"));
-							terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
-							Cli.outro_cancel(FAILED)?;
-							return Ok(());
-						},
-						Ok(result) => result,
-					};
+					map_account(instantiate_exec.opts(), cli).await?;
+					let contract_info =
+						match instantiate_contract_signed(url.as_str(), payload).await {
+							Err(e) => {
+								let msg = format!("An error occurred uploading your contract: {e}");
+								spinner.error(&msg);
+								terminate_nodes(cli, processes, self.skip_confirm).await?;
+								cli.outro_cancel(FAILED)?;
+								return Err(anyhow::anyhow!(msg));
+							},
+							Ok(result) => result,
+						};
 
 					let contract_address = format!("{:?}", contract_info.contract_address);
 					let hash = contract_info.code_hash.map(|code_hash| format!("{:?}", code_hash));
 					spinner.clear();
-					display_contract_info(&mut Cli, contract_address.clone(), hash)?;
+					display_contract_info(cli, contract_address.clone(), hash)?;
 					// Store the contract address for later interaction prompt.
 					deployed_contract_address = Some(contract_address);
 				};
 			} else {
-				Cli.outro_cancel("Signed payload doesn't exist.")?;
-				terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
-				return Ok(());
+				cli.outro_cancel("Signed payload doesn't exist.")?;
+				terminate_nodes(cli, processes, self.skip_confirm).await?;
+				return Err(anyhow::anyhow!("Signed payload doesn't exist."));
 			}
 		} else {
 			// Check for upload only.
 			if self.upload_only {
-				let result = self.upload_contract().await;
+				let result = self.upload_contract(cli).await;
 				match result {
 					Ok(_) => {},
-					Err(_) => {
-						terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
-						Cli.outro_cancel(FAILED)?;
-						return Ok(());
+					Err(e) => {
+						terminate_nodes(cli, processes, self.skip_confirm).await?;
+						cli.outro_cancel(FAILED)?;
+						return Err(e);
 					},
 				}
 			} else {
@@ -342,15 +377,16 @@ impl UpContractCommand {
 				let instantiate_exec = match set_up_deployment(self.clone().into()).await {
 					Ok(i) => i,
 					Err(e) => {
-						Cli.error(format!("An error occurred instantiating the contract: {e}"))?;
-						terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
-						Cli.outro_cancel(FAILED)?;
-						return Ok(());
+						let msg = format!("An error occurred instantiating the contract: {e}");
+						cli.error(msg.clone())?;
+						terminate_nodes(cli, processes, self.skip_confirm).await?;
+						cli.outro_cancel(FAILED)?;
+						return Err(anyhow::anyhow!(msg));
 					},
 				};
 				// Check if the account is already mapped, and prompt the user to perform the
 				// mapping if it's required.
-				map_account(instantiate_exec.opts(), &mut Cli).await?;
+				map_account(instantiate_exec.opts(), cli).await?;
 
 				// Perform the dry run before attempting to execute the deployment, and since we are
 				// on it also to calculate the weight.
@@ -359,14 +395,15 @@ impl UpContractCommand {
 				let calculated_weight =
 					match dry_run_gas_estimate_instantiate(&instantiate_exec).await {
 						Ok(w) => {
-							spinner_1.stop(format!("Gas limit estimate: {:?}", w));
+							spinner_1.stop(&format!("Gas limit estimate: {:?}", w));
 							w
 						},
 						Err(e) => {
-							spinner_1.error(format!("{e}"));
-							terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
-							Cli.outro_cancel(FAILED)?;
-							return Ok(());
+							let msg = format!("{e}");
+							spinner_1.error(&msg);
+							terminate_nodes(cli, processes, self.skip_confirm).await?;
+							cli.outro_cancel(FAILED)?;
+							return Err(anyhow::anyhow!(msg));
 						},
 					};
 
@@ -379,8 +416,8 @@ impl UpContractCommand {
 				// Confirm whether to execute if not specified via flag.
 				if !self.execute {
 					if self.skip_confirm {
-						Cli.warning("NOTE: The contract has not been instantiated.")?;
-					} else if Cli
+						cli.warning("NOTE: The contract has not been instantiated.")?;
+					} else if cli
 						.confirm(
 							"Do you want to deploy the contract? (Selecting 'No' will keep this as a dry run)",
 						)
@@ -389,7 +426,7 @@ impl UpContractCommand {
 					{
 						self.execute = true;
 					} else {
-						Cli.warning("NOTE: The contract has not been instantiated.")?;
+						cli.warning("NOTE: The contract has not been instantiated.")?;
 					}
 				}
 
@@ -401,11 +438,7 @@ impl UpContractCommand {
 						instantiate_smart_contract(instantiate_exec, weight_limit).await?;
 					let contract_address = contract_info.address.to_string();
 					spinner_2.clear();
-					display_contract_info(
-						&mut Cli,
-						contract_address.clone(),
-						contract_info.code_hash,
-					)?;
+					display_contract_info(cli, contract_address.clone(), contract_info.code_hash)?;
 					// Store the contract address for later interaction prompt.
 					deployed_contract_address = Some(contract_address);
 				}
@@ -414,27 +447,27 @@ impl UpContractCommand {
 
 		// Prompt to keep interacting with the contract if one was deployed and skip_confirm is
 		// false.
-		if let Some(contract_address) = deployed_contract_address {
+		if let Some(ref contract_address) = deployed_contract_address {
 			if !self.skip_confirm {
-				Cli.success(COMPLETE)?;
-				self.keep_interacting_with_node(&mut Cli, contract_address).await?;
-				terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
+				cli.success(COMPLETE)?;
+				self.keep_interacting_with_node(cli, contract_address.clone()).await?;
+				terminate_nodes(cli, processes, self.skip_confirm).await?;
 			} else {
-				terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
-				Cli.outro(COMPLETE)?;
+				terminate_nodes(cli, processes, self.skip_confirm).await?;
+				cli.outro(COMPLETE)?;
 			}
 		} else {
-			terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
-			Cli.outro(COMPLETE)?;
+			terminate_nodes(cli, processes, self.skip_confirm).await?;
+			cli.outro(COMPLETE)?;
 		}
-		Ok(())
+		Ok(serde_json::to_value(UpContractData { contract_address: deployed_contract_address })?)
 	}
 
 	async fn keep_interacting_with_node(
 		&self,
-		cli: &mut Cli,
+		cli: &mut impl traits::Cli,
 		address: String,
-	) -> anyhow::Result<()> {
+	) -> anyhow::Result<serde_json::Value> {
 		if cli
 			.confirm("Do you want to keep making calls to the contract?")
 			.initial_value(false)
@@ -449,15 +482,20 @@ impl UpContractCommand {
 			cmd.use_wallet = self.use_wallet;
 			cmd.suri = self.suri.clone();
 			cmd.skip_confirm = self.skip_confirm;
-			cmd.execute(cli).await?;
+			return cmd.execute(cli).await;
 		}
-		Ok(())
+		Ok(serde_json::to_value(crate::common::output::SuccessData {
+			message: "Interaction skipped".to_string(),
+		})?)
 	}
 
 	/// Uploads the contract without instantiating it.
-	async fn upload_contract(&self) -> anyhow::Result<()> {
+	async fn upload_contract(
+		&self,
+		cli: &mut impl traits::Cli,
+	) -> anyhow::Result<serde_json::Value> {
 		let upload_exec = set_up_upload(self.clone().into()).await?;
-		if !self.execute {
+		let code_hash = if !self.execute {
 			match dry_run_upload(&upload_exec).await {
 				Ok(upload_result) => {
 					let mut result = vec![format!("Code Hash: {:?}", upload_result.code_hash)];
@@ -466,27 +504,29 @@ impl UpContractCommand {
 						.iter()
 						.map(|s| style(format!("{} {s}", Emoji("●", ">"))).dim().to_string())
 						.collect();
-					Cli.success(format!("Dry run successful!\n{}", result.join("\n")))?;
+					cli.success(format!("Dry run successful!\n{}", result.join("\n")))?;
+					upload_result.code_hash
 				},
-				Err(_) => {
-					Cli.outro_cancel(FAILED)?;
-					return Ok(());
+				Err(e) => {
+					cli.outro_cancel(FAILED)?;
+					return Err(e.into());
 				},
-			};
+			}
 		} else {
 			let spinner = spinner();
 			spinner.start("Uploading your contract...");
 			let code_hash = match upload_smart_contract(&upload_exec).await {
 				Ok(r) => r,
 				Err(e) => {
-					spinner.error(format!("An error occurred uploading your contract: {e}"));
+					spinner.error(&format!("🚫 An error occurred uploading your contract: {e}"));
 					return Err(e.into());
 				},
 			};
-			spinner.stop(format!("Contract uploaded: The code hash is {:?}", code_hash));
-			Cli.warning("NOTE: The contract has not been instantiated.")?;
-		}
-		Ok(())
+			spinner.stop(&format!("Contract uploaded: The code hash is {:?}", code_hash));
+			cli.warning("NOTE: The contract has not been instantiated.")?;
+			code_hash
+		};
+		Ok(serde_json::to_value(UploadContractData { code_hash: format!("{:?}", code_hash) })?)
 	}
 
 	// get the call data and contract code hash
@@ -542,6 +582,7 @@ pub(crate) async fn start_ink_node(
 	skip_confirm: bool,
 	ink_node_port: u16,
 	eth_rpc_port: u16,
+	cli: &mut impl traits::Cli,
 ) -> anyhow::Result<((Child, NamedTempFile), (Child, NamedTempFile))> {
 	let log_ink_node = NamedTempFile::new()?;
 	let log_eth_rpc = NamedTempFile::new()?;
@@ -549,10 +590,10 @@ pub(crate) async fn start_ink_node(
 
 	// uses the cache location
 	let (ink_node_binary_path, eth_rpc_binary_path) =
-		match check_ink_node_and_prompt(&mut Cli, &spinner, &crate::cache()?, skip_confirm).await {
+		match check_ink_node_and_prompt(cli, &spinner, &crate::cache()?, skip_confirm).await {
 			Ok(binary_path) => binary_path,
 			Err(_) => {
-				Cli.outro_cancel(
+				cli.outro_cancel(
 					"🚫 You need to specify an accessible endpoint to deploy the contract.",
 				)?;
 				anyhow::bail!("Failed to start the local ink! node");
@@ -571,7 +612,7 @@ pub(crate) async fn start_ink_node(
 	)
 	.await?;
 	spinner.clear();
-	Cli.info(format!(
+	cli.info(format!(
 		"Local node started successfully:{}",
 		style(format!(
 			"\n{}\n{}\n{}",
@@ -581,7 +622,7 @@ pub(crate) async fn start_ink_node(
 		))
 		.dim()
 	))?;
-	Cli.info(format!(
+	cli.info(format!(
 		"Ethereum RPC node started successfully:{}",
 		style(format!(
 			"\n{}\n{}",
@@ -594,7 +635,7 @@ pub(crate) async fn start_ink_node(
 }
 
 fn display_contract_info(
-	cli: &mut Cli,
+	cli: &mut impl traits::Cli,
 	address: String,
 	code_hash: Option<String>,
 ) -> anyhow::Result<()> {
