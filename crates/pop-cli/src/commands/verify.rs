@@ -70,11 +70,11 @@ impl VerifyCommand {
 
 		let success_message = if let (Some(endpoint), Some(address)) = (&self.url, &self.address) {
 			format!(
-				"The contract deployed in {} at address {} has been succesfully verified ✅",
+				"The contract deployed on {} at address {} is successfully verified ✅",
 				endpoint, address
 			)
 		} else {
-			"The contract verification completed successfully ✅".to_string()
+			"The contract is successfully verified ✅".to_string()
 		};
 
 		let _ = cli.success(success_message);
