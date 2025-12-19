@@ -146,7 +146,7 @@ pub(crate) enum RelayChain {
 pub struct BuildSpecCommand {
 	/// Directory path for your project [default: current directory]
 	#[serde(skip_serializing)]
-	#[arg(long, default_value = "./")]
+	#[arg(short, long, default_value = "./")]
 	pub(crate) path: PathBuf,
 	/// File name for the resulting spec. If a path is given,
 	/// the necessary directories will be created
