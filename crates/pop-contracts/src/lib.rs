@@ -134,7 +134,6 @@ members = ["crate1", "crate2"]
 [workspace.dependencies]
 contract-build = "0.1.0"
 "#;
-			File::create(&manifest_path).unwrap();
 			std::fs::write(&manifest_path, contents).unwrap();
 			self
 		}
@@ -147,7 +146,6 @@ members = ["crate1", "crate2"]
 [workspace.dependencies]
 contract-build = { version = "0.1.0", default-features = false }
 "#;
-			File::create(&manifest_path).unwrap();
 			std::fs::write(&manifest_path, contents).unwrap();
 			self
 		}
@@ -157,14 +155,12 @@ contract-build = { version = "0.1.0", default-features = false }
 			let contents = r#"[workspace]
 members = ["crate1", "crate2"]
 "#;
-			File::create(&manifest_path).unwrap();
 			std::fs::write(&manifest_path, contents).unwrap();
 			self
 		}
 
 		fn with_invalid_manifest(self) -> Self {
 			let manifest_path = self.temp_dir.path().join("Cargo.toml");
-			File::create(&manifest_path).unwrap();
 			std::fs::write(&manifest_path, "test").unwrap();
 			self
 		}
