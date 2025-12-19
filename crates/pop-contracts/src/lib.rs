@@ -273,7 +273,7 @@ members = ["crate1", "crate2"]
 	fn fallback_version_is_up_to_date_with_workspace() {
 		let workspace_manifest = std::env::current_dir()
 			.ok()
-			.and_then(|dir| rustilities::manifest::find_workspace_manifest(dir));
+			.and_then(rustilities::manifest::find_workspace_manifest);
 
 		let computed_version = get_used_cargo_contract_version(workspace_manifest);
 		let fallback_version =
