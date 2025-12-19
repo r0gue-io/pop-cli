@@ -42,8 +42,6 @@ mod models;
 mod remote;
 mod rpc;
 mod schema;
-mod schema;
-mod strings;
 mod strings;
 
 pub use cache::{PrefixScanProgress, StorageCache};
