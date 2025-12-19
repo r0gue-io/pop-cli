@@ -30,6 +30,8 @@ concurrency:
 jobs:
   build-tests:
     runs-on: ubuntu-latest
+    env:
+      CARGO_TARGET_DIR: target/llvm-cov-target
     steps:
       - name: Setup Ubuntu dependencies
         shell: bash
@@ -135,6 +137,8 @@ jobs:
   upload-coverage:
     needs: run-tests
     runs-on: ubuntu-latest
+    env:
+      CARGO_TARGET_DIR: target/llvm-cov-target
     steps:
       - uses: actions/checkout@v4
 
