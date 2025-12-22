@@ -54,14 +54,14 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           save-if: false
-          shared-key: integration
+          shared-key: pop-cache
 
       - name: Rust Cache MacOS
         if: matrix.os == 'macos-latest'
         uses: Swatinem/rust-cache@v2
         with:
           save-if: false
-          shared-key: integration
+          shared-key: pop-cache
 
       - name: Install packages (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -109,18 +109,15 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         uses: Swatinem/rust-cache@v2
         with:
-          cache-all-crates: true
-          shared-key: integration
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: false
+          shared-key: pop-cache
 
       - name: Rust Cache MacOS
         if: matrix.os == 'macos-latest'
         uses: Swatinem/rust-cache@v2
         with:
-          cache-on-failure: true
-          cache-all-crates: true
-          shared-key: integration
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: false
+          shared-key: pop-cache
 
       - name: Install packages (Linux)
         if: matrix.os == 'ubuntu-latest'
