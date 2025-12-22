@@ -31,7 +31,13 @@ impl Docker {
 	}
 
 	fn detect_docker() -> Result<Self, Error> {
-		match Command::new("timeout").arg("5s docker info").output() {
+		match duct::cmd!("docker", "info")
+			.timeout(Duration::from_secs(5))
+			.stdout_capture()
+			.stderr_capture()
+			.unchecked()
+			.run()
+		{
 			Ok(output) if output.status.success() => Ok(Docker::Running),
 			Ok(_) => Ok(Docker::Installed),
 			Err(err) if err.kind() == ErrorKind::NotFound => Ok(Docker::NotInstalled),
