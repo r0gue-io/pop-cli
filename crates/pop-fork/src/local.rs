@@ -85,7 +85,7 @@ type DiffLocalStorage = Vec<(Vec<u8>, Option<SharedValue>)>;
 #[derive(Clone, Debug)]
 pub struct LocalStorageLayer {
 	parent: RemoteStorageLayer,
-    first_forked_block_hash: H256,
+	first_forked_block_hash: H256,
 	first_forked_block_number: u32,
 	latest_block_number: u32,
 	modifications: Arc<RwLock<Modifications>>,
@@ -100,15 +100,16 @@ impl LocalStorageLayer {
 	/// * `first_forked_block_number` - The initial block number where the fork started
 	///
 	/// # Returns
-	/// A new `LocalStorageLayer` with no modifications, with `latest_block_number` set to `first_forked_block_number`.
+	/// A new `LocalStorageLayer` with no modifications, with `latest_block_number` set to
+	/// `first_forked_block_number`.
 	pub fn new(
 		parent: RemoteStorageLayer,
 		first_forked_block_number: u32,
-        first_forked_block_hash: H256
+		first_forked_block_hash: H256,
 	) -> Self {
 		Self {
 			parent,
-            first_forked_block_hash,
+			first_forked_block_hash,
 			first_forked_block_number,
 			latest_block_number: first_forked_block_number,
 			modifications: Arc::new(RwLock::new(HashMap::new())),
@@ -134,8 +135,10 @@ impl LocalStorageLayer {
 	///
 	/// # Behavior
 	/// Storage lookup strategy based on block_number:
-	/// 1. If `block_number == latest_block_number`: Check modifications HashMap, then remote at first_forked_block
-	/// 2. If `first_forked_block_number < block_number < latest_block_number`: Check local_storage table
+	/// 1. If `block_number == latest_block_number`: Check modifications HashMap, then remote at
+	///    first_forked_block
+	/// 2. If `first_forked_block_number < block_number < latest_block_number`: Check local_storage
+	///    table
 	/// 3. Otherwise: Check remote provider directly (fetches block_hash from blocks table)
 	pub async fn get(
 		&self,
@@ -167,29 +170,19 @@ impl LocalStorageLayer {
 				}
 			}
 			// Not in modifications, query remote at first_forked_block
-			return Ok(self
-				.parent
-				.get(self.first_forked_block_hash, key)
-				.await?
-				.map(Arc::new));
+			return Ok(self.parent.get(self.first_forked_block_hash, key).await?.map(Arc::new));
 		}
 
 		// Case 2: Historical block after fork - check local_storage table
 		if block_number > self.first_forked_block_number && block_number < latest_block_number {
-			if let Some(cached) =
-				self.parent.cache().get_local_storage(block_number, key).await?
-			{
+			if let Some(cached) = self.parent.cache().get_local_storage(block_number, key).await? {
 				return Ok(cached.map(Arc::new));
 			}
 		}
 
 		// Case 3: Block before or at fork point - query remote directly
 		// First, get the block hash from the blocks table
-		let block = self
-			.parent
-			.cache()
-			.get_block_by_number(block_number)
-			.await?;
+		let block = self.parent.cache().get_block_by_number(block_number).await?;
 
 		if let Some(block_row) = block {
 			let block_hash = H256::from_slice(&block_row.hash);
@@ -237,8 +230,10 @@ impl LocalStorageLayer {
 	///
 	/// # Behavior
 	/// Storage lookup strategy based on block_number (same as `get`):
-	/// 1. If `block_number == latest_block_number`: Check modifications HashMap, then remote at first_forked_block
-	/// 2. If `first_forked_block_number < block_number < latest_block_number`: Check local_storage table
+	/// 1. If `block_number == latest_block_number`: Check modifications HashMap, then remote at
+	///    first_forked_block
+	/// 2. If `first_forked_block_number < block_number < latest_block_number`: Check local_storage
+	///    table
 	/// 3. Otherwise: Check remote provider directly (fetches block_hash from blocks table)
 	pub async fn get_batch(
 		&self,
@@ -305,11 +300,7 @@ impl LocalStorageLayer {
 
 		// Case 3: Block before or at fork point - query remote directly
 		// First, get the block hash from the blocks table
-		let block = self
-			.parent
-			.cache()
-			.get_block_by_number(block_number)
-			.await?;
+		let block = self.parent.cache().get_block_by_number(block_number).await?;
 
 		if let Some(block_row) = block {
 			let block_hash = H256::from_slice(&block_row.hash);
@@ -490,7 +481,8 @@ impl LocalStorageLayer {
 		self.clone()
 	}
 
-	/// Commit all modifications to the local_storage table in the cache, leaving that state as latest_block_number height.
+	/// Commit all modifications to the local_storage table in the cache, leaving that state as
+	/// latest_block_number height.
 	///
 	/// # Returns
 	/// * `Ok(())` - All modifications were successfully committed to the cache
@@ -501,7 +493,7 @@ impl LocalStorageLayer {
 	/// - The modifications HashMap remains intact and available after commit
 	/// - Uses the parent layer's cache to persist the data
 	/// - Uses batch operation for efficiency
-    /// - Increases the latest block number
+	/// - Increases the latest block number
 	pub async fn commit(&mut self) -> Result<(), LocalStorageError> {
 		let modifications_lock = self
 			.modifications
@@ -522,7 +514,7 @@ impl LocalStorageLayer {
 				.await?;
 		}
 
-        self.latest_block_number += 1;
+		self.latest_block_number += 1;
 
 		Ok(())
 	}
@@ -533,8 +525,8 @@ mod tests {
 	use super::*;
 	use crate::{ForkRpcClient, RemoteStorageLayer, StorageCache};
 	use pop_common::test_env::TestNode;
+	use subxt::ext::codec::Encode;
 	use url::Url;
-    use subxt::ext::codec::Encode;
 
 	/// System::Number storage key: twox128("System") ++ twox128("Number")
 	const SYSTEM_NUMBER_KEY: &str =
@@ -565,7 +557,10 @@ mod tests {
 		let block_number = header.number;
 		let cache = StorageCache::in_memory().await.unwrap();
 		// Cache the block so we can look it up by number
-		cache.cache_block(block_hash, block_number, header.parent_hash, &header.encode()).await.unwrap();
+		cache
+			.cache_block(block_hash, block_number, header.parent_hash, &header.encode())
+			.await
+			.unwrap();
 		let remote = RemoteStorageLayer::new(rpc, cache);
 
 		TestContext { node, remote, block_hash, block_number }
@@ -1128,13 +1123,13 @@ mod tests {
 		assert_eq!(diff.len(), 2);
 		assert!(
 			diff.iter()
-				.any(|(k, v)| k == key1
-					&& v.as_ref().map(|v| v.as_slice()) == Some(value1.as_slice()))
+				.any(|(k, v)| k == key1 &&
+					v.as_ref().map(|v| v.as_slice()) == Some(value1.as_slice()))
 		);
 		assert!(
 			diff.iter()
-				.any(|(k, v)| k == key2
-					&& v.as_ref().map(|v| v.as_slice()) == Some(value2.as_slice()))
+				.any(|(k, v)| k == key2 &&
+					v.as_ref().map(|v| v.as_slice()) == Some(value2.as_slice()))
 		);
 	}
 
@@ -1339,8 +1334,22 @@ mod tests {
 		layer.set(key2, Some(value2)).unwrap();
 
 		// Verify not in cache yet
-		assert!(ctx.remote.cache().get_local_storage(ctx.block_number, key1).await.unwrap().is_none());
-		assert!(ctx.remote.cache().get_local_storage(ctx.block_number, key2).await.unwrap().is_none());
+		assert!(
+			ctx.remote
+				.cache()
+				.get_local_storage(ctx.block_number, key1)
+				.await
+				.unwrap()
+				.is_none()
+		);
+		assert!(
+			ctx.remote
+				.cache()
+				.get_local_storage(ctx.block_number, key2)
+				.await
+				.unwrap()
+				.is_none()
+		);
 
 		// Commit
 		layer.commit().await.unwrap();
@@ -1426,7 +1435,8 @@ mod tests {
 
 		// Both block numbers should have the value in cache
 		let cached1 = ctx.remote.cache().get_local_storage(ctx.block_number, key).await.unwrap();
-		let cached2 = ctx.remote.cache().get_local_storage(ctx.block_number + 1, key).await.unwrap();
+		let cached2 =
+			ctx.remote.cache().get_local_storage(ctx.block_number + 1, key).await.unwrap();
 
 		assert_eq!(cached1, Some(Some(value.to_vec())));
 		assert_eq!(cached2, Some(Some(value.to_vec())));
