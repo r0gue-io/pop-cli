@@ -75,7 +75,6 @@ async fn contract_lifecycle() -> Result<()> {
 	let default_endpoint: &str = &format!("ws://127.0.0.1:{}", endpoint_port);
 	let temp = tempfile::tempdir()?;
 	let temp_dir = temp.path();
-	//let temp_dir = Path::new("./"); //For testing locally
 	// Test that all templates are generated correctly
 	generate_all_the_templates(temp_dir).await?;
 	// pop new contract test_contract (default)

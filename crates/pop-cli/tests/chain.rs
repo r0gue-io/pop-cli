@@ -68,14 +68,8 @@ async fn generate_all_the_templates() -> Result<()> {
 /// Test the parachain lifecycle: new, build, up, call.
 #[tokio::test]
 async fn parachain_lifecycle() -> Result<()> {
-	// For testing locally: set to `true`
-	const LOCAL_TESTING: bool = false;
-
 	let temp = tempfile::tempdir()?;
-	let temp_dir = match LOCAL_TESTING {
-		true => Path::new("./"),
-		false => temp.path(),
-	};
+	let temp_dir =temp.path();
 
 	// pop new chain test_parachain --verify (default)
 	let working_dir = temp_dir.join("test_parachain");
