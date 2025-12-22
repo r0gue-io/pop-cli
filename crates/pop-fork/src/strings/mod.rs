@@ -6,4 +6,5 @@
 //! maintainability and avoid magic strings scattered across the codebase.
 
 pub mod cache;
+pub mod executor;
 pub mod rpc;

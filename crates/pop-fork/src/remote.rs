@@ -349,6 +349,28 @@ impl RemoteStorageLayer {
 			header: header_encoded,
 		}))
 	}
+
+	/// Get the next key after the given key that starts with the prefix.
+	///
+	/// This method is used for key enumeration during runtime execution.
+	/// It fetches keys directly from the RPC without caching intermediate results.
+	///
+	/// # Arguments
+	/// * `prefix` - Storage key prefix to match
+	/// * `key` - The current key; returns the next key after this one
+	///
+	/// # Returns
+	/// * `Ok(Some(key))` - The next key after `key` that starts with `prefix`
+	/// * `Ok(None)` - No more keys with this prefix
+	pub async fn next_key(
+		&self,
+		prefix: &[u8],
+		key: &[u8],
+	) -> Result<Option<Vec<u8>>, RemoteStorageError> {
+		// Fetch just 1 key after the current key
+		let keys = self.rpc.storage_keys_paged(prefix, 1, Some(key), self.block_hash).await?;
+		Ok(keys.into_iter().next())
+	}
 }
 
 #[cfg(test)]

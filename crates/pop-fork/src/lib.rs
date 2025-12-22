@@ -37,6 +37,7 @@
 
 mod cache;
 pub mod error;
+pub mod executor;
 mod local;
 mod models;
 mod remote;
@@ -45,7 +46,11 @@ mod schema;
 mod strings;
 
 pub use cache::{PrefixScanProgress, StorageCache};
-pub use error::{CacheError, RemoteStorageError, RpcClientError};
+pub use error::{CacheError, ExecutorError, RemoteStorageError, RpcClientError};
+pub use executor::{
+	ExecutorConfig, RuntimeCallResult, RuntimeExecutor, RuntimeLog, RuntimeVersion,
+	SignatureMockMode,
+};
 pub use local::LocalStorageLayer;
 pub use models::BlockRow;
 pub use remote::RemoteStorageLayer;
