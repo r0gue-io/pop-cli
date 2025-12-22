@@ -4,7 +4,7 @@
 //!
 //! This module provides [`RuntimeExecutor`], a wrapper around smoldot's executor that
 //! runs Substrate runtime calls (like `Core_version`, `BlockBuilder_apply_extrinsic`, etc.)
-//! against storage provided by a [`LocalStorageLayer`](crate::LocalStorageLayer).
+//! against storage provided by a [`LocalStorageLayer`].
 //!
 //! # Design Decision: Why smoldot?
 //!
@@ -18,7 +18,7 @@
 //!
 //! By using smoldot's `runtime_call` API, we avoid reimplementing these host functions
 //! while gaining full control over storage access. Storage reads are routed through the
-//! [`LocalStorageLayer`](crate::LocalStorageLayer), which checks local modifications first,
+//! [`LocalStorageLayer`], which checks local modifications first,
 //! then deleted prefixes, and finally falls back to the parent layer (typically a
 //! [`RemoteStorageLayer`](crate::RemoteStorageLayer) that lazily fetches from RPC).
 //!
