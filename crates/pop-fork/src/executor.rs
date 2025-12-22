@@ -95,6 +95,10 @@ pub enum SignatureMockMode {
 	#[default]
 	None,
 	/// Accept signatures starting with magic bytes `0xdeadbeef` (padded with `0xcd`).
+	///
+	/// This is similar to how Foundry's `vm.prank()` works for EVM testing - it lets you
+	/// impersonate any account for testing purposes. Real signatures are still verified
+	/// normally, but transactions with magic signatures bypass verification.
 	MagicSignature,
 	/// Accept all signatures as valid.
 	AlwaysValid,
