@@ -534,6 +534,7 @@ mod tests {
 	use crate::{ForkRpcClient, RemoteStorageLayer, StorageCache};
 	use pop_common::test_env::TestNode;
 	use url::Url;
+    use subxt::ext::codec::Encode;
 
 	/// System::Number storage key: twox128("System") ++ twox128("Number")
 	const SYSTEM_NUMBER_KEY: &str =
@@ -552,6 +553,7 @@ mod tests {
 		node: TestNode,
 		remote: RemoteStorageLayer,
 		block_hash: H256,
+		block_number: u32,
 	}
 
 	async fn create_test_context() -> TestContext {
@@ -559,22 +561,26 @@ mod tests {
 		let endpoint: Url = node.ws_url().parse().unwrap();
 		let rpc = ForkRpcClient::connect(&endpoint).await.unwrap();
 		let block_hash = rpc.finalized_head().await.unwrap();
+		let header = rpc.header(block_hash).await.unwrap();
+		let block_number = header.number;
 		let cache = StorageCache::in_memory().await.unwrap();
+		// Cache the block so we can look it up by number
+		cache.cache_block(block_hash, block_number, header.parent_hash, &header.encode()).await.unwrap();
 		let remote = RemoteStorageLayer::new(rpc, cache);
 
-		TestContext { node, remote, block_hash }
+		TestContext { node, remote, block_hash, block_number }
 	}
 
-	/// Helper to create a LocalStorageLayer with proper block hash
+	/// Helper to create a LocalStorageLayer with proper block hash and number
 	fn create_layer(ctx: &TestContext) -> LocalStorageLayer {
-		LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash)
+		LocalStorageLayer::new(ctx.remote.clone(), ctx.block_number, ctx.block_hash)
 	}
 
 	// Tests for new()
 	#[tokio::test(flavor = "multi_thread")]
 	async fn new_creates_empty_layer() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_number, ctx.block_hash);
 
 		// Verify empty modifications
 		let diff = layer.diff().unwrap();
@@ -585,7 +591,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_returns_local_modification() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_number, ctx.block_hash);
 
 		let key = b"test_key";
 		let value = b"test_value";
@@ -594,7 +600,7 @@ mod tests {
 		layer.set(key, Some(value)).unwrap();
 
 		// Get should return the local value
-		let result = layer.get(ctx.block_hash, key).await.unwrap();
+		let result = layer.get(ctx.block_number, key).await.unwrap();
 		assert_eq!(
 			result,
 			Some(Arc::new(value.as_slice().to_vec())),
@@ -605,7 +611,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_returns_none_for_deleted_value() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_number, ctx.block_hash);
 
 		let key = b"deleted_key";
 
@@ -613,14 +619,14 @@ mod tests {
 		layer.set(key, None).unwrap();
 
 		// Get should return None
-		let result = layer.get(ctx.block_hash, key).await.unwrap();
+		let result = layer.get(ctx.block_number, key).await.unwrap();
 		assert!(result.is_none(), "get() should return None for deleted key");
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_returns_none_for_deleted_prefix() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_number, ctx.block_hash);
 
 		let prefix = b"prefix_";
 		let key = b"prefix_key";
@@ -629,19 +635,19 @@ mod tests {
 		layer.delete_prefix(prefix).unwrap();
 
 		// Get should return None for key matching prefix
-		let result = layer.get(ctx.block_hash, key).await.unwrap();
+		let result = layer.get(ctx.block_number, key).await.unwrap();
 		assert!(result.is_none(), "get() should return None for deleted prefix");
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_falls_back_to_parent() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_number, ctx.block_hash);
 
 		let key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 
 		// Get without local modification - should fetch from parent
-		let result = layer.get(ctx.block_hash, &key).await.unwrap();
+		let result = layer.get(ctx.block_number, &key).await.unwrap();
 		assert!(
 			result.is_some(),
 			"get() should fall back to parent layer when key not modified locally"
@@ -651,20 +657,20 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_local_overrides_parent() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_number, ctx.block_hash);
 
 		let key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 		let local_value = b"local_override";
 
 		// Get parent value first
-		let parent_value = layer.get(ctx.block_hash, &key).await.unwrap();
+		let parent_value = layer.get(ctx.block_number, &key).await.unwrap();
 		assert!(parent_value.is_some());
 
 		// Set local value
 		layer.set(&key, Some(local_value)).unwrap();
 
 		// Get should return local value, not parent
-		let result = layer.get(ctx.block_hash, &key).await.unwrap();
+		let result = layer.get(ctx.block_number, &key).await.unwrap();
 		assert_eq!(
 			result,
 			Some(Arc::new(local_value.as_slice().to_vec())),
@@ -676,12 +682,12 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_returns_none_for_nonexistent_key() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let key = b"nonexistent_key_12345";
 
 		// Get should return None for nonexistent key
-		let result = layer.get(ctx.block_hash, key).await.unwrap();
+		let result = layer.get(ctx.block_number, key).await.unwrap();
 		assert!(result.is_none(), "get() should return None for nonexistent key");
 	}
 
@@ -689,7 +695,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn set_stores_value() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let key = b"key";
 		let value = b"value";
@@ -697,21 +703,21 @@ mod tests {
 		layer.set(key, Some(value)).unwrap();
 
 		// Verify via get
-		let result = layer.get(ctx.block_hash, key).await.unwrap();
+		let result = layer.get(ctx.block_number, key).await.unwrap();
 		assert_eq!(result, Some(Arc::new(value.as_slice().to_vec())));
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn set_none_marks_as_deleted() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let key = b"key";
 
 		layer.set(key, None).unwrap();
 
 		// Verify via get
-		let result = layer.get(ctx.block_hash, key).await.unwrap();
+		let result = layer.get(ctx.block_number, key).await.unwrap();
 		assert!(result.is_none());
 
 		// Verify in diff
@@ -723,7 +729,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn set_overwrites_previous_value() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let key = b"key";
 		let value1 = b"value1";
@@ -733,14 +739,14 @@ mod tests {
 		layer.set(key, Some(value2)).unwrap();
 
 		// Should have the second value
-		let result = layer.get(ctx.block_hash, key).await.unwrap();
+		let result = layer.get(ctx.block_number, key).await.unwrap();
 		assert_eq!(result.as_ref().map(|v| v.as_slice()), Some(value2.as_slice()));
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn set_multiple_keys() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let key1 = b"key1";
 		let key2 = b"key2";
@@ -750,7 +756,7 @@ mod tests {
 		layer.set_batch(&[(key1, Some(value1)), (key2, Some(value2))]).unwrap();
 
 		// Both should be retrievable
-		let results = layer.get_batch(ctx.block_hash, &[key1, key2]).await.unwrap();
+		let results = layer.get_batch(ctx.block_number, &[key1, key2]).await.unwrap();
 		assert_eq!(results[0].as_ref().map(|v| v.as_slice()), Some(value1.as_slice()));
 		assert_eq!(results[1].as_ref().map(|v| v.as_slice()), Some(value2.as_slice()));
 	}
@@ -759,16 +765,16 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_batch_empty_keys() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
-		let results = layer.get_batch(ctx.block_hash, &[]).await.unwrap();
+		let results = layer.get_batch(ctx.block_number, &[]).await.unwrap();
 		assert_eq!(results.len(), 0);
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_batch_returns_local_modifications() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let key1 = b"key1";
 		let key2 = b"key2";
@@ -777,7 +783,7 @@ mod tests {
 
 		layer.set_batch(&[(key1, Some(value1)), (key2, Some(value2))]).unwrap();
 
-		let results = layer.get_batch(ctx.block_hash, &[key1, key2]).await.unwrap();
+		let results = layer.get_batch(ctx.block_number, &[key1, key2]).await.unwrap();
 		assert_eq!(results.len(), 2);
 		assert_eq!(results[0].as_ref().map(|v| v.as_slice()), Some(value1.as_slice()));
 		assert_eq!(results[1].as_ref().map(|v| v.as_slice()), Some(value2.as_slice()));
@@ -786,14 +792,14 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_batch_returns_none_for_deleted() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let key1 = b"key1";
 		let key2 = b"key2";
 
 		layer.set_batch(&[(key1, Some(b"val")), (key2, None)]).unwrap();
 
-		let results = layer.get_batch(ctx.block_hash, &[key1, key2]).await.unwrap();
+		let results = layer.get_batch(ctx.block_number, &[key1, key2]).await.unwrap();
 		assert!(results[0].is_some());
 		assert!(results[1].is_none());
 	}
@@ -801,7 +807,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_batch_returns_none_for_deleted_prefix() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let prefix = b"prefix_";
 		let key1 = b"prefix_key1";
@@ -809,7 +815,7 @@ mod tests {
 
 		layer.delete_prefix(prefix).unwrap();
 
-		let results = layer.get_batch(ctx.block_hash, &[key1, key2]).await.unwrap();
+		let results = layer.get_batch(ctx.block_number, &[key1, key2]).await.unwrap();
 		assert!(results[0].is_none());
 		assert!(results[1].is_none());
 	}
@@ -817,13 +823,13 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_batch_falls_back_to_parent() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let key1 = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 		let key2 = hex::decode(SYSTEM_PARENT_HASH_KEY).unwrap();
 
 		let results = layer
-			.get_batch(ctx.block_hash, &[key1.as_slice(), key2.as_slice()])
+			.get_batch(ctx.block_number, &[key1.as_slice(), key2.as_slice()])
 			.await
 			.unwrap();
 		assert!(results[0].is_some(), "Should fetch from parent");
@@ -833,7 +839,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_batch_local_overrides_parent() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let key1 = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 		let key2 = hex::decode(SYSTEM_PARENT_HASH_KEY).unwrap();
@@ -843,7 +849,7 @@ mod tests {
 		layer.set(&key1, Some(local_value)).unwrap();
 
 		let results = layer
-			.get_batch(ctx.block_hash, &[key1.as_slice(), key2.as_slice()])
+			.get_batch(ctx.block_number, &[key1.as_slice(), key2.as_slice()])
 			.await
 			.unwrap();
 		assert_eq!(results[0].as_ref().map(|v| v.as_slice()), Some(local_value.as_slice()));
@@ -853,7 +859,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_batch_mixed_sources() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let local_key = b"local_key";
 		let remote_key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
@@ -865,7 +871,7 @@ mod tests {
 
 		let results = layer
 			.get_batch(
-				ctx.block_hash,
+				ctx.block_number,
 				&[local_key, remote_key.as_slice(), deleted_key, nonexistent_key],
 			)
 			.await
@@ -881,7 +887,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_batch_maintains_order() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let key1 = b"key1";
 		let key2 = b"key2";
@@ -895,7 +901,7 @@ mod tests {
 			.unwrap();
 
 		// Request in different order
-		let results = layer.get_batch(ctx.block_hash, &[key3, key1, key2]).await.unwrap();
+		let results = layer.get_batch(ctx.block_number, &[key3, key1, key2]).await.unwrap();
 		assert_eq!(results[0].as_ref().map(|v| v.as_slice()), Some(value3.as_slice()));
 		assert_eq!(results[1].as_ref().map(|v| v.as_slice()), Some(value1.as_slice()));
 		assert_eq!(results[2].as_ref().map(|v| v.as_slice()), Some(value2.as_slice()));
@@ -905,7 +911,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn set_batch_empty_entries() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		layer.set_batch(&[]).unwrap();
 
@@ -916,7 +922,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn set_batch_stores_multiple_values() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let key1 = b"key1";
 		let key2 = b"key2";
@@ -936,7 +942,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn set_batch_with_deletions() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let key1 = b"key1";
 		let key2 = b"key2";
@@ -944,7 +950,7 @@ mod tests {
 
 		layer.set_batch(&[(key1, Some(value1)), (key2, None)]).unwrap();
 
-		let results = layer.get_batch(ctx.block_hash, &[key1, key2]).await.unwrap();
+		let results = layer.get_batch(ctx.block_number, &[key1, key2]).await.unwrap();
 		assert!(results[0].is_some());
 		assert!(results[1].is_none());
 	}
@@ -952,7 +958,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn set_batch_overwrites_previous_values() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let key = b"key";
 		let value1 = b"value1";
@@ -961,14 +967,14 @@ mod tests {
 		layer.set(key, Some(value1)).unwrap();
 		layer.set_batch(&[(key, Some(value2))]).unwrap();
 
-		let result = layer.get(ctx.block_hash, key).await.unwrap();
+		let result = layer.get(ctx.block_number, key).await.unwrap();
 		assert_eq!(result.as_ref().map(|v| v.as_slice()), Some(value2.as_slice()));
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn set_batch_duplicate_keys_last_wins() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let key = b"key";
 		let value1 = b"value1";
@@ -977,7 +983,7 @@ mod tests {
 		// Set same key twice in one batch - last should win
 		layer.set_batch(&[(key, Some(value1)), (key, Some(value2))]).unwrap();
 
-		let result = layer.get(ctx.block_hash, key).await.unwrap();
+		let result = layer.get(ctx.block_number, key).await.unwrap();
 		assert_eq!(result.as_ref().map(|v| v.as_slice()), Some(value2.as_slice()));
 	}
 
@@ -985,7 +991,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn delete_prefix_removes_matching_keys() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let prefix = b"prefix_";
 		let key1 = b"prefix_key1";
@@ -1009,27 +1015,27 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn delete_prefix_blocks_parent_reads() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let prefix = hex::decode(SYSTEM_PALLET_PREFIX).unwrap();
 		let key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 
 		// Verify key exists in parent
-		let before = layer.get(ctx.block_hash, &key).await.unwrap();
+		let before = layer.get(ctx.block_number, &key).await.unwrap();
 		assert!(before.is_some());
 
 		// Delete prefix
 		layer.delete_prefix(&prefix).unwrap();
 
 		// Should return None now
-		let after = layer.get(ctx.block_hash, &key).await.unwrap();
+		let after = layer.get(ctx.block_number, &key).await.unwrap();
 		assert!(after.is_none(), "delete_prefix() should block parent reads");
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn delete_prefix_adds_to_deleted_prefixes() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let prefix = b"prefix_";
 
@@ -1042,7 +1048,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn delete_prefix_with_empty_prefix() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let key1 = b"key1";
 		let key2 = b"key2";
@@ -1062,7 +1068,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn is_deleted_returns_false_initially() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let prefix = b"prefix_";
 
@@ -1072,7 +1078,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn is_deleted_returns_true_after_delete() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let prefix = b"prefix_";
 
@@ -1084,7 +1090,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn is_deleted_exact_match_only() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let prefix1 = b"prefix_";
 		let prefix2 = b"prefix_other";
@@ -1099,7 +1105,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn diff_returns_empty_initially() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let diff = layer.diff().unwrap();
 		assert_eq!(diff.len(), 0);
@@ -1108,7 +1114,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn diff_returns_all_modifications() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let key1 = b"key1";
 		let key2 = b"key2";
@@ -1135,7 +1141,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn diff_includes_deletions() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let key = b"deleted";
 
@@ -1150,7 +1156,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn diff_excludes_prefix_deleted_keys() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let prefix = b"prefix_";
 		let key = b"prefix_key";
@@ -1203,7 +1209,7 @@ mod tests {
 		layer1.merge(&layer2).unwrap();
 
 		// layer1 should have layer2's value
-		let result = layer1.get(ctx.block_hash, key).await.unwrap();
+		let result = layer1.get(ctx.block_number, key).await.unwrap();
 		assert_eq!(result.as_ref().map(|v| v.as_slice()), Some(value2.as_slice()));
 	}
 
@@ -1271,14 +1277,14 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn child_shares_parent() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let child = layer.child();
 
 		// Both should be able to read from parent
 		let key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
-		let parent_result = layer.get(ctx.block_hash, &key).await.unwrap();
-		let child_result = child.get(ctx.block_hash, &key).await.unwrap();
+		let parent_result = layer.get(ctx.block_number, &key).await.unwrap();
+		let child_result = child.get(ctx.block_number, &key).await.unwrap();
 
 		assert_eq!(parent_result, child_result);
 	}
@@ -1286,7 +1292,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn child_shares_modifications() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let key = b"key";
 		let value = b"value";
@@ -1296,14 +1302,14 @@ mod tests {
 		let child = layer.child();
 
 		// Child should see parent's modification
-		let result = child.get(ctx.block_hash, key).await.unwrap();
+		let result = child.get(ctx.block_number, key).await.unwrap();
 		assert_eq!(result.as_ref().map(|v| v.as_slice()), Some(value.as_slice()));
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn child_modifications_affect_parent() {
 		let ctx = create_test_context().await;
-		let layer = LocalStorageLayer::new(ctx.remote.clone(), ctx.block_hash);
+		let layer = create_layer(&ctx);
 
 		let child = layer.child();
 
@@ -1313,7 +1319,7 @@ mod tests {
 		child.set(key, Some(value)).unwrap();
 
 		// Parent should see child's modification (shared state)
-		let result = layer.get(ctx.block_hash, key).await.unwrap();
+		let result = layer.get(ctx.block_number, key).await.unwrap();
 		assert_eq!(result.as_ref().map(|v| v.as_slice()), Some(value.as_slice()));
 	}
 
@@ -1321,13 +1327,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn commit_writes_to_cache() {
 		let ctx = create_test_context().await;
-		let layer = create_layer(&ctx);
-		let block_hash =
-			hex::decode("0000000000000000000000000000000000000000000000000000000000000001")
-				.unwrap()
-				.try_into()
-				.map(subxt::config::substrate::H256)
-				.unwrap();
+		let mut layer = create_layer(&ctx);
 
 		let key1 = b"commit_key1";
 		let key2 = b"commit_key2";
@@ -1339,15 +1339,15 @@ mod tests {
 		layer.set(key2, Some(value2)).unwrap();
 
 		// Verify not in cache yet
-		assert!(ctx.remote.cache().get_local_storage(block_hash, key1).await.unwrap().is_none());
-		assert!(ctx.remote.cache().get_local_storage(block_hash, key2).await.unwrap().is_none());
+		assert!(ctx.remote.cache().get_local_storage(ctx.block_number, key1).await.unwrap().is_none());
+		assert!(ctx.remote.cache().get_local_storage(ctx.block_number, key2).await.unwrap().is_none());
 
 		// Commit
-		layer.commit(block_hash).await.unwrap();
+		layer.commit().await.unwrap();
 
-		// Verify now in cache
-		let cached1 = ctx.remote.cache().get_local_storage(block_hash, key1).await.unwrap();
-		let cached2 = ctx.remote.cache().get_local_storage(block_hash, key2).await.unwrap();
+		// Verify now in cache at the block_number it was committed to
+		let cached1 = ctx.remote.cache().get_local_storage(ctx.block_number, key1).await.unwrap();
+		let cached2 = ctx.remote.cache().get_local_storage(ctx.block_number, key2).await.unwrap();
 
 		assert_eq!(cached1, Some(Some(value1.to_vec())));
 		assert_eq!(cached2, Some(Some(value2.to_vec())));
@@ -1356,23 +1356,17 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn commit_preserves_modifications() {
 		let ctx = create_test_context().await;
-		let layer = create_layer(&ctx);
-		let block_hash =
-			hex::decode("0000000000000000000000000000000000000000000000000000000000000002")
-				.unwrap()
-				.try_into()
-				.map(subxt::config::substrate::H256)
-				.unwrap();
+		let mut layer = create_layer(&ctx);
 
 		let key = b"preserve_key";
 		let value = b"preserve_value";
 
 		// Set and commit
 		layer.set(key, Some(value)).unwrap();
-		layer.commit(block_hash).await.unwrap();
+		layer.commit().await.unwrap();
 
 		// Modifications should still be in local layer
-		let local_result = layer.get(ctx.block_hash, key).await.unwrap();
+		let local_result = layer.get(ctx.block_number + 1, key).await.unwrap();
 		assert_eq!(local_result.as_ref().map(|v| v.as_slice()), Some(value.as_slice()));
 
 		// Should also be in diff
@@ -1384,13 +1378,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn commit_with_deletions() {
 		let ctx = create_test_context().await;
-		let layer = create_layer(&ctx);
-		let block_hash =
-			hex::decode("0000000000000000000000000000000000000000000000000000000000000003")
-				.unwrap()
-				.try_into()
-				.map(subxt::config::substrate::H256)
-				.unwrap();
+		let mut layer = create_layer(&ctx);
 
 		let key1 = b"delete_key1";
 		let key2 = b"delete_key2";
@@ -1401,11 +1389,11 @@ mod tests {
 		layer.set(key2, None).unwrap();
 
 		// Commit
-		layer.commit(block_hash).await.unwrap();
+		layer.commit().await.unwrap();
 
 		// Both should be in cache
-		let cached1 = ctx.remote.cache().get_local_storage(block_hash, key1).await.unwrap();
-		let cached2 = ctx.remote.cache().get_local_storage(block_hash, key2).await.unwrap();
+		let cached1 = ctx.remote.cache().get_local_storage(ctx.block_number, key1).await.unwrap();
+		let cached2 = ctx.remote.cache().get_local_storage(ctx.block_number, key2).await.unwrap();
 
 		assert_eq!(cached1, Some(Some(value.to_vec())));
 		assert_eq!(cached2, Some(None)); // Cached as empty
@@ -1414,35 +1402,17 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn commit_empty_modifications() {
 		let ctx = create_test_context().await;
-		let layer = create_layer(&ctx);
-		let block_hash =
-			hex::decode("0000000000000000000000000000000000000000000000000000000000000004")
-				.unwrap()
-				.try_into()
-				.map(subxt::config::substrate::H256)
-				.unwrap();
+		let mut layer = create_layer(&ctx);
 
 		// Commit with no modifications should succeed
-		let result = layer.commit(block_hash).await;
+		let result = layer.commit().await;
 		assert!(result.is_ok());
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
-	async fn commit_multiple_blocks() {
+	async fn commit_multiple_times() {
 		let ctx = create_test_context().await;
-		let layer = create_layer(&ctx);
-		let block_hash1 =
-			hex::decode("0000000000000000000000000000000000000000000000000000000000000005")
-				.unwrap()
-				.try_into()
-				.map(subxt::config::substrate::H256)
-				.unwrap();
-		let block_hash2 =
-			hex::decode("0000000000000000000000000000000000000000000000000000000000000006")
-				.unwrap()
-				.try_into()
-				.map(subxt::config::substrate::H256)
-				.unwrap();
+		let mut layer = create_layer(&ctx);
 
 		let key = b"multi_block_key";
 		let value = b"multi_block_value";
@@ -1450,13 +1420,13 @@ mod tests {
 		// Set local modification
 		layer.set(key, Some(value)).unwrap();
 
-		// Commit to multiple block hashes
-		layer.commit(block_hash1).await.unwrap();
-		layer.commit(block_hash2).await.unwrap();
+		// Commit multiple times - each commit increments the block number
+		layer.commit().await.unwrap();
+		layer.commit().await.unwrap();
 
-		// Both blocks should have the value in cache
-		let cached1 = ctx.remote.cache().get_local_storage(block_hash1, key).await.unwrap();
-		let cached2 = ctx.remote.cache().get_local_storage(block_hash2, key).await.unwrap();
+		// Both block numbers should have the value in cache
+		let cached1 = ctx.remote.cache().get_local_storage(ctx.block_number, key).await.unwrap();
+		let cached2 = ctx.remote.cache().get_local_storage(ctx.block_number + 1, key).await.unwrap();
 
 		assert_eq!(cached1, Some(Some(value.to_vec())));
 		assert_eq!(cached2, Some(Some(value.to_vec())));
