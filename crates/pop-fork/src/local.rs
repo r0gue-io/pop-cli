@@ -257,7 +257,8 @@ impl LocalStorageLayer {
 		// Query parent and skip deleted keys
 		let mut current_key = key.to_vec();
 		loop {
-			let next = self.parent.next_key(prefix, &current_key).await?;
+			let next =
+				self.parent.next_key(self.first_forked_block_hash, prefix, &current_key).await?;
 			match next {
 				Some(next_key) => {
 					// Check if this key matches any deleted prefix

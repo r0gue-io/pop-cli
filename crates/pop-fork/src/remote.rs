@@ -283,10 +283,11 @@ impl RemoteStorageLayer {
 	/// in a balances pallet).
 	///
 	/// # Arguments
+	/// * `block_hash` - Block hash to query at
 	/// * `prefix` - Storage key prefix to match (typically a pallet + storage item prefix)
 	///
 	/// # Returns
-	/// All keys matching the prefix at the configured block hash.
+	/// All keys matching the prefix at the specified block hash.
 	///
 	/// # Performance
 	/// First call may be slow if the prefix hasn't been scanned yet.
