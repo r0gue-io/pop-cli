@@ -555,31 +555,16 @@ impl StorageCache {
 		prefix: &[u8],
 	) -> Result<Option<PrefixScanProgress>, CacheError> {
 		use crate::schema::prefix_scans::columns as psc;
-		let bh = block_hash.as_bytes().to_vec();
-		let p = prefix.to_vec();
 
-		let row: Option<(Option<Vec<u8>>, bool)> = match &self.inner {
-			StorageConn::Pool(pool) => {
-				let mut conn = pool.get().await?;
-				prefix_scans::table
-					.filter(psc::block_hash.eq(bh))
-					.filter(psc::prefix.eq(p))
-					.select((psc::last_scanned_key, psc::is_complete))
-					.first::<(Option<Vec<u8>>, bool)>(&mut conn)
-					.await
-					.optional()?
-			},
-			StorageConn::Single(m) => {
-				let mut conn = m.lock().await;
-				prefix_scans::table
-					.filter(psc::block_hash.eq(bh))
-					.filter(psc::prefix.eq(p))
-					.select((psc::last_scanned_key, psc::is_complete))
-					.first::<(Option<Vec<u8>>, bool)>(&mut *conn)
-					.await
-					.optional()?
-			},
-		};
+		let mut conn = self.get_conn().await?;
+
+		let row: Option<(Option<Vec<u8>>, bool)> = prefix_scans::table
+			.filter(psc::block_hash.eq(block_hash.as_bytes()))
+			.filter(psc::prefix.eq(prefix))
+			.select((psc::last_scanned_key, psc::is_complete))
+			.first::<(Option<Vec<u8>>, bool)>(&mut conn)
+			.await
+			.optional()?;
 
 		Ok(row.map(|(last_key, complete)| PrefixScanProgress {
 			last_scanned_key: last_key,
@@ -616,36 +601,18 @@ impl StorageCache {
 
 		let mut attempts = 0;
 		loop {
-			// Use excluded() to reference inserted values in DO UPDATE,
-			// avoiding redundant clones on each retry
-			let res = match &self.inner {
-				StorageConn::Pool(pool) => {
-					let mut conn = pool.get().await?;
-					diesel::insert_into(prefix_scans::table)
-						.values(&new_row)
-						.on_conflict((psc::block_hash, psc::prefix))
-						.do_update()
-						.set((
-							psc::last_scanned_key.eq(excluded(psc::last_scanned_key)),
-							psc::is_complete.eq(excluded(psc::is_complete)),
-						))
-						.execute(&mut conn)
-						.await
-				},
-				StorageConn::Single(m) => {
-					let mut conn = m.lock().await;
-					diesel::insert_into(prefix_scans::table)
-						.values(&new_row)
-						.on_conflict((psc::block_hash, psc::prefix))
-						.do_update()
-						.set((
-							psc::last_scanned_key.eq(excluded(psc::last_scanned_key)),
-							psc::is_complete.eq(excluded(psc::is_complete)),
-						))
-						.execute(&mut *conn)
-						.await
-				},
-			};
+			let mut conn = self.get_conn().await?;
+			let res = diesel::insert_into(prefix_scans::table)
+				.values(&new_row)
+				.on_conflict((psc::block_hash, psc::prefix))
+				.do_update()
+				.set((
+					psc::last_scanned_key.eq(excluded(psc::last_scanned_key)),
+					psc::is_complete.eq(excluded(psc::is_complete)),
+				))
+				.execute(&mut conn)
+				.await;
+
 			match res {
 				Ok(_) => return Ok(()),
 				Err(e) if is_locked_error(&e) && attempts < MAX_LOCK_RETRIES => {
@@ -668,43 +635,23 @@ impl StorageCache {
 		prefix: &[u8],
 	) -> Result<Vec<Vec<u8>>, CacheError> {
 		use crate::schema::storage::columns as sc;
-		let bh = block_hash.as_bytes().to_vec();
+
+		let mut conn = self.get_conn().await?;
 
 		// SQLite BLOB comparison with >= and < for prefix range
 		let prefix_end = increment_prefix(prefix);
 
-		let keys: Vec<Vec<u8>> = match &self.inner {
-			StorageConn::Pool(pool) => {
-				let mut conn = pool.get().await?;
-				let mut query = storage::table
-					.filter(sc::block_hash.eq(&bh))
-					.filter(sc::key.ge(prefix))
-					.select(sc::key)
-					.into_boxed();
+		let mut query = storage::table
+			.filter(sc::block_hash.eq(block_hash.as_bytes()))
+			.filter(sc::key.ge(prefix))
+			.select(sc::key)
+			.into_boxed();
 
-				if let Some(ref end) = prefix_end {
-					query = query.filter(sc::key.lt(end));
-				}
+		if let Some(ref end) = prefix_end {
+			query = query.filter(sc::key.lt(end));
+		}
 
-				query.load::<Vec<u8>>(&mut conn).await?
-			},
-			StorageConn::Single(m) => {
-				let mut conn = m.lock().await;
-				let mut query = storage::table
-					.filter(sc::block_hash.eq(&bh))
-					.filter(sc::key.ge(prefix))
-					.select(sc::key)
-					.into_boxed();
-
-				if let Some(ref end) = prefix_end {
-					query = query.filter(sc::key.lt(end));
-				}
-
-				query.load::<Vec<u8>>(&mut *conn).await?
-			},
-		};
-
-		Ok(keys)
+		Ok(query.load::<Vec<u8>>(&mut conn).await?)
 	}
 
 	/// Count cached keys matching a prefix.
@@ -717,37 +664,20 @@ impl StorageCache {
 		prefix: &[u8],
 	) -> Result<usize, CacheError> {
 		use crate::schema::storage::columns as sc;
-		let bh = block_hash.as_bytes().to_vec();
+
+		let mut conn = self.get_conn().await?;
 		let prefix_end = increment_prefix(prefix);
 
-		let count: i64 = match &self.inner {
-			StorageConn::Pool(pool) => {
-				let mut conn = pool.get().await?;
-				let mut query = storage::table
-					.filter(sc::block_hash.eq(&bh))
-					.filter(sc::key.ge(prefix))
-					.into_boxed();
+		let mut query = storage::table
+			.filter(sc::block_hash.eq(block_hash.as_bytes()))
+			.filter(sc::key.ge(prefix))
+			.into_boxed();
 
-				if let Some(ref end) = prefix_end {
-					query = query.filter(sc::key.lt(end));
-				}
+		if let Some(ref end) = prefix_end {
+			query = query.filter(sc::key.lt(end));
+		}
 
-				query.count().get_result(&mut conn).await?
-			},
-			StorageConn::Single(m) => {
-				let mut conn = m.lock().await;
-				let mut query = storage::table
-					.filter(sc::block_hash.eq(&bh))
-					.filter(sc::key.ge(prefix))
-					.into_boxed();
-
-				if let Some(ref end) = prefix_end {
-					query = query.filter(sc::key.lt(end));
-				}
-
-				query.count().get_result(&mut *conn).await?
-			},
-		};
+		let count: i64 = query.count().get_result(&mut conn).await?;
 
 		Ok(count as usize)
 	}
