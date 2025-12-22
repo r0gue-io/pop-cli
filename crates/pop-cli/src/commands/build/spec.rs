@@ -193,7 +193,7 @@ pub struct BuildSpecCommand {
 	pub(crate) protocol_id: Option<String>,
 	/// The chain properties to use in the specification.
 	/// For example, "tokenSymbol=UNIT,decimals=12".
-	#[arg(short = 'p', long)]
+	#[arg(long)]
 	pub(crate) properties: Option<String>,
 	/// Whether the genesis state file should be generated.
 	#[arg(short = 'S', long = "genesis-state")]
