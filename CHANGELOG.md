@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 
 ## [0.12.0] - 2025-11-14
 
-### 🚀 Features
+### 🚀 Feature
 
 - Conditionally remove network configuration from base-parachain (#711)
 - Upgrade to rust 1.91 (#708)
