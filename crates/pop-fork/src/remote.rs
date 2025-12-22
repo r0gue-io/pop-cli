@@ -107,7 +107,11 @@ impl RemoteStorageLayer {
 	/// - If the key is in cache, returns the cached value immediately
 	/// - If not cached, fetches from RPC, caches the result, and returns it
 	/// - Empty storage (key exists but has no value) is cached as `None`
-	pub async fn get(&self, block_hash: H256, key: &[u8]) -> Result<Option<Vec<u8>>, RemoteStorageError> {
+	pub async fn get(
+		&self,
+		block_hash: H256,
+		key: &[u8],
+	) -> Result<Option<Vec<u8>>, RemoteStorageError> {
 		// Check cache first
 		if let Some(cached) = self.cache.get_storage(block_hash, key).await? {
 			return Ok(cached);
@@ -125,7 +129,7 @@ impl RemoteStorageLayer {
 	/// Get multiple storage values in a batch, fetching uncached keys from RPC.
 	///
 	/// # Arguments
-    /// * `block_hash` - The hash of the block being queried. 
+	/// * `block_hash` - The hash of the block being queried.
 	/// * `keys` - Slice of storage keys to fetch (as byte slices to avoid unnecessary allocations)
 	///
 	/// # Returns
@@ -138,7 +142,7 @@ impl RemoteStorageLayer {
 	/// - Returns results in the same order as input keys
 	pub async fn get_batch(
 		&self,
-        block_hash: H256,
+		block_hash: H256,
 		keys: &[&[u8]],
 	) -> Result<Vec<Option<Vec<u8>>>, RemoteStorageError> {
 		if keys.is_empty() {
@@ -196,7 +200,7 @@ impl RemoteStorageLayer {
 	/// continue from where it left off.
 	///
 	/// # Arguments
-    /// * `block_hash`.
+	/// * `block_hash`.
 	/// * `prefix` - Storage key prefix to match
 	/// * `page_size` - Number of keys to fetch per RPC call
 	///
@@ -204,7 +208,7 @@ impl RemoteStorageLayer {
 	/// The total number of keys for this prefix (including previously cached).
 	pub async fn prefetch_prefix(
 		&self,
-        block_hash: H256,
+		block_hash: H256,
 		prefix: &[u8],
 		page_size: u32,
 	) -> Result<usize, RemoteStorageError> {
@@ -397,8 +401,7 @@ mod tests {
 			assert!(value.is_none(), "Nonexistent key should return None");
 
 			// Verify it was cached as empty (Some(None))
-			let cached =
-				layer.cache().get_storage(block_hash, nonexistent_key).await.unwrap();
+			let cached = layer.cache().get_storage(block_hash, nonexistent_key).await.unwrap();
 			assert_eq!(cached, Some(None), "Empty value should be cached as Some(None)");
 		}
 

@@ -10,6 +10,15 @@ pub(crate) struct NewStorageRow<'a> {
 	pub is_empty: bool,
 }
 
+#[derive(Insertable, Clone)]
+#[diesel(table_name = local_storage)]
+pub(crate) struct NewLocalStorageRow<'a> {
+	pub block_number: i64,
+	pub key: &'a [u8],
+	pub value: Option<&'a [u8]>,
+	pub is_empty: bool,
+}
+
 /// Block row for insertions (uses borrowed data to avoid allocations)
 #[derive(Insertable, Clone)]
 #[diesel(table_name = blocks)]
