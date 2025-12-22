@@ -156,8 +156,8 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          save-if: false
-          shared-key: pop-cache
+          shared-key: pop-cache-docs
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Check no default features
         run: cargo doc --locked --no-deps
