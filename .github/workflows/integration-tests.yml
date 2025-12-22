@@ -116,7 +116,6 @@ jobs:
         if: matrix.os == 'macos-latest'
         uses: Swatinem/rust-cache@v2
         with:
-          cache-on-failure: true
           cache-all-crates: true
           shared-key: pop-cache
           save-if: ${{ github.ref == 'refs/heads/main' }}
