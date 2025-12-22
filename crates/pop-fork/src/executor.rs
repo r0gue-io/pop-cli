@@ -22,31 +22,6 @@
 //! then deleted prefixes, and finally falls back to the parent layer (typically a
 //! [`RemoteStorageLayer`](crate::RemoteStorageLayer) that lazily fetches from RPC).
 //!
-//! # Storage Read Flow
-//!
-//! When the runtime requests a storage value, the executor queries the `LocalStorageLayer`:
-//!
-//! ```text
-//! ┌─────────────────────────────────────────────────────────────────┐
-//! │                    LocalStorageLayer                             │
-//! │                                                                   │
-//! │   get(key) ─────► Modified? ──── Yes ────► Return modified value │
-//! │                        │                                          │
-//! │                        No                                         │
-//! │                        │                                          │
-//! │                        ▼                                          │
-//! │                 Prefix deleted? ── Yes ───► Return None           │
-//! │                        │                                          │
-//! │                        No                                         │
-//! │                        │                                          │
-//! │                        ▼                                          │
-//! │                 Query parent layer (RemoteStorageLayer)           │
-//! │                        │                                          │
-//! │                        ▼                                          │
-//! │                 Return value                                      │
-//! └─────────────────────────────────────────────────────────────────┘
-//! ```
-//!
 //! # Executor Architecture
 //!
 //! ```text
