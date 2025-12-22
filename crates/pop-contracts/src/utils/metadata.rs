@@ -9,7 +9,7 @@ use contract_transcode::{
 	ink_metadata::{MessageParamSpec, layout::Layout},
 };
 use ink_env::call::utils::EncodeArgsWith;
-use pop_common::{DefaultConfig, format_type, parse_h160_account};
+use pop_common::{DefaultConfig, format_type, manifest::from_path, parse_h160_account};
 use scale_info::{PortableRegistry, Type, form::PortableForm};
 use sp_core::blake2_128;
 use std::path::Path;
@@ -148,7 +148,26 @@ fn get_contract_transcoder(path: &Path) -> anyhow::Result<ContractMessageTransco
 	let contract_artifacts = if path.is_dir() || path.ends_with("Cargo.toml") {
 		let cargo_toml_path =
 			if path.ends_with("Cargo.toml") { path.to_path_buf() } else { path.join("Cargo.toml") };
-		ContractArtifacts::from_manifest_or_file(Some(&cargo_toml_path), None)?
+		let artifact_from_manifest =
+			|| ContractArtifacts::from_manifest_or_file(Some(&cargo_toml_path), None);
+		if let Ok(manifest) = from_path(&cargo_toml_path) {
+			if let Some(package) = manifest.package {
+				let project_root = cargo_toml_path.parent().unwrap_or(cargo_toml_path.as_path());
+				let contract_path = project_root
+					.join("target")
+					.join("ink")
+					.join(format!("{}.contract", package.name()));
+				if contract_path.exists() {
+					ContractArtifacts::from_manifest_or_file(None, Some(&contract_path))?
+				} else {
+					artifact_from_manifest()?
+				}
+			} else {
+				artifact_from_manifest()?
+			}
+		} else {
+			artifact_from_manifest()?
+		}
 	} else {
 		ContractArtifacts::from_manifest_or_file(None, Some(&path.to_path_buf()))?
 	};
@@ -756,11 +775,16 @@ mod tests {
 	use crate::{mock_build_process, new_environment};
 	use anyhow::Result;
 	use scale_info::{Registry, TypeDef, TypeDefPrimitive, TypeInfo};
-	use std::{marker::PhantomData, path::PathBuf};
+	use std::{
+		marker::PhantomData,
+		path::PathBuf,
+		sync::{LazyLock, Mutex},
+	};
 	// No need for SCALE encoding helpers in tests; for u8 values the SCALE encoding is the byte
 	// itself.
 
 	const CONTRACT_FILE: &str = "./tests/files/testing.contract";
+	static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
 	/// Returns a shared mock contract directory that persists across nextest
 	/// processes. The fixture is created once (using an atomic directory lock)
@@ -864,6 +888,35 @@ mod tests {
 		let message = get_messages(current_dir.join(CONTRACT_FILE))?;
 		assert_contract_metadata_parsed(message)?;
 
+		Ok(())
+	}
+
+	#[test]
+	fn get_messages_uses_artifact_when_cargo_unavailable() -> Result<()> {
+		let temp_dir = new_environment("testing")?;
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join(CONTRACT_FILE),
+			current_dir.join("./tests/files/testing.json"),
+		)?;
+
+		let _env_guard = ENV_LOCK.lock().expect("env lock poisoned");
+		let original_cargo = env::var("CARGO").ok();
+		unsafe {
+			env::set_var("CARGO", "/nonexistent/cargo");
+		}
+		let message = get_messages(temp_dir.path().join("testing"));
+		unsafe {
+			match original_cargo {
+				Some(value) => env::set_var("CARGO", value),
+				None => env::remove_var("CARGO"),
+			}
+		}
+
+		let message = message?;
+		assert_eq!(message.len(), 3);
+		assert_eq!(message[0].label, "flip");
 		Ok(())
 	}
 

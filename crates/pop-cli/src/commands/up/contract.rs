@@ -8,8 +8,8 @@ use crate::{
 	commands::call::contract::CallContractCommand,
 	common::{
 		contracts::{
-			check_ink_node_and_prompt, has_contract_been_built, map_account, normalize_call_args,
-			resolve_function_args, resolve_signer, terminate_nodes,
+			build_contract_artifacts, check_ink_node_and_prompt, has_contract_been_built, map_account,
+			normalize_call_args, resolve_function_args, resolve_signer, terminate_nodes,
 		},
 		rpc::prompt_to_select_chain_rpc,
 		urls,
@@ -21,7 +21,7 @@ use clap::Args;
 use console::Emoji;
 use pop_common::resolve_port;
 use pop_contracts::{
-	BuildMode, FunctionType, UpOpts, Verbosity, Weight, build_smart_contract,
+	FunctionType, UpOpts, Verbosity, Weight,
 	dry_run_gas_estimate_instantiate, dry_run_upload, extract_function, get_contract_code,
 	get_instantiate_payload, get_upload_payload, instantiate_contract_signed,
 	instantiate_smart_contract, is_chain_alive, run_eth_rpc_node, run_ink_node, set_up_deployment,
@@ -223,29 +223,12 @@ impl UpContractCommand {
 			if !contract_already_built {
 				Cli.warning("NOTE: contract has not yet been built.")?;
 			}
-			let spinner = Cli.spinner();
-			spinner.start("Building contract in RELEASE mode...");
-			let results = match build_smart_contract(
-				&self.path,
-				BuildMode::Release,
-				Verbosity::Quiet,
-				None,
-				None,
-			) {
-				Ok(results) => results,
-				Err(e) => {
-					Cli.outro_cancel(format!("🚫 An error occurred building your contract: {e}\nUse `pop build` to retry with build output."))?;
-					return Ok(());
-				},
-			};
-			spinner.stop(format!(
-				"Your contract artifacts are ready. You can find them in: {}",
-				results
-					.iter()
-					.map(|r| r.target_directory.display().to_string())
-					.collect::<Vec<_>>()
-					.join("\n")
-			));
+			if let Err(e) =
+				build_contract_artifacts(&mut Cli, &self.path, true, Verbosity::Quiet, None)
+			{
+				Cli.outro_cancel(e.to_string())?;
+				return Ok(());
+			}
 		}
 
 		// Resolve who is deploying the contract. If a `suri` was provided via the command line,
