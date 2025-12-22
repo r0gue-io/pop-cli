@@ -735,7 +735,7 @@ impl StorageCache {
 	///
 	/// Note: This must be called explicitly before dropping the cache if cleanup is desired,
 	/// as async operations cannot be performed in Drop.
-	pub async fn clear_local_storage(&self) -> Result<(), CacheError> {
+	pub async fn cleanup(&self) -> Result<(), CacheError> {
 		let mut attempts = 0;
 		loop {
 			let mut conn = self.get_conn().await?;
@@ -1102,18 +1102,18 @@ mod tests {
 	async fn local_storage_get_set() {
 		let cache = StorageCache::in_memory().await.unwrap();
 
-		let block_hash = H256::from([1u8; 32]);
+		let block_number = 1u32;
 		let key = b"test_local_key";
 		let value = b"test_local_value";
 
 		// Initially not cached
-		assert!(cache.get_local_storage(block_hash, key).await.unwrap().is_none());
+		assert!(cache.get_local_storage(block_number, key).await.unwrap().is_none());
 
 		// Set a value
-		cache.set_local_storage(block_hash, key, Some(value)).await.unwrap();
+		cache.set_local_storage(block_number, key, Some(value)).await.unwrap();
 
 		// Now cached with value
-		let cached = cache.get_local_storage(block_hash, key).await.unwrap();
+		let cached = cache.get_local_storage(block_number, key).await.unwrap();
 		assert_eq!(cached, Some(Some(value.to_vec())));
 	}
 
@@ -1121,14 +1121,14 @@ mod tests {
 	async fn local_storage_cache_empty_value() {
 		let cache = StorageCache::in_memory().await.unwrap();
 
-		let block_hash = H256::from([2u8; 32]);
+		let block_number = 2u32;
 		let key = b"empty_local_key";
 
 		// Set as empty (key exists but no value)
-		cache.set_local_storage(block_hash, key, None).await.unwrap();
+		cache.set_local_storage(block_number, key, None).await.unwrap();
 
 		// Cached as empty
-		let cached = cache.get_local_storage(block_hash, key).await.unwrap();
+		let cached = cache.get_local_storage(block_number, key).await.unwrap();
 		assert_eq!(cached, Some(None));
 	}
 
@@ -1136,43 +1136,43 @@ mod tests {
 	async fn local_storage_different_blocks() {
 		let cache = StorageCache::in_memory().await.unwrap();
 
-		let block1 = H256::from([5u8; 32]);
-		let block2 = H256::from([6u8; 32]);
+		let block_number1 = 5u32;
+		let block_number2 = 6u32;
 		let key = b"same_key";
 
-		cache.set_local_storage(block1, key, Some(b"value1")).await.unwrap();
-		cache.set_local_storage(block2, key, Some(b"value2")).await.unwrap();
+		cache.set_local_storage(block_number1, key, Some(b"value1")).await.unwrap();
+		cache.set_local_storage(block_number2, key, Some(b"value2")).await.unwrap();
 
-		let cached1 = cache.get_local_storage(block1, key).await.unwrap();
-		let cached2 = cache.get_local_storage(block2, key).await.unwrap();
+		let cached1 = cache.get_local_storage(block_number1, key).await.unwrap();
+		let cached2 = cache.get_local_storage(block_number2, key).await.unwrap();
 
 		assert_eq!(cached1, Some(Some(b"value1".to_vec())));
 		assert_eq!(cached2, Some(Some(b"value2".to_vec())));
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
-	async fn clear_local_storage_removes_all() {
+	async fn cleanup_removes_all_local_storage() {
 		let cache = StorageCache::in_memory().await.unwrap();
 
-		let block1 = H256::from([7u8; 32]);
-		let block2 = H256::from([8u8; 32]);
+		let block_number1 = 7u32;
+		let block_number2 = 8u32;
 		let key1 = b"key1";
 		let key2 = b"key2";
 
 		// Set values in local storage
-		cache.set_local_storage(block1, key1, Some(b"value1")).await.unwrap();
-		cache.set_local_storage(block2, key2, Some(b"value2")).await.unwrap();
+		cache.set_local_storage(block_number1, key1, Some(b"value1")).await.unwrap();
+		cache.set_local_storage(block_number2, key2, Some(b"value2")).await.unwrap();
 
 		// Verify they exist
-		assert!(cache.get_local_storage(block1, key1).await.unwrap().is_some());
-		assert!(cache.get_local_storage(block2, key2).await.unwrap().is_some());
+		assert!(cache.get_local_storage(block_number1, key1).await.unwrap().is_some());
+		assert!(cache.get_local_storage(block_number2, key2).await.unwrap().is_some());
 
 		// Clear all
-		cache.clear_local_storage().await.unwrap();
+		cache.cleanup().await.unwrap();
 
 		// Verify they're gone
-		assert!(cache.get_local_storage(block1, key1).await.unwrap().is_none());
-		assert!(cache.get_local_storage(block2, key2).await.unwrap().is_none());
+		assert!(cache.get_local_storage(block_number1, key1).await.unwrap().is_none());
+		assert!(cache.get_local_storage(block_number2, key2).await.unwrap().is_none());
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -1180,6 +1180,7 @@ mod tests {
 		let cache = StorageCache::in_memory().await.unwrap();
 
 		let block_hash = H256::from([9u8; 32]);
+		let block_number = 9u32;
 		let key = b"test_key";
 		let storage_value = b"storage_value";
 		let local_value = b"local_value";
@@ -1188,11 +1189,11 @@ mod tests {
 		cache.set_storage(block_hash, key, Some(storage_value)).await.unwrap();
 
 		// Set in local storage
-		cache.set_local_storage(block_hash, key, Some(local_value)).await.unwrap();
+		cache.set_local_storage(block_number, key, Some(local_value)).await.unwrap();
 
 		// Both should be independent
 		let storage_cached = cache.get_storage(block_hash, key).await.unwrap();
-		let local_cached = cache.get_local_storage(block_hash, key).await.unwrap();
+		let local_cached = cache.get_local_storage(block_number, key).await.unwrap();
 
 		assert_eq!(storage_cached, Some(Some(storage_value.to_vec())));
 		assert_eq!(local_cached, Some(Some(local_value.to_vec())));
@@ -1200,7 +1201,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn cleanup_clears_local_storage() {
-		let block_hash = H256::from([10u8; 32]);
+		let block_number = 10u32;
 		let key = b"test_key";
 		let value = b"test_value";
 
@@ -1211,23 +1212,23 @@ mod tests {
 		// Create cache and add local storage
 		{
 			let cache = StorageCache::open(Some(&db_path)).await.unwrap();
-			cache.set_local_storage(block_hash, key, Some(value)).await.unwrap();
+			cache.set_local_storage(block_number, key, Some(value)).await.unwrap();
 
 			// Verify it was set
-			assert!(cache.get_local_storage(block_hash, key).await.unwrap().is_some());
+			assert!(cache.get_local_storage(block_number, key).await.unwrap().is_some());
 
 			// Cleanup before drop
 			cache.cleanup().await.unwrap();
 
 			// Verify it was cleared
-			let cached = cache.get_local_storage(block_hash, key).await.unwrap();
+			let cached = cache.get_local_storage(block_number, key).await.unwrap();
 			assert!(cached.is_none(), "Local storage should be cleared after cleanup");
 		}
 
 		// Reopen and verify local storage is still empty
 		{
 			let cache = StorageCache::open(Some(&db_path)).await.unwrap();
-			let cached = cache.get_local_storage(block_hash, key).await.unwrap();
+			let cached = cache.get_local_storage(block_number, key).await.unwrap();
 			assert!(cached.is_none(), "Local storage should remain cleared");
 		}
 	}
