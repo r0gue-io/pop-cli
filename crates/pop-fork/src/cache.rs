@@ -7,8 +7,8 @@
 
 use crate::{
 	error::cache::CacheError,
-	models::{BlockRow, NewBlockRow, NewStorageRow},
-	schema::{blocks, storage},
+	models::{BlockRow, NewBlockRow, NewPrefixScanRow, NewStorageRow},
+	schema::{blocks, prefix_scans, storage},
 	strings::cache::{errors, lock_patterns, pragmas, urls},
 };
 use bb8::CustomizeConnection;
@@ -44,6 +44,25 @@ use tokio::sync::{Mutex, MutexGuard};
 const MAX_POOL_CONNECTIONS: u32 = 5;
 /// Maximum retries for transient SQLite lock/busy errors on write paths.
 const MAX_LOCK_RETRIES: u32 = 30;
+
+/// Progress information for a prefix scan operation.
+///
+/// Tracks the state of an incremental prefix scan, enabling resumable
+/// operations that can be interrupted and continued later.
+///
+/// # Lifecycle
+///
+/// 1. **Not started**: `get_prefix_scan_progress()` returns `None`
+/// 2. **In progress**: `is_complete = false`, `last_scanned_key` holds the resume point
+/// 3. **Completed**: `is_complete = true`, all keys for the prefix have been scanned
+#[derive(Debug, Clone)]
+pub struct PrefixScanProgress {
+	/// The last key that was successfully scanned.
+	/// Used as the starting point when resuming an interrupted scan.
+	pub last_scanned_key: Option<Vec<u8>>,
+	/// Whether the scan has processed all keys matching the prefix.
+	pub is_complete: bool,
+}
 
 /// SQLite-backed persistent cache for storage values.
 ///
@@ -484,7 +503,9 @@ impl StorageCache {
 		// Use a transaction to ensure both deletes succeed or fail together.
 		// This maintains consistency: we never have orphaned storage entries
 		// without their parent block, or vice versa.
-		use crate::schema::{blocks::columns as bc, storage::columns as sc};
+		use crate::schema::{
+			blocks::columns as bc, prefix_scans::columns as psc, storage::columns as sc,
+		};
 		let block_hash = Arc::new(hash.as_bytes());
 
 		// Retry loop for transient SQLite lock/busy errors.
@@ -504,6 +525,9 @@ impl StorageCache {
 						diesel::delete(blocks::table.filter(bc::hash.eq(*block_hash)))
 							.execute(conn)
 							.await?;
+						diesel::delete(prefix_scans::table.filter(psc::block_hash.eq(*block_hash)))
+							.execute(conn)
+							.await?;
 						Ok(())
 					})
 				})
@@ -519,6 +543,160 @@ impl StorageCache {
 			}
 		}
 	}
+
+	/// Get the progress of a prefix scan operation.
+	///
+	/// # Returns
+	/// * `Ok(Some(progress))` - Scan has been started, returns progress info
+	/// * `Ok(None)` - No scan has been started for this prefix
+	pub async fn get_prefix_scan_progress(
+		&self,
+		block_hash: H256,
+		prefix: &[u8],
+	) -> Result<Option<PrefixScanProgress>, CacheError> {
+		use crate::schema::prefix_scans::columns as psc;
+
+		let mut conn = self.get_conn().await?;
+
+		let row: Option<(Option<Vec<u8>>, bool)> = prefix_scans::table
+			.filter(psc::block_hash.eq(block_hash.as_bytes()))
+			.filter(psc::prefix.eq(prefix))
+			.select((psc::last_scanned_key, psc::is_complete))
+			.first::<(Option<Vec<u8>>, bool)>(&mut conn)
+			.await
+			.optional()?;
+
+		Ok(row.map(|(last_key, complete)| PrefixScanProgress {
+			last_scanned_key: last_key,
+			is_complete: complete,
+		}))
+	}
+
+	/// Update the progress of a prefix scan operation (upsert).
+	///
+	/// Creates a new progress record or updates an existing one. Uses SQLite's
+	/// `ON CONFLICT DO UPDATE` for atomic upsert semantics.
+	///
+	/// # Arguments
+	/// * `block_hash` - The block hash being scanned
+	/// * `prefix` - The storage prefix being scanned
+	/// * `last_key` - The last key that was processed
+	/// * `is_complete` - Whether the scan has finished
+	pub async fn update_prefix_scan(
+		&self,
+		block_hash: H256,
+		prefix: &[u8],
+		last_key: &[u8],
+		is_complete: bool,
+	) -> Result<(), CacheError> {
+		use crate::schema::prefix_scans::columns as psc;
+		use diesel::upsert::excluded;
+
+		let new_row = NewPrefixScanRow {
+			block_hash: block_hash.as_bytes(),
+			prefix,
+			last_scanned_key: Some(last_key),
+			is_complete,
+		};
+
+		let mut attempts = 0;
+		loop {
+			let mut conn = self.get_conn().await?;
+			let res = diesel::insert_into(prefix_scans::table)
+				.values(&new_row)
+				.on_conflict((psc::block_hash, psc::prefix))
+				.do_update()
+				.set((
+					psc::last_scanned_key.eq(excluded(psc::last_scanned_key)),
+					psc::is_complete.eq(excluded(psc::is_complete)),
+				))
+				.execute(&mut conn)
+				.await;
+
+			match res {
+				Ok(_) => return Ok(()),
+				Err(e) if is_locked_error(&e) && attempts < MAX_LOCK_RETRIES => {
+					retry_conn(&mut attempts).await;
+					continue;
+				},
+				Err(e) => return Err(e.into()),
+			}
+		}
+	}
+
+	/// Get all cached keys matching a prefix.
+	///
+	/// Uses a range query (`key >= prefix AND key < prefix+1`) for efficient
+	/// prefix matching on SQLite's B-tree index. This is more performant than
+	/// `LIKE` or `GLOB` patterns for binary key prefixes.
+	pub async fn get_keys_by_prefix(
+		&self,
+		block_hash: H256,
+		prefix: &[u8],
+	) -> Result<Vec<Vec<u8>>, CacheError> {
+		use crate::schema::storage::columns as sc;
+
+		let mut conn = self.get_conn().await?;
+
+		// SQLite BLOB comparison with >= and < for prefix range
+		let prefix_end = increment_prefix(prefix);
+
+		let mut query = storage::table
+			.filter(sc::block_hash.eq(block_hash.as_bytes()))
+			.filter(sc::key.ge(prefix))
+			.select(sc::key)
+			.into_boxed();
+
+		if let Some(ref end) = prefix_end {
+			query = query.filter(sc::key.lt(end));
+		}
+
+		Ok(query.load::<Vec<u8>>(&mut conn).await?)
+	}
+
+	/// Count cached keys matching a prefix.
+	///
+	/// Uses the same range query strategy as [`Self::get_keys_by_prefix`] for
+	/// efficient counting without loading key data.
+	pub async fn count_keys_by_prefix(
+		&self,
+		block_hash: H256,
+		prefix: &[u8],
+	) -> Result<usize, CacheError> {
+		use crate::schema::storage::columns as sc;
+
+		let mut conn = self.get_conn().await?;
+		let prefix_end = increment_prefix(prefix);
+
+		let mut query = storage::table
+			.filter(sc::block_hash.eq(block_hash.as_bytes()))
+			.filter(sc::key.ge(prefix))
+			.into_boxed();
+
+		if let Some(ref end) = prefix_end {
+			query = query.filter(sc::key.lt(end));
+		}
+
+		let count: i64 = query.count().get_result(&mut conn).await?;
+
+		Ok(count as usize)
+	}
+}
+
+/// Increment a byte slice to get the exclusive upper bound for prefix queries.
+/// Returns None if the prefix is all 0xFF bytes (no upper bound needed).
+fn increment_prefix(prefix: &[u8]) -> Option<Vec<u8>> {
+	let mut result = prefix.to_vec();
+	// Find the rightmost byte that isn't 0xFF and increment it
+	for i in (0..result.len()).rev() {
+		if result[i] < 0xFF {
+			result[i] += 1;
+			result.truncate(i + 1);
+			return Some(result);
+		}
+	}
+	// All bytes were 0xFF, no upper bound
+	None
 }
 
 fn is_locked_error(e: &DieselError) -> bool {
@@ -863,5 +1041,146 @@ mod tests {
 
 		let result = cache.set_storage_batch(block_hash, &entries).await;
 		assert!(matches!(result, Err(CacheError::DuplicatedKeys)));
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn prefix_scan_progress_tracking() {
+		let cache = StorageCache::in_memory().await.unwrap();
+		let block_hash = H256::from([11u8; 32]);
+		let prefix = b"balances:";
+
+		// Initially no progress
+		let progress = cache.get_prefix_scan_progress(block_hash, prefix).await.unwrap();
+		assert!(progress.is_none());
+
+		// Update progress with a partial scan
+		let last_key = b"balances:account123";
+		cache.update_prefix_scan(block_hash, prefix, last_key, false).await.unwrap();
+
+		// Progress should now exist
+		let progress = cache.get_prefix_scan_progress(block_hash, prefix).await.unwrap();
+		assert!(progress.is_some());
+		let p = progress.unwrap();
+		assert_eq!(p.last_scanned_key, Some(last_key.to_vec()));
+		assert!(!p.is_complete);
+
+		// Update to complete
+		let final_key = b"balances:zzz";
+		cache.update_prefix_scan(block_hash, prefix, final_key, true).await.unwrap();
+
+		let progress = cache.get_prefix_scan_progress(block_hash, prefix).await.unwrap();
+		let p = progress.unwrap();
+		assert_eq!(p.last_scanned_key, Some(final_key.to_vec()));
+		assert!(p.is_complete);
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn prefix_scan_different_blocks_separate() {
+		let cache = StorageCache::in_memory().await.unwrap();
+		let block1 = H256::from([12u8; 32]);
+		let block2 = H256::from([13u8; 32]);
+		let prefix = b"system:";
+
+		// Set progress on block1 only
+		cache.update_prefix_scan(block1, prefix, b"system:key1", true).await.unwrap();
+
+		// Block1 has progress
+		let p1 = cache.get_prefix_scan_progress(block1, prefix).await.unwrap();
+		assert!(p1.is_some());
+		assert!(p1.unwrap().is_complete);
+
+		// Block2 has no progress
+		let p2 = cache.get_prefix_scan_progress(block2, prefix).await.unwrap();
+		assert!(p2.is_none());
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn get_keys_by_prefix_works() {
+		let cache = StorageCache::in_memory().await.unwrap();
+		let block_hash = H256::from([14u8; 32]);
+
+		// Insert keys with different prefixes
+		let entries: Vec<(&[u8], Option<&[u8]>)> = vec![
+			(b"tokens:alice", Some(b"100")),
+			(b"tokens:bob", Some(b"200")),
+			(b"tokens:charlie", Some(b"300")),
+			(b"balances:alice", Some(b"50")),
+			(b"balances:bob", Some(b"75")),
+		];
+		cache.set_storage_batch(block_hash, &entries).await.unwrap();
+
+		// Get keys with "tokens:" prefix
+		let token_keys = cache.get_keys_by_prefix(block_hash, b"tokens:").await.unwrap();
+		assert_eq!(token_keys.len(), 3);
+		assert!(token_keys.contains(&b"tokens:alice".to_vec()));
+		assert!(token_keys.contains(&b"tokens:bob".to_vec()));
+		assert!(token_keys.contains(&b"tokens:charlie".to_vec()));
+
+		// Get keys with "balances:" prefix
+		let balance_keys = cache.get_keys_by_prefix(block_hash, b"balances:").await.unwrap();
+		assert_eq!(balance_keys.len(), 2);
+		assert!(balance_keys.contains(&b"balances:alice".to_vec()));
+		assert!(balance_keys.contains(&b"balances:bob".to_vec()));
+
+		// Get keys with non-existent prefix
+		let empty_keys = cache.get_keys_by_prefix(block_hash, b"nonexistent:").await.unwrap();
+		assert!(empty_keys.is_empty());
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn count_keys_by_prefix_works() {
+		let cache = StorageCache::in_memory().await.unwrap();
+		let block_hash = H256::from([15u8; 32]);
+
+		// Insert keys with different prefixes
+		let entries: Vec<(&[u8], Option<&[u8]>)> = vec![
+			(b"prefix_a:1", Some(b"v1")),
+			(b"prefix_a:2", Some(b"v2")),
+			(b"prefix_a:3", Some(b"v3")),
+			(b"prefix_b:1", Some(b"v4")),
+		];
+		cache.set_storage_batch(block_hash, &entries).await.unwrap();
+
+		assert_eq!(cache.count_keys_by_prefix(block_hash, b"prefix_a:").await.unwrap(), 3);
+		assert_eq!(cache.count_keys_by_prefix(block_hash, b"prefix_b:").await.unwrap(), 1);
+		assert_eq!(cache.count_keys_by_prefix(block_hash, b"prefix_c:").await.unwrap(), 0);
+	}
+
+	#[test]
+	fn increment_prefix_works() {
+		// Normal case
+		assert_eq!(increment_prefix(b"abc"), Some(b"abd".to_vec()));
+
+		// Increment last byte
+		assert_eq!(increment_prefix(b"ab\xff"), Some(b"ac".to_vec()));
+
+		// Multiple 0xff bytes
+		assert_eq!(increment_prefix(b"a\xff\xff"), Some(b"b".to_vec()));
+
+		// All 0xff - no valid increment possible
+		assert_eq!(increment_prefix(b"\xff\xff\xff"), None);
+
+		// Empty prefix - no increment possible
+		assert_eq!(increment_prefix(b""), None);
+
+		// Single byte
+		assert_eq!(increment_prefix(b"a"), Some(b"b".to_vec()));
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn clear_block_removes_prefix_scans() {
+		let cache = StorageCache::in_memory().await.unwrap();
+		let hash = H256::from([16u8; 32]);
+		let prefix = b"test:";
+
+		// Set up prefix scan progress
+		cache.update_prefix_scan(hash, prefix, b"test:key", true).await.unwrap();
+		assert!(cache.get_prefix_scan_progress(hash, prefix).await.unwrap().is_some());
+
+		// Clear block
+		cache.clear_block(hash).await.unwrap();
+
+		// Prefix scan progress should be removed
+		assert!(cache.get_prefix_scan_progress(hash, prefix).await.unwrap().is_none());
 	}
 }

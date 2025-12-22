@@ -1,4 +1,4 @@
-use crate::schema::{blocks, storage};
+use crate::schema::{blocks, prefix_scans, storage};
 use diesel::{Insertable, Queryable, Selectable};
 
 #[derive(Insertable, Clone)]
@@ -28,4 +28,14 @@ pub struct BlockRow {
 	pub number: i64,
 	pub parent_hash: Vec<u8>,
 	pub header: Vec<u8>,
+}
+
+/// Prefix scan row for insertions (uses borrowed data to avoid allocations)
+#[derive(Insertable, Clone)]
+#[diesel(table_name = prefix_scans)]
+pub(crate) struct NewPrefixScanRow<'a> {
+	pub(crate) block_hash: &'a [u8],
+	pub(crate) prefix: &'a [u8],
+	pub(crate) last_scanned_key: Option<&'a [u8]>,
+	pub(crate) is_complete: bool,
 }

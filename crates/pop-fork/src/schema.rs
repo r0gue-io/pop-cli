@@ -19,3 +19,12 @@ diesel::table! {
 }
 
 diesel::allow_tables_to_appear_in_same_query!(blocks, storage,);
+
+diesel::table! {
+	prefix_scans (block_hash, prefix) {
+		block_hash -> Binary,
+		prefix -> Binary,
+		last_scanned_key -> Nullable<Binary>,
+		is_complete -> Bool,
+	}
+}
