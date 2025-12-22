@@ -8462,6 +8462,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "petgraph"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3672b37090dbd86368a4145bc067582552b29c27377cad4e0a306c97f9bd7772"
+dependencies = [
+ "fixedbitset 0.5.7",
+ "indexmap 2.12.1",
+]
+
+[[package]]
 name = "picosimd"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
