@@ -673,16 +673,18 @@ impl StorageCache {
 		match row {
 			// Sanity check on the block number, as we use i64 to represent them in SQLite but
 			// Substrate blocks are u32
-			Some(BlockRow { number, .. }) if number < 0 || number > u32::MAX.into() => {
-				Err(CacheError::DataCorruption(errors::BLOCK_NUMBER_OUT_OF_U32_RANGE.into()))
-			},
+			Some(BlockRow { number, .. }) if number < 0 || number > u32::MAX.into() =>
+				Err(CacheError::DataCorruption(errors::BLOCK_NUMBER_OUT_OF_U32_RANGE.into())),
 			row @ Some(_) => Ok(row),
 			None => Ok(None),
 		}
 	}
 
 	/// Get cached block metadata by block number.
-	pub async fn get_block_by_number(&self, block_number: u32) -> Result<Option<BlockRow>, CacheError> {
+	pub async fn get_block_by_number(
+		&self,
+		block_number: u32,
+	) -> Result<Option<BlockRow>, CacheError> {
 		// Retrieve block metadata by block number.
 		// Returns None if the block hasn't been cached yet.
 		use crate::schema::blocks::columns as bc;
@@ -698,9 +700,8 @@ impl StorageCache {
 
 		match row {
 			// Sanity check on the block number
-			Some(BlockRow { number, .. }) if number < 0 || number > u32::MAX.into() => {
-				Err(CacheError::DataCorruption(errors::BLOCK_NUMBER_OUT_OF_U32_RANGE.into()))
-			},
+			Some(BlockRow { number, .. }) if number < 0 || number > u32::MAX.into() =>
+				Err(CacheError::DataCorruption(errors::BLOCK_NUMBER_OUT_OF_U32_RANGE.into())),
 			row @ Some(_) => Ok(row),
 			None => Ok(None),
 		}
