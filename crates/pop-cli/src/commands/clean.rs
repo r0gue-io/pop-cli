@@ -250,7 +250,7 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 				return Ok(());
 			}
 
-			selected.into_iter().map(|p| p.clone()).collect::<Vec<_>>()
+			selected.into_iter().cloned().collect::<Vec<_>>()
 		};
 
 		for pid in &pids {
