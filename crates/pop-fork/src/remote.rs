@@ -36,13 +36,13 @@
 //! let cache = StorageCache::in_memory().await?;
 //! let block_hash = rpc.finalized_head().await?;
 //!
-//! let storage = RemoteStorageLayer::new(rpc, cache, block_hash);
+//! let storage = RemoteStorageLayer::new(rpc, cache);
 //!
 //! // First call fetches from RPC and caches
-//! let value = storage.get(&key).await?;
+//! let value = storage.get(block_hash, &key).await?;
 //!
 //! // Second call returns cached value (no RPC call)
-//! let value = storage.get(&key).await?;
+//! let value = storage.get(block_hash, &key).await?;
 //! ```
 
 use crate::{ForkRpcClient, StorageCache, error::RemoteStorageError};
@@ -74,7 +74,6 @@ const DEFAULT_PREFETCH_PAGE_SIZE: u32 = 1000;
 pub struct RemoteStorageLayer {
 	rpc: ForkRpcClient,
 	cache: StorageCache,
-	block_hash: H256,
 }
 
 impl RemoteStorageLayer {
@@ -83,14 +82,8 @@ impl RemoteStorageLayer {
 	/// # Arguments
 	/// * `rpc` - RPC client connected to the live chain
 	/// * `cache` - Storage cache for persisting fetched values
-	/// * `block_hash` - Block hash to query state at (typically finalized head)
-	pub fn new(rpc: ForkRpcClient, cache: StorageCache, block_hash: H256) -> Self {
-		Self { rpc, cache, block_hash }
-	}
-
-	/// Get the block hash this layer is querying.
-	pub fn block_hash(&self) -> H256 {
-		self.block_hash
+	pub fn new(rpc: ForkRpcClient, cache: StorageCache) -> Self {
+		Self { rpc, cache }
 	}
 
 	/// Get a reference to the underlying RPC client.
@@ -114,17 +107,17 @@ impl RemoteStorageLayer {
 	/// - If the key is in cache, returns the cached value immediately
 	/// - If not cached, fetches from RPC, caches the result, and returns it
 	/// - Empty storage (key exists but has no value) is cached as `None`
-	pub async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, RemoteStorageError> {
+	pub async fn get(&self, block_hash: H256, key: &[u8]) -> Result<Option<Vec<u8>>, RemoteStorageError> {
 		// Check cache first
-		if let Some(cached) = self.cache.get_storage(self.block_hash, key).await? {
+		if let Some(cached) = self.cache.get_storage(block_hash, key).await? {
 			return Ok(cached);
 		}
 
 		// Fetch from RPC
-		let value = self.rpc.storage(key, self.block_hash).await?;
+		let value = self.rpc.storage(key, block_hash).await?;
 
 		// Cache the result (including empty values)
-		self.cache.set_storage(self.block_hash, key, value.as_deref()).await?;
+		self.cache.set_storage(block_hash, key, value.as_deref()).await?;
 
 		Ok(value)
 	}
@@ -132,6 +125,7 @@ impl RemoteStorageLayer {
 	/// Get multiple storage values in a batch, fetching uncached keys from RPC.
 	///
 	/// # Arguments
+    /// * `block_hash` - The hash of the block being queried. 
 	/// * `keys` - Slice of storage keys to fetch (as byte slices to avoid unnecessary allocations)
 	///
 	/// # Returns
@@ -144,6 +138,7 @@ impl RemoteStorageLayer {
 	/// - Returns results in the same order as input keys
 	pub async fn get_batch(
 		&self,
+        block_hash: H256,
 		keys: &[&[u8]],
 	) -> Result<Vec<Option<Vec<u8>>>, RemoteStorageError> {
 		if keys.is_empty() {
@@ -151,7 +146,7 @@ impl RemoteStorageLayer {
 		}
 
 		// Check cache for all keys
-		let cached_results = self.cache.get_storage_batch(self.block_hash, keys).await?;
+		let cached_results = self.cache.get_storage_batch(block_hash, keys).await?;
 
 		// Find which keys need to be fetched
 		let mut uncached_indices: Vec<usize> = Vec::new();
@@ -170,7 +165,7 @@ impl RemoteStorageLayer {
 		}
 
 		// Fetch uncached keys from RPC
-		let fetched_values = self.rpc.storage_batch(&uncached_keys, self.block_hash).await?;
+		let fetched_values = self.rpc.storage_batch(&uncached_keys, block_hash).await?;
 
 		// Cache fetched values
 		let cache_entries: Vec<(&[u8], Option<&[u8]>)> = uncached_keys
@@ -180,7 +175,7 @@ impl RemoteStorageLayer {
 			.collect();
 
 		if !cache_entries.is_empty() {
-			self.cache.set_storage_batch(self.block_hash, &cache_entries).await?;
+			self.cache.set_storage_batch(block_hash, &cache_entries).await?;
 		}
 
 		// Build final result, merging cached and fetched values
@@ -201,6 +196,7 @@ impl RemoteStorageLayer {
 	/// continue from where it left off.
 	///
 	/// # Arguments
+    /// * `block_hash`.
 	/// * `prefix` - Storage key prefix to match
 	/// * `page_size` - Number of keys to fetch per RPC call
 	///
@@ -208,6 +204,7 @@ impl RemoteStorageLayer {
 	/// The total number of keys for this prefix (including previously cached).
 	pub async fn prefetch_prefix(
 		&self,
+        block_hash: H256,
 		prefix: &[u8],
 		page_size: u32,
 	) -> Result<usize, RemoteStorageError> {
@@ -228,7 +225,7 @@ impl RemoteStorageLayer {
 			// Get next page of keys
 			let keys = self
 				.rpc
-				.storage_keys_paged(prefix, page_size, start_key.as_deref(), self.block_hash)
+				.storage_keys_paged(prefix, page_size, start_key.as_deref(), block_hash)
 				.await?;
 
 			if keys.is_empty() {
@@ -245,13 +242,13 @@ impl RemoteStorageLayer {
 
 			// Fetch values for these keys
 			let key_refs: Vec<&[u8]> = keys.iter().map(|k| k.as_slice()).collect();
-			let values = self.rpc.storage_batch(&key_refs, self.block_hash).await?;
+			let values = self.rpc.storage_batch(&key_refs, block_hash).await?;
 
 			// Cache all key-value pairs
 			let cache_entries: Vec<(&[u8], Option<&[u8]>)> =
 				key_refs.iter().zip(values.iter()).map(|(k, v)| (*k, v.as_deref())).collect();
 
-			self.cache.set_storage_batch(self.block_hash, &cache_entries).await?;
+			self.cache.set_storage_batch(block_hash, &cache_entries).await?;
 
 			// Update progress with the last key from this page.
 			// We consume keys here to avoid cloning for the next iteration's start_key.
@@ -350,6 +347,7 @@ mod tests {
 			#[allow(dead_code)]
 			node: TestNode,
 			layer: RemoteStorageLayer,
+			block_hash: H256,
 		}
 
 		async fn create_test_context() -> TestContext {
@@ -358,29 +356,30 @@ mod tests {
 			let rpc = ForkRpcClient::connect(&endpoint).await.unwrap();
 			let cache = StorageCache::in_memory().await.unwrap();
 			let block_hash = rpc.finalized_head().await.unwrap();
-			let layer = RemoteStorageLayer::new(rpc, cache, block_hash);
+			let layer = RemoteStorageLayer::new(rpc, cache);
 
-			TestContext { node, layer }
+			TestContext { node, layer, block_hash }
 		}
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn get_fetches_and_caches() {
 			let ctx = create_test_context().await;
 			let layer = &ctx.layer;
+			let block_hash = ctx.block_hash;
 
 			let key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 
 			// First call should fetch from RPC and cache
-			let value1 = layer.get(&key).await.unwrap();
+			let value1 = layer.get(block_hash, &key).await.unwrap();
 			assert!(value1.is_some(), "System::Number should exist");
 
 			// Verify it was cached
-			let cached = layer.cache().get_storage(layer.block_hash(), &key).await.unwrap();
+			let cached = layer.cache().get_storage(block_hash, &key).await.unwrap();
 			assert!(cached.is_some(), "Value should be cached after first get");
 			assert_eq!(cached.unwrap(), value1);
 
 			// Second call should return cached value (same result)
-			let value2 = layer.get(&key).await.unwrap();
+			let value2 = layer.get(block_hash, &key).await.unwrap();
 			assert_eq!(value1, value2);
 		}
 
@@ -388,17 +387,18 @@ mod tests {
 		async fn get_caches_empty_values() {
 			let ctx = create_test_context().await;
 			let layer = &ctx.layer;
+			let block_hash = ctx.block_hash;
 
 			// Use a key that definitely doesn't exist
 			let nonexistent_key = b"this_key_definitely_does_not_exist_12345";
 
 			// First call fetches from RPC - should be None
-			let value = layer.get(nonexistent_key).await.unwrap();
+			let value = layer.get(block_hash, nonexistent_key).await.unwrap();
 			assert!(value.is_none(), "Nonexistent key should return None");
 
 			// Verify it was cached as empty (Some(None))
 			let cached =
-				layer.cache().get_storage(layer.block_hash(), nonexistent_key).await.unwrap();
+				layer.cache().get_storage(block_hash, nonexistent_key).await.unwrap();
 			assert_eq!(cached, Some(None), "Empty value should be cached as Some(None)");
 		}
 
@@ -406,6 +406,7 @@ mod tests {
 		async fn get_batch_fetches_mixed() {
 			let ctx = create_test_context().await;
 			let layer = &ctx.layer;
+			let block_hash = ctx.block_hash;
 
 			let key1 = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 			let key2 = hex::decode(SYSTEM_PARENT_HASH_KEY).unwrap();
@@ -413,7 +414,7 @@ mod tests {
 
 			let keys: Vec<&[u8]> = vec![key1.as_slice(), key2.as_slice(), key3.as_slice()];
 
-			let results = layer.get_batch(&keys).await.unwrap();
+			let results = layer.get_batch(block_hash, &keys).await.unwrap();
 
 			assert_eq!(results.len(), 3);
 			assert!(results[0].is_some(), "System::Number should exist");
@@ -422,7 +423,7 @@ mod tests {
 
 			// Verify all were cached
 			for (i, key) in keys.iter().enumerate() {
-				let cached = layer.cache().get_storage(layer.block_hash(), key).await.unwrap();
+				let cached = layer.cache().get_storage(block_hash, key).await.unwrap();
 				assert!(cached.is_some(), "Key {} should be cached", i);
 			}
 		}
@@ -431,16 +432,17 @@ mod tests {
 		async fn get_batch_uses_cache() {
 			let ctx = create_test_context().await;
 			let layer = &ctx.layer;
+			let block_hash = ctx.block_hash;
 
 			let key1 = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 			let key2 = hex::decode(SYSTEM_PARENT_HASH_KEY).unwrap();
 
 			// Pre-cache key1
-			let value1 = layer.get(&key1).await.unwrap();
+			let value1 = layer.get(block_hash, &key1).await.unwrap();
 
 			// Batch get with one cached and one uncached
 			let keys: Vec<&[u8]> = vec![key1.as_slice(), key2.as_slice()];
-			let results = layer.get_batch(&keys).await.unwrap();
+			let results = layer.get_batch(block_hash, &keys).await.unwrap();
 
 			assert_eq!(results.len(), 2);
 			assert_eq!(results[0], value1, "Cached value should match");
@@ -451,17 +453,18 @@ mod tests {
 		async fn prefetch_prefix() {
 			let ctx = create_test_context().await;
 			let layer = &ctx.layer;
+			let block_hash = ctx.block_hash;
 
 			let prefix = hex::decode(SYSTEM_PALLET_PREFIX).unwrap();
 
 			// Prefetch all System storage items (page_size is the batch size per RPC call)
-			let count = layer.prefetch_prefix(&prefix, 5).await.unwrap();
+			let count = layer.prefetch_prefix(block_hash, &prefix, 5).await.unwrap();
 
 			assert!(count > 0, "Should have prefetched some keys");
 
 			// Verify some values were cached
 			let key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
-			let cached = layer.cache().get_storage(layer.block_hash(), &key).await.unwrap();
+			let cached = layer.cache().get_storage(block_hash, &key).await.unwrap();
 			assert!(cached.is_some(), "Prefetched key should be cached");
 		}
 
@@ -469,6 +472,7 @@ mod tests {
 		async fn layer_is_cloneable() {
 			let ctx = create_test_context().await;
 			let layer = &ctx.layer;
+			let block_hash = ctx.block_hash;
 
 			// Clone the layer
 			let layer2 = layer.clone();
@@ -476,8 +480,8 @@ mod tests {
 			// Both should work and share the same cache
 			let key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 
-			let value1 = layer.get(&key).await.unwrap();
-			let value2 = layer2.get(&key).await.unwrap();
+			let value1 = layer.get(block_hash, &key).await.unwrap();
+			let value2 = layer2.get(block_hash, &key).await.unwrap();
 
 			assert_eq!(value1, value2);
 		}
@@ -486,9 +490,10 @@ mod tests {
 		async fn accessor_methods() {
 			let ctx = create_test_context().await;
 			let layer = &ctx.layer;
+			let block_hash = ctx.block_hash;
 
 			// Test accessor methods
-			assert!(!layer.block_hash().is_zero());
+			assert!(!block_hash.is_zero());
 			// Verify endpoint is a valid WebSocket URL (from our local test node)
 			assert!(layer.rpc().endpoint().as_str().starts_with("ws://"));
 		}
