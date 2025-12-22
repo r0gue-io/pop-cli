@@ -69,7 +69,7 @@ async fn generate_all_the_templates() -> Result<()> {
 #[tokio::test]
 async fn parachain_lifecycle() -> Result<()> {
 	let temp = tempfile::tempdir()?;
-	let temp_dir =temp.path();
+	let temp_dir = temp.path();
 
 	// pop new chain test_parachain --verify (default)
 	let working_dir = temp_dir.join("test_parachain");
