@@ -4,7 +4,7 @@
 //!
 //! This module provides [`RuntimeExecutor`], a wrapper around smoldot's executor that
 //! runs Substrate runtime calls (like `Core_version`, `BlockBuilder_apply_extrinsic`, etc.)
-//! against lazy-loaded storage via [`RemoteStorageLayer`](crate::RemoteStorageLayer).
+//! against storage provided by a [`LocalStorageLayer`](crate::LocalStorageLayer).
 //!
 //! # Design Decision: Why smoldot?
 //!
@@ -17,11 +17,37 @@
 //! - **Logging and debugging**: runtime log emission
 //!
 //! By using smoldot's `runtime_call` API, we avoid reimplementing these host functions
-//! while gaining full control over storage access. This lets us route storage reads through
-//! our lazy-loading [`RemoteStorageLayer`](crate::RemoteStorageLayer) and track storage
-//! writes for later application.
+//! while gaining full control over storage access. Storage reads are routed through the
+//! [`LocalStorageLayer`](crate::LocalStorageLayer), which checks local modifications first,
+//! then deleted prefixes, and finally falls back to the parent layer (typically a
+//! [`RemoteStorageLayer`](crate::RemoteStorageLayer) that lazily fetches from RPC).
 //!
-//! # Architecture
+//! # Storage Read Flow
+//!
+//! When the runtime requests a storage value, the executor queries the `LocalStorageLayer`:
+//!
+//! ```text
+//! ┌─────────────────────────────────────────────────────────────────┐
+//! │                    LocalStorageLayer                             │
+//! │                                                                   │
+//! │   get(key) ─────► Modified? ──── Yes ────► Return modified value │
+//! │                        │                                          │
+//! │                        No                                         │
+//! │                        │                                          │
+//! │                        ▼                                          │
+//! │                 Prefix deleted? ── Yes ───► Return None           │
+//! │                        │                                          │
+//! │                        No                                         │
+//! │                        │                                          │
+//! │                        ▼                                          │
+//! │                 Query parent layer (RemoteStorageLayer)           │
+//! │                        │                                          │
+//! │                        ▼                                          │
+//! │                 Return value                                      │
+//! └─────────────────────────────────────────────────────────────────┘
+//! ```
+//!
+//! # Executor Architecture
 //!
 //! ```text
 //! ┌─────────────────────────────────────────────────────────────────────┐
@@ -36,38 +62,42 @@
 //! │                   ┌────── Event Loop ──────┐                        │
 //! │                   │                        │                        │
 //! │                   ▼                        ▼                        │
-//! │            StorageGet?              SignatureVerify?               │
+//! │            StorageGet?              SignatureVerify?                │
 //! │                   │                        │                        │
 //! │                   ▼                        ▼                        │
-//! │     Fetch from RemoteStorageLayer   Verify or mock                 │
+//! │     Query LocalStorageLayer         Verify or mock                  │
 //! │                   │                        │                        │
 //! │                   └──────────┬─────────────┘                        │
 //! │                              ▼                                      │
 //! │                         Finished?                                   │
 //! │                              │                                      │
 //! │                              ▼                                      │
-//! │                   Return RuntimeCallResult                         │
-//! │                   (output + storage_diff)                          │
+//! │                   Return RuntimeCallResult                          │
+//! │                   (output + storage_diff)                           │
 //! └─────────────────────────────────────────────────────────────────────┘
 //! ```
 //!
 //! # Example
 //!
 //! ```ignore
-//! use pop_fork::{RuntimeExecutor, RuntimeCallResult, RemoteStorageLayer};
+//! use pop_fork::{RuntimeExecutor, LocalStorageLayer, RemoteStorageLayer};
+//!
+//! // Create the storage layers
+//! let remote = RemoteStorageLayer::new(rpc, cache, block_hash);
+//! let local = LocalStorageLayer::new(remote);
 //!
 //! // Create executor with runtime WASM code fetched from chain
 //! let runtime_code = rpc.runtime_code(block_hash).await?;
 //! let executor = RuntimeExecutor::new(runtime_code, None)?;
 //!
-//! // Execute a runtime call against forked storage
-//! let result = executor.call("Core_version", &[], &storage).await?;
+//! // Execute a runtime call against the local storage layer
+//! let result = executor.call("Core_version", &[], &local).await?;
 //! println!("Output: {:?}", result.output);
 //! println!("Storage changes: {:?}", result.storage_diff.len());
 //! ```
 
 use crate::{
-	RemoteStorageLayer,
+	LocalStorageLayer,
 	error::ExecutorError,
 	strings::executor::{magic_signature, storage_prefixes},
 };
@@ -148,7 +178,7 @@ impl Default for ExecutorConfig {
 /// Runtime executor for executing Substrate runtime calls.
 ///
 /// This struct wraps smoldot's executor to run WASM runtime code against
-/// lazy-loaded storage via [`RemoteStorageLayer`].
+/// lazy-loaded storage via [`LocalStorageLayer`].
 ///
 /// # Thread Safety
 ///
@@ -262,7 +292,7 @@ impl RuntimeExecutor {
 		&self,
 		method: &str,
 		args: &[u8],
-		storage: &RemoteStorageLayer,
+		storage: &LocalStorageLayer,
 	) -> Result<RuntimeCallResult, ExecutorError> {
 		// Create VM prototype
 		let vm_proto = HostVmPrototype::new(HostConfig {
@@ -351,7 +381,10 @@ impl RuntimeExecutor {
 								key: hex::encode(&key),
 								message: e.to_string(),
 							})?;
-						req.inject_value(value.map(|x| (iter::once(x), TrieEntryVersion::V1)))
+						// Convert Arc<Vec<u8>> to Vec<u8> for inject_value
+						req.inject_value(
+							value.map(|arc| (iter::once((*arc).clone()), TrieEntryVersion::V1)),
+						)
 					}
 				},
 
