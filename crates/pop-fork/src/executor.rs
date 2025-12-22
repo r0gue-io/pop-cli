@@ -350,12 +350,14 @@ impl RuntimeExecutor {
 							value.clone().map(|x| (iter::once(x), TrieEntryVersion::V1)),
 						)
 					} else {
-						// Fetch from storage backend
-						let value =
-							storage.get(&key).await.map_err(|e| ExecutorError::StorageError {
+						// Fetch from storage backend at the latest block
+						let block_number = storage.get_latest_block_number();
+						let value = storage.get(block_number, &key).await.map_err(|e| {
+							ExecutorError::StorageError {
 								key: hex::encode(&key),
 								message: e.to_string(),
-							})?;
+							}
+						})?;
 						// Convert Arc<Vec<u8>> to Vec<u8> for inject_value
 						req.inject_value(
 							value.map(|arc| (iter::once((*arc).clone()), TrieEntryVersion::V1)),
