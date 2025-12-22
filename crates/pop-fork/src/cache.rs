@@ -608,9 +608,9 @@ impl StorageCache {
 		use diesel::upsert::excluded;
 
 		let new_row = NewPrefixScanRow {
-			block_hash: block_hash.as_bytes().to_vec(),
-			prefix: prefix.to_vec(),
-			last_scanned_key: Some(last_key.to_vec()),
+			block_hash: block_hash.as_bytes(),
+			prefix,
+			last_scanned_key: Some(last_key),
 			is_complete,
 		};
 
