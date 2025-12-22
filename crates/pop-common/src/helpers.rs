@@ -185,10 +185,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn with_current_dir_async_changes_and_restores_cwd() -> anyhow::Result<()> {
-		// Acquire and drop the mutex guard before async operations
-		{
-			let _guard = cwd_lock();
-		}
+		let _guard = cwd_lock();
 
 		let original = std::env::current_dir()?;
 		let temp_dir = tempfile::tempdir()?;
@@ -221,7 +218,7 @@ mod tests {
 				r#"#!/bin/sh
 echo 0"#,
 			)
-			.execute(|| {
+			.execute_sync(|| {
 				assert!(is_root());
 			});
 	}
@@ -234,7 +231,7 @@ echo 0"#,
 				r#"#!/bin/sh
 echo 1000"#,
 			)
-			.execute(|| {
+			.execute_sync(|| {
 				assert!(!is_root());
 			});
 	}

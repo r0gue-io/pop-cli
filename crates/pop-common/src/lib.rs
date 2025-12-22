@@ -189,17 +189,19 @@ mod tests {
 
 	#[test]
 	fn target_works() -> Result<()> {
-		use std::{process::Command, str};
-		let output = Command::new("rustc").arg("-vV").output()?;
-		let output = str::from_utf8(&output.stdout)?;
-		let target_expected = output
-			.lines()
-			.find(|l| l.starts_with("host: "))
-			.map(|l| &l[6..])
-			.unwrap()
-			.to_string();
-		assert_eq!(target()?, target_expected);
-		Ok(())
+		crate::command_mock::CommandMock::default().execute_sync(|| {
+			use std::{process::Command, str};
+			let output = Command::new("rustc").arg("-vV").output()?;
+			let output = str::from_utf8(&output.stdout)?;
+			let target_expected = output
+				.lines()
+				.find(|l| l.starts_with("host: "))
+				.map(|l| &l[6..])
+				.unwrap()
+				.to_string();
+			assert_eq!(target()?, target_expected);
+			Ok(())
+		})
 	}
 
 	#[test]

@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::Error;
-use std::{io::ErrorKind, process::Command, thread::sleep, time::Duration};
+use std::{process::Stdio, time::Duration};
+use subxt::ext::futures::TryFutureExt;
+use tokio::{process::Command, time::timeout};
 
 /// Represents the state of Docker in the user's machine
 pub enum Docker {
@@ -15,12 +17,12 @@ pub enum Docker {
 
 impl Docker {
 	/// Ensures Docker is running. If installed but not running, attempts to start it.
-	pub fn ensure_running() -> Result<(), Error> {
-		match Self::detect_docker()? {
+	pub async fn ensure_running() -> Result<(), Error> {
+		match Self::detect_docker().await? {
 			Docker::Running => Ok(()),
 			Docker::Installed => {
 				Self::try_start()?;
-				Self::wait_for_ready()?;
+				Self::wait_for_ready().await?;
 				Ok(())
 			},
 			Docker::NotInstalled => Err(Error::Docker(
@@ -30,18 +32,32 @@ impl Docker {
 		}
 	}
 
-	fn detect_docker() -> Result<Self, Error> {
-		match duct::cmd!("docker", "info")
-			.timeout(Duration::from_secs(5))
-			.stdout_capture()
-			.stderr_capture()
-			.unchecked()
-			.run()
+	async fn detect_docker() -> Result<Self, Error> {
+		let mut child = match Command::new("docker")
+			.arg("info")
+			.stdout(Stdio::null())
+			.stderr(Stdio::null())
+			.spawn()
 		{
-			Ok(output) if output.status.success() => Ok(Docker::Running),
-			Ok(_) => Ok(Docker::Installed),
-			Err(err) if err.kind() == ErrorKind::NotFound => Ok(Docker::NotInstalled),
-			Err(err) => Err(Error::Docker(err.to_string())),
+			Ok(c) => c,
+			Err(err) if err.kind() == std::io::ErrorKind::NotFound =>
+				return Ok(Docker::NotInstalled),
+			Err(err) => return Err(Error::Docker(err.to_string())),
+		};
+
+		match timeout(Duration::from_secs(5), child.wait()).await {
+			Ok(Ok(status)) =>
+				if status.success() {
+					Ok(Docker::Running)
+				} else {
+					Ok(Docker::Installed)
+				},
+			Ok(Err(err)) => Err(Error::Docker(err.to_string())),
+			Err(_) => {
+				// Timeout reached, kill the child process
+				let _ = child.kill().await;
+				Ok(Docker::Installed)
+			},
 		}
 	}
 
@@ -68,7 +84,7 @@ impl Docker {
 	}
 
 	#[allow(dead_code)] // Fine as depending on the platform it might be called or not
-	fn try_start_linux() -> Result<(), Error> {
+	async fn try_start_linux() -> Result<(), Error> {
 		// Check if running as root
 		if !crate::helpers::is_root() {
 			let args = std::env::args().skip(1).collect::<Vec<String>>().join(" ");
@@ -79,7 +95,7 @@ impl Docker {
 		}
 
 		// Try to start Docker with systemctl
-		Command::new("systemctl").args(["start", "docker"]).status().map_or_else(
+		Command::new("systemctl").args(["start", "docker"]).status().await.map_or_else(
 			|_| {
 				Err(Error::Docker(
 					"Failed to start Docker automatically. Please start it manually.".to_string(),
@@ -99,11 +115,11 @@ impl Docker {
 	}
 
 	/// Waits for Docker daemon to be ready (polls for up to 30 seconds)
-	fn wait_for_ready() -> Result<(), Error> {
+	async fn wait_for_ready() -> Result<(), Error> {
 		for _i in 0..30 {
-			sleep(Duration::from_secs(1));
+			tokio::time::sleep(Duration::from_secs(1)).await;
 
-			if matches!(Self::detect_docker()?, Docker::Running) {
+			if matches!(Self::detect_docker().await?, Docker::Running) {
 				return Ok(());
 			}
 		}
@@ -118,9 +134,9 @@ impl Docker {
 	/// # Arguments
 	/// * `image` - The image name.
 	/// * `tag` - The image tag.
-	pub fn pull_image(image: &str, tag: &str) -> Result<(), Error> {
+	pub async fn pull_image(image: &str, tag: &str) -> Result<(), Error> {
 		// Check if Docker is running
-		match Self::detect_docker()? {
+		match Self::detect_docker().await? {
 			Docker::Running => {},
 			_ => return Err(Error::Docker("Docker is not running.".to_string())),
 		}
@@ -130,7 +146,8 @@ impl Docker {
 		let output = Command::new("docker")
 			.args(["pull", &image_with_tag])
 			.output()
-			.map_err(|e| Error::Docker(format!("Failed to pull image: {}", e)))?;
+			.map_err(|e| Error::Docker(format!("Failed to pull image: {}", e)))
+			.await?;
 
 		if !output.status.success() {
 			return Err(Error::Docker(format!(
@@ -149,9 +166,9 @@ impl Docker {
 	/// # Arguments
 	/// * `image` - The image name.
 	/// * `tag` - The image tag.
-	pub fn get_image_digest(image: &str, tag: &str) -> Result<String, Error> {
+	pub async fn get_image_digest(image: &str, tag: &str) -> Result<String, Error> {
 		// Check if Docker is running
-		match Self::detect_docker()? {
+		match Self::detect_docker().await? {
 			Docker::Running => {},
 			_ => return Err(Error::Docker("Docker is not running.".to_string())),
 		}
@@ -161,17 +178,19 @@ impl Docker {
 		let mut output = Command::new("docker")
 			.args(["image", "inspect", "--format={{.RepoDigests}}", &image_with_tag])
 			.output()
-			.map_err(|e| Error::Docker(format!("Failed to inspect image: {}", e)))?;
+			.map_err(|e| Error::Docker(format!("Failed to inspect image: {}", e)))
+			.await?;
 
 		// If inspect fails, try pulling the image first
 		if !output.status.success() {
-			Self::pull_image(image, tag)?;
+			Self::pull_image(image, tag).await?;
 
 			// Retry inspect after pulling
 			output = Command::new("docker")
 				.args(["image", "inspect", "--format={{.RepoDigests}}", &image_with_tag])
 				.output()
-				.map_err(|e| Error::Docker(format!("Failed to inspect image: {}", e)))?;
+				.map_err(|e| Error::Docker(format!("Failed to inspect image: {}", e)))
+				.await?;
 
 			if !output.status.success() {
 				return Err(Error::Docker(format!(
@@ -229,51 +248,62 @@ mod tests {
 	use super::*;
 	use crate::command_mock::CommandMock;
 
-	#[test]
-	fn detect_docker_docker_running() {
-		CommandMock::default().with_command("docker", 0).execute(|| {
-			assert!(matches!(Docker::detect_docker(), Ok(Docker::Running)));
-		});
+	#[tokio::test]
+	async fn detect_docker_docker_running() {
+		CommandMock::default()
+			.with_command("docker", 0)
+			.execute(async || {
+				assert!(matches!(Docker::detect_docker().await, Ok(Docker::Running)));
+			})
+			.await;
 	}
 
-	#[test]
-	fn detect_docker_docker_installed() {
-		CommandMock::default().with_command("docker", 1).execute(|| {
-			assert!(matches!(Docker::detect_docker(), Ok(Docker::Installed)));
-		});
+	#[tokio::test]
+	async fn detect_docker_docker_installed() {
+		CommandMock::default()
+			.with_command("docker", 1)
+			.execute(async || {
+				assert!(matches!(Docker::detect_docker().await, Ok(Docker::Installed)));
+			})
+			.await;
 	}
 
-	#[test]
-	fn detect_docker_docker_not_installed() {
-		CommandMock::default().execute(|| {
-			assert!(matches!(Docker::detect_docker(), Ok(Docker::NotInstalled)));
-		});
+	#[tokio::test]
+	async fn detect_docker_docker_not_installed() {
+		CommandMock::default()
+			.execute_isolated(async || {
+				assert!(matches!(Docker::detect_docker().await, Ok(Docker::NotInstalled)));
+			})
+			.await;
 	}
 
-	#[test]
-	fn detect_docker_docker_fails() {
-		CommandMock::default().with_non_permissioned_command("docker").execute(|| {
-			assert!(matches!(Docker::detect_docker(), Err(Error::Docker(err)) if err == "Permission denied (os error 13)"));
-		});
+	#[tokio::test]
+	async fn detect_docker_docker_fails() {
+		CommandMock::default().with_non_permissioned_command("docker").execute_isolated(async || {
+			assert!(matches!(Docker::detect_docker().await, Err(Error::Docker(err)) if err == "Permission denied (os error 13)"));
+		}).await;
 	}
 
-	#[test]
-	fn ensure_running_when_already_running() {
-		CommandMock::default().with_command("docker", 0).execute(|| {
-			assert!(Docker::ensure_running().is_ok());
-		});
+	#[tokio::test]
+	async fn ensure_running_when_already_running() {
+		CommandMock::default()
+			.with_command("docker", 0)
+			.execute(async || {
+				assert!(Docker::ensure_running().await.is_ok());
+			})
+			.await;
 	}
 
-	#[test]
-	fn ensure_running_when_not_installed() {
-		CommandMock::default().execute(|| {
-			assert!(matches!(Docker::ensure_running(), Err(Error::Docker(err)) if err == "Docker is not installed. Install from: https://docs.docker.com/get-docker/"));
-		});
+	#[tokio::test]
+	async fn ensure_running_when_not_installed() {
+		CommandMock::default().execute_isolated(async || {
+			assert!(matches!(Docker::ensure_running().await, Err(Error::Docker(err)) if err == "Docker is not installed. Install from: https://docs.docker.com/get-docker/"));
+		}).await;
 	}
 
-	#[test]
+	#[tokio::test]
 	#[cfg(target_os = "macos")]
-	fn ensure_running_starts_docker_on_macos() {
+	async fn ensure_running_starts_docker_on_macos() {
 		let command_mock = CommandMock::default();
 		let started_marker = command_mock.fake_path().join("docker_started");
 		let docker_script = format!(
@@ -295,14 +325,15 @@ fi"#,
 		command_mock
 			.with_command_script("docker", &docker_script)
 			.with_command_script("open", &open_script)
-			.execute(|| {
-				assert!(Docker::ensure_running().is_ok());
-			});
+			.execute(async || {
+				assert!(Docker::ensure_running().await.is_ok());
+			})
+			.await;
 	}
 
-	#[test]
+	#[tokio::test]
 	#[cfg(target_os = "linux")]
-	fn ensure_running_starts_docker_on_linux_as_root() {
+	async fn ensure_running_starts_docker_on_linux_as_root() {
 		let command_mock = CommandMock::default();
 		let started_marker = command_mock.fake_path().join("docker_started");
 		let docker_script = format!(
@@ -329,48 +360,51 @@ fi"#,
 echo 0"#,
 			) // root user
 			.with_command_script("systemctl", &systemctl_script)
-			.execute(|| {
-				assert!(Docker::ensure_running().is_ok());
-			});
+			.execute(async || {
+				assert!(Docker::ensure_running().await.is_ok());
+			})
+			.await;
 	}
 
-	#[test]
-	fn try_start_macos_succeeds_with_open_command() {
-		CommandMock::default().with_command("open", 0).execute(|| {
+	#[tokio::test]
+	async fn try_start_macos_succeeds_with_open_command() {
+		CommandMock::default().with_command("open", 0).execute_sync(|| {
 			assert!(Docker::try_start_macos().is_ok());
 		});
 	}
 
-	#[test]
-	fn try_start_macos_fails_without_open_command() {
-		CommandMock::default().execute(|| {
-			assert!(matches!(
-				Docker::try_start_macos(),
-				Err(
-					Error::Docker(err)
-				)  if err == "Failed to start Docker. Please start it manually."
-			));
-		});
+	#[tokio::test]
+	async fn try_start_macos_fails_without_open_command() {
+		CommandMock::default()
+			.execute_isolated(async || {
+				assert!(matches!(
+					Docker::try_start_macos(),
+					Err(
+						Error::Docker(err)
+					)  if err == "Failed to start Docker. Please start it manually."
+				));
+			})
+			.await;
 	}
 
-	#[test]
-	fn try_start_linux_fails_when_not_root() {
+	#[tokio::test]
+	async fn try_start_linux_fails_when_not_root() {
 		CommandMock::default()
 			.with_command_script("id", r#"#!/bin/sh
 echo 1000"#) // non-root user
-			.execute(|| {
+			.execute(async || {
                 // Cannot assert too much about this, depending on how tests are called, args will contain different values
                 let args = std::env::args().skip(1).collect::<Vec<String>>().join(" ");
 				assert!(matches!(
-					Docker::try_start_linux(),
+					Docker::try_start_linux().await,
 					Err(Error::Docker(err))
 					if err == format!("Docker is not running. Please run `sudo $(which pop) {}` to allow pop to initialize it, or start it manually.", args)
 				));
-			});
+			}).await;
 	}
 
-	#[test]
-	fn try_start_linux_succeeds_as_root_with_systemctl() {
+	#[tokio::test]
+	async fn try_start_linux_succeeds_as_root_with_systemctl() {
 		CommandMock::default()
 			.with_command_script(
 				"id",
@@ -378,13 +412,14 @@ echo 1000"#) // non-root user
 echo 0"#,
 			) // root user
 			.with_command("systemctl", 0) // systemctl succeeds
-			.execute(|| {
-				assert!(Docker::try_start_linux().is_ok());
-			});
+			.execute(async || {
+				assert!(Docker::try_start_linux().await.is_ok());
+			})
+			.await;
 	}
 
-	#[test]
-	fn try_start_linux_fails_as_root_when_systemctl_fails() {
+	#[tokio::test]
+	async fn try_start_linux_fails_as_root_when_systemctl_fails() {
 		CommandMock::default()
 			.with_command_script(
 				"id",
@@ -392,17 +427,18 @@ echo 0"#,
 echo 0"#,
 			) // root user
 			.with_command("systemctl", 1) // systemctl fails
-			.execute(|| {
+			.execute(async || {
 				assert!(matches!(
-					Docker::try_start_linux(),
+					Docker::try_start_linux().await,
 					Err(Error::Docker(err))
 					if err == "Failed to start Docker automatically. Please start it manually."
 				));
-			});
+			})
+			.await;
 	}
 
-	#[test]
-	fn wait_for_ready_succeeds_when_docker_starts() {
+	#[tokio::test]
+	async fn wait_for_ready_succeeds_when_docker_starts() {
 		let command_mock = CommandMock::default();
 		let started_marker = command_mock.fake_path().join("docker_started");
 		let docker_script = format!(
@@ -415,40 +451,49 @@ fi"#,
 			started_marker.display()
 		);
 
-		command_mock.with_command_script("docker", &docker_script).execute(|| {
-			// Create the marker file to simulate Docker starting
-			std::fs::write(&started_marker, "").unwrap();
+		command_mock
+			.with_command_script("docker", &docker_script)
+			.execute(async || {
+				// Create the marker file to simulate Docker starting
+				std::fs::write(&started_marker, "").unwrap();
 
-			assert!(Docker::wait_for_ready().is_ok());
-		});
+				assert!(Docker::wait_for_ready().await.is_ok());
+			})
+			.await;
 	}
 
-	#[test]
-	fn wait_for_ready_times_out_when_docker_never_starts() {
-		CommandMock::default().with_command("docker", 1).execute(|| {
-            assert!(matches!(Docker::wait_for_ready(), Err(Error::Docker(err)) if err == "Docker failed to start within 30 seconds. Please start it manually."));
-		});
+	#[tokio::test]
+	async fn wait_for_ready_times_out_when_docker_never_starts() {
+		CommandMock::default().with_command("docker", 1).execute(async || {
+            assert!(matches!(Docker::wait_for_ready().await, Err(Error::Docker(err)) if err == "Docker failed to start within 30 seconds. Please start it manually."));
+		}).await;
 	}
 
-	#[test]
-	fn pull_image_succeeds_when_docker_running() {
-		CommandMock::default().with_command("docker", 0).execute(|| {
-			assert!(Docker::pull_image("test/image", "latest").is_ok());
-		});
+	#[tokio::test]
+	async fn pull_image_succeeds_when_docker_running() {
+		CommandMock::default()
+			.with_command("docker", 0)
+			.execute(async || {
+				assert!(Docker::pull_image("test/image", "latest").await.is_ok());
+			})
+			.await;
 	}
 
-	#[test]
-	fn pull_image_fails_when_docker_not_running() {
-		CommandMock::default().with_command("docker", 1).execute(|| {
-			assert!(matches!(
-				Docker::pull_image("test/image", "latest"),
-				Err(Error::Docker(err)) if err == "Docker is not running."
-			));
-		});
+	#[tokio::test]
+	async fn pull_image_fails_when_docker_not_running() {
+		CommandMock::default()
+			.with_command("docker", 1)
+			.execute(async || {
+				assert!(matches!(
+					Docker::pull_image("test/image", "latest").await,
+					Err(Error::Docker(err)) if err == "Docker is not running."
+				));
+			})
+			.await;
 	}
 
-	#[test]
-	fn pull_image_fails_when_pull_command_fails() {
+	#[tokio::test]
+	async fn pull_image_fails_when_pull_command_fails() {
 		let command_mock = CommandMock::default();
 		let docker_info_script = r#"#!/bin/sh
 if [ "$1" = "info" ]; then
@@ -457,16 +502,19 @@ else
     exit 1;
 fi"#;
 
-		command_mock.with_command_script("docker", docker_info_script).execute(|| {
-			assert!(matches!(
-				Docker::pull_image("test/image", "latest"),
-				Err(Error::Docker(err)) if err.contains("Failed to pull image")
-			));
-		});
+		command_mock
+			.with_command_script("docker", docker_info_script)
+			.execute(async || {
+				assert!(matches!(
+					Docker::pull_image("test/image", "latest").await,
+					Err(Error::Docker(err)) if err.contains("Failed to pull image")
+				));
+			})
+			.await;
 	}
 
-	#[test]
-	fn get_image_digest_succeeds_with_local_image() {
+	#[tokio::test]
+	async fn get_image_digest_succeeds_with_local_image() {
 		let command_mock = CommandMock::default();
 		let docker_script = r#"#!/bin/sh
 if [ "$1" = "info" ]; then
@@ -477,15 +525,18 @@ elif [ "$1" = "image" ] && [ "$2" = "inspect" ]; then
 fi
 exit 1"#;
 
-		command_mock.with_command_script("docker", docker_script).execute(|| {
-			let result = Docker::get_image_digest("test/image", "latest");
-			assert!(result.is_ok());
-			assert_eq!(result.unwrap(), "sha256:abcd1234");
-		});
+		command_mock
+			.with_command_script("docker", docker_script)
+			.execute(async || {
+				let result = Docker::get_image_digest("test/image", "latest").await;
+				assert!(result.is_ok());
+				assert_eq!(result.unwrap(), "sha256:abcd1234");
+			})
+			.await;
 	}
 
-	#[test]
-	fn get_image_digest_pulls_and_succeeds_when_image_not_local() {
+	#[tokio::test]
+	async fn get_image_digest_pulls_and_succeeds_when_image_not_local() {
 		let command_mock = CommandMock::default();
 		let pulled_marker = command_mock.fake_path().join("image_pulled");
 		let docker_script = format!(
@@ -508,25 +559,31 @@ exit 1"#,
 			pulled_marker.display()
 		);
 
-		command_mock.with_command_script("docker", &docker_script).execute(|| {
-			let result = Docker::get_image_digest("test/image", "latest");
-			assert!(result.is_ok());
-			assert_eq!(result.unwrap(), "sha256:abcd1234");
-		});
+		command_mock
+			.with_command_script("docker", &docker_script)
+			.execute(async || {
+				let result = Docker::get_image_digest("test/image", "latest").await;
+				assert!(result.is_ok());
+				assert_eq!(result.unwrap(), "sha256:abcd1234");
+			})
+			.await;
 	}
 
-	#[test]
-	fn get_image_digest_fails_when_docker_not_running() {
-		CommandMock::default().with_command("docker", 1).execute(|| {
-			assert!(matches!(
-				Docker::get_image_digest("test/image", "latest"),
-				Err(Error::Docker(err)) if err == "Docker is not running."
-			));
-		});
+	#[tokio::test]
+	async fn get_image_digest_fails_when_docker_not_running() {
+		CommandMock::default()
+			.with_command("docker", 1)
+			.execute(async || {
+				assert!(matches!(
+					Docker::get_image_digest("test/image", "latest").await,
+					Err(Error::Docker(err)) if err == "Docker is not running."
+				));
+			})
+			.await;
 	}
 
-	#[test]
-	fn get_image_digest_fails_when_image_cannot_be_pulled() {
+	#[tokio::test]
+	async fn get_image_digest_fails_when_image_cannot_be_pulled() {
 		let command_mock = CommandMock::default();
 		let docker_script = r#"#!/bin/sh
 if [ "$1" = "info" ]; then
@@ -536,16 +593,19 @@ elif [ "$1" = "pull" ]; then
 fi
 exit 1"#;
 
-		command_mock.with_command_script("docker", docker_script).execute(|| {
-			assert!(matches!(
-				Docker::get_image_digest("test/image", "nonexistent"),
-				Err(Error::Docker(err)) if err.contains("Failed to pull image")
-			));
-		});
+		command_mock
+			.with_command_script("docker", docker_script)
+			.execute(async || {
+				assert!(matches!(
+					Docker::get_image_digest("test/image", "nonexistent").await,
+					Err(Error::Docker(err)) if err.contains("Failed to pull image")
+				));
+			})
+			.await;
 	}
 
-	#[test]
-	fn get_image_digest_pulls_and_fails_if_inspect_fails_after_pulling() {
+	#[tokio::test]
+	async fn get_image_digest_pulls_and_fails_if_inspect_fails_after_pulling() {
 		let command_mock = CommandMock::default();
 		let pulled_marker = command_mock.fake_path().join("image_pulled");
 		let docker_script = format!(
@@ -566,13 +626,13 @@ exit 1"#,
 			pulled_marker.display()
 		);
 
-		command_mock.with_command_script("docker", &docker_script).execute(|| {
-			assert!(matches!(Docker::get_image_digest("test/image", "latest"), Err(Error::Docker(err)) if err.contains("Failed to inspect image") && err.contains("after pulling")));
-		});
+		command_mock.with_command_script("docker", &docker_script).execute(async || {
+			assert!(matches!(Docker::get_image_digest("test/image", "latest").await, Err(Error::Docker(err)) if err.contains("Failed to inspect image") && err.contains("after pulling")));
+		}).await;
 	}
 
-	#[test]
-	fn get_image_digest_fails_when_output_has_no_at_symbol() {
+	#[tokio::test]
+	async fn get_image_digest_fails_when_output_has_no_at_symbol() {
 		let command_mock = CommandMock::default();
 		let docker_script = r#"#!/bin/sh
 if [ "$1" = "info" ]; then
@@ -583,16 +643,19 @@ elif [ "$1" = "image" ] && [ "$2" = "inspect" ]; then
 fi
 exit 1"#;
 
-		command_mock.with_command_script("docker", docker_script).execute(|| {
-			assert!(matches!(
-				Docker::get_image_digest("test/image", "latest"),
-				Err(Error::Docker(err)) if err == "Could not parse digest from docker output."
-			));
-		});
+		command_mock
+			.with_command_script("docker", docker_script)
+			.execute(async || {
+				assert!(matches!(
+					Docker::get_image_digest("test/image", "latest").await,
+					Err(Error::Docker(err)) if err == "Could not parse digest from docker output."
+				));
+			})
+			.await;
 	}
 
-	#[test]
-	fn get_image_digest_fails_when_output_has_invalid_utf8() {
+	#[tokio::test]
+	async fn get_image_digest_fails_when_output_has_invalid_utf8() {
 		let command_mock = CommandMock::default();
 		let docker_script = r#"#!/bin/sh
 if [ "$1" = "info" ]; then
@@ -603,12 +666,15 @@ elif [ "$1" = "image" ] && [ "$2" = "inspect" ]; then
 fi
 exit 1"#;
 
-		command_mock.with_command_script("docker", docker_script).execute(|| {
-			assert!(matches!(
-				Docker::get_image_digest("test/image", "latest"),
-				Err(Error::Docker(err)) if err.contains("Invalid UTF-8 in docker output")
-			));
-		});
+		command_mock
+			.with_command_script("docker", docker_script)
+			.execute(async || {
+				assert!(matches!(
+					Docker::get_image_digest("test/image", "latest").await,
+					Err(Error::Docker(err)) if err.contains("Invalid UTF-8 in docker output")
+				));
+			})
+			.await;
 	}
 
 	#[tokio::test]
