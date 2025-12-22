@@ -1,0 +1,17 @@
+name: 'Free up space on runner'
+description: 'Removes unnecessary files and cleans up space on GitHub Actions runner'
+runs:
+  using: 'composite'
+  steps:
+    - name: Free up space
+      shell: bash
+      run: |
+        set -xeuo pipefail
+        sudo rm -rf /usr/local/lib/android &
+        sudo rm -rf /usr/share/dotnet &
+        sudo rm -rf /usr/share/swift &
+        if command -v docker &> /dev/null; then
+          sudo docker image prune -af &
+        fi
+        sudo apt-get clean &
+        wait

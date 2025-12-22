@@ -28,8 +28,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  coverage:
+  build-tests:
     runs-on: ubuntu-latest
+    env:
+      CARGO_TARGET_DIR: target/llvm-cov-target
     steps:
       - name: Setup Ubuntu dependencies
         shell: bash
@@ -37,27 +39,18 @@ jobs:
           sudo apt update
           sudo apt install -y protobuf-compiler
 
-      - name: Free up space on runner
-        shell: bash
-        run: |
-          set -xeuo pipefail
-          sudo rm -rf /usr/local/lib/android &
-          sudo rm -rf /usr/share/dotnet &
-          sudo rm -rf /usr/share/swift &
-          if command -v docker &> /dev/null; then
-            sudo docker image prune -af &
-          fi
-          sudo apt-get clean &
-          wait
-
       - uses: actions/checkout@v4
+
+      - name: Free up space on runner
+        uses: ./.github/actions/free-up-space
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
           cache-on-failure: true
-          shared-key: shared-coverage-${{ github.head_ref || github.ref_name }}
+          shared-key: coverage
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
@@ -65,11 +58,102 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@cargo-nextest
 
-      - name: Generate code coverage
+      - name: Build and archive instrumented tests
         run: |
-          cargo llvm-cov nextest --locked --workspace --lib --bins --codecov --output-path codecov.json --no-fail-fast --nocapture --status-level all
+          source <(cargo llvm-cov show-env --export-prefix)
+          cargo nextest archive --locked --workspace --lib --bins --archive-file nextest-archive.tar.zst
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload test archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextest-archive
+          path: nextest-archive.tar.zst
+          retention-days: 1
+
+  run-tests:
+    needs: build-tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        partition: [1,2,3,4,5] ## <- ~700 tests right now, ~140 per partition
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free up space on runner
+        uses: ./.github/actions/free-up-space
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@cargo-nextest
+
+      - name: Download test archive
+        uses: actions/download-artifact@v4
+        with:
+          name: nextest-archive
+
+      - name: Run tests with coverage
+        run: |
+          cargo llvm-cov nextest \
+          --archive-file nextest-archive.tar.zst \
+          --partition count:${{ matrix.partition }}/5 \
+          --no-report \
+          --no-fail-fast \
+          --nocapture \
+          --status-level all
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload coverage data (profraw files only)
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-data-${{ matrix.partition }}
+          path: target/llvm-cov-target/**/*.profraw
+          retention-days: 1
+
+  upload-coverage:
+    needs: run-tests
+    runs-on: ubuntu-latest
+    env:
+      CARGO_TARGET_DIR: target/llvm-cov-target
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free up space on runner
+        uses: ./.github/actions/free-up-space
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@cargo-nextest
+
+      - name: Download test archive
+        uses: actions/download-artifact@v4
+        with:
+          name: nextest-archive
+
+      - name: Download coverage data (profraw files)
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-data-*
+          merge-multiple: true
+          path: target/llvm-cov-target
+
+      - name: Setup llvm-cov environment and extract test binaries
+        run: |
+          source <(cargo llvm-cov show-env --export-prefix)
+          mkdir -p target/llvm-cov-target
+          tar --zstd -xf nextest-archive.tar.zst --strip-components=1 -C target/llvm-cov-target
+
+      - name: Generate merged coverage report
+        run: |
+          source <(cargo llvm-cov show-env --export-prefix)
+          cargo llvm-cov report --codecov --output-path codecov.json
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v4
@@ -77,9 +161,3 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: codecov.json
           fail_ci_if_error: true
-
-      - name: Clean up
-        shell: bash
-        if: always()
-        run: |
-          cargo llvm-cov clean --workspace --profraw-only
