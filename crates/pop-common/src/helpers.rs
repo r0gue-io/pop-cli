@@ -185,7 +185,10 @@ mod tests {
 
 	#[tokio::test]
 	async fn with_current_dir_async_changes_and_restores_cwd() -> anyhow::Result<()> {
-		let _guard = cwd_lock();
+		// Acquire and drop the mutex guard before async operations
+		{
+			let _guard = cwd_lock();
+		}
 
 		let original = std::env::current_dir()?;
 		let temp_dir = tempfile::tempdir()?;
