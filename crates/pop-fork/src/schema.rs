@@ -10,8 +10,8 @@ diesel::table! {
 }
 
 diesel::table! {
-	local_storage (block_hash, key) {
-		block_hash -> Binary,
+	local_storage (block_number, key) {
+		block_number -> BigInt,
 		key -> Binary,
 		value -> Nullable<Binary>,
 		is_empty -> Bool,
