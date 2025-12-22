@@ -221,7 +221,7 @@ mod tests {
 				r#"#!/bin/sh
 echo 0"#,
 			)
-			.execute(|| {
+			.execute_sync(|| {
 				assert!(is_root());
 			});
 	}
@@ -234,7 +234,7 @@ echo 0"#,
 				r#"#!/bin/sh
 echo 1000"#,
 			)
-			.execute(|| {
+			.execute_sync(|| {
 				assert!(!is_root());
 			});
 	}

@@ -829,21 +829,25 @@ pub(super) mod tests {
 
 	#[tokio::test]
 	async fn sourcing_from_git_works() -> anyhow::Result<()> {
-		let url = Url::parse("https://github.com/hpaluch/rust-hello-world")?;
-		let package = "hello_world".to_string();
-		let temp_dir = tempdir()?;
+		crate::command_mock::CommandMock::default()
+			.execute(async || {
+				let url = Url::parse("https://github.com/hpaluch/rust-hello-world")?;
+				let package = "hello_world".to_string();
+				let temp_dir = tempdir()?;
 
-		Source::Git {
-			url,
-			reference: None,
-			manifest: None,
-			package: package.clone(),
-			artifacts: vec![package.clone()],
-		}
-		.source(temp_dir.path(), true, &Output, true)
-		.await?;
-		assert!(temp_dir.path().join(package).exists());
-		Ok(())
+				Source::Git {
+					url,
+					reference: None,
+					manifest: None,
+					package: package.clone(),
+					artifacts: vec![package.clone()],
+				}
+				.source(temp_dir.path(), true, &Output, true)
+				.await?;
+				assert!(temp_dir.path().join(package).exists());
+				Ok(())
+			})
+			.await
 	}
 
 	#[tokio::test]
@@ -871,22 +875,26 @@ pub(super) mod tests {
 
 	#[tokio::test]
 	async fn sourcing_from_git_ref_works() -> anyhow::Result<()> {
-		let url = Url::parse("https://github.com/hpaluch/rust-hello-world")?;
-		let initial_commit = "436b7dbffdfaaf7ad90bf44ae8fdcb17eeee65a3".to_string();
-		let package = "hello_world".to_string();
-		let temp_dir = tempdir()?;
+		crate::command_mock::CommandMock::default()
+			.execute(async || {
+				let url = Url::parse("https://github.com/hpaluch/rust-hello-world")?;
+				let initial_commit = "436b7dbffdfaaf7ad90bf44ae8fdcb17eeee65a3".to_string();
+				let package = "hello_world".to_string();
+				let temp_dir = tempdir()?;
 
-		Source::Git {
-			url,
-			reference: Some(initial_commit.clone()),
-			manifest: None,
-			package: package.clone(),
-			artifacts: vec![package.clone()],
-		}
-		.source(temp_dir.path(), true, &Output, true)
-		.await?;
-		assert!(temp_dir.path().join(format!("{package}-{initial_commit}")).exists());
-		Ok(())
+				Source::Git {
+					url,
+					reference: Some(initial_commit.clone()),
+					manifest: None,
+					package: package.clone(),
+					artifacts: vec![package.clone()],
+				}
+				.source(temp_dir.path(), true, &Output, true)
+				.await?;
+				assert!(temp_dir.path().join(format!("{package}-{initial_commit}")).exists());
+				Ok(())
+			})
+			.await
 	}
 
 	#[tokio::test]
@@ -922,75 +930,80 @@ pub(super) mod tests {
 
 	#[tokio::test]
 	async fn resolve_from_github_release_archive_works() -> anyhow::Result<()> {
-		let owner = "r0gue-io".to_string();
-		let repository = "polkadot".to_string();
-		let version = "stable2503";
-		let tag_pattern = Some("polkadot-{version}".into());
-		let fallback = "stable2412-4".into();
-		let archive = format!("polkadot-{}.tar.gz", target()?);
-		let contents = ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"];
-		let temp_dir = tempdir()?;
+		crate::command_mock::CommandMock::default()
+			.execute(async || {
+				let owner = "r0gue-io".to_string();
+				let repository = "polkadot".to_string();
+				let version = "stable2503";
+				let tag_pattern = Some("polkadot-{version}".into());
+				let fallback = "stable2412-4".into();
+				let archive = format!("polkadot-{}.tar.gz", target()?);
+				let contents = ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"];
+				let temp_dir = tempdir()?;
 
-		// Determine release for comparison
-		let mut releases: Vec<_> = crate::GitHub::new(owner.as_str(), repository.as_str())
-			.releases(false)
-			.await?
-			.into_iter()
-			.map(|r| r.tag_name)
-			.collect();
-		let sorted_releases = version_comparator(releases.as_mut_slice());
+				// Determine release for comparison
+				let mut releases: Vec<_> = crate::GitHub::new(owner.as_str(), repository.as_str())
+					.releases(false)
+					.await?
+					.into_iter()
+					.map(|r| r.tag_name)
+					.collect();
+				let sorted_releases = version_comparator(releases.as_mut_slice());
 
-		let source = Source::GitHub(ReleaseArchive {
-			owner,
-			repository,
-			tag: None,
-			tag_pattern,
-			prerelease: false,
-			version_comparator,
-			fallback,
-			archive,
-			contents: contents.map(|n| ArchiveFileSpec::new(n.into(), None, true)).to_vec(),
-			latest: None,
-		});
+				let source = Source::GitHub(ReleaseArchive {
+					owner,
+					repository,
+					tag: None,
+					tag_pattern,
+					prerelease: false,
+					version_comparator,
+					fallback,
+					archive,
+					contents: contents.map(|n| ArchiveFileSpec::new(n.into(), None, true)).to_vec(),
+					latest: None,
+				});
 
-		// Check results for a specified/unspecified version
-		for version in [Some(version), None] {
-			let source = source
-				.clone()
-				.resolve("polkadot", version, temp_dir.path(), filters::polkadot)
-				.await;
-			let expected_tag = version.map_or_else(
-				|| sorted_releases.0.first().unwrap().into(),
-				|v| format!("polkadot-{v}"),
-			);
-			let expected_latest = version.map_or_else(|| sorted_releases.0.first(), |_| None);
-			assert!(matches!(
-				source,
-				Source::GitHub(ReleaseArchive { tag, latest, .. } )
-					if tag == Some(expected_tag) && latest.as_ref() == expected_latest
-			));
-		}
+				// Check results for a specified/unspecified version
+				for version in [Some(version), None] {
+					let source = source
+						.clone()
+						.resolve("polkadot", version, temp_dir.path(), filters::polkadot)
+						.await;
+					let expected_tag = version.map_or_else(
+						|| sorted_releases.0.first().unwrap().into(),
+						|v| format!("polkadot-{v}"),
+					);
+					let expected_latest =
+						version.map_or_else(|| sorted_releases.0.first(), |_| None);
+					assert!(matches!(
+						source,
+						Source::GitHub(ReleaseArchive { tag, latest, .. } )
+							if tag == Some(expected_tag) && latest.as_ref() == expected_latest
+					));
+				}
 
-		// Create a later version as a cached binary
-		let cached_version = "polkadot-stable2612";
-		File::create(temp_dir.path().join(cached_version))?;
-		for version in [Some(version), None] {
-			let source = source
-				.clone()
-				.resolve("polkadot", version, temp_dir.path(), filters::polkadot)
-				.await;
-			let expected_tag =
-				version.map_or_else(|| cached_version.to_string(), |v| format!("polkadot-{v}"));
-			let expected_latest =
-				version.map_or_else(|| Some(cached_version.to_string()), |_| None);
-			assert!(matches!(
-				source,
-				Source::GitHub(ReleaseArchive { tag, latest, .. } )
-					if tag == Some(expected_tag) && latest == expected_latest
-			));
-		}
+				// Create a later version as a cached binary
+				let cached_version = "polkadot-stable2612";
+				File::create(temp_dir.path().join(cached_version))?;
+				for version in [Some(version), None] {
+					let source = source
+						.clone()
+						.resolve("polkadot", version, temp_dir.path(), filters::polkadot)
+						.await;
+					let expected_tag = version
+						.map_or_else(|| cached_version.to_string(), |v| format!("polkadot-{v}"));
+					let expected_latest =
+						version.map_or_else(|| Some(cached_version.to_string()), |_| None);
+					assert!(matches!(
+						source,
+						Source::GitHub(ReleaseArchive { tag, latest, .. } )
+							if tag == Some(expected_tag) && latest == expected_latest
+					));
+				}
 
-		Ok(())
+				Ok(())
+			})
+			.await
 	}
 
 	#[tokio::test]
@@ -1061,25 +1074,29 @@ pub(super) mod tests {
 
 	#[tokio::test]
 	async fn sourcing_from_github_source_code_archive_works() -> anyhow::Result<()> {
-		let owner = "paritytech".to_string();
-		let repository = "polkadot-sdk".to_string();
-		let package = "polkadot".to_string();
-		let temp_dir = tempdir()?;
-		let initial_commit = "72dba98250a6267c61772cd55f8caf193141050f";
-		let manifest = PathBuf::from("substrate/Cargo.toml");
+		crate::command_mock::CommandMock::default()
+			.execute(async || {
+				let owner = "paritytech".to_string();
+				let repository = "polkadot-sdk".to_string();
+				let package = "polkadot".to_string();
+				let temp_dir = tempdir()?;
+				let initial_commit = "72dba98250a6267c61772cd55f8caf193141050f";
+				let manifest = PathBuf::from("substrate/Cargo.toml");
 
-		Source::GitHub(SourceCodeArchive {
-			owner,
-			repository,
-			reference: Some(initial_commit.to_string()),
-			manifest: Some(manifest),
-			package: package.clone(),
-			artifacts: vec![package.clone()],
-		})
-		.source(temp_dir.path(), true, &Output, true)
-		.await?;
-		assert!(temp_dir.path().join(format!("{package}-{initial_commit}")).exists());
-		Ok(())
+				Source::GitHub(SourceCodeArchive {
+					owner,
+					repository,
+					reference: Some(initial_commit.to_string()),
+					manifest: Some(manifest),
+					package: package.clone(),
+					artifacts: vec![package.clone()],
+				})
+				.source(temp_dir.path(), true, &Output, true)
+				.await?;
+				assert!(temp_dir.path().join(format!("{package}-{initial_commit}")).exists());
+				Ok(())
+			})
+			.await
 	}
 
 	#[tokio::test]
@@ -1108,23 +1125,27 @@ pub(super) mod tests {
 
 	#[tokio::test]
 	async fn sourcing_from_latest_github_source_code_archive_works() -> anyhow::Result<()> {
-		let owner = "hpaluch".to_string();
-		let repository = "rust-hello-world".to_string();
-		let package = "hello_world".to_string();
-		let temp_dir = tempdir()?;
+		crate::command_mock::CommandMock::default()
+			.execute(async || {
+				let owner = "hpaluch".to_string();
+				let repository = "rust-hello-world".to_string();
+				let package = "hello_world".to_string();
+				let temp_dir = tempdir()?;
 
-		Source::GitHub(SourceCodeArchive {
-			owner,
-			repository,
-			reference: None,
-			manifest: None,
-			package: package.clone(),
-			artifacts: vec![package.clone()],
-		})
-		.source(temp_dir.path(), true, &Output, true)
-		.await?;
-		assert!(temp_dir.path().join(package).exists());
-		Ok(())
+				Source::GitHub(SourceCodeArchive {
+					owner,
+					repository,
+					reference: None,
+					manifest: None,
+					package: package.clone(),
+					artifacts: vec![package.clone()],
+				})
+				.source(temp_dir.path(), true, &Output, true)
+				.await?;
+				assert!(temp_dir.path().join(package).exists());
+				Ok(())
+			})
+			.await
 	}
 
 	#[tokio::test]
@@ -1199,64 +1220,76 @@ pub(super) mod tests {
 
 	#[tokio::test]
 	async fn from_github_archive_works() -> anyhow::Result<()> {
-		let owner = "paritytech";
-		let repository = "polkadot-sdk";
-		let package = "polkadot";
-		let temp_dir = tempdir()?;
-		let path = temp_dir.path().join(package);
-		let initial_commit = "72dba98250a6267c61772cd55f8caf193141050f";
-		let manifest = "substrate/Cargo.toml";
+		crate::command_mock::CommandMock::default()
+			.execute(async || {
+				let owner = "paritytech";
+				let repository = "polkadot-sdk";
+				let package = "polkadot";
+				let temp_dir = tempdir()?;
+				let path = temp_dir.path().join(package);
+				let initial_commit = "72dba98250a6267c61772cd55f8caf193141050f";
+				let manifest = "substrate/Cargo.toml";
 
-		from_github_archive(
-			owner,
-			repository,
-			Some(initial_commit),
-			Some(manifest),
-			package,
-			&[(package, &path)],
-			true,
-			&Output,
-			true,
-		)
-		.await?;
-		assert!(path.exists());
-		Ok(())
+				from_github_archive(
+					owner,
+					repository,
+					Some(initial_commit),
+					Some(manifest),
+					package,
+					&[(package, &path)],
+					true,
+					&Output,
+					true,
+				)
+				.await?;
+				assert!(path.exists());
+				Ok(())
+			})
+			.await
 	}
 
 	#[tokio::test]
 	async fn from_latest_github_archive_works() -> anyhow::Result<()> {
-		let owner = "hpaluch";
-		let repository = "rust-hello-world";
-		let package = "hello_world";
-		let temp_dir = tempdir()?;
-		let path = temp_dir.path().join(package);
+		crate::command_mock::CommandMock::default()
+			.execute(async || {
+				let owner = "hpaluch";
+				let repository = "rust-hello-world";
+				let package = "hello_world";
+				let temp_dir = tempdir()?;
+				let path = temp_dir.path().join(package);
 
-		from_github_archive(
-			owner,
-			repository,
-			None,
-			None::<&Path>,
-			package,
-			&[(package, &path)],
-			true,
-			&Output,
-			true,
-		)
-		.await?;
-		assert!(path.exists());
-		Ok(())
+				from_github_archive(
+					owner,
+					repository,
+					None,
+					None::<&Path>,
+					package,
+					&[(package, &path)],
+					true,
+					&Output,
+					true,
+				)
+				.await?;
+				assert!(path.exists());
+				Ok(())
+			})
+			.await
 	}
 
 	#[tokio::test]
 	async fn from_local_package_works() -> anyhow::Result<()> {
-		let temp_dir = tempdir()?;
-		let name = "hello_world";
-		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
-		let manifest = temp_dir.path().join(name).join("Cargo.toml");
+		crate::command_mock::CommandMock::default()
+			.execute(async || {
+				let temp_dir = tempdir()?;
+				let name = "hello_world";
+				cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
+				let manifest = temp_dir.path().join(name).join("Cargo.toml");
 
-		from_local_package(&manifest, name, false, &Output, true).await?;
-		assert!(manifest.parent().unwrap().join("target/debug").join(name).exists());
-		Ok(())
+				from_local_package(&manifest, name, false, &Output, true).await?;
+				assert!(manifest.parent().unwrap().join("target/debug").join(name).exists());
+				Ok(())
+			})
+			.await
 	}
 
 	#[tokio::test]

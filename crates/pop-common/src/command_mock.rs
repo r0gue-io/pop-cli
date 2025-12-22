@@ -48,12 +48,38 @@ impl CommandMock {
 		self
 	}
 
-	/// Execute the test with mocked commands in PATH
-	pub fn execute<F>(self, test: F)
+	/// Execute the test with mocked commands prepended to PATH
+	pub async fn execute<F, Fut, R>(self, test: F) -> R
 	where
-		F: FnOnce(),
+		F: FnOnce() -> Fut,
+		Fut: Future<Output = R>,
 	{
-		temp_env::with_var("PATH", Some(self.temp_dir.path()), test);
+		let path = std::env::var_os("PATH").unwrap_or_default();
+		let mut paths = vec![self.temp_dir.path().to_path_buf()];
+		paths.extend(std::env::split_paths(&path));
+		let new_path = std::env::join_paths(paths).unwrap();
+		temp_env::async_with_vars([("PATH", Some(new_path))], test()).await
+	}
+
+	/// Execute a synchronous test with mocked commands prepended to PATH
+	pub fn execute_sync<F, R>(self, test: F) -> R
+	where
+		F: FnOnce() -> R,
+	{
+		let path = std::env::var_os("PATH").unwrap_or_default();
+		let mut paths = vec![self.temp_dir.path().to_path_buf()];
+		paths.extend(std::env::split_paths(&path));
+		let new_path = std::env::join_paths(paths).unwrap();
+		temp_env::with_var("PATH", Some(new_path), test)
+	}
+
+	/// Execute the test with ONLY mocked commands in PATH
+	pub async fn execute_isolated<F, Fut, R>(self, test: F) -> R
+	where
+		F: FnOnce() -> Fut,
+		Fut: Future<Output = R>,
+	{
+		temp_env::async_with_vars([("PATH", Some(self.temp_dir.path()))], test()).await
 	}
 
 	fn set_executable(path: &Path) -> std::io::Result<()> {
