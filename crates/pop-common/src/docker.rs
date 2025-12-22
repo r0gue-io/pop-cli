@@ -21,7 +21,7 @@ impl Docker {
 		match Self::detect_docker().await? {
 			Docker::Running => Ok(()),
 			Docker::Installed => {
-				Self::try_start()?;
+				Self::try_start().await?;
 				Self::wait_for_ready().await?;
 				Ok(())
 			},
@@ -62,23 +62,28 @@ impl Docker {
 	}
 
 	/// Attempts to start Docker based on the platform.
-	fn try_start() -> Result<(), Error> {
+	async fn try_start() -> Result<(), Error> {
 		#[cfg(target_os = "macos")]
-		return Self::try_start_macos();
+		return Self::try_start_macos().await;
 
 		#[cfg(target_os = "linux")]
-		return Self::try_start_linux();
+		return Self::try_start_linux().await;
 
 		#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 		Ok(())
 	}
 
 	#[allow(dead_code)] // Fine as depending on the platform it might be called or not
-	fn try_start_macos() -> Result<(), Error> {
+	async fn try_start_macos() -> Result<(), Error> {
 		// Try start docker using Docker Desktop.
-		Command::new("open").args(["-a", "Docker"]).spawn().map_err(|_err| {
-			Error::Docker("Failed to start Docker. Please start it manually.".to_owned())
-		})?;
+		Command::new("open")
+			.args(["-a", "Docker"])
+			.spawn()
+			.map_err(|_err| {
+				Error::Docker("Failed to start Docker. Please start it manually.".to_owned())
+			})?
+			.wait()
+			.await?;
 
 		Ok(())
 	}
@@ -368,9 +373,12 @@ echo 0"#,
 
 	#[tokio::test]
 	async fn try_start_macos_succeeds_with_open_command() {
-		CommandMock::default().with_command("open", 0).execute_sync(|| {
-			assert!(Docker::try_start_macos().is_ok());
-		});
+		CommandMock::default()
+			.with_command("open", 0)
+			.execute_sync(async || {
+				assert!(Docker::try_start_macos().await.is_ok());
+			})
+			.await;
 	}
 
 	#[tokio::test]
@@ -378,7 +386,7 @@ echo 0"#,
 		CommandMock::default()
 			.execute_isolated(async || {
 				assert!(matches!(
-					Docker::try_start_macos(),
+					Docker::try_start_macos().await,
 					Err(
 						Error::Docker(err)
 					)  if err == "Failed to start Docker. Please start it manually."
