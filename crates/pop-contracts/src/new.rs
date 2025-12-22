@@ -11,9 +11,6 @@ use std::{
 };
 use url::Url;
 
-/// Create a new smart contract.
-///
-/// # Arguments
 ///
 /// * `name` - name for the smart contract to be created.
 /// * `target` - location where the smart contract will be created.
