@@ -51,7 +51,7 @@ jobs:
           cache-on-failure: true
           prefix-key: v1
           shared-key: coverage
-          save-if: ${{ github.ref == 'refs/heads/ci/shared-cache' }}
+          save-if: ${{ github.head_ref == 'ci/shared-cache' || github.ref == 'refs/heads/ci/shared-cache' }}
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
