@@ -1,5 +1,5 @@
 use crate::{
-	cli::traits::Cli,
+	cli::traits::{Cli, Spinner},
 	common::binary::{BinaryGenerator, check_and_prompt},
 	impl_binary_generator,
 };
@@ -22,7 +22,7 @@ impl_binary_generator!(PolkadotOmniNodeGenerator, polkadot_omni_node_generator);
 /// * `anyhow::Result<PathBuf>` - Path to the installed binary on success, or an error
 pub async fn source_polkadot_omni_node_binary(
 	cli: &mut impl Cli,
-	spinner: &cliclack::ProgressBar,
+	spinner: &dyn Spinner,
 	cache_path: &Path,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
@@ -39,8 +39,7 @@ pub async fn source_polkadot_omni_node_binary(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::cli::MockCli;
-	use cliclack::spinner;
+	use crate::cli::{MockCli, spinner};
 
 	#[tokio::test]
 	async fn source_polkadot_omni_node_binary_works() -> anyhow::Result<()> {

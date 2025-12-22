@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::{self, Cli};
+use crate::cli;
 use clap::{Args, Subcommand};
 use duct::cmd;
 use pop_common::Profile;
@@ -112,9 +112,24 @@ fn collect_features(input: &str, benchmark: bool, try_runtime: bool) -> Vec<&str
 	feature_list
 }
 
+#[derive(Serialize)]
+pub struct BuildData {
+	pub project: String,
+}
+
+/// The result of a build command.
+#[derive(Serialize)]
+pub struct BuildResult {
+	/// Whether the build was successful.
+	pub success: bool,
+}
+
 impl Command {
 	/// Executes the command.
-	pub(crate) async fn execute(args: &BuildArgs) -> anyhow::Result<()> {
+	pub(crate) async fn execute(
+		args: &BuildArgs,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<serde_json::Value> {
 		// If only contract feature enabled, build as contract
 		let project_path =
 			crate::common::builds::ensure_project_path(args.path.clone(), args.path_pos.clone());
@@ -126,8 +141,8 @@ impl Command {
 				Some(profile) => (*profile).into(),
 				None => args.release,
 			};
-			BuildContract { path: project_path, release, metadata: args.metadata }.execute()?;
-			return Ok(());
+			return BuildContract { path: project_path, release, metadata: args.metadata }
+				.execute(cli);
 		}
 
 		// If project is a parachain runtime, build as parachain runtime
@@ -147,9 +162,9 @@ impl Command {
 			let mut feature_list = collect_features(&features, args.benchmark, args.try_runtime);
 			feature_list.sort();
 
-			let runtime_path = crate::common::builds::find_runtime_dir(&project_path, &mut Cli)?;
+			let runtime_path = crate::common::builds::find_runtime_dir(&project_path, cli)?;
 
-			BuildRuntime {
+			let data = BuildRuntime {
 				path: runtime_path,
 				profile,
 				benchmark: feature_list.contains(&Benchmark.as_ref()),
@@ -158,9 +173,9 @@ impl Command {
 				features: feature_list.into_iter().map(|f| f.to_string()).collect(),
 				tag: args.tag.clone(),
 			}
-			.execute()
+			.execute(cli)
 			.await?;
-			return Ok(());
+			return Ok(serde_json::to_value(data)?);
 		}
 
 		// If project is a parachain runtime, build as parachain runtime
@@ -173,7 +188,7 @@ impl Command {
 			let features = args.features.clone().unwrap_or_default();
 			let feature_list = collect_features(&features, args.benchmark, args.try_runtime);
 
-			BuildChain {
+			let data = BuildChain {
 				path: project_path,
 				package: args.package.clone(),
 				profile,
@@ -181,12 +196,13 @@ impl Command {
 				try_runtime: feature_list.contains(&TryRuntime.as_ref()),
 				features: feature_list.into_iter().map(|f| f.to_string()).collect(),
 			}
-			.execute()?;
-			return Ok(());
+			.execute(cli)?;
+			return Ok(serde_json::to_value(data)?);
 		}
 
 		// Otherwise build as a normal Rust project
-		Self::build(args, &project_path, &mut Cli)
+		let data = Self::build(args, &project_path, cli)?;
+		Ok(serde_json::to_value(data)?)
 	}
 
 	/// Builds a Rust project.
@@ -195,7 +211,11 @@ impl Command {
 	/// * `path` - The path to the project.
 	/// * `package` - A specific package to be built.
 	/// * `release` - Whether the release profile is to be used.
-	fn build(args: &BuildArgs, path: &Path, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	fn build(
+		args: &BuildArgs,
+		path: &Path,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<BuildData> {
 		let project = if args.package.is_some() { PACKAGE } else { PROJECT };
 		cli.intro(format!("Building your {project}"))?;
 
@@ -227,7 +247,11 @@ impl Command {
 			cargo_args.push(&feature_arg);
 		}
 
-		cmd("cargo", cargo_args).dir(path).run()?;
+		let mut command = cmd("cargo", cargo_args).dir(path);
+		if cli.is_json() {
+			command = command.stdout_to_stderr();
+		}
+		command.run()?;
 
 		cli.info(format!(
 			"The {project} was built in {profile} mode{}.",
@@ -237,7 +261,7 @@ impl Command {
 				.unwrap_or_else(|| format!(" with the following features: {}", features.join(",")))
 		))?;
 		cli.outro("Build completed successfully!")?;
-		Ok(())
+		Ok(BuildData { project: project.to_string() })
 	}
 }
 
@@ -420,28 +444,31 @@ mod tests {
 		let project_path = path.join(name);
 		cmd("cargo", ["new", name, "--bin"]).dir(path).run()?;
 
-		Command::execute(&BuildArgs {
-			#[cfg(feature = "chain")]
-			command: None,
-			path: Some(project_path.clone()),
-			path_pos: None,
-			package: None,
-			release: false,
-			profile: None,
-			features: None,
-			#[cfg(feature = "chain")]
-			benchmark: false,
-			#[cfg(feature = "chain")]
-			try_runtime: false,
-			#[cfg(feature = "chain")]
-			deterministic: false,
-			#[cfg(feature = "chain")]
-			tag: None,
-			#[cfg(feature = "chain")]
-			only_runtime: false,
-			#[cfg(feature = "contract")]
-			metadata: None,
-		})
+		Command::execute(
+			&BuildArgs {
+				#[cfg(feature = "chain")]
+				command: None,
+				path: Some(project_path.clone()),
+				path_pos: None,
+				package: None,
+				release: false,
+				profile: None,
+				features: None,
+				#[cfg(feature = "chain")]
+				benchmark: false,
+				#[cfg(feature = "chain")]
+				try_runtime: false,
+				#[cfg(feature = "chain")]
+				deterministic: false,
+				#[cfg(feature = "chain")]
+				tag: None,
+				#[cfg(feature = "chain")]
+				only_runtime: false,
+				#[cfg(feature = "contract")]
+				metadata: None,
+			},
+			&mut MockCli::new(),
+		)
 		.await?;
 
 		Ok(())
@@ -468,131 +495,9 @@ mod tests {
 		}
 
 		// Test 1: Execute with release mode
-		Command::execute(&BuildArgs {
-			#[cfg(feature = "chain")]
-			command: None,
-			path: Some(project_path.clone()),
-			path_pos: None,
-			package: None,
-			release: true,
-			profile: None,
-			features: None,
-			#[cfg(feature = "chain")]
-			benchmark: false,
-			#[cfg(feature = "chain")]
-			try_runtime: false,
-			#[cfg(feature = "chain")]
-			deterministic: false,
-			#[cfg(feature = "chain")]
-			tag: None,
-			#[cfg(feature = "chain")]
-			only_runtime: false,
-			#[cfg(feature = "contract")]
-			metadata: None,
-		})
-		.await?;
-
-		// Test 2: Execute with production profile
-		Command::execute(&BuildArgs {
-			#[cfg(feature = "chain")]
-			command: None,
-			path: Some(project_path.clone()),
-			path_pos: None,
-			package: None,
-			release: false,
-			profile: Some(Profile::Production),
-			features: None,
-			#[cfg(feature = "chain")]
-			benchmark: false,
-			#[cfg(feature = "chain")]
-			try_runtime: false,
-			#[cfg(feature = "chain")]
-			deterministic: false,
-			#[cfg(feature = "chain")]
-			tag: None,
-			#[cfg(feature = "chain")]
-			only_runtime: false,
-			#[cfg(feature = "contract")]
-			metadata: None,
-		})
-		.await?;
-
-		// Test 3: Execute with custom features
-		#[cfg(feature = "chain")]
-		{
-			Command::execute(&BuildArgs {
-				command: None,
-				path: Some(project_path.clone()),
-				path_pos: None,
-				package: None,
-				release: false,
-				profile: None,
-				features: Some("runtime-benchmarks,try-runtime".to_string()),
-				benchmark: false,
-				try_runtime: false,
-				deterministic: false,
-				tag: None,
-				only_runtime: false,
-				#[cfg(feature = "contract")]
-				metadata: None,
-			})
-			.await?;
-		}
-
-		// Test 4: Execute with package parameter
-		Command::execute(&BuildArgs {
-			#[cfg(feature = "chain")]
-			command: None,
-			path: Some(project_path.clone()),
-			path_pos: None,
-			package: Some(name.to_string()),
-			release: true,
-			profile: Some(Profile::Release),
-			features: None,
-			#[cfg(feature = "chain")]
-			benchmark: false,
-			#[cfg(feature = "chain")]
-			try_runtime: false,
-			#[cfg(feature = "chain")]
-			deterministic: false,
-			#[cfg(feature = "chain")]
-			tag: None,
-			#[cfg(feature = "chain")]
-			only_runtime: false,
-			#[cfg(feature = "contract")]
-			metadata: None,
-		})
-		.await?;
-
-		// Test 5: Execute with path_pos instead of path
-		Command::execute(&BuildArgs {
-			#[cfg(feature = "chain")]
-			command: None,
-			path: None,
-			path_pos: Some(project_path.clone()),
-			package: None,
-			release: false,
-			profile: Some(Profile::Debug),
-			features: None,
-			#[cfg(feature = "chain")]
-			benchmark: false,
-			#[cfg(feature = "chain")]
-			try_runtime: false,
-			#[cfg(feature = "chain")]
-			deterministic: false,
-			#[cfg(feature = "chain")]
-			tag: None,
-			#[cfg(feature = "chain")]
-			only_runtime: false,
-			#[cfg(feature = "contract")]
-			metadata: None,
-		})
-		.await?;
-
-		// Test 6: Execute with benchmark and try_runtime flags
-		#[cfg(feature = "chain")]
-		{
-			Command::execute(&BuildArgs {
+		Command::execute(
+			&BuildArgs {
+				#[cfg(feature = "chain")]
 				command: None,
 				path: Some(project_path.clone()),
 				path_pos: None,
@@ -600,14 +505,154 @@ mod tests {
 				release: true,
 				profile: None,
 				features: None,
-				benchmark: true,
-				try_runtime: true,
+				#[cfg(feature = "chain")]
+				benchmark: false,
+				#[cfg(feature = "chain")]
+				try_runtime: false,
+				#[cfg(feature = "chain")]
 				deterministic: false,
+				#[cfg(feature = "chain")]
 				tag: None,
+				#[cfg(feature = "chain")]
 				only_runtime: false,
 				#[cfg(feature = "contract")]
 				metadata: None,
-			})
+			},
+			&mut MockCli::new(),
+		)
+		.await?;
+
+		// Test 2: Execute with production profile
+		Command::execute(
+			&BuildArgs {
+				#[cfg(feature = "chain")]
+				command: None,
+				path: Some(project_path.clone()),
+				path_pos: None,
+				package: None,
+				release: false,
+				profile: Some(Profile::Production),
+				features: None,
+				#[cfg(feature = "chain")]
+				benchmark: false,
+				#[cfg(feature = "chain")]
+				try_runtime: false,
+				#[cfg(feature = "chain")]
+				deterministic: false,
+				#[cfg(feature = "chain")]
+				tag: None,
+				#[cfg(feature = "chain")]
+				only_runtime: false,
+				#[cfg(feature = "contract")]
+				metadata: None,
+			},
+			&mut MockCli::new(),
+		)
+		.await?;
+
+		// Test 3: Execute with custom features
+		#[cfg(feature = "chain")]
+		{
+			Command::execute(
+				&BuildArgs {
+					command: None,
+					path: Some(project_path.clone()),
+					path_pos: None,
+					package: None,
+					release: false,
+					profile: None,
+					features: Some("runtime-benchmarks,try-runtime".to_string()),
+					benchmark: false,
+					try_runtime: false,
+					deterministic: false,
+					tag: None,
+					only_runtime: false,
+					#[cfg(feature = "contract")]
+					metadata: None,
+				},
+				&mut MockCli::new(),
+			)
+			.await?;
+		}
+
+		// Test 4: Execute with package parameter
+		Command::execute(
+			&BuildArgs {
+				#[cfg(feature = "chain")]
+				command: None,
+				path: Some(project_path.clone()),
+				path_pos: None,
+				package: Some(name.to_string()),
+				release: true,
+				profile: Some(Profile::Release),
+				features: None,
+				#[cfg(feature = "chain")]
+				benchmark: false,
+				#[cfg(feature = "chain")]
+				try_runtime: false,
+				#[cfg(feature = "chain")]
+				deterministic: false,
+				#[cfg(feature = "chain")]
+				tag: None,
+				#[cfg(feature = "chain")]
+				only_runtime: false,
+				#[cfg(feature = "contract")]
+				metadata: None,
+			},
+			&mut MockCli::new(),
+		)
+		.await?;
+
+		// Test 5: Execute with path_pos instead of path
+		Command::execute(
+			&BuildArgs {
+				#[cfg(feature = "chain")]
+				command: None,
+				path: None,
+				path_pos: Some(project_path.clone()),
+				package: None,
+				release: false,
+				profile: Some(Profile::Debug),
+				features: None,
+				#[cfg(feature = "chain")]
+				benchmark: false,
+				#[cfg(feature = "chain")]
+				try_runtime: false,
+				#[cfg(feature = "chain")]
+				deterministic: false,
+				#[cfg(feature = "chain")]
+				tag: None,
+				#[cfg(feature = "chain")]
+				only_runtime: false,
+				#[cfg(feature = "contract")]
+				metadata: None,
+			},
+			&mut MockCli::new(),
+		)
+		.await?;
+
+		// Test 6: Execute with benchmark and try_runtime flags
+		#[cfg(feature = "chain")]
+		{
+			Command::execute(
+				&BuildArgs {
+					command: None,
+					path: Some(project_path.clone()),
+					path_pos: None,
+					package: None,
+					release: true,
+					profile: None,
+					features: None,
+					benchmark: true,
+					try_runtime: true,
+					deterministic: false,
+					tag: None,
+					only_runtime: false,
+					#[cfg(feature = "contract")]
+					metadata: None,
+				},
+				&mut MockCli::new(),
+			)
 			.await?;
 		}
 

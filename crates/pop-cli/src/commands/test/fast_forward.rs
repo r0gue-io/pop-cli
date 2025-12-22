@@ -2,8 +2,8 @@
 
 use crate::{
 	cli::{
-		self,
-		traits::{Confirm, Input},
+		self, spinner,
+		traits::{Confirm, Input, Spinner},
 	},
 	common::{
 		prompt::display_message,
@@ -16,7 +16,6 @@ use crate::{
 	},
 };
 use clap::Args;
-use cliclack::spinner;
 use console::style;
 use pop_chains::{
 	SharedParams, TryRuntimeCliCommand, parse_try_state_string, run_try_runtime,
@@ -85,7 +84,10 @@ impl Default for TestFastForwardCommand {
 }
 
 impl TestFastForwardCommand {
-	pub(crate) async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	pub(crate) async fn execute(
+		&mut self,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<serde_json::Value> {
 		let user_provided_args: Vec<String> = std::env::args().skip(3).collect();
 		self.fast_forward(cli, &user_provided_args).await
 	}
@@ -94,7 +96,7 @@ impl TestFastForwardCommand {
 		&mut self,
 		cli: &mut impl cli::traits::Cli,
 		user_provided_args: &[String],
-	) -> anyhow::Result<()> {
+	) -> anyhow::Result<serde_json::Value> {
 		cli.intro("Performing try-state checks on simulated block execution")?;
 		if let Err(e) = update_runtime_source(
 			cli,
@@ -106,7 +108,8 @@ impl TestFastForwardCommand {
 		)
 		.await
 		{
-			return display_message(&e.to_string(), false, cli);
+			display_message(&e.to_string(), false, cli)?;
+			return Err(e);
 		}
 		if self.n_blocks.is_none() {
 			let input = cli
@@ -124,7 +127,8 @@ impl TestFastForwardCommand {
 		}
 		// Prompt the user to select the source of runtime state.
 		if let Err(e) = update_state_source(cli, &mut self.state) {
-			return display_message(&e.to_string(), false, cli);
+			display_message(&e.to_string(), false, cli)?;
+			return Err(e);
 		};
 		// Prompt the user to select the try state if no `--try-state` argument is provided.
 		if self.try_state.is_none() {
@@ -141,9 +145,15 @@ impl TestFastForwardCommand {
 		// Display the `fast-forward` command.
 		cli.info(self.display(user_provided_args)?)?;
 		if let Err(e) = result {
-			return display_message(&e.to_string(), false, cli);
+			display_message(&e.to_string(), false, cli)?;
+			return Err(e);
 		}
-		display_message("Runtime upgrades and try-state checks completed successfully!", true, cli)
+		display_message(
+			"Runtime upgrades and try-state checks completed successfully!",
+			true,
+			cli,
+		)?;
+		Ok(serde_json::to_value(super::TestData { success: true })?)
 	}
 
 	async fn run(
@@ -158,7 +168,7 @@ impl TestFastForwardCommand {
 		match self.state {
 			Some(State::Live(ref live_state)) =>
 				if let Some(ref uri) = live_state.uri {
-					spinner.start(format!(
+					spinner.start(&format!(
 						"Testing fast-forward with {} blocks against live state at {}...",
 						self.n_blocks.unwrap_or_default(),
 						style(&uri).magenta().underlined()
@@ -166,7 +176,7 @@ impl TestFastForwardCommand {
 				},
 			Some(State::Snap { ref path }) =>
 				if let Some(p) = path {
-					spinner.start(format!(
+					spinner.start(&format!(
 						"Testing fast-forward with {} blocks using a snapshot file at {}...",
 						self.n_blocks.unwrap_or_default(),
 						p.display()

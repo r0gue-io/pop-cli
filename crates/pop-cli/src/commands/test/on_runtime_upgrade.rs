@@ -2,8 +2,8 @@
 
 use crate::{
 	cli::{
-		self,
-		traits::{Confirm, Select},
+		self, spinner,
+		traits::{Confirm, Select, Spinner},
 	},
 	common::{
 		prompt::display_message,
@@ -18,7 +18,6 @@ use crate::{
 use clap::Args;
 #[cfg(test)]
 use clap::Parser;
-use cliclack::spinner;
 use console::style;
 use pop_chains::{
 	SharedParams, TryRuntimeCliCommand, run_try_runtime,
@@ -107,7 +106,10 @@ pub(crate) struct TestOnRuntimeUpgradeCommand {
 
 impl TestOnRuntimeUpgradeCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	pub(crate) async fn execute(
+		&mut self,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<serde_json::Value> {
 		cli.intro("Testing migrations")?;
 		let user_provided_args = std::env::args().collect::<Vec<String>>();
 		if let Err(e) = update_runtime_source(
@@ -120,19 +122,24 @@ impl TestOnRuntimeUpgradeCommand {
 		)
 		.await
 		{
-			return display_message(&e.to_string(), false, cli);
+			display_message(&e.to_string(), false, cli)?;
+			return Err(e);
 		}
 
 		// Prompt the user to select the source of runtime state.
 		if let Err(e) = update_state_source(cli, &mut self.command.state) {
-			return display_message(&e.to_string(), false, cli);
+			display_message(&e.to_string(), false, cli)?;
+			return Err(e);
 		};
 
 		// If the `checks` argument is not provided, prompt the user to select the upgrade checks.
 		if !argument_exists(&user_provided_args, "--checks") {
 			match guide_user_to_select_upgrade_checks(cli) {
 				Ok(checks) => self.command.checks = checks,
-				Err(e) => return display_message(&e.to_string(), false, cli),
+				Err(e) => {
+					display_message(&e.to_string(), false, cli)?;
+					return Err(e);
+				},
 			}
 		}
 
@@ -145,13 +152,16 @@ impl TestOnRuntimeUpgradeCommand {
 					Ok(()) => continue,
 					Err(e) => {
 						cli.info(self.display()?)?;
-						return display_message(&e.to_string(), false, cli);
+						display_message(&e.to_string(), false, cli)?;
+						return Err(e);
 					},
 				}
 			}
 			cli.info(self.display()?)?;
-			return display_message("Tested migrations successfully!", true, cli);
+			display_message("Tested migrations successfully!", true, cli)?;
+			break;
 		}
+		Ok(serde_json::to_value(super::TestData { success: true })?)
 	}
 
 	async fn run(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
@@ -162,14 +172,14 @@ impl TestOnRuntimeUpgradeCommand {
 		match self.command.state {
 			Some(State::Live(ref live_state)) =>
 				if let Some(ref uri) = live_state.uri {
-					spinner.start(format!(
+					spinner.start(&format!(
 						"Running migrations against live state at {}...",
 						style(&uri).magenta().underlined()
 					));
 				},
 			Some(State::Snap { ref path }) =>
 				if let Some(p) = path {
-					spinner.start(format!(
+					spinner.start(&format!(
 						"Running migrations using a snapshot file at {}...",
 						p.display()
 					));

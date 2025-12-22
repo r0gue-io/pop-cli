@@ -2,8 +2,8 @@
 
 use crate::{
 	cli::{
-		self, Cli,
-		traits::{Cli as _, *},
+		self, spinner,
+		traits::*,
 	},
 	common::{
 		builds::{ChainPath, create_chain_spec_builder, guide_user_to_select_profile},
@@ -13,7 +13,6 @@ use crate::{
 	style::style,
 };
 use clap::{Args, ValueEnum};
-use cliclack::spinner;
 use pop_chains::{
 	ChainSpec, ChainSpecBuilder, generate_genesis_state_file_with_node, is_supported,
 	utils::helpers::get_preset_names,
@@ -222,21 +221,24 @@ pub struct BuildSpecCommand {
 
 impl BuildSpecCommand {
 	/// Executes the build spec command.
-	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
-		let mut cli = Cli;
+	pub(crate) async fn execute(
+		&self,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<serde_json::Value> {
 		cli.intro("Generate your chain spec")?;
 		// Checks for appchain project.
 		if is_supported(&self.path) {
-			let build_spec = self.configure_build_spec(&mut cli).await?;
-			if let Err(e) = build_spec.build(&mut cli).await {
+			let build_spec = self.configure_build_spec(cli).await?;
+			if let Err(e) = build_spec.build(cli).await {
 				cli.outro_cancel(e.to_string())?;
+				return Err(e);
 			}
 		} else {
-			cli.outro_cancel(
-				"🚫 Can't build a specification for target. Maybe not a chain project ?",
-			)?;
+			let msg = "🚫 Can't build a specification for target. Maybe not a chain project ?";
+			cli.outro_cancel(msg)?;
+			return Err(anyhow::anyhow!(msg));
 		}
-		Ok(())
+		Ok(serde_json::to_value(super::BuildResult { success: true })?)
 	}
 
 	/// Configure chain specification requirements by prompting for missing inputs, validating

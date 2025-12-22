@@ -19,9 +19,16 @@ pub(crate) struct FrontendCommand {
 	pub(crate) path: Option<PathBuf>,
 }
 
+/// The result of launching a frontend dev server.
+#[derive(Serialize)]
+pub struct UpFrontendData {
+	/// The path to the frontend project.
+	pub path: PathBuf,
+}
+
 impl FrontendCommand {
 	/// Executes the command.
-	pub(crate) fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> Result<()> {
+	pub(crate) fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> Result<serde_json::Value> {
 		cli.intro("Launch frontend dev server")?;
 
 		let frontend_dir = if let Some(path) = self.path.clone() {
@@ -36,13 +43,13 @@ impl FrontendCommand {
 		};
 
 		if let Some(frontend_dir) = frontend_dir {
-			run_frontend(&frontend_dir)?;
+			run_frontend(&frontend_dir, cli.is_json())?;
 			cli.outro("Frontend dev server launched")?;
+			Ok(serde_json::to_value(UpFrontendData { path: frontend_dir })?)
 		} else {
 			cli.outro_cancel("Frontend directory not found")?;
+			Err(anyhow::anyhow!("Frontend directory not found"))
 		}
-
-		Ok(())
 	}
 }
 
@@ -90,12 +97,19 @@ pub fn resolve_frontend_dir(
 ///
 /// # Arguments
 /// * `target` - Path to the frontend project.
-pub fn run_frontend(target: &Path) -> Result<()> {
+/// * `is_json` - Whether the output should be in JSON format.
+pub fn run_frontend(target: &Path, is_json: bool) -> Result<()> {
 	let package_manager = detect_package_manager(target);
 	match package_manager.as_deref() {
 		Some(pm) if has(pm) => {
-			cmd(pm, &["install"]).dir(target).run()?;
-			cmd(pm, &["run", "dev"]).dir(target).run()?;
+			let mut install_cmd = cmd(pm, &["install"]).dir(target);
+			let mut dev_cmd = cmd(pm, &["run", "dev"]).dir(target);
+			if is_json {
+				install_cmd = install_cmd.stdout_to_stderr();
+				dev_cmd = dev_cmd.stdout_to_stderr();
+			}
+			install_cmd.run()?;
+			dev_cmd.run()?;
 			Ok(())
 		},
 		Some(pm) => Err(anyhow::anyhow!(

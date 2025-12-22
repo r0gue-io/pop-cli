@@ -70,13 +70,20 @@ pub(crate) struct InstallArgs {
 	frontend: bool,
 }
 
+/// The result of an install command.
+#[derive(Serialize)]
+pub struct InstallData {
+	/// A human-readable message.
+	pub message: String,
+}
+
 /// Setup user environment for development.
 pub(crate) struct Command;
 
 impl Command {
 	/// Executes the command.
-	pub(crate) async fn execute(self, args: &InstallArgs) -> anyhow::Result<()> {
-		let mut cli = Cli;
+	pub(crate) async fn execute(self, args: &InstallArgs) -> anyhow::Result<serde_json::Value> {
+		let mut cli = Cli { json: pop_common::is_json() };
 		cli.intro("Install dependencies for development")?;
 		if cfg!(target_os = "macos") {
 			cli.info("ℹ️ Mac OS (Darwin) detected.")?;
@@ -108,15 +115,16 @@ impl Command {
 				_ => not_supported_message(&mut cli)?,
 			}
 		} else {
-			return not_supported_message(&mut cli);
+			not_supported_message(&mut cli)?;
 		};
 		install_rustup(&mut cli).await?;
 
 		if args.frontend {
 			frontend::install_frontend_dependencies(args.skip_confirm, &mut cli).await?;
 		}
-		cli.outro("✅ Installation complete.")?;
-		Ok(())
+		let msg = "✅ Installation complete.";
+		cli.outro(msg)?;
+		Ok(serde_json::to_value(InstallData { message: msg.to_string() })?)
 	}
 }
 

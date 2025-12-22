@@ -90,7 +90,8 @@ fn about_up() -> &'static str {
 
 impl Command {
 	/// Executes the command.
-	pub(crate) async fn execute(&mut self) -> anyhow::Result<()> {
+	pub(crate) async fn execute(&mut self, json: bool) -> anyhow::Result<serde_json::Value> {
+		let mut cli = Cli { json };
 		match self {
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::Install(args) => {
@@ -104,110 +105,118 @@ impl Command {
 				// If no command is provided, guide the user to select one interactively
 				let command = match &mut args.command {
 					Some(cmd) => cmd,
-					None => &mut new::guide_user_to_select_command(&mut Cli)?,
+					None => &mut new::guide_user_to_select_command(&mut cli)?,
 				};
 
 				match command {
 					#[cfg(feature = "chain")]
-					new::Command::Chain(cmd) => cmd.execute().await,
+					new::Command::Chain(cmd) => cmd.execute(&mut cli).await,
 					#[cfg(feature = "chain")]
-					new::Command::Pallet(cmd) => cmd.execute().await,
+					new::Command::Pallet(cmd) => cmd.execute(&mut cli).await,
 					#[cfg(feature = "contract")]
-					new::Command::Contract(cmd) => cmd.execute().await,
+					new::Command::Contract(cmd) => cmd.execute(&mut cli).await,
 				}
 			},
 			#[cfg(feature = "chain")]
-			Self::Bench(args) => bench::Command::execute(args).await,
+			Self::Bench(args) => bench::Command::execute(args, json).await,
 			Self::Build(args) => {
 				env_logger::init();
 				#[cfg(feature = "chain")]
-				match &args.command {
-					None => build::Command::execute(args).await,
-					Some(cmd) => match cmd {
-						#[cfg(feature = "chain")]
-						build::Command::Spec(cmd) => cmd.execute().await,
-					},
+				{
+					match &args.command {
+						None => build::Command::execute(args, &mut cli).await,
+						Some(cmd) => match cmd {
+							#[cfg(feature = "chain")]
+							build::Command::Spec(cmd) => cmd.execute(&mut cli).await,
+						},
+					}
 				}
 
 				#[cfg(not(feature = "chain"))]
-				build::Command::execute(args).await
+				build::Command::execute(args, &mut cli).await
 			},
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::Call(args) => {
 				env_logger::init();
 				match args.resolve_command()? {
 					#[cfg(feature = "chain")]
-					call::Command::Chain(cmd) => cmd.execute().await,
+					call::Command::Chain(cmd) => cmd.execute(&mut cli).await,
 					#[cfg(feature = "contract")]
-					call::Command::Contract(cmd) => cmd.execute(&mut Cli).await,
+					call::Command::Contract(cmd) => cmd.execute(&mut cli).await,
 				}
 			},
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::Up(args) => {
 				env_logger::init();
 				match &mut args.command {
-					None => up::Command::execute(args).await,
+					None => up::Command::execute(args, &mut cli).await,
 					Some(cmd) => match cmd {
 						#[cfg(feature = "chain")]
-						up::Command::Network(cmd) => cmd.execute(&mut Cli).await,
+						up::Command::Network(cmd) => cmd.execute(&mut cli).await,
 						#[cfg(feature = "chain")]
-						up::Command::Paseo(cmd) => cmd.execute(Paseo, &mut Cli).await,
+						up::Command::Paseo(cmd) => cmd.execute(Paseo, &mut cli).await,
 						#[cfg(feature = "chain")]
-						up::Command::Kusama(cmd) => cmd.execute(Kusama, &mut Cli).await,
+						up::Command::Kusama(cmd) => cmd.execute(Kusama, &mut cli).await,
 						#[cfg(feature = "chain")]
-						up::Command::Polkadot(cmd) => cmd.execute(Polkadot, &mut Cli).await,
+						up::Command::Polkadot(cmd) => cmd.execute(Polkadot, &mut cli).await,
 						#[cfg(feature = "chain")]
-						up::Command::Westend(cmd) => cmd.execute(Westend, &mut Cli).await,
-						up::Command::Frontend(cmd) => cmd.execute(&mut Cli),
+						up::Command::Westend(cmd) => cmd.execute(Westend, &mut cli).await,
+						up::Command::Frontend(cmd) => cmd.execute(&mut cli),
 						#[cfg(feature = "contract")]
-						up::Command::InkNode(cmd) => cmd.execute(&mut Cli).await,
+						up::Command::InkNode(cmd) => cmd.execute(&mut cli).await,
 						#[cfg(not(any(feature = "chain", feature = "contract")))]
-						_ => Ok(()),
+						_ => Ok(serde_json::to_value(crate::common::output::SuccessData {
+							message: "Command not implemented".to_string(),
+						})?),
 					},
 				}
 			},
 			Self::Upgrade(args) => {
 				env_logger::init();
-				upgrade::Command::execute(args, &mut Cli).await
+				upgrade::Command::execute(args, &mut cli).await
 			},
 			Self::Test(args) => {
 				env_logger::init();
 
 				#[cfg(any(feature = "contract", feature = "chain"))]
-				match &mut args.command {
-					None => test::Command::execute(args).await,
-					Some(cmd) => match cmd {
-						#[cfg(feature = "chain")]
-						test::Command::OnRuntimeUpgrade(cmd) => cmd.execute(&mut Cli).await,
-						#[cfg(feature = "chain")]
-						test::Command::ExecuteBlock(cmd) => cmd.execute(&mut Cli).await,
-						#[cfg(feature = "chain")]
-						test::Command::CreateSnapshot(cmd) => cmd.execute(&mut Cli).await,
-						#[cfg(feature = "chain")]
-						test::Command::FastForward(cmd) => cmd.execute(&mut Cli).await,
-						#[cfg(not(feature = "chain"))]
-						_ => Ok(()),
-					},
+				{
+					match &mut args.command {
+						None => test::Command::execute(args, &mut cli).await,
+						Some(cmd) => match cmd {
+							#[cfg(feature = "chain")]
+							test::Command::OnRuntimeUpgrade(cmd) => cmd.execute(&mut cli).await,
+							#[cfg(feature = "chain")]
+							test::Command::ExecuteBlock(cmd) => cmd.execute(&mut cli).await,
+							#[cfg(feature = "chain")]
+							test::Command::CreateSnapshot(cmd) => cmd.execute(&mut cli).await,
+							#[cfg(feature = "chain")]
+							test::Command::FastForward(cmd) => cmd.execute(&mut cli).await,
+							#[cfg(not(feature = "chain"))]
+							_ => Ok(serde_json::to_value(crate::common::output::SuccessData {
+								message: "Test command not implemented".to_string(),
+							})?),
+						},
+					}
 				}
 
 				#[cfg(not(any(feature = "contract", feature = "chain")))]
-				test::Command::execute(args).await
+				test::Command::execute(args, &mut cli).await
 			},
 			Self::Hash(args) => {
 				env_logger::init();
-				args.command.execute(&mut Cli)
+				args.command.execute(&mut cli)
 			},
 			Self::Clean(args) => {
 				env_logger::init();
 				match &args.command {
 					clean::Command::Cache(cmd_args) => clean::CleanCacheCommand {
-						cli: &mut Cli,
+						cli: &mut cli,
 						cache: cache()?,
 						all: cmd_args.all,
 					}
 					.execute(),
 					clean::Command::Node(cmd_args) => clean::CleanNodesCommand {
-						cli: &mut Cli,
+						cli: &mut cli,
 						all: cmd_args.all,
 						#[cfg(test)]
 						list_nodes: None,
@@ -219,7 +228,7 @@ impl Command {
 			},
 			Command::Convert(args) => {
 				env_logger::init();
-				args.command.execute(&mut Cli)
+				args.command.execute(&mut cli)
 			},
 		}
 	}

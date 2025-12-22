@@ -9,7 +9,6 @@ use crate::{
 	impl_binary_generator,
 	style::style,
 };
-use cliclack::ProgressBar;
 use pop_common::{DefaultConfig, Keypair, manifest::from_path};
 use pop_contracts::{
 	AccountMapper, ContractFunction, DefaultEnvironment, ExtrinsicOpts, eth_rpc_generator,
@@ -45,7 +44,7 @@ static FIXED_U8_ARRAY: LazyLock<Regex> =
 /// * `skip_confirm`: A boolean indicating whether to skip confirmation prompts.
 pub async fn check_ink_node_and_prompt(
 	cli: &mut impl Cli,
-	spinner: &ProgressBar,
+	spinner: &dyn Spinner,
 	cache_path: &Path,
 	skip_confirm: bool,
 ) -> anyhow::Result<(PathBuf, PathBuf)> {
@@ -320,8 +319,7 @@ pub fn resolve_signer(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::cli::MockCli;
-	use cliclack::spinner;
+	use crate::cli::{MockCli, spinner};
 	use duct::cmd;
 	use pop_common::{find_free_port, set_executable_permission};
 	use pop_contracts::{Param, is_chain_alive, run_eth_rpc_node, run_ink_node};

@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	cli::{self, traits::Input},
+	cli::{
+		self, spinner,
+		traits::{Input, Spinner},
+	},
 	common::{
 		bench::{check_omni_bencher_and_prompt, overwrite_weight_dir_command},
 		builds::guide_user_to_select_profile,
@@ -10,7 +13,6 @@ use crate::{
 	},
 };
 use clap::{Args, Parser};
-use cliclack::spinner;
 use pop_chains::{BenchmarkingCliCommand, bench::OverheadCmd, generate_omni_bencher_benchmarks};
 use pop_common::Profile;
 use serde::Serialize;
@@ -37,12 +39,16 @@ pub(crate) struct BenchmarkOverhead {
 }
 
 impl BenchmarkOverhead {
-	pub(crate) async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	pub(crate) async fn execute(
+		&mut self,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<serde_json::Value> {
 		let spinner = spinner();
 		cli.intro("Benchmarking the execution overhead per-block and per-extrinsic")?;
 
 		if let Err(e) = self.interact(cli).await {
-			return display_message(&e.to_string(), false, cli);
+			display_message(&e.to_string(), false, cli)?;
+			return Err(e);
 		};
 
 		cli.warning("NOTE: this may take some time...")?;
@@ -52,11 +58,17 @@ impl BenchmarkOverhead {
 
 		// Display the benchmarking command.
 		cli.info(self.display())?;
-		if let Err(e) = result {
-			return display_message(&e.to_string(), false, cli);
-		}
-		display_message("Benchmark completed successfully!", true, cli)?;
-		Ok(())
+		let output = match result {
+			Ok(output) => {
+				display_message("Benchmark completed successfully!", true, cli)?;
+				output
+			},
+			Err(e) => {
+				display_message(&e.to_string(), false, cli)?;
+				return Err(e);
+			},
+		};
+		Ok(serde_json::to_value(crate::common::output::SuccessData { message: output })?)
 	}
 
 	async fn interact(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
@@ -121,7 +133,7 @@ impl BenchmarkOverhead {
 		Ok(())
 	}
 
-	async fn run(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	async fn run(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<String> {
 		let temp_dir = tempdir()?;
 		let original_weight_path = self
 			.command
@@ -145,7 +157,11 @@ impl BenchmarkOverhead {
 			self.collect_arguments(),
 			false,
 		)?;
-		println!("{}", output);
+		if cli.is_json() {
+			eprintln!("{}", output);
+		} else {
+			println!("{}", output);
+		}
 
 		// Restore the original weight path.
 		self.command.params.weight.weight_path = Some(original_weight_path.clone());
@@ -155,7 +171,7 @@ impl BenchmarkOverhead {
 			&original_weight_path,
 			&self.collect_display_arguments(),
 		)?;
-		Ok(())
+		Ok(output)
 	}
 
 	fn display(&self) -> String {

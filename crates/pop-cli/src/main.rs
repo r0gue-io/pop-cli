@@ -2,6 +2,7 @@
 
 #![doc = include_str!("../README.md")]
 
+use crate::common::output::CliResponse;
 use anyhow::{Result, anyhow};
 use clap::Parser;
 use commands::*;
@@ -28,22 +29,46 @@ async fn main() -> Result<()> {
 	let maybe_tel = init().unwrap_or(None);
 
 	let mut cli = Cli::parse();
+	pop_common::set_json(cli.json);
 	#[cfg(feature = "telemetry")]
 	let event = cli.command.to_string();
-	let result = cli.command.execute().await;
+
+	let json = cli.json;
+	let result = cli.command.execute(json).await;
+
 	#[cfg(feature = "telemetry")]
 	if let Some(tel) = maybe_tel {
 		let data = serde_json::json!(cli.command);
 		// Best effort to send on first try, no action if failure.
 		let _ = record_cli_command(tel, &event, data).await;
 	}
-	result.map(|_| ())
+
+	match result {
+		Ok(data) => {
+			if json {
+				let response = CliResponse::success(data);
+				println!("{}", serde_json::to_string_pretty(&response)?);
+			}
+			Ok(())
+		},
+		Err(err) => {
+			if json {
+				let response: CliResponse<serde_json::Value> =
+					CliResponse::error(err.to_string(), None);
+				println!("{}", serde_json::to_string_pretty(&response)?);
+				std::process::exit(1);
+			}
+			Err(err)
+		},
+	}
 }
 
 /// An all-in-one tool for Polkadot development.
 #[derive(Parser)]
 #[command(author, version, about, styles=style::get_styles())]
 pub struct Cli {
+	#[arg(long, global = true, help = "Output in JSON format")]
+	pub json: bool,
 	#[command(subcommand)]
 	command: Command,
 }
@@ -107,14 +132,18 @@ mod tests {
 		fn build_command() {
 			use crate::commands::build::Command as BuildCommand;
 			// Build command display.
-			assert_eq!(Cli { command: Command::Build(Default::default()) }.to_string(), "build");
+			assert_eq!(
+				Cli { command: Command::Build(Default::default()), json: false }.to_string(),
+				"build"
+			);
 			// Build command with spec subcommand.
 			assert_eq!(
 				Cli {
 					command: Command::Build(build::BuildArgs {
 						command: Some(BuildCommand::Spec(Default::default())),
 						..Default::default()
-					})
+					}),
+					json: false
 				}
 				.to_string(),
 				"build spec"
@@ -124,7 +153,10 @@ mod tests {
 		#[test]
 		fn up_command() {
 			// Up command display.
-			assert_eq!(Cli { command: Command::Up(Default::default()) }.to_string(), "up");
+			assert_eq!(
+				Cli { command: Command::Up(Default::default()), json: false }.to_string(),
+				"up"
+			);
 		}
 
 		#[test]
@@ -135,7 +167,8 @@ mod tests {
 				Cli {
 					command: Command::Clean(CleanArgs {
 						command: CleanCommand::Cache(CleanCommandArgs { all: false }),
-					})
+					}),
+					json: false
 				}
 				.to_string(),
 				"clean"
@@ -146,7 +179,7 @@ mod tests {
 		fn install_command() {
 			// Install command display.
 			assert_eq!(
-				Cli { command: Command::Install(Default::default()) }.to_string(),
+				Cli { command: Command::Install(Default::default()), json: false }.to_string(),
 				"install"
 			);
 		}
@@ -159,13 +192,17 @@ mod tests {
 				Cli {
 					command: Command::New(NewArgs {
 						command: Some(NewCommand::Chain(Default::default()))
-					})
+					}),
+					json: false
 				}
 				.to_string(),
 				"new chain"
 			);
 			// New command display without subcommand.
-			assert_eq!(Cli { command: Command::New(NewArgs { command: None }) }.to_string(), "new");
+			assert_eq!(
+				Cli { command: Command::New(NewArgs { command: None }), json: false }.to_string(),
+				"new"
+			);
 		}
 
 		#[test]
@@ -174,7 +211,8 @@ mod tests {
 			// Bench command display.
 			assert_eq!(
 				Cli {
-					command: Command::Bench(BenchmarkArgs { command: Pallet(Default::default()) })
+					command: Command::Bench(BenchmarkArgs { command: Pallet(Default::default()) }),
+					json: false
 				}
 				.to_string(),
 				"bench pallet"
@@ -189,7 +227,8 @@ mod tests {
 				Cli {
 					command: Command::Call(CallArgs {
 						command: Some(CallCommand::Chain(Default::default()))
-					})
+					}),
+					json: false
 				}
 				.to_string(),
 				"call chain"
@@ -199,7 +238,8 @@ mod tests {
 				Cli {
 					command: Command::Call(CallArgs {
 						command: Some(CallCommand::Contract(Default::default()))
-					})
+					}),
+					json: false
 				}
 				.to_string(),
 				"call contract"

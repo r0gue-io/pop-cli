@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use crate::{
-	cli::{self, traits::*},
+	cli::traits::*,
 	common::{
 		chain::{self, Chain},
 		prompt::display_message,
@@ -82,10 +82,16 @@ pub struct CallChainCommand {
 	metadata: bool,
 }
 
+/// The result of calling a chain.
+#[derive(Serialize)]
+pub struct CallChainData {
+	/// The output of the call.
+	pub output: String,
+}
+
 impl CallChainCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(mut self) -> Result<()> {
-		let mut cli = cli::Cli;
+	pub(crate) async fn execute(mut self, cli: &mut impl Cli) -> Result<serde_json::Value> {
 		cli.intro("Call a chain")?;
 		// Configure the chain.
 		let chain = chain::configure(
@@ -94,37 +100,43 @@ impl CallChainCommand {
 			urls::LOCAL,
 			&self.url,
 			|_| true,
-			&mut cli,
+			cli,
 		)
 		.await?;
 
 		// Handle metadata display mode
 		if self.metadata {
-			return self.display_metadata(&chain, &mut cli);
+			self.display_metadata(&chain, cli)?;
+			return Ok(serde_json::to_value(CallChainData {
+				output: "Metadata displayed.".to_string(),
+			})?);
 		}
 
 		// Execute the call if call_data is provided.
 		if let Some(call_data) = self.call_data.as_ref() {
-			if let Err(e) = self
-				.submit_extrinsic_from_call_data(
-					&chain.client,
-					&chain.url,
-					call_data,
-					&mut cli::Cli,
-				)
-				.await
-			{
-				display_message(&e.to_string(), false, &mut cli::Cli)?;
+			let result = self
+				.submit_extrinsic_from_call_data(&chain.client, &chain.url, call_data, cli)
+				.await;
+			match result {
+				Ok(_) => {
+					return Ok(serde_json::to_value(CallChainData {
+						output: "Extrinsic submitted successfully.".to_string(),
+					})?);
+				},
+				Err(e) => {
+					display_message(&e.to_string(), false, cli)?;
+					return Err(e);
+				},
 			}
-			return Ok(());
 		}
+		let mut last_output = String::new();
 		loop {
 			// Configure the call based on command line arguments/call UI.
-			let mut call = match self.configure_call(&chain, &mut cli) {
+			let mut call = match self.configure_call(&chain, cli) {
 				Ok(call) => call,
 				Err(e) => {
-					display_message(&e.to_string(), false, &mut cli)?;
-					break;
+					display_message(&e.to_string(), false, cli)?;
+					return Err(e);
 				},
 			};
 			// Display the configured call.
@@ -132,10 +144,10 @@ impl CallChainCommand {
 			match call.function {
 				CallItem::Function(_) => {
 					// Prepare the extrinsic.
-					let xt = match call.prepare_extrinsic(&chain.client, &mut cli) {
+					let xt = match call.prepare_extrinsic(&chain.client, cli) {
 						Ok(payload) => payload,
 						Err(e) => {
-							display_message(&e.to_string(), false, &mut cli)?;
+							display_message(&e.to_string(), false, cli)?;
 							break;
 						},
 					};
@@ -143,21 +155,24 @@ impl CallChainCommand {
 					// Sign and submit the extrinsic.
 					let result = if self.use_wallet {
 						let call_data = xt.encode_call_data(&chain.client.metadata())?;
-						wallet::submit_extrinsic(&chain.client, &chain.url, call_data, &mut cli)
+						wallet::submit_extrinsic(&chain.client, &chain.url, call_data, cli)
 							.await
 							.map(|_| ()) // Mapping to `()` since we don't need events returned
 					} else {
-						call.submit_extrinsic(&chain.client, &chain.url, xt, &mut cli).await
+						call.submit_extrinsic(&chain.client, &chain.url, xt, cli).await
 					};
 
 					if let Err(e) = result {
-						display_message(&e.to_string(), false, &mut cli)?;
-						break;
+						display_message(&e.to_string(), false, cli)?;
+						return Err(e);
 					}
+					last_output = "Extrinsic submitted successfully.".to_string();
 				},
 				CallItem::Constant(constant) => {
 					// We already have the value of a constant, so we don't need to query it
-					cli.success(&raw_value_to_string(&constant.value, "")?)?;
+					let val = raw_value_to_string(&constant.value, "")?;
+					cli.success(&val)?;
+					last_output = val;
 				},
 				CallItem::Storage(ref storage) => {
 					// Parse string arguments to Value types for storage query
@@ -200,25 +215,30 @@ impl CallChainCommand {
 					if storage.query_all {
 						match storage.query_all(&chain.client, keys).await {
 							Ok(values) => {
-								cli.success(&render_storage_key_values(values.as_slice())?)?;
+								let val = render_storage_key_values(values.as_slice())?;
+								cli.success(&val)?;
+								last_output = val;
 							},
 							Err(e) => {
 								cli.error(format!("Failed to query storage: {e}"))?;
-								break;
+								return Err(e.into());
 							},
 						}
 					} else {
 						match storage.query(&chain.client, keys.clone()).await {
 							Ok(Some(value)) => {
 								let result = vec![(keys, value)];
-								cli.success(&render_storage_key_values(result.as_slice())?)?;
+								let val = render_storage_key_values(result.as_slice())?;
+								cli.success(&val)?;
+								last_output = val;
 							},
 							Ok(None) => {
 								cli.warning("Storage value not found")?;
+								last_output = "Storage value not found".to_string();
 							},
 							Err(e) => {
 								cli.error(format!("Failed to query storage: {e}"))?;
-								break;
+								return Err(e.into());
 							},
 						}
 					}
@@ -230,12 +250,11 @@ impl CallChainCommand {
 					.initial_value(true)
 					.interact()?
 			{
-				display_message("Call complete.", true, &mut cli)?;
 				break;
 			}
 			self.reset_for_new_call();
 		}
-		Ok(())
+		Ok(serde_json::to_value(CallChainData { output: last_output })?)
 	}
 
 	// Configure the call based on command line arguments/call UI.
@@ -418,7 +437,7 @@ impl CallChainCommand {
 			)?;
 			return Ok(());
 		}
-		let spinner = cliclack::spinner();
+		let spinner = cli.spinner();
 		spinner.start(
 			"Signing and submitting the extrinsic and then waiting for finalization, please be patient...",
 		);
@@ -427,7 +446,7 @@ impl CallChainCommand {
 			.await
 			.map_err(|err| anyhow!("{err:?}"))?;
 
-		spinner.stop(result);
+		spinner.stop(&result);
 		display_message("Call complete.", true, cli)?;
 		Ok(())
 	}
@@ -705,7 +724,7 @@ impl Call {
 			)?;
 			return Ok(());
 		}
-		let spinner = cliclack::spinner();
+		let spinner = cli.spinner();
 		spinner.start(
 			"Signing and submitting the extrinsic and then waiting for finalization, please be patient...",
 		);
@@ -713,7 +732,7 @@ impl Call {
 		let result = sign_and_submit_extrinsic(client, url, tx, &suri)
 			.await
 			.map_err(|err| anyhow!("{err:?}"))?;
-		spinner.stop(result);
+		spinner.stop(&result);
 		Ok(())
 	}
 
@@ -1450,7 +1469,9 @@ mod tests {
 
 		// Execute the command end-to-end; it should parse the composite key and perform the storage
 		// query
-		cmd.execute().await
+		let mut cli = MockCli::new();
+		cmd.execute(&mut cli).await?;
+		Ok(())
 	}
 
 	#[tokio::test]

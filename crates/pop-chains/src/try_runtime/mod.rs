@@ -141,7 +141,7 @@ pub fn run_try_runtime(
 	// Check if the command failed.
 	handle_command_error(&output, Error::TryRuntimeError)?;
 	if output.status.success() {
-		println!("{}", String::from_utf8_lossy(&output.stderr));
+		eprintln!("{}", String::from_utf8_lossy(&output.stderr));
 	}
 	Ok(())
 }

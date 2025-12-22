@@ -16,7 +16,7 @@ pub use helpers::{
 pub use metadata::format_type;
 pub use signer::create_signer;
 pub use sourcing::set_executable_permission;
-use std::{cmp::Ordering, net::TcpListener, ops::Deref};
+use std::{cmp::Ordering, net::TcpListener, ops::Deref, sync::OnceLock};
 #[cfg(feature = "integration-tests")]
 use std::{ffi::OsStr, path::Path};
 pub use subxt::{Config, PolkadotConfig as DefaultConfig};
@@ -60,6 +60,18 @@ pub mod templates;
 pub mod test;
 /// Contains utilities for setting up a local test environment.
 pub mod test_env;
+
+static IS_JSON: OnceLock<bool> = OnceLock::new();
+
+/// Sets whether the output should be in JSON format.
+pub fn set_json(json: bool) {
+	IS_JSON.set(json).ok();
+}
+
+/// Returns whether the output should be in JSON format.
+pub fn is_json() -> bool {
+	*IS_JSON.get().unwrap_or(&false)
+}
 
 static APP_USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 

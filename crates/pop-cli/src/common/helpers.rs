@@ -67,21 +67,27 @@ use std::{
 /// Otherwise the compilation will fail.
 #[macro_export]
 macro_rules! multiselect_pick {
-	($enum: ty, $prompt_message: expr $(, $excluded_variants: expr)?) => {{
-        // Ensure the enum is 1-byte long. This is needed cause fieldless enums with > 256 elements
+	($enum: ty, $prompt_message: expr, $cli: expr) => {
+		$crate::multiselect_pick!($enum, $prompt_message, [], $cli)
+	};
+	($enum: ty, $prompt_message: expr, $excluded_variants: expr, $cli: expr) => {{
+		// Ensure the enum is 1-byte long. This is needed cause fieldless enums with > 256 elements
 		// will lead to unexpected behavior as the conversion to u8 for them isn't detected as wrong
 		// at compile time. Enums containing variants with fields will be catched at compile time.
 		// Weird but possible.
 		assert_eq!(std::mem::size_of::<$enum>(), 1);
-		let mut prompt = multiselect(format!(
-			"{} {}",
-			$prompt_message,
-			"Pick an option by pressing the spacebar. Press enter when you're done!"
-		))
-		.required(false);
+		let mut prompt = $cli
+			.multiselect(format!(
+				"{} {}",
+				$prompt_message,
+				"Pick an option by pressing the spacebar. Press enter when you're done!"
+			))
+			.required(false);
 
 		for variant in <$enum>::iter() {
-            $(if $excluded_variants.contains(&variant){continue; })?
+			if $excluded_variants.contains(&variant) {
+				continue;
+			}
 			prompt = prompt.item(
 				variant as u8,
 				variant.get_message().unwrap_or_default(),

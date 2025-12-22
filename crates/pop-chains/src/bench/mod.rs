@@ -135,7 +135,7 @@ pub fn generate_binary_benchmarks<F>(
 	command: BenchmarkingCliCommand,
 	update_args: F,
 	excluded_args: &[&str],
-) -> Result<(), Error>
+) -> Result<String, Error>
 where
 	F: Fn(Vec<String>) -> Vec<String>,
 {
@@ -148,10 +148,16 @@ where
 	let mut cmd_args = vec!["benchmark".to_string(), command.to_string()];
 	cmd_args.append(&mut args);
 
-	if let Err(e) = cmd(binary_path, cmd_args).stderr_capture().run() {
+	let stdout_file = NamedTempFile::new()?;
+	let stdout_path = stdout_file.path().to_owned();
+
+	if let Err(e) = cmd(binary_path, cmd_args).stdout_path(&stdout_path).stderr_capture().run() {
 		return Err(Error::BenchmarkingError(e.to_string()));
 	}
-	Ok(())
+
+	let mut stdout_output = String::new();
+	std::fs::File::open(&stdout_path)?.read_to_string(&mut stdout_output)?;
+	Ok(stdout_output)
 }
 
 /// Loads a mapping of pallets and their associated extrinsics from the runtime binary.

@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	cli::{self, traits::Input},
+	cli::{
+		self, spinner,
+		traits::{Input, Spinner},
+	},
 	common::{
 		prompt::display_message,
 		try_runtime::{ArgumentConstructor, check_try_runtime_and_prompt, collect_args},
@@ -9,7 +12,6 @@ use crate::{
 	},
 };
 use clap::Args;
-use cliclack::spinner;
 use console::style;
 use pop_chains::{TryRuntimeCliCommand, parse::url, run_try_runtime, state::LiveState};
 use serde::Serialize;
@@ -36,9 +38,21 @@ pub(crate) struct TestCreateSnapshotCommand {
 	skip_confirm: bool,
 }
 
+/// The result of creating a snapshot.
+#[derive(Serialize)]
+pub struct SnapshotData {
+	/// A human-readable message.
+	pub message: String,
+	/// The path to the generated snapshot file.
+	pub snapshot_path: Option<String>,
+}
+
 impl TestCreateSnapshotCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	pub(crate) async fn execute(
+		&mut self,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<serde_json::Value> {
 		cli.intro("Creating a snapshot file")?;
 		cli.warning(
 			"NOTE: `create-snapshot` only works with the remote node. No runtime required.",
@@ -75,23 +89,24 @@ impl TestCreateSnapshotCommand {
 		// Display the `create-snapshot` command.
 		cli.info(self.display())?;
 		if let Err(e) = result {
-			return display_message(&e.to_string(), false, cli);
+			display_message(&e.to_string(), false, cli)?;
+			return Err(e);
 		}
-		display_message(
-			&format!(
-				"Snapshot is created successfully!{}",
-				if let Some(p) = &self.snapshot_path {
-					style(format!("\n{} Generated snapshot file: {}", console::Emoji("●", ">"), p))
-						.dim()
-						.to_string()
-				} else {
-					String::default()
-				}
-			),
-			true,
-			cli,
-		)?;
-		Ok(())
+		let msg = format!(
+			"Snapshot is created successfully!{}",
+			if let Some(p) = &self.snapshot_path {
+				style(format!("\n{} Generated snapshot file: {}", console::Emoji("●", ">"), p))
+					.dim()
+					.to_string()
+			} else {
+				String::default()
+			}
+		);
+		display_message(&msg, true, cli)?;
+		Ok(serde_json::to_value(SnapshotData {
+			message: msg,
+			snapshot_path: self.snapshot_path.clone(),
+		})?)
 	}
 
 	async fn run(&self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
@@ -99,7 +114,7 @@ impl TestCreateSnapshotCommand {
 		let user_provided_args: Vec<String> = std::env::args().skip(3).collect();
 		let binary_path = check_try_runtime_and_prompt(cli, &spinner, self.skip_confirm).await?;
 		if let Some(ref uri) = self.from.uri {
-			spinner.start(format!(
+			spinner.start(&format!(
 				"Creating a snapshot of a remote node at {}...\n{}",
 				console::style(&uri).magenta().underlined(),
 				style("Depends on the size of the network's state, this may take a while.").dim()
