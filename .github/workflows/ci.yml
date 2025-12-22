@@ -90,7 +90,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-          shared-key: shared-${{ github.head_ref || github.ref_name }}
+          shared-key: ci
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Check no default features
         run: cargo check --locked --no-default-features
@@ -121,7 +122,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           save-if: false
-          shared-key: shared-${{ github.head_ref || github.ref_name }}
+          shared-key: ci
 
       - name: Annotate with Clippy warnings
         uses: actions-rs/clippy-check@v1
@@ -156,7 +157,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           save-if: false
-          shared-key: shared-docs-${{ github.head_ref || github.ref_name }}
+          shared-key: ci
 
       - name: Check no default features
         run: cargo doc --locked --no-deps
@@ -175,7 +176,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           save-if: false
-          shared-key: shared-${{ github.head_ref || github.ref_name }}
+          shared-key: ci
 
       - name: Run doc tests
         run: cargo test --locked --doc
