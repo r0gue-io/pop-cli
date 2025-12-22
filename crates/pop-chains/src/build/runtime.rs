@@ -56,7 +56,7 @@ impl DeterministicBuilder {
 			Some(tag) => tag,
 			_ => pop_common::docker::fetch_image_tag(SRTOOL_TAG_URL).await?,
 		};
-		let digest = Docker::get_image_digest(DEFAULT_IMAGE, &tag)?;
+		let digest = Docker::get_image_digest(DEFAULT_IMAGE, &tag).await?;
 		let dir = fs::canonicalize(path.unwrap_or_else(|| PathBuf::from("./")))?;
 		let tmpdir = env::temp_dir().join("cargo");
 
@@ -186,7 +186,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn srtool_builder_new_works() {
-		Docker::ensure_running().unwrap();
+		Docker::ensure_running().await.unwrap();
 		let srtool_builder = DeterministicBuilder::new(
 			None,
 			"parachain-template-runtime",
@@ -213,7 +213,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn build_args_works() {
-		Docker::ensure_running().unwrap();
+		Docker::ensure_running().await.unwrap();
 
 		let temp_dir = tempdir().unwrap();
 		let path = temp_dir.path();
@@ -258,7 +258,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn get_output_path_works() -> Result<()> {
-		Docker::ensure_running()?;
+		Docker::ensure_running().await?;
 		let srtool_builder = DeterministicBuilder::new(
 			None,
 			"template-runtime",

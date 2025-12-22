@@ -117,11 +117,8 @@ pub fn has_contract_been_built(path: &Path) -> bool {
 		return false;
 	};
 
-	let project_root = if path.ends_with("Cargo.toml") {
-		path.parent().unwrap_or(path)
-	} else {
-		path
-	};
+	let project_root =
+		if path.ends_with("Cargo.toml") { path.parent().unwrap_or(path) } else { path };
 
 	let mut ink_dirs = vec![project_root.join("target").join("ink")];
 	if let Some(workspace_toml) = find_workspace_manifest(project_root) {
@@ -136,9 +133,7 @@ pub fn has_contract_been_built(path: &Path) -> bool {
 	}
 
 	let artifact = format!("{}.contract", package.name());
-	ink_dirs
-		.into_iter()
-		.any(|ink_dir| ink_dir.join(&artifact).exists())
+	ink_dirs.into_iter().any(|ink_dir| ink_dir.join(&artifact).exists())
 }
 
 /// Builds contract artifacts and reports progress/errors to the CLI.
@@ -579,10 +574,7 @@ mod tests {
 		// Workspace target/ink directory
 		let workspace_root = path.join("workspace");
 		fs::create_dir(&workspace_root)?;
-		fs::write(
-			workspace_root.join("Cargo.toml"),
-			"[workspace]\nmembers = [\"member\"]\n",
-		)?;
+		fs::write(workspace_root.join("Cargo.toml"), "[workspace]\nmembers = [\"member\"]\n")?;
 		cmd("cargo", ["new", "member"]).dir(&workspace_root).run()?;
 		let member_path = workspace_root.join("member");
 		fs::create_dir_all(workspace_root.join("target/ink"))?;
@@ -615,14 +607,8 @@ mod tests {
 	fn build_contract_artifacts_reports_error() -> anyhow::Result<()> {
 		let temp_dir = tempfile::tempdir()?;
 		let mut cli = MockCli::new();
-		let err = build_contract_artifacts(
-			&mut cli,
-			temp_dir.path(),
-			true,
-			Verbosity::Quiet,
-			None,
-		)
-		.expect_err("expected build to fail without a Cargo.toml");
+		let err = build_contract_artifacts(&mut cli, temp_dir.path(), true, Verbosity::Quiet, None)
+			.expect_err("expected build to fail without a Cargo.toml");
 		assert!(err.to_string().contains("Use `pop build` to retry with build output."));
 		Ok(())
 	}

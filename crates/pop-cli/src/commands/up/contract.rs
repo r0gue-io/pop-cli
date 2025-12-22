@@ -8,8 +8,9 @@ use crate::{
 	commands::call::contract::CallContractCommand,
 	common::{
 		contracts::{
-			build_contract_artifacts, check_ink_node_and_prompt, has_contract_been_built, map_account,
-			normalize_call_args, resolve_function_args, resolve_signer, terminate_nodes,
+			build_contract_artifacts, check_ink_node_and_prompt, has_contract_been_built,
+			map_account, normalize_call_args, resolve_function_args, resolve_signer,
+			terminate_nodes,
 		},
 		rpc::prompt_to_select_chain_rpc,
 		urls,
@@ -21,11 +22,10 @@ use clap::Args;
 use cliclack::spinner;
 use console::Emoji;
 use pop_contracts::{
-	FunctionType, UpOpts, Verbosity, Weight,
-	dry_run_gas_estimate_instantiate, dry_run_upload, extract_function, get_contract_code,
-	get_instantiate_payload, get_upload_payload, instantiate_contract_signed,
-	instantiate_smart_contract, is_chain_alive, run_eth_rpc_node, run_ink_node, set_up_deployment,
-	set_up_upload, upload_contract_signed, upload_smart_contract,
+	FunctionType, UpOpts, Verbosity, Weight, dry_run_gas_estimate_instantiate, dry_run_upload,
+	extract_function, get_contract_code, get_instantiate_payload, get_upload_payload,
+	instantiate_contract_signed, instantiate_smart_contract, is_chain_alive, run_eth_rpc_node,
+	run_ink_node, set_up_deployment, set_up_upload, upload_contract_signed, upload_smart_contract,
 };
 use serde::Serialize;
 use sp_core::bytes::to_hex;

@@ -775,8 +775,10 @@ mod tests {
 	use crate::{mock_build_process, new_environment};
 	use anyhow::Result;
 	use scale_info::{Registry, TypeDef, TypeDefPrimitive, TypeInfo};
-	use std::marker::PhantomData;
-	use std::sync::{LazyLock, Mutex};
+	use std::{
+		marker::PhantomData,
+		sync::{LazyLock, Mutex},
+	};
 	// No need for SCALE encoding helpers in tests; for u8 values the SCALE encoding is the byte
 	// itself.
 

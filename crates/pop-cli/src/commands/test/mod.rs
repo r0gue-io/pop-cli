@@ -96,7 +96,7 @@ impl Command {
 			return contract::TestContractCommand::execute(&mut args.contract, cli).await;
 		}
 
-		test_project(&project_path, args.test.clone())?;
+		test_project(&project_path, args.test.clone()).await?;
 
 		#[cfg(feature = "chain")]
 		if pop_chains::is_supported(&project_path) {
