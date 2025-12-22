@@ -146,7 +146,7 @@ pub(crate) enum RelayChain {
 pub struct BuildSpecCommand {
 	/// Directory path for your project [default: current directory]
 	#[serde(skip_serializing)]
-	#[arg(long, default_value = "./")]
+	#[arg(short, long, default_value = "./")]
 	pub(crate) path: PathBuf,
 	/// File name for the resulting spec. If a path is given,
 	/// the necessary directories will be created
@@ -193,7 +193,7 @@ pub struct BuildSpecCommand {
 	pub(crate) protocol_id: Option<String>,
 	/// The chain properties to use in the specification.
 	/// For example, "tokenSymbol=UNIT,decimals=12".
-	#[arg(short = 'p', long)]
+	#[arg(long)]
 	pub(crate) properties: Option<String>,
 	/// Whether the genesis state file should be generated.
 	#[arg(short = 'S', long = "genesis-state")]
