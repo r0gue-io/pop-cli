@@ -151,7 +151,6 @@ impl LocalStorageLayer {
 	/// Get a storage value, checking local modifications first.
 	///
 	/// # Arguments
-	/// * `block_number` - The block number to query
 	/// * `key` - The storage key to fetch
 	///
 	/// # Returns
@@ -469,6 +468,60 @@ impl LocalStorageLayer {
 		}
 
 		self.latest_block_number = new_latest_block;
+
+		Ok(())
+	}
+
+	/// Create a child layer for nested modifications.
+	///
+	/// # Returns
+	/// A cloned `LocalStorageLayer` that shares the same parent and state.
+	///
+	/// # Behavior
+	/// - The child shares the same `modifications` and `deleted_prefixes` via `Arc`
+	/// - Changes in the child affect the parent and vice versa
+	/// - Useful for creating temporary scopes that can be discarded
+	///
+	/// # Note
+	/// This is currently a simple clone. In the future, this may be updated to create
+	/// true isolated child layers with proper parent-child relationships.
+	pub fn child(&self) -> LocalStorageLayer {
+		self.clone()
+	}
+
+	/// Commit all modifications to the local_storage table in the cache, leaving that state as latest_block_number height.
+	///
+	/// # Returns
+	/// * `Ok(())` - All modifications were successfully committed to the cache
+	/// * `Err(_)` - Lock error or cache error
+	///
+	/// # Behavior
+	/// - Writes all locally modified key-value pairs to the local_storage table
+	/// - The modifications HashMap remains intact and available after commit
+	/// - Uses the parent layer's cache to persist the data
+	/// - Uses batch operation for efficiency
+    /// - Increases the latest block number
+	pub async fn commit(&mut self) -> Result<(), LocalStorageError> {
+		let modifications_lock = self
+			.modifications
+			.try_read()
+			.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
+
+		// Collect all modifications into a batch
+		let entries: Vec<(&[u8], Option<&[u8]>)> = modifications_lock
+			.iter()
+			.map(|(key, value)| (key.as_slice(), value.as_ref().map(|v| v.as_slice())))
+			.collect();
+
+		// Write all modifications to the local_storage table in a batch
+		if !entries.is_empty() {
+			self.parent
+				.cache()
+				.set_local_storage_batch(self.latest_block_number, &entries)
+				.await?;
+		}
+
+        self.latest_block_number += 1;
 
 		Ok(())
 	}
