@@ -137,7 +137,7 @@ impl Command {
 			pop_chains::runtime::is_supported(&project_path)
 		{
 			if args.deterministic {
-				Docker::ensure_running()?;
+				Docker::ensure_running().await?;
 			}
 			let profile = match &args.profile {
 				Some(profile) => *profile,
