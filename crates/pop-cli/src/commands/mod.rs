@@ -209,6 +209,7 @@ impl Command {
 					clean::Command::Node(cmd_args) => clean::CleanNodesCommand {
 						cli: &mut Cli,
 						all: cmd_args.all,
+						pid: cmd_args.pid.clone(),
 						#[cfg(test)]
 						list_nodes: None,
 						#[cfg(test)]

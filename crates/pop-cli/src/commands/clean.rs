@@ -33,6 +33,9 @@ pub struct CleanCommandArgs {
 	/// Pass flag to remove all cache artifacts or running nodes.
 	#[arg(short, long)]
 	pub(crate) all: bool,
+	/// Pass flag to remove artifacts for a specific process id list.
+	#[arg(short, long)]
+	pub(crate) pid: Option<Vec<String>>,
 }
 
 /// Removes cached artifacts.
@@ -153,6 +156,8 @@ pub(crate) struct CleanNodesCommand<'a, CLI: Cli> {
 	pub(crate) cli: &'a mut CLI,
 	/// Whether to clean all nodes.
 	pub(crate) all: bool,
+	/// PIDs to kill.
+	pub(crate) pid: Option<Vec<String>>,
 	/// Test hook: override process lister.
 	#[cfg(test)]
 	pub(crate) list_nodes: Option<Box<dyn Fn() -> Result<Vec<(String, String, String)>>>>,
@@ -183,7 +188,7 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 			return Ok(());
 		}
 
-		if self.all {
+		let pids = if self.all {
 			// Display all processes to be killed
 			let list = style(format!(
 				"\n{}",
@@ -196,19 +201,22 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 			.to_string();
 
 			self.cli.info(format!("Killing the following processes...\n {list} \n"))?;
+			processes.into_iter().map(|p| p.1.clone()).collect::<Vec<_>>()
+		} else if let Some(pids) = &self.pid {
+			// Validate that all provided PIDs exist in the running processes
+			let valid_pids: Vec<&str> = processes.iter().map(|(_, pid, _)| pid.as_str()).collect();
+			let invalid_pids: Vec<&String> =
+				pids.iter().filter(|pid| !valid_pids.contains(&pid.as_str())).collect();
 
-			for (_, pid, _) in &processes {
-				#[cfg(test)]
-				{
-					if let Some(ref f) = self.kill_fn { f(pid)? } else { kill_process(pid)? }
-				}
-				#[cfg(not(test))]
-				{
-					kill_process(pid)?
-				}
+			if !invalid_pids.is_empty() {
+				self.cli.outro_cancel(format!(
+					"🚫 Invalid PID(s): {}. No processes killed.",
+					invalid_pids.iter().map(|p| p.as_str()).collect::<Vec<_>>().join(", ")
+				))?;
+				return Ok(());
 			}
 
-			self.cli.outro(format!("ℹ️ {} processes killed", processes.len()))?;
+			pids.clone()
 		} else {
 			// Prompt for selection of processes to be killed
 			let selected = {
@@ -242,20 +250,21 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 				return Ok(());
 			}
 
-			// Finally kill selected processes
-			for pid in &selected {
-				#[cfg(test)]
-				{
-					if let Some(ref f) = self.kill_fn { f(pid)? } else { kill_process(pid)? }
-				}
-				#[cfg(not(test))]
-				{
-					kill_process(pid)?
-				}
-			}
+			selected.into_iter().cloned().collect::<Vec<_>>()
+		};
 
-			self.cli.outro(format!("ℹ️ {} processes killed", selected.len()))?;
+		for pid in &pids {
+			#[cfg(test)]
+			{
+				if let Some(ref f) = self.kill_fn { f(pid)? } else { kill_process(pid)? }
+			}
+			#[cfg(not(test))]
+			{
+				kill_process(pid)?
+			}
 		}
+
+		self.cli.outro(format!("ℹ️ {} processes killed", pids.len()))?;
 
 		Ok(())
 	}
@@ -320,7 +329,7 @@ fn kill_process(pid: &str) -> Result<()> {
 #[cfg(test)]
 impl Default for CleanArgs {
 	fn default() -> Self {
-		Self { command: Command::Cache(CleanCommandArgs { all: false }) }
+		Self { command: Command::Cache(CleanCommandArgs { all: false, pid: None }) }
 	}
 }
 
@@ -525,6 +534,7 @@ mod tests {
 		let cmd = CleanNodesCommand {
 			cli: &mut cli,
 			all: false,
+			pid: None,
 			#[cfg(test)]
 			list_nodes: Some(Box::new(|| Ok(vec![]))),
 			#[cfg(test)]
@@ -564,6 +574,7 @@ mod tests {
 		let cmd = CleanNodesCommand {
 			cli: &mut cli,
 			all: true,
+			pid: None,
 			list_nodes: Some(Box::new(move || Ok(processes.clone()))),
 			kill_fn: Some(Box::new(move |pid: &str| {
 				killed2.borrow_mut().push(pid.to_string());
@@ -594,6 +605,7 @@ mod tests {
 		let cmd = CleanNodesCommand {
 			cli: &mut cli,
 			all: false,
+			pid: None,
 			list_nodes: Some(Box::new(move || Ok(processes.clone()))),
 			kill_fn: Some(Box::new(|_| unreachable!("kill should not be called"))),
 		};
@@ -614,6 +626,7 @@ mod tests {
 		let cmd = CleanNodesCommand {
 			cli: &mut cli,
 			all: false,
+			pid: None,
 			list_nodes: Some(Box::new(move || Ok(processes.clone()))),
 			kill_fn: Some(Box::new(|_| unreachable!("kill should not be called"))),
 		};
@@ -642,6 +655,7 @@ mod tests {
 		let cmd = CleanNodesCommand {
 			cli: &mut cli,
 			all: false,
+			pid: None,
 			list_nodes: Some(Box::new(move || Ok(processes.clone()))),
 			kill_fn: Some(Box::new(move |pid: &str| {
 				killed2.borrow_mut().push(pid.to_string());
@@ -654,6 +668,57 @@ mod tests {
 			&*killed.borrow(),
 			&["111", "222", "333"].iter().map(|s| s.to_string()).collect::<Vec<_>>()
 		);
+		cli.verify()
+	}
+
+	#[test]
+	fn clean_nodes_pid_kills_specified_processes() -> Result<()> {
+		use std::{cell::RefCell, rc::Rc};
+		let processes = vec![
+			("ink-node".to_string(), "111".to_string(), "30333".to_string()),
+			("eth-rpc".to_string(), "222".to_string(), "8545".to_string()),
+		];
+
+		let mut cli = MockCli::new()
+			.expect_intro("Remove running nodes")
+			.expect_outro("ℹ️ 1 processes killed");
+
+		let killed: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
+		let killed2 = killed.clone();
+
+		let cmd = CleanNodesCommand {
+			cli: &mut cli,
+			all: false,
+			pid: Some(vec!["111".to_string()]),
+			list_nodes: Some(Box::new(move || Ok(processes.clone()))),
+			kill_fn: Some(Box::new(move |pid: &str| {
+				killed2.borrow_mut().push(pid.to_string());
+				Ok(())
+			})),
+		};
+
+		cmd.execute()?;
+		assert_eq!(&*killed.borrow(), &vec!["111".to_string()]);
+		cli.verify()
+	}
+
+	#[test]
+	fn clean_nodes_pid_errors_on_invalid_pids() -> Result<()> {
+		let processes = vec![("ink-node".to_string(), "111".to_string(), "30333".to_string())];
+
+		let mut cli = MockCli::new()
+			.expect_intro("Remove running nodes")
+			.expect_outro_cancel("🚫 Invalid PID(s): 222, 333. No processes killed.");
+
+		let cmd = CleanNodesCommand {
+			cli: &mut cli,
+			all: false,
+			pid: Some(vec!["111".to_string(), "222".to_string(), "333".to_string()]),
+			list_nodes: Some(Box::new(move || Ok(processes.clone()))),
+			kill_fn: Some(Box::new(|_| unreachable!("kill should not be called"))),
+		};
+
+		cmd.execute()?;
 		cli.verify()
 	}
 }
