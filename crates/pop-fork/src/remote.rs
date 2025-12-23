@@ -45,8 +45,8 @@
 //! let value = storage.get(block_hash, &key).await?;
 //! ```
 
-use crate::{ForkRpcClient, StorageCache, error::RemoteStorageError};
-use subxt::config::substrate::H256;
+use crate::{ForkRpcClient, StorageCache, error::RemoteStorageError, models::BlockRow};
+use subxt::{config::substrate::H256, ext::codec::Encode};
 
 /// Default number of keys to fetch per RPC call during prefix scans.
 ///
@@ -300,6 +300,53 @@ impl RemoteStorageLayer {
 		// Return from cache
 		Ok(self.cache.get_keys_by_prefix(self.block_hash, prefix).await?)
 	}
+
+	/// Fetch a block by number from the remote RPC and cache it.
+	///
+	/// This method fetches the block data for the given block number and caches
+	/// the block metadata in the cache.
+	///
+	/// # Arguments
+	/// * `block_number` - The block number to fetch and cache
+	///
+	/// # Returns
+	/// * `Ok(Some(block_row))` - Block was fetched and cached successfully
+	/// * `Ok(None)` - Block number doesn't exist
+	/// * `Err(_)` - RPC or cache error
+	///
+	/// # Caching Behavior
+	/// - Fetches block hash and data from block number using `chain_getBlockHash` and
+	///   `chain_getBlock`
+	/// - Caches block metadata (hash, number, parent_hash, header) in the cache
+	/// - If block is already cached, this will update the cache entry
+	pub async fn fetch_and_cache_block_by_number(
+		&self,
+		block_number: u32,
+	) -> Result<Option<BlockRow>, RemoteStorageError> {
+		// Get block hash and full block data in one call
+		let (block_hash, block) = match self.rpc.block_by_number(block_number).await? {
+			Some((hash, block)) => (hash, block),
+			None => return Ok(None),
+		};
+
+		// Extract header and parent hash
+		let header = block.header;
+		let parent_hash = header.parent_hash;
+		let header_encoded = header.encode();
+
+		// Cache the block
+		self.cache
+			.cache_block(block_hash, block_number, parent_hash, &header_encoded)
+			.await?;
+
+		// Return the cached block row
+		Ok(Some(BlockRow {
+			hash: block_hash.as_bytes().to_vec(),
+			number: block_number as i64,
+			parent_hash: parent_hash.as_bytes().to_vec(),
+			header: header_encoded,
+		}))
+	}
 }
 
 #[cfg(test)]
@@ -329,6 +376,7 @@ mod tests {
 	mod sequential {
 		use super::*;
 		use pop_common::test_env::TestNode;
+		use std::time::Duration;
 		use url::Url;
 
 		// Well-known storage keys for testing.
@@ -499,6 +547,142 @@ mod tests {
 			assert!(!block_hash.is_zero());
 			// Verify endpoint is a valid WebSocket URL (from our local test node)
 			assert!(layer.rpc().endpoint().as_str().starts_with("ws://"));
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn fetch_and_cache_block_by_number_caches_block() {
+			let ctx = create_test_context().await;
+			let layer = &ctx.layer;
+
+			// Get finalized block number
+			let finalized_hash = layer.rpc().finalized_head().await.unwrap();
+			let finalized_header = layer.rpc().header(finalized_hash).await.unwrap();
+			let finalized_number = finalized_header.number;
+
+			// Verify block is not in cache initially
+			let cached = layer.cache().get_block_by_number(finalized_number).await.unwrap();
+
+			assert!(cached.is_none());
+
+			// Fetch and cache the block
+			let result = layer.fetch_and_cache_block_by_number(finalized_number).await.unwrap();
+			assert!(result.is_some());
+
+			let block_row = result.unwrap();
+			assert_eq!(block_row.number, finalized_number as i64);
+			assert_eq!(block_row.hash.len(), 32);
+			assert_eq!(block_row.parent_hash.len(), 32);
+			assert!(!block_row.header.is_empty());
+
+			// Verify it's now in cache
+			let cached = layer.cache().get_block_by_number(finalized_number).await.unwrap();
+			assert!(cached.is_some());
+
+			let cached_block = cached.unwrap();
+			assert_eq!(cached_block.number, block_row.number);
+			assert_eq!(cached_block.hash, block_row.hash);
+			assert_eq!(cached_block.parent_hash, block_row.parent_hash);
+			assert_eq!(cached_block.header, block_row.header);
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn fetch_and_cache_block_by_number_non_existent() {
+			let ctx = create_test_context().await;
+			let layer = &ctx.layer;
+
+			// Try to fetch a block that doesn't exist
+			let non_existent_number = u32::MAX;
+			let result = layer.fetch_and_cache_block_by_number(non_existent_number).await.unwrap();
+
+			assert!(result.is_none(), "Non-existent block should return None");
+
+			// Verify it's not in cache
+			let cached = layer.cache().get_block_by_number(non_existent_number).await.unwrap();
+			assert!(cached.is_none(), "Non-existent block should not be cached");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn fetch_and_cache_block_by_number_multiple_blocks() {
+			let ctx = create_test_context().await;
+			let layer = &ctx.layer;
+
+			// Wait for some blocks to be finalized
+			std::thread::sleep(Duration::from_secs(30));
+
+			// Get finalized block number
+			let finalized_hash = layer.rpc().finalized_head().await.unwrap();
+			let finalized_header = layer.rpc().header(finalized_hash).await.unwrap();
+			let finalized_number = finalized_header.number;
+
+			// Fetch and cache multiple blocks
+			let max_blocks = finalized_number.min(3);
+			for block_num in 0..=max_blocks {
+				let result =
+					layer.fetch_and_cache_block_by_number(block_num).await.unwrap().unwrap();
+
+				assert_eq!(result.number, block_num as i64);
+
+				// Verify in cache
+				let cached = layer.cache().get_block_by_number(block_num).await.unwrap().unwrap();
+				assert_eq!(cached.number, result.number);
+				assert_eq!(cached.hash, result.hash);
+			}
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn fetch_and_cache_block_by_number_idempotent() {
+			let ctx = create_test_context().await;
+			let layer = &ctx.layer;
+
+			let block_number = 0u32;
+
+			// Fetch and cache the block twice
+			let result1 =
+				layer.fetch_and_cache_block_by_number(block_number).await.unwrap().unwrap();
+			let result2 =
+				layer.fetch_and_cache_block_by_number(block_number).await.unwrap().unwrap();
+
+			// Both results should be identical
+			assert_eq!(result1.number, result2.number);
+			assert_eq!(result1.hash, result2.hash);
+			assert_eq!(result1.parent_hash, result2.parent_hash);
+			assert_eq!(result1.header, result2.header);
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn fetch_and_cache_block_by_number_verifies_parent_chain() {
+			let ctx = create_test_context().await;
+			let layer = &ctx.layer;
+
+			// Wait for some blocks to be finalized
+			std::thread::sleep(Duration::from_secs(30));
+
+			// Get finalized block number
+			let finalized_hash = layer.rpc().finalized_head().await.unwrap();
+			let finalized_header = layer.rpc().header(finalized_hash).await.unwrap();
+			let finalized_number = finalized_header.number;
+
+			// Fetch consecutive blocks and verify parent hash chain
+			let max_blocks = finalized_number.min(3);
+			let mut previous_hash: Option<Vec<u8>> = None;
+
+			for block_num in 0..=max_blocks {
+				let block_row =
+					layer.fetch_and_cache_block_by_number(block_num).await.unwrap().unwrap();
+
+				// Verify parent hash matches previous block hash (except for genesis)
+				if let Some(prev_hash) = previous_hash {
+					assert_eq!(
+						block_row.parent_hash,
+						prev_hash,
+						"Block {} parent hash should match block {} hash",
+						block_num,
+						block_num - 1
+					);
+				}
+
+				previous_hash = Some(block_row.hash.clone());
+			}
 		}
 	}
 }
