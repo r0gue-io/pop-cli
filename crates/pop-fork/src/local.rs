@@ -47,7 +47,7 @@
 //! local.delete_prefix(&prefix)?;
 //! ```
 
-use crate::{error::LocalStorageError, remote::RemoteStorageLayer};
+use crate::{error::LocalStorageError, models::BlockRow, remote::RemoteStorageLayer};
 use std::{
 	collections::HashMap,
 	sync::{Arc, RwLock},
@@ -117,6 +117,36 @@ impl LocalStorageLayer {
 		}
 	}
 
+	/// Fetch and cache a block if it's not already in the cache.
+	///
+	/// This is a helper method used by `get` and `get_batch` to ensure blocks are
+	/// available in the cache before querying them.
+	///
+	/// # Arguments
+	/// * `block_number` - The block number to fetch and cache
+	///
+	/// # Returns
+	/// * `Ok(Some(block_row))` - Block is now in cache (either was already cached or just fetched)
+	/// * `Ok(None)` - Block number doesn't exist
+	/// * `Err(_)` - RPC or cache error
+	///
+	/// # Behavior
+	/// - First checks if block is already in cache
+	/// - If not cached, fetches from remote RPC and caches it
+	/// - If block doesn't exist, returns None
+	async fn fetch_and_cache_block_if_needed(
+		&self,
+		block_number: u32,
+	) -> Result<Option<BlockRow>, LocalStorageError> {
+		// First check if block is already in cache
+		if let Some(cached_block) = self.parent.cache().get_block_by_number(block_number).await? {
+			return Ok(Some(cached_block));
+		}
+
+		// Not in cache, fetch from remote and cache it
+		Ok(self.parent.fetch_and_cache_block_by_number(block_number).await?)
+	}
+
 	/// Get the current latest block number.
 	pub fn get_latest_block_number(&self) -> u32 {
 		self.latest_block_number
@@ -181,15 +211,14 @@ impl LocalStorageLayer {
 			return Ok(cached.map(Arc::new));
 		}
 
-		// Case 3: Block before or at fork point - query remote directly
-		// First, get the block hash from the blocks table
-		let block = self.parent.cache().get_block_by_number(block_number).await?;
+		// Case 3: Block before or at fork point - fetch and cache block if needed
+		let block = self.fetch_and_cache_block_if_needed(block_number).await?;
 
 		if let Some(block_row) = block {
 			let block_hash = H256::from_slice(&block_row.hash);
 			Ok(self.parent.get(block_hash, key).await?.map(Arc::new))
 		} else {
-			// Block not found in cache
+			// Block not found
 			Ok(None)
 		}
 	}
@@ -299,16 +328,15 @@ impl LocalStorageLayer {
 			return Ok(cached_values.into_iter().map(|v| v.flatten().map(Arc::new)).collect());
 		}
 
-		// Case 3: Block before or at fork point - query remote directly
-		// First, get the block hash from the blocks table
-		let block = self.parent.cache().get_block_by_number(block_number).await?;
+		// Case 3: Block before or at fork point - fetch and cache block if needed
+		let block = self.fetch_and_cache_block_if_needed(block_number).await?;
 
 		if let Some(block_row) = block {
 			let block_hash = H256::from_slice(&block_row.hash);
 			let parent_values = self.parent.get_batch(block_hash, keys).await?;
 			Ok(parent_values.into_iter().map(|v| v.map(Arc::new)).collect())
 		} else {
-			// Block not found in cache - return None for all keys
+			// Block not found - return None for all keys
 			Ok(vec![None; keys.len()])
 		}
 	}
@@ -527,7 +555,8 @@ mod tests {
 	use super::*;
 	use crate::{ForkRpcClient, RemoteStorageLayer, StorageCache};
 	use pop_common::test_env::TestNode;
-	use subxt::ext::codec::Encode;
+	use std::time::Duration;
+	use subxt::ext::codec::Decode;
 	use url::Url;
 
 	/// System::Number storage key: twox128("System") ++ twox128("Number")
@@ -558,11 +587,6 @@ mod tests {
 		let header = rpc.header(block_hash).await.unwrap();
 		let block_number = header.number;
 		let cache = StorageCache::in_memory().await.unwrap();
-		// Cache the block so we can look it up by number
-		cache
-			.cache_block(block_hash, block_number, header.parent_hash, &header.encode())
-			.await
-			.unwrap();
 		let remote = RemoteStorageLayer::new(rpc, cache);
 
 		TestContext { node, remote, block_hash, block_number }
@@ -1442,5 +1466,117 @@ mod tests {
 
 		assert_eq!(cached1, Some(Some(value.to_vec())));
 		assert_eq!(cached2, Some(Some(value.to_vec())));
+	}
+
+	// Tests for fetch_and_cache_block_if_needed (via get/get_batch for historical blocks)
+	#[tokio::test(flavor = "multi_thread")]
+	async fn get_historical_block() {
+		let ctx = create_test_context().await;
+		let layer = create_layer(&ctx);
+
+		// Query a block that's not in cache (block 0)
+		let block_number = 0u32;
+		let key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
+
+		// Verify block is not in cache initially
+		let cached_before = ctx.remote.cache().get_block_by_number(block_number).await.unwrap();
+		assert!(cached_before.is_none());
+
+		// Get storage from historical block
+		let result = layer.get(block_number, &key).await.unwrap().unwrap();
+		assert_eq!(u32::decode(&mut &result[..]).unwrap(), 0);
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn get_batch_historical_block() {
+		let ctx = create_test_context().await;
+		let layer = create_layer(&ctx);
+
+		// Wait for some blocks to be finalized
+		std::thread::sleep(Duration::from_secs(30));
+
+		// Query a block that's not in cache
+		let block_number = 1u32;
+		let key1 = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
+		let key2 = hex::decode(SYSTEM_PARENT_HASH_KEY).unwrap();
+
+		// Get storage from historical block
+		let results = layer
+			.get_batch(block_number, &[key1.as_slice(), key2.as_slice()])
+			.await
+			.unwrap();
+		assert_eq!(results.len(), 2);
+		assert_eq!(u32::decode(&mut &results[0].as_ref().unwrap()[..]).unwrap(), 1);
+		assert_eq!(
+			H256::decode(&mut &results[1].as_ref().unwrap()[..]).unwrap(),
+			H256::from([0; 32])
+		);
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn get_non_existent_block_returns_none() {
+		let ctx = create_test_context().await;
+		let layer = create_layer(&ctx);
+
+		// Query a block that doesn't exist
+		let non_existent_block = u32::MAX;
+		let key = b"some_key";
+
+		let result = layer.get(non_existent_block, key).await.unwrap();
+		assert!(result.is_none(), "Non-existent block should return None");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn get_batch_non_existent_block_returns_none() {
+		let ctx = create_test_context().await;
+		let layer = create_layer(&ctx);
+
+		// Query a block that doesn't exist
+		let non_existent_block = u32::MAX;
+		let keys: Vec<&[u8]> = vec![b"key1", b"key2"];
+
+		let results = layer.get_batch(non_existent_block, &keys).await.unwrap();
+		assert_eq!(results.len(), 2);
+		assert!(results[0].is_none(), "Non-existent block should return None");
+		assert!(results[1].is_none(), "Non-existent block should return None");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn get_batch_mixed_block_scenarios() {
+		let ctx = create_test_context().await;
+		let mut layer = create_layer(&ctx);
+
+		// Wait for some blocks to be finalized
+		std::thread::sleep(Duration::from_secs(30));
+
+		// Test multiple scenarios:
+		// 1. Latest block (from modifications)
+		// 2. Historical block (from cache/RPC)
+
+		let key1 = b"local_key";
+		let key2 = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
+
+		// Set a local modification
+		layer.set(key1, Some(b"local_value")).unwrap();
+
+		// Get from latest block (should hit modifications)
+		let results1 = layer.get(ctx.block_number, &key1[..]).await.unwrap();
+		assert_eq!(results1.as_ref().map(|v| v.as_slice()), Some(b"local_value".as_slice()));
+
+		// Get from historical block (should fetch and cache block)
+		let historical_block = 0u32;
+		let results2 = layer.get(historical_block, key2.as_slice()).await.unwrap().unwrap();
+		assert_eq!(u32::decode(&mut &results2[..]).unwrap(), 0);
+
+		// Commit block modifications
+		layer.commit().await.unwrap();
+
+		layer.set(key1, Some(b"local_value_2")).unwrap();
+
+		let result_previous_block = layer.get(ctx.block_number, &key1[..]).await.unwrap();
+		let result_latest_block = layer.get(layer.latest_block_number, &key1[..]).await.unwrap();
+
+		assert_eq!(*result_previous_block.unwrap(), b"local_value".to_vec());
+		assert_eq!(*result_latest_block.unwrap(), b"local_value_2".to_vec());
 	}
 }
