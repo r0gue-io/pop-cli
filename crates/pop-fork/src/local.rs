@@ -223,6 +223,63 @@ impl LocalStorageLayer {
 		}
 	}
 
+	/// Get the next key after the given key that starts with the prefix.
+	///
+	/// # Arguments
+	/// * `prefix` - Storage key prefix to match
+	/// * `key` - The current key; returns the next key after this one
+	///
+	/// # Returns
+	/// * `Ok(Some(key))` - The next key after `key` that starts with `prefix`
+	/// * `Ok(None)` - No more keys with this prefix
+	/// * `Err(_)` - Lock error or parent layer error
+	///
+	/// # Behavior
+	/// 1. Queries the parent layer for the next key
+	/// 2. Skips keys that match deleted prefixes
+	/// 3. Does not consider locally modified keys (they are transient)
+	///
+	/// # Note
+	/// This method currently delegates directly to the parent layer.
+	/// Locally modified keys are not included in key enumeration since
+	/// they represent uncommitted changes.
+	pub async fn next_key(
+		&self,
+		prefix: &[u8],
+		key: &[u8],
+	) -> Result<Option<Vec<u8>>, LocalStorageError> {
+		// Get deleted prefixes to filter results
+		let deleted_prefixes = {
+			let lock = self
+				.deleted_prefixes
+				.try_read()
+				.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
+			lock.clone()
+		};
+
+		// Query parent and skip deleted keys
+		let mut current_key = key.to_vec();
+		loop {
+			let next =
+				self.parent.next_key(self.first_forked_block_hash, prefix, &current_key).await?;
+			match next {
+				Some(next_key) => {
+					// Check if this key matches any deleted prefix
+					if deleted_prefixes
+						.iter()
+						.any(|deleted| next_key.starts_with(deleted.as_slice()))
+					{
+						// Skip this key and continue searching
+						current_key = next_key;
+						continue;
+					}
+					return Ok(Some(next_key));
+				},
+				None => return Ok(None),
+			}
+		}
+	}
+
 	/// Set a storage value locally.
 	///
 	/// # Arguments
