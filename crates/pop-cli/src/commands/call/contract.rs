@@ -5,8 +5,8 @@ use crate::{
 	common::{
 		builds::{ensure_project_path, get_project_path},
 		contracts::{
-			has_contract_been_built, map_account, normalize_call_args, resolve_function_args,
-			resolve_signer,
+			build_contract_artifacts, has_contract_been_built, map_account, normalize_call_args,
+			resolve_function_args, resolve_signer,
 		},
 		prompt::display_message,
 		rpc::prompt_to_select_chain_rpc,
@@ -20,10 +20,9 @@ use cliclack::spinner;
 use pop_common::{DefaultConfig, Keypair, parse_h160_account};
 use pop_contracts::{
 	CallExec, CallOpts, ContractCallable, ContractFunction, ContractStorage, DefaultEnvironment,
-	Verbosity, Weight, build_smart_contract, call_smart_contract,
-	call_smart_contract_from_signed_payload, dry_run_gas_estimate_call,
-	fetch_contract_storage_with_param, get_call_payload, get_contract_storage_info, get_messages,
-	set_up_call,
+	Verbosity, Weight, call_smart_contract, call_smart_contract_from_signed_payload,
+	dry_run_gas_estimate_call, fetch_contract_storage_with_param, get_call_payload,
+	get_contract_storage_info, get_messages, set_up_call,
 };
 use serde::Serialize;
 use std::path::PathBuf;
@@ -205,28 +204,6 @@ impl CallContractCommand {
 		full_message
 	}
 
-	/// If the contract has not been built, build it in release mode.
-	async fn ensure_contract_built(&self, cli: &mut impl Cli) -> Result<()> {
-		let project_path = ensure_project_path(self.path.clone(), self.path_pos.clone());
-		// Build the contract in release mode
-		cli.warning("NOTE: contract has not yet been built.")?;
-		let spinner = spinner();
-		spinner.start("Building contract in RELEASE mode...");
-		let result = match build_smart_contract(&project_path, true, Verbosity::Quiet, None) {
-			Ok(result) => result,
-			Err(e) => {
-				return Err(anyhow!(format!(
-					"🚫 An error occurred building your contract: {e}\nUse `pop build` to retry with build output.",
-				)));
-			},
-		};
-		spinner.stop(format!(
-			"Your contract artifacts are ready. You can find them in: {}",
-			result.target_directory.display()
-		));
-		Ok(())
-	}
-
 	/// Prompts the user to confirm if the contract has already been deployed.
 	fn confirm_contract_deployment(&self, cli: &mut impl Cli) -> Result<()> {
 		let is_contract_deployed = cli
@@ -342,7 +319,8 @@ impl CallContractCommand {
 
 		// Ensure contract is built and check if deployed.
 		if self.is_contract_build_required() {
-			self.ensure_contract_built(cli).await?;
+			cli.warning("NOTE: contract has not yet been built.")?;
+			build_contract_artifacts(cli, contract_path, true, Verbosity::Quiet, None)?;
 			self.confirm_contract_deployment(cli)?;
 		}
 
