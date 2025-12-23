@@ -24,6 +24,8 @@ pub(crate) mod test;
 #[cfg(any(feature = "chain", feature = "contract"))]
 pub(crate) mod up;
 pub(crate) mod upgrade;
+#[cfg(feature = "contract")]
+pub(crate) mod verify;
 
 #[derive(Subcommand, Serialize)]
 #[command(subcommand_required = true)]
@@ -63,6 +65,10 @@ pub(crate) enum Command {
 	/// Convert between different formats.
 	#[clap(alias = "cv")]
 	Convert(convert::ConvertArgs),
+	/// Verify a smart contract binary
+	#[clap(alias = "v")]
+	#[cfg(feature = "contract")]
+	Verify(verify::VerifyCommand),
 }
 
 /// Help message for the build command.
@@ -222,6 +228,8 @@ impl Command {
 				env_logger::init();
 				args.command.execute(&mut Cli)
 			},
+			#[cfg(feature = "contract")]
+			Self::Verify(verify) => verify.execute(&mut Cli).await,
 		}
 	}
 }
@@ -281,6 +289,8 @@ impl Display for Command {
 			Command::Hash(args) => write!(f, "hash {}", args.command),
 			Command::Convert(args) => write!(f, "convert {}", args.command),
 			Command::Upgrade(_) => write!(f, "upgrade"),
+			#[cfg(feature = "contract")]
+			Command::Verify(_) => write!(f, "verify"),
 		}
 	}
 }
@@ -388,6 +398,18 @@ mod tests {
 					command: bench::Command::Pallet(Default::default()),
 				}),
 				"bench pallet",
+			),
+			// Verify
+			(
+				Command::Verify(verify::VerifyCommand {
+					path: None,
+					path_pos: None,
+					contract_path: Some(std::path::PathBuf::from("test.contract")),
+					url: None,
+					address: None,
+					image: None,
+				}),
+				"verify",
 			),
 		];
 

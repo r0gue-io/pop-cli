@@ -76,7 +76,10 @@ mod tests {
 	#[test]
 	fn test_get_manifest_path() -> Result<(), Error> {
 		let temp_dir = setup_test_environment()?;
-		get_manifest_path(&temp_dir.path().join("test_contract"))?;
+		let contract_dir = temp_dir.path().join("test_contract");
+		let expected_manifest_path = contract_dir.join("Cargo.toml").canonicalize()?;
+		let manifest_path = get_manifest_path(&temp_dir.path().join("test_contract"))?;
+		assert_eq!(manifest_path.as_ref(), &expected_manifest_path);
 		Ok(())
 	}
 
