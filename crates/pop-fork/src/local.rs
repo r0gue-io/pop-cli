@@ -174,10 +174,11 @@ impl LocalStorageLayer {
 		}
 
 		// Case 2: Historical block after fork - check local_storage table
-		if block_number > self.first_forked_block_number && block_number < latest_block_number {
-			if let Some(cached) = self.parent.cache().get_local_storage(block_number, key).await? {
-				return Ok(cached.map(Arc::new));
-			}
+		if block_number > self.first_forked_block_number &&
+			block_number < latest_block_number &&
+			let Some(cached) = self.parent.cache().get_local_storage(block_number, key).await?
+		{
+			return Ok(cached.map(Arc::new));
 		}
 
 		// Case 3: Block before or at fork point - query remote directly
@@ -495,26 +496,27 @@ impl LocalStorageLayer {
 	/// - Uses batch operation for efficiency
 	/// - Increases the latest block number
 	pub async fn commit(&mut self) -> Result<(), LocalStorageError> {
-		let modifications_lock = self
-			.modifications
-			.try_read()
-			.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
+		let new_latest_block =
+			self.latest_block_number.checked_add(1).ok_or(LocalStorageError::Arithmetic)?;
 
 		// Collect all modifications into a batch
-		let entries: Vec<(&[u8], Option<&[u8]>)> = modifications_lock
-			.iter()
-			.map(|(key, value)| (key.as_slice(), value.as_ref().map(|v| v.as_slice())))
-			.collect();
+		let diff = self.diff()?;
 
 		// Write all modifications to the local_storage table in a batch
-		if !entries.is_empty() {
+		if !diff.is_empty() {
+			let entries = diff
+				.iter()
+				.map(|(key, shared_value)| {
+					(key.as_slice(), shared_value.as_deref().map(|vec| vec.as_slice()))
+				})
+				.collect::<Vec<_>>();
 			self.parent
 				.cache()
-				.set_local_storage_batch(self.latest_block_number, &entries)
+				.set_local_storage_batch(self.latest_block_number, entries.as_slice())
 				.await?;
 		}
 
-		self.latest_block_number += 1;
+		self.latest_block_number = new_latest_block;
 
 		Ok(())
 	}

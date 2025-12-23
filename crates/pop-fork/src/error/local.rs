@@ -8,6 +8,9 @@ use thiserror::Error;
 /// Errors that can occur when accessing the local storage layer.
 #[derive(Debug, Error)]
 pub enum LocalStorageError {
+	/// Arithmetic error
+	#[error("Arithmetic error")]
+	Arithmetic,
 	/// Cache error
 	#[error(transparent)]
 	Cache(#[from] CacheError),
