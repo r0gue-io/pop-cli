@@ -30,7 +30,7 @@ cargo install --force --locked pop-cli
 sudo dpkg -i pop-cli_*.deb
 ```
 
-> :information_source: Pop CLI requires Rust 1.91.1 or later.
+> :information_source: Pop CLI requires Rust 1.92 or later.
 
 You can also install Pop CLI using the [Pop CLI GitHub repo](https://github.com/r0gue-io/pop-cli):
 
