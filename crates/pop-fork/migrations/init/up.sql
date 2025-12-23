@@ -20,3 +20,15 @@ CREATE TABLE blocks (
 
 -- Index to support lookups by number
 CREATE INDEX idx_blocks_number ON blocks(number);
+
+-- Create local storage table
+CREATE TABLE local_storage (
+    block_number BIGINT NOT NULL,
+    key BLOB NOT NULL,
+    value BLOB,
+    is_empty BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (block_number, key)
+);
+
+-- Index to accelerate block-wide deletes/queries
+CREATE INDEX idx_local_storage_block ON local_storage(block_number);
