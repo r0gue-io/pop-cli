@@ -38,20 +38,20 @@ impl CallArgs {
 		}
 
 		// Auto-detect project type based on current directory
-		let current_dir = std::env::current_dir()?;
-
 		#[cfg(feature = "contract")]
-		if pop_contracts::is_supported(&current_dir)? {
-			let mut cmd = contract::CallContractCommand::default();
-			cmd.path_pos = Some(current_dir);
-			return Ok(Command::Contract(cmd));
+		{
+			let current_dir = std::env::current_dir()?;
+			if matches!(pop_contracts::is_supported(&current_dir), Ok(true)) {
+				let mut cmd = contract::CallContractCommand::default();
+				cmd.path_pos = Some(current_dir);
+				return Ok(Command::Contract(cmd));
+			}
 		}
 
 		#[cfg(feature = "chain")]
-		if pop_chains::is_supported(&current_dir) {
-			return Ok(Command::Chain(Default::default()));
-		}
+		return Ok(Command::Chain(Default::default()));
 
+		#[cfg(not(feature = "chain"))]
 		Err(anyhow::anyhow!(
 			"Could not detect project type. Please specify 'chain' or 'contract' explicitly, \
 			or ensure you are in a valid contract or chain project directory."
@@ -74,7 +74,7 @@ impl Display for Command {
 mod tests {
 	use super::*;
 	use pop_common::helpers::with_current_dir;
-	use std::{env::set_current_dir, fs};
+	use std::fs;
 	use tempfile::tempdir;
 
 	#[test]
@@ -146,19 +146,7 @@ ink = "5.1.1"
 
 		// Try without Cargo.toml file
 		with_current_dir(temp_dir.as_ref(), || {
-			set_current_dir(temp_dir.path())?;
-			assert!(CallArgs { command: None }.resolve_command().is_err());
-
-			// Try with Cargo.toml file but without any relevant dependencies
-			let cargo_toml = r#"[package]
-name = "other-project"
-version = "0.1.0"
-
-[dependencies]
-regex = "1.10"
-"#;
-			fs::write(temp_dir.path().join("Cargo.toml"), cargo_toml)?;
-			assert!(CallArgs { command: None }.resolve_command().is_err());
+			assert!(matches!(CallArgs { command: None }.resolve_command()?, Command::Chain(_)));
 			Ok(())
 		})
 	}
