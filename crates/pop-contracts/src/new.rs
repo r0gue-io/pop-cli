@@ -7,9 +7,13 @@ use heck::ToUpperCamelCase;
 use pop_common::{Git, extract_template_files, replace_in_file, templates::Template};
 use std::{
 	collections::HashMap,
+	fs,
 	path::{Path, PathBuf},
 };
 use url::Url;
+
+const CI_TEMPLATE: &str = include_str!("../templates/ci.templ");
+const GITIGNORE_TEMPLATE: &str = include_str!("../templates/gitignore.templ");
 
 /// Create a new smart contract.
 ///
@@ -22,9 +26,21 @@ pub fn create_smart_contract(name: &str, target: &Path, template: &Contract) -> 
 	let canonicalized_path = canonicalized_path(target)?;
 	// Create a new default contract project with the provided name in the parent directory.
 	if matches!(template, Contract::Standard) {
-		return create_standard_contract(name, canonicalized_path);
+		create_standard_contract(name, canonicalized_path.clone())?;
+	} else {
+		create_template_contract(name, canonicalized_path.clone(), template)?;
 	}
-	create_template_contract(name, canonicalized_path, template)
+
+	// Create GitHub Actions workflow
+	let workflows_path = canonicalized_path.join(".github").join("workflows");
+	fs::create_dir_all(&workflows_path)?;
+	fs::write(workflows_path.join("ci.yml"), CI_TEMPLATE)?;
+	fs::write(canonicalized_path.join(".gitignore"), GITIGNORE_TEMPLATE)?;
+
+	// Initialize an empty repository
+	Git::git_create_empty_repository(&canonicalized_path)?;
+
+	Ok(())
 }
 
 /// Determines whether the provided name is valid for a smart contract.
@@ -136,6 +152,24 @@ mod tests {
 		assert!(generated_cargo.contains("name = \"test_contract\""));
 		assert!(generated_cargo.contains("ink = { version = \"6."));
 
+		// Verify that the CI file was created
+		let ci_file = temp_dir.path().join("test_contract/.github/workflows/ci.yml");
+		assert!(ci_file.exists());
+		let ci_content = fs::read_to_string(ci_file).expect("Could not read CI file");
+		assert!(ci_content.contains("name: Build and Test"));
+		assert!(ci_content.contains("pop build"));
+
+		// Verify that the .gitignore file was created
+		let gitignore_file = temp_dir.path().join("test_contract/.gitignore");
+		assert!(gitignore_file.exists());
+		let gitignore_content =
+			fs::read_to_string(gitignore_file).expect("Could not read .gitignore file");
+		assert!(gitignore_content.contains("/target/"));
+
+		// Verify that the git repository was initialized
+		let git_dir = temp_dir.path().join("test_contract/.git");
+		assert!(git_dir.exists());
+
 		Ok(())
 	}
 
@@ -155,6 +189,25 @@ mod tests {
 			.expect("Could not read file");
 		assert!(generated_cargo.contains("name = \"test_contract\""));
 		assert!(generated_cargo.contains("ink = { version = \"6."));
+
+		// Verify that the CI file was created
+		let ci_file = temp_dir.path().join("test_contract/.github/workflows/ci.yml");
+		assert!(ci_file.exists());
+		let ci_content = fs::read_to_string(ci_file).expect("Could not read CI file");
+		assert!(ci_content.contains("name: Build and Test"));
+		assert!(ci_content.contains("pop build"));
+
+		// Verify that the .gitignore file was created
+		let gitignore_file = temp_dir.path().join("test_contract/.gitignore");
+		assert!(gitignore_file.exists());
+		let gitignore_content =
+			fs::read_to_string(gitignore_file).expect("Could not read .gitignore file");
+		assert!(gitignore_content.contains("/target/"));
+
+		// Verify that the git repository was initialized
+		let git_dir = temp_dir.path().join("test_contract/.git");
+		assert!(git_dir.exists());
+
 		Ok(())
 	}
 

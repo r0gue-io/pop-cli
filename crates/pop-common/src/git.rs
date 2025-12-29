@@ -130,6 +130,16 @@ impl Git {
 		parse_latest_tag(&tags.iter().flatten().collect::<Vec<_>>()).map(|t| t.to_string())
 	}
 
+	/// Creates an empty git repository at the specified location.
+	///
+	/// # Arguments
+	///
+	/// * `target` - The path where the empty git repository will be initialized.
+	pub fn git_create_empty_repository(target: &Path) -> Result<(), git2::Error> {
+		GitRepository::init(target)?;
+		Ok(())
+	}
+
 	/// Init a new git repository.
 	///
 	/// # Arguments
