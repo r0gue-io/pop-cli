@@ -162,7 +162,7 @@ async fn field_to_param_works() -> Result<()> {
 	assert_eq!(params.first().unwrap().name, "source");
 	assert_eq!(
 		params.first().unwrap().type_name,
-		"MultiAddress<AccountId32 ([u8;32]),()>: Id(AccountId32 ([u8;32])), Index(Compact<()>), Raw([u8]), Address32([u8;32]), Address20([u8;20])"
+		"MultiAddress<AccountId32 ([u8;32]), ()>: Id(AccountId32 ([u8;32])), Index(Compact<()>), Raw([u8]), Address32([u8;32]), Address20([u8;20])"
 	);
 	assert_eq!(params.first().unwrap().sub_params.len(), 5);
 	assert_eq!(params.first().unwrap().sub_params.first().unwrap().name, "Id");

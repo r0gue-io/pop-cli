@@ -29,7 +29,7 @@ pub fn format_type(ty: &Type<PortableForm>, registry: &PortableRegistry) -> Stri
 			})
 			.map(|t| format_type(t, registry))
 			.collect();
-		name = format!("{name}<{}>", params.join(","));
+		name = format!("{name}<{}>", params.join(", "));
 	}
 	name = format!(
 		"{name}{}",
@@ -115,7 +115,7 @@ pub fn format_type(ty: &Type<PortableForm>, registry: &PortableRegistry) -> Stri
 					.filter_map(|p| registry.resolve(p.id))
 					.map(|t| format_type(t, registry))
 					.collect();
-				format!("({})", fields.join(","))
+				format!("({})", fields.join(", "))
 			},
 			TypeDef::Primitive(primitive) => {
 				use TypeDefPrimitive::*;

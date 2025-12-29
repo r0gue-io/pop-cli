@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{cli::traits::*, common::builds::find_runtime_dir};
-use cliclack::{ProgressBar, spinner};
+use cliclack::spinner;
 use console::style;
 use pop_chains::utils::helpers::get_preset_names;
 #[cfg(feature = "chain")]
-use pop_chains::{
-	ContainerEngine, DeterministicBuilder, GenesisBuilderPolicy, build_project, runtime_binary_path,
-};
+use pop_chains::{DeterministicBuilder, GenesisBuilderPolicy, build_project, runtime_binary_path};
 use pop_common::{Profile, manifest::from_path};
 use std::{
 	self,
@@ -69,7 +67,7 @@ impl From<&str> for Feature {
 /// * `mode`: The build profile.
 /// * `force`: Whether to force the build process.
 #[cfg(feature = "chain")]
-pub fn ensure_runtime_binary_exists(
+pub async fn ensure_runtime_binary_exists(
 	cli: &mut impl Cli,
 	project_path: &Path,
 	mode: &Profile,
@@ -77,6 +75,7 @@ pub fn ensure_runtime_binary_exists(
 	force: bool,
 	deterministic: bool,
 	default_runtime_path: &Option<PathBuf>,
+	tag: Option<String>,
 ) -> anyhow::Result<(PathBuf, PathBuf)> {
 	let target_path = mode.target_directory(project_path).join("wbuild");
 	let runtime_path = match default_runtime_path {
@@ -105,35 +104,43 @@ pub fn ensure_runtime_binary_exists(
 	}
 	// Rebuild the runtime if the binary is not found or the user has forced the build process.
 	if force {
-		return build_runtime(cli, &runtime_path, &target_path, mode, features, deterministic);
+		return build_runtime(cli, &runtime_path, &target_path, mode, features, deterministic, tag)
+			.await;
 	}
 	match runtime_binary_path(&target_path, &runtime_path) {
 		Ok(binary_path) => Ok((binary_path, runtime_path)),
 		_ => {
 			cli.info("📦 Runtime binary was not found. The runtime will be built locally.")?;
-			build_runtime(cli, &runtime_path, &target_path, mode, features, deterministic)
+			build_runtime(cli, &runtime_path, &target_path, mode, features, deterministic, tag)
+				.await
 		},
 	}
 }
 
 /// Build a runtime. Returns the path to the runtime binary and the path to the runtime source.
 #[cfg(feature = "chain")]
-pub(crate) fn build_runtime(
+pub(crate) async fn build_runtime(
 	cli: &mut impl Cli,
 	runtime_path: &Path,
 	target_path: &Path,
 	mode: &Profile,
 	features: &[Feature],
 	deterministic: bool,
+	tag: Option<String>,
 ) -> anyhow::Result<(PathBuf, PathBuf)> {
 	cli.warning("NOTE: this may take some time...")?;
 	let binary_path = if deterministic {
 		let spinner = spinner();
 		let manifest = from_path(runtime_path)?;
-		let package = manifest.package();
+		let package = manifest.package.as_ref().ok_or(anyhow::anyhow!(format!(
+			"Couldn't find package declaration at {:?}",
+			runtime_path
+		)))?;
 		let name = package.clone().name;
 		spinner.start("Building deterministic runtime...");
-		build_deterministic_runtime(cli, &spinner, &name, *mode, runtime_path.to_path_buf())?.0
+		build_deterministic_runtime(&name, *mode, runtime_path.to_path_buf(), tag)
+			.await?
+			.0
 	} else {
 		cli.info(format!("Building your runtime in {mode} mode..."))?;
 		let features: Vec<String> = features.iter().map(|f| f.as_ref().to_string()).collect();
@@ -170,31 +177,24 @@ fn print_build_output(cli: &mut impl Cli, binary_path: &Path) -> anyhow::Result<
 /// * `profile`: The build profile.
 /// * `runtime_dir`: The runtime directory.
 #[cfg(feature = "chain")]
-pub(crate) fn build_deterministic_runtime(
-	cli: &mut impl Cli,
-	spinner: &ProgressBar,
+pub(crate) async fn build_deterministic_runtime(
 	package: &str,
 	profile: Profile,
 	runtime_dir: PathBuf,
+	tag: Option<String>,
 ) -> anyhow::Result<(PathBuf, Vec<u8>)> {
 	let runtime_path = {
-		let engine = ContainerEngine::detect().map_err(|_| anyhow::anyhow!("No container engine detected. A supported containerization solution (Docker or Podman) is required."))?;
-		// Warning from srtool-cli: https://github.com/chevdor/srtool-cli/blob/master/cli/src/main.rs#L28).
-		if engine == ContainerEngine::Docker {
-			cli.warning("WARNING: You are using docker. It is recommended to use podman instead.")?;
-		}
-		spinner.set_message(
-			"NOTE: This process may take longer than 10-15 minutes. Please be patient...",
-		);
-		let builder = DeterministicBuilder::new(engine, None, package, profile, runtime_dir)?;
+		let builder = DeterministicBuilder::new(None, package, profile, runtime_dir, tag).await?;
 		let wasm_path = builder.build()?;
 		if !wasm_path.exists() {
 			return Err(anyhow::anyhow!("Can't find the generated runtime at {:?}", wasm_path));
 		};
 		Ok(wasm_path)
-	}.map_err(|e: anyhow::Error| anyhow::anyhow!("Failed to build the deterministic runtime: {e}"))?;
+	}
+	.map_err(|e: anyhow::Error| {
+		anyhow::anyhow!("Failed to build the deterministic runtime: {e}")
+	})?;
 	let code = fs::read(&runtime_path).map_err(anyhow::Error::from)?;
-	cli.success("\n✅ Runtime built successfully.\n")?;
 	Ok((runtime_path, code))
 }
 
@@ -279,8 +279,8 @@ mod tests {
 		assert_eq!(Feature::TryRuntime.as_ref(), "try-runtime");
 	}
 
-	#[test]
-	fn ensure_runtime_binary_exists_works() -> anyhow::Result<()> {
+	#[tokio::test]
+	async fn ensure_runtime_binary_exists_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 		let temp_path = temp_dir.path().to_path_buf();
 		fs::create_dir(temp_path.join("target"))?;
@@ -301,8 +301,10 @@ mod tests {
 					&[],
 					true,
 					false,
-					&None
-				)?,
+					&None,
+					None
+				)
+				.await?,
 				(binary_path.canonicalize()?, binary_path.canonicalize()?)
 			);
 			cli.verify()?;
@@ -316,8 +318,10 @@ mod tests {
 					&[],
 					true,
 					false,
-					&Some(binary_path.canonicalize()?)
-				)?,
+					&Some(binary_path.canonicalize()?),
+					None
+				)
+				.await?,
 				(binary_path.canonicalize()?, binary_path.canonicalize()?)
 			);
 		}
@@ -325,8 +329,8 @@ mod tests {
 		Ok(())
 	}
 
-	#[test]
-	fn build_runtime_works() -> anyhow::Result<()> {
+	#[tokio::test]
+	async fn build_runtime_works() -> anyhow::Result<()> {
 		let temp_dir = tempdir()?;
 		let path = temp_dir.path();
 		let runtime_name = "mock_runtime";
@@ -366,7 +370,16 @@ mod tests {
 						"Need help? Learn more at {}\n",
 						style("https://learn.onpop.io").magenta().underlined()
 					));
-				build_runtime(&mut cli, &project_path, &target_path, profile, &features, false)?;
+				build_runtime(
+					&mut cli,
+					&project_path,
+					&target_path,
+					profile,
+					&features,
+					false,
+					None,
+				)
+				.await?;
 				cli.verify()?;
 			}
 		}

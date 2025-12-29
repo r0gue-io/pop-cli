@@ -84,6 +84,42 @@ jobs:
           files: |
             ${{ env.path }}/${{ env.package }}
 
+  build-debian:
+    name: Build Debian Package
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    if: github.event_name == 'release'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.ref }}
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl git debhelper libssl-dev pkg-config protobuf-compiler
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+      - name: Build Debian package
+        run: |
+          . "$HOME/.cargo/env"
+          dpkg-buildpackage -us -uc -d
+
+      - name: Upload Debian package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pop-cli-debian-package
+          path: ${{ github.workspace }}/../pop-cli_*.deb
+
+      - name: Upload Debian package to release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ${{ github.workspace }}../pop-cli_*.deb
+
   publish-homebrew:
     name: Publish to Homebrew
     runs-on: ubuntu-latest
