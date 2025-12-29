@@ -29,6 +29,9 @@ jobs:
           sudo $(which pop) install -y
           rustup component add rust-src
 
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
       - name: Build contract
         run: pop build
 
