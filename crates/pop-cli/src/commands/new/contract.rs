@@ -35,6 +35,9 @@ pub struct NewContractCommand {
 	/// The template to use.
 	#[arg(short, long, value_parser = enum_variants!(Contract))]
 	pub(crate) template: Option<Contract>,
+	/// List available templates.
+	#[arg(short, long)]
+	pub(crate) list: bool,
 	/// Also scaffold a frontend. Optionally specify template, if flag provided without value,
 	/// prompts for template selection.
 	#[arg(
@@ -56,6 +59,16 @@ impl NewContractCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(&mut self) -> Result<()> {
 		let mut cli = Cli;
+
+		if self.list {
+			cli.intro("Available templates")?;
+			for template in Contract::templates() {
+				if !template.is_deprecated() {
+					cli.info(format!("{}: {}", template.name(), template.description()))?;
+				}
+			}
+			return Ok(());
+		}
 
 		// Prompt for missing fields interactively
 		if self.name.is_none() || self.template.is_none() {
@@ -234,7 +247,7 @@ mod tests {
 		let dir_path = format!("{}/test_contract", dir.path().display());
 		let cli = Cli::parse_from(["pop", "new", "contract", &dir_path, "--template", "standard"]);
 
-		let New(NewArgs { command: Some(Contract(mut command)) }) = cli.command else {
+		let New(NewArgs { command: Some(Contract(mut command)), .. }) = cli.command else {
 			panic!("unable to parse command")
 		};
 		// Execute
@@ -308,6 +321,16 @@ mod tests {
 	}
 
 	#[tokio::test]
+	async fn test_new_contract_list_templates() -> Result<()> {
+		let mut command = NewContractCommand { list: true, ..Default::default() };
+		// Just ensure it can be executed without error.
+		// Since it uses the real Cli internally, we can't easily verify output in this unit test
+		// without refactoring execute to take a Cli trait object.
+		command.execute().await?;
+		Ok(())
+	}
+
+	#[tokio::test]
 	async fn test_contract_in_workspace_with_simple_name() -> Result<()> {
 		// The bug occurs when you pass a simple name like "flipper" instead of "./flipper"
 		// and the contract is created inside a workspace.
@@ -337,7 +360,7 @@ edition = "2024"
 			"--template",
 			"standard", // Just the name, not a path like "./flipper"
 		]);
-		let New(NewArgs { command: Some(Contract(mut command)) }) = cli.command else {
+		let New(NewArgs { command: Some(Contract(mut command)), .. }) = cli.command else {
 			panic!("unable to parse command")
 		};
 		let result = command.execute().await;

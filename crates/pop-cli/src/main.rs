@@ -158,14 +158,18 @@ mod tests {
 			assert_eq!(
 				Cli {
 					command: Command::New(NewArgs {
-						command: Some(NewCommand::Chain(Default::default()))
+						command: Some(NewCommand::Chain(Default::default())),
+						list: false,
 					})
 				}
 				.to_string(),
 				"new chain"
 			);
 			// New command display without subcommand.
-			assert_eq!(Cli { command: Command::New(NewArgs { command: None }) }.to_string(), "new");
+			assert_eq!(
+				Cli { command: Command::New(NewArgs { command: None, list: false }) }.to_string(),
+				"new"
+			);
 		}
 
 		#[test]

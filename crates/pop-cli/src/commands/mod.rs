@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{cache, cli::Cli};
+use crate::{
+	cache,
+	cli::{Cli, traits::Cli as _},
+};
+use pop_common::templates::Template;
 
 use clap::Subcommand;
 use serde::Serialize;
@@ -100,6 +104,37 @@ impl Command {
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::New(args) => {
 				env_logger::init();
+
+				if args.list {
+					Cli.intro("Available templates")?;
+					#[cfg(feature = "chain")]
+					{
+						Cli.success("Available chain templates")?;
+						for template in pop_chains::ChainTemplate::templates() {
+							if !template.is_deprecated() {
+								Cli.info(format!(
+									"{}: {}",
+									template.name(),
+									template.description()
+								))?;
+							}
+						}
+					}
+					#[cfg(feature = "contract")]
+					{
+						Cli.success("Available contract templates")?;
+						for template in pop_contracts::Contract::templates() {
+							if !template.is_deprecated() {
+								Cli.info(format!(
+									"{}: {}",
+									template.name(),
+									template.description()
+								))?;
+							}
+						}
+					}
+					return Ok(());
+				}
 
 				// If no command is provided, guide the user to select one interactively
 				let command = match &mut args.command {
@@ -367,18 +402,21 @@ mod tests {
 			(
 				Command::New(new::NewArgs {
 					command: Some(new::Command::Chain(Default::default())),
+					list: false,
 				}),
 				"new chain",
 			),
 			(
 				Command::New(new::NewArgs {
 					command: Some(new::Command::Pallet(Default::default())),
+					list: false,
 				}),
 				"new pallet",
 			),
 			(
 				Command::New(new::NewArgs {
 					command: Some(new::Command::Contract(Default::default())),
+					list: false,
 				}),
 				"new contract",
 			),
