@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{
-	cache,
-	cli::{Cli, traits::Cli as _},
-};
+#[cfg(any(feature = "chain", feature = "contract"))]
+use crate::cli::traits::Cli as _;
+use crate::{cache, cli::Cli};
+#[cfg(any(feature = "chain", feature = "contract"))]
 use pop_common::templates::Template;
 
 use clap::Subcommand;
