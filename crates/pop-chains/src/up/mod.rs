@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	errors::Error, omni_node::PolkadotOmniNodeCli::PolkadotOmniNode, registry::traits::Rollup,
-	up::chain_specs::Runtime,
+	errors::Error, omni_node::PolkadotOmniNodeCli::PolkadotOmniNode,
+	registry::traits::Chain as ChainT, up::chain_specs::Runtime,
 };
 pub use chain_specs::Runtime as Relay;
 use glob::glob;
@@ -330,20 +330,20 @@ impl Zombienet {
 pub struct NetworkConfiguration(NetworkConfig, BTreeSet<u32>);
 
 impl NetworkConfiguration {
-	/// Build a network configuration for the specified relay chain and rollups.
+	/// Build a network configuration for the specified relay chain and chains.
 	///
 	/// # Arguments
 	/// * `relay_chain` - The relay chain runtime to be used.
 	/// * `port` - The port to be used for the first relay chain validator.
-	/// * `rollups` - The optional rollups to be included.
+	/// * `chains` - The optional chains to be included.
 	pub fn build(
 		relay_chain: Relay,
 		port: Option<u16>,
-		rollups: Option<&[Box<dyn Rollup>]>,
+		chains: Option<&[Box<dyn ChainT>]>,
 	) -> Result<Self, Error> {
 		let validators: Vec<_> = VALIDATORS
 			.into_iter()
-			.take(rollups.as_ref().map(|v| v.len()).unwrap_or_default().max(2))
+			.take(chains.as_ref().map(|v| v.len()).unwrap_or_default().max(2))
 			.map(String::from)
 			.collect();
 
@@ -363,24 +363,24 @@ impl NetworkConfiguration {
 			builder
 		});
 
-		if let Some(rollups) = rollups {
+		if let Some(chains) = chains {
 			let mut dependencies =
-				rollups.iter().filter_map(|p| p.requires()).flatten().collect::<Vec<_>>();
+				chains.iter().filter_map(|p| p.requires()).flatten().collect::<Vec<_>>();
 
-			for rollup in rollups {
+			for chain in chains {
 				builder = builder.with_parachain(|builder| {
 					let mut builder = builder
-						.with_id(rollup.id())
-						.with_chain(rollup.chain())
-						.with_default_command(rollup.binary());
+						.with_id(chain.id())
+						.with_chain(chain.chain())
+						.with_default_command(chain.binary());
 
 					// Apply any genesis overrides
 					let mut genesis_overrides = serde_json::Map::new();
-					if let Some(mut r#override) = rollup.genesis_overrides() {
+					if let Some(mut r#override) = chain.genesis_overrides() {
 						r#override(&mut genesis_overrides);
 					}
 					for (_, r#override) in
-						dependencies.iter_mut().filter(|(t, _)| t == &rollup.as_any().type_id())
+						dependencies.iter_mut().filter(|(t, _)| t == &chain.as_any().type_id())
 					{
 						r#override(&mut genesis_overrides);
 					}
@@ -390,13 +390,13 @@ impl NetworkConfiguration {
 
 					builder.with_collator(|builder| {
 						let mut builder =
-							builder.with_name(&format!("{}-collator", rollup.name())).with_args(
-								rollup
+							builder.with_name(&format!("{}-collator", chain.name())).with_args(
+								chain
 									.args()
 									.map(|args| args.into_iter().map(|arg| arg.into()).collect())
 									.unwrap_or_default(),
 							);
-						if let Some(port) = rollup.port() {
+						if let Some(port) = chain.port() {
 							builder = builder.with_rpc_port(*port)
 						}
 						builder
@@ -404,10 +404,10 @@ impl NetworkConfiguration {
 				})
 			}
 
-			// Open HRMP channels between all rollups
-			let rollups = || rollups.iter().map(|p| p.id());
+			// Open HRMP channels between all chains
+			let chains = || chains.iter().map(|p| p.id());
 			for (sender, recipient) in
-				rollups().flat_map(|s| rollups().filter(move |r| s != *r).map(move |r| (s, r)))
+				chains().flat_map(|s| chains().filter(move |r| s != *r).map(move |r| (s, r)))
 			{
 				builder = builder.with_hrmp_channel(|channel| {
 					channel
@@ -1840,7 +1840,7 @@ validator = true
 
 	mod network_config {
 		use super::{Relay::*, *};
-		use crate::registry::rollups;
+		use crate::registry::chains;
 		use std::{
 			fs::{File, create_dir_all},
 			io::Write,
@@ -1956,21 +1956,21 @@ chain = "paseo-local"
 		fn build_works() -> Result<(), Error> {
 			let port = 9944;
 			for relay in [Paseo, Kusama, Polkadot, Westend] {
-				let mut rollups: Vec<_> = rollups(&relay).to_vec();
-				rollups
+				let mut chains: Vec<_> = chains(&relay).to_vec();
+				chains
 					.iter_mut()
 					.enumerate()
-					.for_each(|(i, rollup)| rollup.set_port(port + i as u16 + 1));
+					.for_each(|(i, chain)| chain.set_port(port + i as u16 + 1));
 				let relay_chain = relay.chain();
 
 				let config =
-					NetworkConfiguration::build(relay, Some(port), Some(rollups.as_slice()))?;
+					NetworkConfiguration::build(relay, Some(port), Some(chains.as_slice()))?;
 
 				let relay_config = config.0.relaychain();
 				assert_eq!(relay_config.chain().as_str(), relay_chain);
 				// TODO: Just a temporary removal, once Paseo chain-spec-generator supports
 				// passet-hub just remove the comment.
-				//assert_eq!(relay_config.nodes().len(), rollups.len().max(2));
+				//assert_eq!(relay_config.nodes().len(), chains.len().max(2));
 				assert_eq!(
 					relay_config.nodes().iter().map(|n| n.name()).collect::<Vec<_>>(),
 					VALIDATORS.into_iter().take(relay_config.nodes().len()).collect::<Vec<_>>()
@@ -1978,45 +1978,45 @@ chain = "paseo-local"
 				assert_eq!(relay_config.nodes().first().unwrap().rpc_port().unwrap(), port);
 
 				let parachains = config.0.parachains();
-				assert_eq!(parachains.len(), rollups.len());
-				for (i, rollup) in rollups.iter().enumerate() {
-					let parachain = parachains.iter().find(|p| p.id() == rollup.id()).unwrap();
-					assert_eq!(parachain.chain().unwrap().as_str(), rollup.chain());
-					assert_eq!(parachain.default_command().unwrap().as_str(), rollup.binary());
-					println!("{} {}", relay_chain, rollup.name());
+				assert_eq!(parachains.len(), chains.len());
+				for (i, chain) in chains.iter().enumerate() {
+					let parachain = parachains.iter().find(|p| p.id() == chain.id()).unwrap();
+					assert_eq!(parachain.chain().unwrap().as_str(), chain.chain());
+					assert_eq!(parachain.default_command().unwrap().as_str(), chain.binary());
+					println!("{} {}", relay_chain, chain.name());
 					assert_eq!(
 						parachain.genesis_overrides().is_some(),
-						rollup.genesis_overrides().is_some() ||
-							rollups.iter().any(|r| r
+						chain.genesis_overrides().is_some() ||
+							chains.iter().any(|r| r
 								.requires()
-								.map(|r| r.contains_key(&rollup.as_any().type_id()))
+								.map(|r| r.contains_key(&chain.as_any().type_id()))
 								.unwrap_or_default())
 					);
 					let collators = parachain.collators();
 					assert_eq!(collators.len(), 1);
 					let collator = collators.first().unwrap();
-					assert_eq!(collator.name(), &format!("{}-collator", rollup.name()));
+					assert_eq!(collator.name(), &format!("{}-collator", chain.name()));
 					assert_eq!(
 						collator.args().len(),
-						rollup.args().map(|a| a.len()).unwrap_or_default()
+						chain.args().map(|a| a.len()).unwrap_or_default()
 					);
 					assert_eq!(collator.rpc_port(), Some(port + i as u16 + 1));
 				}
 
-				// Ensure channels open between all rollups
+				// Ensure channels open between all chains
 				let channels = config.0.hrmp_channels();
-				assert_eq!(channels.len(), rollups.len() * (rollups.len() - 1));
-				for rollup in rollups.iter() {
-					for other in rollups.iter().filter(|r| r.id() != rollup.id()) {
+				assert_eq!(channels.len(), chains.len() * (chains.len() - 1));
+				for chain in chains.iter() {
+					for other in chains.iter().filter(|r| r.id() != chain.id()) {
 						assert!(
 							channels
 								.iter()
-								.any(|c| c.sender() == rollup.id() && c.recipient() == other.id())
+								.any(|c| c.sender() == chain.id() && c.recipient() == other.id())
 						);
 						assert!(
 							channels
 								.iter()
-								.any(|c| c.sender() == other.id() && c.recipient() == rollup.id())
+								.any(|c| c.sender() == other.id() && c.recipient() == chain.id())
 						);
 					}
 				}

@@ -11,7 +11,7 @@ use pop_common::{
 	target,
 };
 
-/// A rollup containing core Polkadot protocol features.
+/// A chain containing core Polkadot protocol features.
 ///
 /// See <https://docs.polkadot.com/polkadot-protocol/architecture/system-chains/overview/> for more details.
 #[derive(Clone)]
@@ -52,7 +52,7 @@ impl Args for System {
 // Macro for reducing boilerplate code.
 macro_rules! impl_system_rollup {
 	($name:ident) => {
-		impl_rollup!($name);
+		impl_chain!($name);
 		impl Requires for $name {}
 
 		impl SourceT for $name {
@@ -82,15 +82,15 @@ macro_rules! impl_system_rollup {
 ///
 /// See <https://docs.polkadot.com/polkadot-protocol/architecture/system-chains/asset-hub/> for more details.
 #[derive(Clone, Debug, PartialEq)]
-pub struct AssetHub(pub(super) Rollup);
+pub struct AssetHub(pub(super) Chain);
 impl AssetHub {
 	/// A new instance of the Asset Hub.
 	///
 	/// # Arguments
-	/// * `id` - The rollup identifier.
+	/// * `id` - The chain identifier.
 	/// * `relay` - The relay chain.
 	pub fn new(id: Id, relay: Relay) -> Self {
-		Self(Rollup::new("asset-hub", id, format!("asset-hub-{}", relay.chain())))
+		Self(Chain::new("asset-hub", id, format!("asset-hub-{}", relay.chain())))
 	}
 }
 impl_system_rollup!(AssetHub);
@@ -100,89 +100,89 @@ impl_system_rollup!(AssetHub);
 ///
 /// See <https://docs.polkadot.com/polkadot-protocol/architecture/system-chains/bridge-hub/> for more details.
 #[derive(Clone)]
-pub struct BridgeHub(Rollup);
+pub struct BridgeHub(Chain);
 impl BridgeHub {
 	/// A new instance of the Bridge Hub.
 	///
 	/// # Arguments
-	/// * `id` - The rollup identifier.
+	/// * `id` - The chain identifier.
 	/// * `relay` - The relay chain.
 	pub fn new(id: Id, relay: Relay) -> Self {
-		Self(Rollup::new("bridge-hub", id, format!("bridge-hub-{}", relay.chain())))
+		Self(Chain::new("bridge-hub", id, format!("bridge-hub-{}", relay.chain())))
 	}
 }
 impl_system_rollup!(BridgeHub);
 
-/// The Collectives chain operates as a dedicated rollup exclusive to the Polkadot network.
+/// The Collectives chain operates as a dedicated chain exclusive to the Polkadot network.
 /// This specialized infrastructure provides a foundation for various on-chain governance groups
 /// essential to Polkadot's ecosystem.
 ///
 /// See <https://docs.polkadot.com/polkadot-protocol/architecture/system-chains/collectives/> for more details.
 #[derive(Clone)]
-pub struct Collectives(Rollup);
+pub struct Collectives(Chain);
 impl Collectives {
 	/// A new instance of the Collectives chain.
 	///
 	/// # Arguments
-	/// * `id` - The rollup identifier.
+	/// * `id` - The chain identifier.
 	/// * `relay` - The relay chain.
 	pub fn new(id: Id, relay: Relay) -> Self {
-		Self(Rollup::new("collectives", id, format!("collectives-{}", relay.chain())))
+		Self(Chain::new("collectives", id, format!("collectives-{}", relay.chain())))
 	}
 }
 impl_system_rollup!(Collectives);
 
 /// The Coretime system chain facilitates the allocation, procurement, sale, and scheduling of
-/// bulk coretime, enabling tasks (such as rollups) to utilize the computation and security
+/// bulk coretime, enabling tasks (such as chains) to utilize the computation and security
 /// provided by Polkadot.
 ///
 /// See <https://docs.polkadot.com/polkadot-protocol/architecture/system-chains/coretime/> for more details.
 #[derive(Clone)]
-pub struct Coretime(Rollup);
+pub struct Coretime(Chain);
 impl Coretime {
 	/// A new instance of the Coretime chain.
 	///
 	/// # Arguments
-	/// * `id` - The rollup identifier.
+	/// * `id` - The chain identifier.
 	/// * `relay` - The relay chain.
 	pub fn new(id: Id, relay: Relay) -> Self {
-		Self(Rollup::new("coretime", id, format!("coretime-{}", relay.chain())))
+		Self(Chain::new("coretime", id, format!("coretime-{}", relay.chain())))
 	}
 }
 impl_system_rollup!(Coretime);
 
-/// The People system chain is a specialized rollup within the Polkadot ecosystem dedicated
+/// The People system chain is a specialized chain within the Polkadot ecosystem dedicated
 /// to secure, decentralized identity management.
 ///
 /// See <https://docs.polkadot.com/polkadot-protocol/architecture/system-chains/people/> for more details.
 #[derive(Clone)]
-pub struct People(Rollup);
+pub struct People(Chain);
 impl People {
 	/// A new instance of the People chain.
 	///
 	/// # Arguments
-	/// * `id` - The rollup identifier.
+	/// * `id` - The chain identifier.
 	/// * `relay` - The relay chain.
 	pub fn new(id: Id, relay: Relay) -> Self {
-		Self(Rollup::new("people", id, format!("people-{}", relay.chain())))
+		Self(Chain::new("people", id, format!("people-{}", relay.chain())))
 	}
 }
 impl_system_rollup!(People);
 
-/// The PassetHub system chain is a temporary rollup within the Polkadot ecosystem dedicated
+/// The PassetHub system chain is a temporary chain within the Polkadot ecosystem dedicated
 /// to deploy smart contracts..
 ///
 /// See <https://docs.polkadot.com/polkadot-protocol/smart-contract-basics/networks/#passet-hub> for more details.
 #[derive(Clone)]
-pub struct PassetHub(Rollup);
+pub struct PassetHub(Chain);
 impl PassetHub {
 	/// A new instance of the PassetHub chain.
 	///
 	/// # Arguments
-	/// * `id` - The rollup identifier.
+	/// * `id` - The chain identifier.
 	/// * `relay` - The relay chain.
 	pub fn new(id: Id, relay: Relay) -> Self {
-		Self(Rollup::new("passet-hub", id, format!("passet-hub-{}", relay.chain())))
+		Self(Chain::new("passet-hub", id, format!("passet-hub-{}", relay.chain())))
 	}
 }
 impl_system_rollup!(PassetHub);
