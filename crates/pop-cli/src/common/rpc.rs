@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::traits::{Cli, Input, Select};
+use crate::{
+	cli::traits::{Cli, Input, Select},
+	common::urls,
+};
 use anyhow::{Result, anyhow};
 use serde::Deserialize;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -58,22 +61,26 @@ pub(crate) async fn prompt_to_select_chain_rpc(
 ) -> Result<Url> {
 	// Select from available endpoints
 	let mut prompt = cli.select(select_message);
-	prompt = prompt.item(0, "Custom", "Type the chain URL manually");
+	prompt = prompt.item(0, "Local", "Deploy in a local node");
+	prompt = prompt.item(1, "Custom", "Type the chain URL manually");
 	let chains = extract_chain_endpoints().await.unwrap_or_default();
 	let prompt = chains.iter().enumerate().fold(prompt, |acc, (pos, node)| {
 		if filter_fn(node) { acc.item(pos + 1, &node.name, "") } else { acc }
 	});
 
 	let selected = prompt.filter_mode().interact()?;
-	let url = if selected == 0 {
+	let url = match selected {
+		// Select the local URL
+		0 => urls::LOCAL.to_string(),
 		// Manually enter the URL
-		cli.input(input_message).default_input(default_input).interact()?
-	} else {
-		// Randomly select a provider from the chain's provider list
-		let providers = &chains[selected - 1].providers;
-		let random_position =
-			(SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis() as usize) % providers.len();
-		providers[random_position].clone()
+		1 => cli.input(input_message).default_input(default_input).interact()?,
+		_ => {
+			// Randomly select a provider from the chain's provider list
+			let providers = &chains[selected - 1].providers;
+			let random_position = (SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis()
+				as usize) % providers.len();
+			providers[random_position].clone()
+		},
 	};
 	Ok(Url::parse(&url)?)
 }
