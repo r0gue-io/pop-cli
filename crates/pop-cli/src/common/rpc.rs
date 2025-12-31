@@ -76,7 +76,7 @@ pub(crate) async fn prompt_to_select_chain_rpc(
 		1 => cli.input(input_message).default_input(default_input).interact()?,
 		_ => {
 			// Randomly select a provider from the chain's provider list
-			let providers = &chains[selected - 1].providers;
+			let providers = &chains[selected - 2].providers;
 			let random_position = (SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis()
 				as usize) % providers.len();
 			providers[random_position].clone()
