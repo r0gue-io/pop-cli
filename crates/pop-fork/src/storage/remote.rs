@@ -10,20 +10,20 @@
 //!
 //! ```text
 //! ┌─────────────────────────────────────────────────────────────────┐
-//! │                    RemoteStorageLayer                            │
-//! │                                                                   │
+//! │                    RemoteStorageLayer                           │
+//! │                                                                 │
 //! │   get(key) ─────► Cache Hit? ──── Yes ────► Return cached value │
-//! │                        │                                         │
-//! │                        No                                        │
-//! │                        │                                         │
-//! │                        ▼                                         │
-//! │                 Fetch from RPC                                   │
-//! │                        │                                         │
-//! │                        ▼                                         │
-//! │                 Store in cache                                   │
-//! │                        │                                         │
-//! │                        ▼                                         │
-//! │                 Return value                                     │
+//! │                        │                                        │
+//! │                        No                                       │
+//! │                        │                                        │
+//! │                        ▼                                        │
+//! │                 Fetch from RPC                                  │
+//! │                        │                                        │
+//! │                        ▼                                        │
+//! │                 Store in cache                                  │
+//! │                        │                                        │
+//! │                        ▼                                        │
+//! │                 Return value                                    │
 //! └─────────────────────────────────────────────────────────────────┘
 //! ```
 //!
@@ -45,7 +45,8 @@
 //! let value = storage.get(&key).await?;
 //! ```
 
-use crate::{ForkRpcClient, StorageCache, error::RemoteStorageError};
+use crate::{ForkRpcClient, StorageCache, error::RemoteStorageError, storage::StorageProvider};
+use async_trait::async_trait;
 use subxt::config::substrate::H256;
 
 /// Remote storage layer that lazily fetches state from a live chain.
@@ -240,6 +241,13 @@ impl RemoteStorageLayer {
 		}
 
 		Ok(total_fetched)
+	}
+}
+
+#[async_trait]
+impl StorageProvider for RemoteStorageLayer {
+	async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, RemoteStorageError> {
+		self.get(key).await
 	}
 }
 
