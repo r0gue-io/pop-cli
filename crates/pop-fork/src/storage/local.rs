@@ -48,6 +48,8 @@ use async_trait::async_trait;
 use parking_lot::RwLock;
 use std::{collections::HashMap, sync::Arc};
 
+type Data = HashMap<Vec<u8>, Option<Vec<u8>>>;
+
 /// Local storage layer that tracks modifications on top of a parent storage provider.
 ///
 /// It uses a copy-on-write strategy: all modifications are stored in this layer,
@@ -55,7 +57,7 @@ use std::{collections::HashMap, sync::Arc};
 #[derive(Clone)]
 pub struct LocalStorageLayer<P: StorageProvider + Clone> {
 	parent: P,
-	modifications: Arc<RwLock<HashMap<Vec<u8>, Option<Vec<u8>>>>>,
+	modifications: Arc<RwLock<Data>>,
 	deleted_prefixes: Arc<RwLock<Vec<Vec<u8>>>>,
 }
 
