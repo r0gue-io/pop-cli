@@ -9281,12 +9281,14 @@ dependencies = [
 name = "pop-fork"
 version = "0.12.1"
 dependencies = [
+ "async-trait",
  "bb8",
  "bytes",
  "diesel",
  "diesel-async",
  "diesel_migrations",
  "hex",
+ "parking_lot 0.12.5",
  "pop-common",
  "sp-core",
  "subxt 0.44.0",

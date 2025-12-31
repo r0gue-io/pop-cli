@@ -38,13 +38,13 @@
 mod cache;
 pub mod error;
 mod models;
-mod remote;
 mod rpc;
 mod schema;
+mod storage;
 mod strings;
 
 pub use cache::StorageCache;
 pub use error::{CacheError, RemoteStorageError, RpcClientError};
 pub use models::BlockRow;
-pub use remote::RemoteStorageLayer;
 pub use rpc::ForkRpcClient;
+pub use storage::{StorageProvider, local::LocalStorageLayer, remote::RemoteStorageLayer};
