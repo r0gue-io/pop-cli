@@ -66,11 +66,7 @@ pub async fn request_signature(call_data: Vec<u8>, rpc: String) -> anyhow::Resul
 /// * `skip_confirm` - Whether to skip the confirmation prompt.
 /// # Returns
 /// * `true` if the user wants to use the wallet, `false` otherwise.
-pub fn prompt_to_use_wallet(cli: &mut impl Cli, skip_confirm: bool) -> anyhow::Result<bool> {
-	if skip_confirm {
-		return Ok(true);
-	}
-
+pub fn prompt_to_use_wallet(cli: &mut impl Cli) -> anyhow::Result<bool> {
 	if cli.confirm(USE_WALLET_PROMPT).initial_value(true).interact()? {
 		Ok(true)
 	} else {

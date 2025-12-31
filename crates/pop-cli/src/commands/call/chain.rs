@@ -438,9 +438,14 @@ impl CallChainCommand {
 		let mut use_wallet = self.use_wallet;
 		let suri = match self.suri.as_ref() {
 			Some(suri) => suri.clone(),
-			None =>
+			None => {
+				if self.skip_confirm && !self.use_wallet {
+					anyhow::bail!(
+						"When skipping confirmation, a signer must be provided via --use-wallet or --suri."
+					)
+				}
 				if !self.use_wallet {
-					if prompt_to_use_wallet(cli, self.skip_confirm)? {
+					if prompt_to_use_wallet(cli)? {
 						use_wallet = true;
 						DEFAULT_URI.to_string()
 					} else {
@@ -450,7 +455,8 @@ impl CallChainCommand {
 					}
 				} else {
 					DEFAULT_URI.to_string()
-				},
+				}
+			},
 		};
 		Ok((use_wallet, suri))
 	}
@@ -1602,6 +1608,34 @@ mod tests {
 
 		assert!(show_pallet(system_pallet, registry, &mut cli).is_ok());
 		assert!(cli.verify().is_ok());
+		Ok(())
+	}
+
+	#[test]
+	fn determine_signing_method_works() -> Result<()> {
+		let mut cli = MockCli::new();
+		let mut cmd = CallChainCommand { suri: Some("//Alice".to_string()), ..Default::default() };
+		let (use_wallet, suri) = cmd.determine_signing_method(&mut cli)?;
+		assert!(!use_wallet);
+		assert_eq!(suri, "//Alice");
+		cmd = CallChainCommand { use_wallet: true, ..Default::default() };
+		let (use_wallet, suri) = cmd.determine_signing_method(&mut cli)?;
+		assert!(use_wallet);
+		assert_eq!(suri, DEFAULT_URI);
+		// Test skip_confirm and no signer bails
+		cmd = CallChainCommand { skip_confirm: true, ..Default::default() };
+		let res = cmd.determine_signing_method(&mut cli);
+		assert!(res.is_err());
+		assert_eq!(
+			res.unwrap_err().to_string(),
+			"When skipping confirmation, a signer must be provided via --use-wallet or --suri."
+		);
+		// Test skip_confirm and use_wallet works without prompting
+		cmd = CallChainCommand { skip_confirm: true, use_wallet: true, ..Default::default() };
+		let (use_wallet, suri) = cmd.determine_signing_method(&mut cli)?;
+		assert!(use_wallet);
+		assert_eq!(suri, DEFAULT_URI);
+		cli.verify()?;
 		Ok(())
 	}
 }
