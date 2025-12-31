@@ -66,8 +66,11 @@ mod tests {
 				select_message.to_string(),
 				Some(true),
 				true,
-				Some(vec![("Custom".to_string(), "Type the chain URL manually".to_string())]),
-				0,
+				Some(vec![
+					("Local".to_string(), "Deploy in a local node".to_string()),
+					("Custom".to_string(), "Type the chain URL manually".to_string()),
+				]),
+				1,
 				None,
 			)
 			.expect_input(input_message, node.ws_url().into());
