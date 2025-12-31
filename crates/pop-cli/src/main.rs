@@ -134,7 +134,7 @@ mod tests {
 			assert_eq!(
 				Cli {
 					command: Command::Clean(CleanArgs {
-						command: CleanCommand::Cache(CleanCommandArgs { all: false }),
+						command: CleanCommand::Cache(CleanCommandArgs { all: false, pid: None }),
 					})
 				}
 				.to_string(),
