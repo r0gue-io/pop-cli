@@ -153,7 +153,7 @@ impl NewChainCommand {
 			config,
 			parachain_config.verify,
 			frontend_template,
-			parachain_config.package_manager.clone(),
+			parachain_config.package_manager,
 			&mut cli::Cli,
 		)
 		.await?;
