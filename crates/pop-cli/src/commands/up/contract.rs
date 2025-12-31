@@ -72,10 +72,12 @@ impl InkNodeCommand {
 			ink_node_process.wait()?;
 			eth_rpc_process.wait()?;
 			cli.plain("\n")?;
+			cli.info(self.display())?;
 			cli.outro("✅ Ink! node terminated")?;
 		} else {
 			ink_node_log.keep()?;
 			eth_rpc_log.keep()?;
+			cli.info(self.display())?;
 			cli.outro(format!(
 				"✅ Ink! node bootstrapped successfully. Run `kill -9 {} {}` to terminate it.",
 				ink_node_process.id(),
@@ -83,6 +85,23 @@ impl InkNodeCommand {
 			))?;
 		}
 		Ok(())
+	}
+
+	fn display(&self) -> String {
+		let mut full_message = "pop up contract ink-node".to_string();
+		if self.ink_node_port != 9944 {
+			full_message.push_str(&format!(" --ink-node-port {}", self.ink_node_port));
+		}
+		if self.eth_rpc_port != 8545 {
+			full_message.push_str(&format!(" --eth-rpc-port {}", self.eth_rpc_port));
+		}
+		if self.skip_confirm {
+			full_message.push_str(" --skip-confirm");
+		}
+		if self.detach {
+			full_message.push_str(" --detach");
+		}
+		full_message
 	}
 }
 
@@ -421,14 +440,17 @@ impl UpContractCommand {
 		if let Some(contract_address) = deployed_contract_address {
 			if !self.skip_confirm {
 				Cli.success(COMPLETE)?;
+				Cli.info(self.display())?;
 				self.keep_interacting_with_node(&mut Cli, contract_address).await?;
 				terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
 			} else {
 				terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
+				Cli.info(self.display())?;
 				Cli.outro(COMPLETE)?;
 			}
 		} else {
 			terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
+			Cli.info(self.display())?;
 			Cli.outro(COMPLETE)?;
 		}
 		Ok(())
@@ -523,6 +545,45 @@ impl UpContractCommand {
 					.await?;
 			Ok((call_data, hash))
 		}
+	}
+
+	fn display(&self) -> String {
+		let mut full_message = format!("pop up contract {}", self.path.display());
+
+		if self.constructor != "new" {
+			full_message.push_str(&format!(" --constructor {}", self.constructor));
+		}
+		if !self.args.is_empty() {
+			let args: Vec<_> = self.args.iter().map(|a| format!("\"{a}\"")).collect();
+			full_message.push_str(&format!(" --args {}", args.join(" ")));
+		}
+		if self.value != "0" {
+			full_message.push_str(&format!(" --value {}", self.value));
+		}
+		if let (Some(gas_limit), Some(proof_size)) = (self.gas_limit, self.proof_size) {
+			full_message.push_str(&format!(" --gas {} --proof-size {}", gas_limit, proof_size));
+		}
+		if let Some(url) = &self.url {
+			full_message.push_str(&format!(" --url {}", url));
+		}
+		if self.use_wallet {
+			full_message.push_str(" --use-wallet");
+		} else if let Some(suri) = &self.suri {
+			full_message.push_str(&format!(" --suri {}", suri));
+		}
+		if self.execute {
+			full_message.push_str(" --execute");
+		}
+		if self.upload_only {
+			full_message.push_str(" --upload-only");
+		}
+		if self.skip_confirm {
+			full_message.push_str(" --skip-confirm");
+		}
+		if self.skip_build {
+			full_message.push_str(" --skip-build");
+		}
+		full_message
 	}
 }
 
@@ -708,5 +769,74 @@ mod tests {
 		assert_eq!(cmd.ink_node_port, 12000);
 		assert_eq!(cmd.eth_rpc_port, 13000);
 		assert!(cmd.skip_confirm);
+	}
+
+	#[test]
+	fn test_ink_node_command_display() {
+		let cmd = InkNodeCommand {
+			ink_node_port: 9944,
+			eth_rpc_port: 8545,
+			skip_confirm: false,
+			detach: false,
+		};
+		assert_eq!(cmd.display(), "pop up contract ink-node");
+
+		let cmd = InkNodeCommand {
+			ink_node_port: 9000,
+			eth_rpc_port: 8000,
+			skip_confirm: true,
+			detach: true,
+		};
+		assert_eq!(
+			cmd.display(),
+			"pop up contract ink-node --ink-node-port 9000 --eth-rpc-port 8000 --skip-confirm --detach"
+		);
+	}
+
+	#[test]
+	fn test_up_contract_command_display() {
+		let cmd = UpContractCommand {
+			path: PathBuf::from("my-contract"),
+			constructor: "new".to_string(),
+			args: vec![],
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: None,
+			suri: None,
+			use_wallet: false,
+			execute: false,
+			upload_only: false,
+			skip_confirm: false,
+			skip_build: false,
+		};
+		assert_eq!(cmd.display(), "pop up contract my-contract");
+
+		let cmd = UpContractCommand {
+			path: PathBuf::from("my-contract"),
+			constructor: "custom_new".to_string(),
+			args: vec!["arg1".to_string(), "arg2".to_string()],
+			value: "100".to_string(),
+			gas_limit: Some(1000),
+			proof_size: Some(2000),
+			url: Some(Url::parse("ws://localhost:9944").unwrap()),
+			suri: Some("//Alice".to_string()),
+			use_wallet: false,
+			execute: true,
+			upload_only: true,
+			skip_confirm: true,
+			skip_build: true,
+		};
+		assert_eq!(
+			cmd.display(),
+			"pop up contract my-contract --constructor custom_new --args \"arg1\" \"arg2\" --value 100 --gas 1000 --proof-size 2000 --url ws://localhost:9944/ --suri //Alice --execute --upload-only --skip-confirm --skip-build"
+		);
+
+		let cmd = UpContractCommand {
+			path: PathBuf::from("my-contract"),
+			use_wallet: true,
+			..Default::default()
+		};
+		assert_eq!(cmd.display(), "pop up contract my-contract --use-wallet --execute");
 	}
 }

@@ -119,7 +119,29 @@ impl NewContractCommand {
 			)?;
 		}
 
+		cli.info(self.display())?;
 		Ok(())
+	}
+
+	fn display(&self) -> String {
+		let mut full_message = "pop new contract".to_string();
+		if let Some(name) = &self.name {
+			full_message.push_str(&format!(" {}", name));
+		}
+		if let Some(template) = &self.template {
+			full_message.push_str(&format!(" --template {}", template.name()));
+		}
+		if let Some(frontend) = &self.with_frontend {
+			if frontend.is_empty() {
+				full_message.push_str(" --with-frontend");
+			} else {
+				full_message.push_str(&format!(" --with-frontend {}", frontend));
+			}
+		}
+		if let Some(pm) = &self.package_manager {
+			full_message.push_str(&format!(" --package-manager {:?}", pm));
+		}
+		full_message
 	}
 }
 
@@ -240,6 +262,27 @@ mod tests {
 	use pop_contracts::Contract as ContractTemplate;
 	use strum::VariantArray;
 	use tempfile::tempdir;
+
+	#[test]
+	fn test_new_contract_command_display() {
+		let cmd = NewContractCommand {
+			name: Some("my-contract".to_string()),
+			template: Some(ContractTemplate::Standard),
+			with_frontend: Some("typink".to_string()),
+			package_manager: Some(PackageManager::Npm),
+		};
+		assert_eq!(
+			cmd.display(),
+			"pop new contract my-contract --template Standard --with-frontend typink --package-manager Npm"
+		);
+
+		let cmd = NewContractCommand {
+			name: Some("my-contract".to_string()),
+			with_frontend: Some("".to_string()),
+			..Default::default()
+		};
+		assert_eq!(cmd.display(), "pop new contract my-contract --with-frontend");
+	}
 
 	#[tokio::test]
 	async fn test_new_contract_command_execute_with_defaults_executes() -> Result<()> {
