@@ -303,7 +303,15 @@ pub fn resolve_signer(
 	cli: &mut impl Cli,
 ) -> anyhow::Result<()> {
 	if suri.is_none() {
-		if prompt_to_use_wallet(cli, skip_confirm)? {
+		if skip_confirm {
+			if !*use_wallet {
+				anyhow::bail!(
+					"When skipping confirmation, a signer must be provided via --use-wallet or --suri."
+				)
+			}
+			return Ok(());
+		}
+		if prompt_to_use_wallet(cli)? {
 			*use_wallet = true;
 		} else {
 			*suri = Some(
@@ -653,7 +661,6 @@ mod tests {
 
 	#[test]
 	fn resolve_signing_method_with_explicit_suri_works() -> anyhow::Result<()> {
-		use super::*;
 		let mut cli = MockCli::new();
 		let mut use_wallet = false;
 		let mut suri = Some("//Bob".to_string());
@@ -665,7 +672,6 @@ mod tests {
 
 	#[test]
 	fn resolve_signing_method_with_use_wallet_flag_works() -> anyhow::Result<()> {
-		use super::*;
 		let mut cli = MockCli::new().expect_confirm(
 			"Do you want to use your browser wallet to sign the extrinsic? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')",
 			true,
@@ -682,7 +688,6 @@ mod tests {
 
 	#[test]
 	fn resolve_signing_method_prompts_and_chooses_wallet_works() -> anyhow::Result<()> {
-		use super::*;
 		let mut cli = MockCli::new().expect_confirm(
 			"Do you want to use your browser wallet to sign the extrinsic? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')",
 			true,
@@ -698,7 +703,6 @@ mod tests {
 
 	#[test]
 	fn resolve_signing_method_prompts_and_provides_suri_works() -> anyhow::Result<()> {
-		use super::*;
 		let mut cli = MockCli::new()
 			.expect_confirm(
 				"Do you want to use your browser wallet to sign the extrinsic? (Selecting 'No' will prompt you to manually enter the secret key URI for signing, e.g., '//Alice')",
@@ -710,6 +714,31 @@ mod tests {
 		resolve_signer(false, &mut use_wallet, &mut suri, &mut cli)?;
 		assert!(!use_wallet);
 		assert_eq!(suri, Some("//Charlie".to_string()));
+		cli.verify()?;
+		Ok(())
+	}
+
+	#[test]
+	fn resolve_signer_bails_when_skip_confirm_and_no_signer() {
+		let mut cli = MockCli::new();
+		let mut use_wallet = false;
+		let mut suri = None;
+		let res = resolve_signer(true, &mut use_wallet, &mut suri, &mut cli);
+		assert!(res.is_err());
+		assert_eq!(
+			res.unwrap_err().to_string(),
+			"When skipping confirmation, a signer must be provided via --use-wallet or --suri."
+		);
+	}
+
+	#[test]
+	fn resolve_signer_with_skip_confirm_and_use_wallet_works() -> anyhow::Result<()> {
+		let mut cli = MockCli::new();
+		let mut use_wallet = true;
+		let mut suri = None;
+		resolve_signer(true, &mut use_wallet, &mut suri, &mut cli)?;
+		assert!(use_wallet);
+		assert_eq!(suri, None);
 		cli.verify()?;
 		Ok(())
 	}
