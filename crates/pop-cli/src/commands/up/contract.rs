@@ -20,6 +20,7 @@ use crate::{
 use clap::Args;
 use cliclack::spinner;
 use console::Emoji;
+use pop_common::find_free_port;
 use pop_contracts::{
 	FunctionType, UpOpts, Verbosity, Weight, build_smart_contract,
 	dry_run_gas_estimate_instantiate, dry_run_upload, extract_function, get_contract_code,
@@ -38,6 +39,82 @@ const DEFAULT_PORT: u16 = 9944;
 const DEFAULT_ETH_RPC_PORT: u16 = 8545;
 const FAILED: &str = "🚫 Deployment failed.";
 const HELP_HEADER: &str = "Smart contract deployment options";
+
+#[derive(Clone, Copy, Debug)]
+struct ResolvedPorts {
+	ink_node_port: u16,
+	eth_rpc_port: u16,
+	ports_randomized: bool,
+}
+
+fn resolve_ink_node_ports(ink_node_port: u16, eth_rpc_port: u16) -> anyhow::Result<ResolvedPorts> {
+	resolve_ink_node_ports_with(ink_node_port, eth_rpc_port, find_free_port)
+}
+
+fn resolve_ink_node_ports_with<F>(
+	ink_node_port: u16,
+	eth_rpc_port: u16,
+	mut find_port: F,
+) -> anyhow::Result<ResolvedPorts>
+where
+	F: FnMut(Option<u16>) -> u16,
+{
+	let requested_ink_node_port = ink_node_port;
+	let requested_eth_rpc_port = eth_rpc_port;
+	let (mut ink_node_port, ink_node_random) = if ink_node_port == DEFAULT_PORT {
+		let resolved = find_port(Some(DEFAULT_PORT));
+		(resolved, resolved != DEFAULT_PORT)
+	} else {
+		(ink_node_port, false)
+	};
+	let (mut eth_rpc_port, eth_rpc_random) = if eth_rpc_port == DEFAULT_ETH_RPC_PORT {
+		let resolved = find_port(Some(DEFAULT_ETH_RPC_PORT));
+		(resolved, resolved != DEFAULT_ETH_RPC_PORT)
+	} else {
+		(eth_rpc_port, false)
+	};
+	if ink_node_port == eth_rpc_port {
+		match (ink_node_random, eth_rpc_random) {
+			(false, false) => {
+				anyhow::bail!(
+					"ink! node port and Ethereum RPC port cannot be the same ({})",
+					ink_node_port
+				);
+			},
+			(true, false) => loop {
+				let resolved = find_port(None);
+				if resolved != eth_rpc_port {
+					ink_node_port = resolved;
+					break;
+				}
+			},
+			(false, true) | (true, true) => loop {
+				let resolved = find_port(None);
+				if resolved != ink_node_port {
+					eth_rpc_port = resolved;
+					break;
+				}
+			},
+		}
+	}
+	let ports_randomized =
+		ink_node_port != requested_ink_node_port || eth_rpc_port != requested_eth_rpc_port;
+	Ok(ResolvedPorts { ink_node_port, eth_rpc_port, ports_randomized })
+}
+
+fn warn_if_ports_randomized(
+	cli: &mut impl crate::cli::traits::Cli,
+	ports: ResolvedPorts,
+	ports_provided: bool,
+) -> anyhow::Result<()> {
+	if ports.ports_randomized && ports_provided {
+		cli.warning(format!(
+			"Requested ports are in use. Using ink! node port {} and Ethereum RPC port {} instead.",
+			ports.ink_node_port, ports.eth_rpc_port
+		))?;
+	}
+	Ok(())
+}
 
 /// Launch a local ink! node.
 #[derive(Args, Clone, Serialize, Debug)]
@@ -59,9 +136,21 @@ pub(crate) struct InkNodeCommand {
 impl InkNodeCommand {
 	pub(crate) async fn execute(&self, cli: &mut Cli) -> anyhow::Result<()> {
 		cli.intro("Launch a local Ink! node")?;
-		let url = Url::parse(&format!("ws://localhost:{}", self.ink_node_port))?;
+		let ports_provided =
+			self.ink_node_port != DEFAULT_PORT || self.eth_rpc_port != DEFAULT_ETH_RPC_PORT;
+		let ports = match resolve_ink_node_ports(self.ink_node_port, self.eth_rpc_port) {
+			Ok(ports) => ports,
+			Err(e) => {
+				cli.error(e.to_string())?;
+				cli.outro_cancel("🚫 Unable to start local ink! node.")?;
+				return Ok(());
+			},
+		};
+		warn_if_ports_randomized(cli, ports, ports_provided)?;
+		let url = Url::parse(&format!("ws://localhost:{}", ports.ink_node_port))?;
 		let ((mut ink_node_process, ink_node_log), (mut eth_rpc_process, eth_rpc_log)) =
-			start_ink_node(&url, self.skip_confirm, self.ink_node_port, self.eth_rpc_port).await?;
+			start_ink_node(&url, self.skip_confirm, ports.ink_node_port, ports.eth_rpc_port)
+				.await?;
 
 		if !self.detach {
 			// Wait for the process to terminate
@@ -185,7 +274,7 @@ impl UpContractCommand {
 			return Ok(());
 		}
 
-		let url = if let Some(url) = self.url.clone() {
+		let mut url = if let Some(url) = self.url.clone() {
 			url
 		} else if self.skip_confirm {
 			Url::parse(urls::LOCAL).expect("default url is valid")
@@ -213,9 +302,18 @@ impl UpContractCommand {
 					.interact()?
 				{
 					Cli.info("Fetching and launching a local ink! node")?;
+					let ports = resolve_ink_node_ports(DEFAULT_PORT, DEFAULT_ETH_RPC_PORT)?;
+					warn_if_ports_randomized(&mut Cli, ports, false)?;
+					url = Url::parse(&format!("ws://localhost:{}", ports.ink_node_port))?;
+					self.url = Some(url.clone());
 					Some(
-						start_ink_node(&url, self.skip_confirm, DEFAULT_PORT, DEFAULT_ETH_RPC_PORT)
-							.await?,
+						start_ink_node(
+							&url,
+							self.skip_confirm,
+							ports.ink_node_port,
+							ports.eth_rpc_port,
+						)
+						.await?,
 					)
 				} else {
 					Cli.outro_cancel(
@@ -643,6 +741,7 @@ impl Default for UpContractCommand {
 mod tests {
 	use super::*;
 	use clap::Parser;
+	use std::cell::{Cell, RefCell};
 	use url::Url;
 
 	#[test]
@@ -704,5 +803,90 @@ mod tests {
 		assert_eq!(cmd.ink_node_port, 12000);
 		assert_eq!(cmd.eth_rpc_port, 13000);
 		assert!(cmd.skip_confirm);
+	}
+
+	#[test]
+	fn resolve_ink_node_ports_keeps_non_default_ports() {
+		let ink_node_port = 12001;
+		let eth_rpc_port = 13001;
+		let called = Cell::new(false);
+		let ports = resolve_ink_node_ports_with(ink_node_port, eth_rpc_port, |_| {
+			called.set(true);
+			0
+		})
+		.expect("should keep explicit ports");
+		assert_eq!(ports.ink_node_port, ink_node_port);
+		assert_eq!(ports.eth_rpc_port, eth_rpc_port);
+		assert!(!ports.ports_randomized);
+		assert!(!called.get());
+	}
+
+	#[test]
+	fn resolve_ink_node_ports_errors_on_same_explicit_ports() {
+		let called = Cell::new(false);
+		let result = resolve_ink_node_ports_with(12000, 12000, |_| {
+			called.set(true);
+			0
+		});
+		assert!(result.is_err());
+		assert!(!called.get());
+	}
+
+	#[test]
+	fn resolve_ink_node_ports_moves_randomized_port_on_collision() {
+		let calls = RefCell::new(Vec::new());
+		let ports = resolve_ink_node_ports_with(DEFAULT_PORT, 12000, |preferred| {
+			calls.borrow_mut().push(preferred);
+			match preferred {
+				Some(DEFAULT_PORT) => 12000,
+				None => 13000,
+				_ => 0,
+			}
+		})
+		.expect("should resolve port collision");
+		assert_eq!(calls.borrow().as_slice(), [Some(DEFAULT_PORT), None]);
+		assert_eq!(ports.ink_node_port, 13000);
+		assert_eq!(ports.eth_rpc_port, 12000);
+		assert!(ports.ports_randomized);
+	}
+
+	#[test]
+	fn resolve_ink_node_ports_falls_back_when_defaults_busy() {
+		let calls = RefCell::new(Vec::new());
+		let ports = resolve_ink_node_ports_with(DEFAULT_PORT, DEFAULT_ETH_RPC_PORT, |preferred| {
+			calls.borrow_mut().push(preferred);
+			match preferred {
+				Some(DEFAULT_PORT) => 12000,
+				Some(DEFAULT_ETH_RPC_PORT) => 13000,
+				_ => 0,
+			}
+		})
+		.expect("should resolve ports");
+		assert_eq!(calls.borrow().as_slice(), [Some(DEFAULT_PORT), Some(DEFAULT_ETH_RPC_PORT)]);
+		assert_ne!(ports.ink_node_port, DEFAULT_PORT);
+		assert_ne!(ports.eth_rpc_port, DEFAULT_ETH_RPC_PORT);
+		assert!(ports.ports_randomized);
+	}
+
+	#[test]
+	fn resolve_ink_node_ports_avoids_port_collisions() {
+		let calls = RefCell::new(Vec::new());
+		let ports = resolve_ink_node_ports_with(DEFAULT_PORT, DEFAULT_ETH_RPC_PORT, |preferred| {
+			calls.borrow_mut().push(preferred);
+			match preferred {
+				Some(DEFAULT_PORT) => 12000,
+				Some(DEFAULT_ETH_RPC_PORT) => 12000,
+				None => 13000,
+				_ => 0,
+			}
+		})
+		.expect("should resolve port collision");
+		assert_eq!(
+			calls.borrow().as_slice(),
+			[Some(DEFAULT_PORT), Some(DEFAULT_ETH_RPC_PORT), None,]
+		);
+		assert_eq!(ports.ink_node_port, 12000);
+		assert_eq!(ports.eth_rpc_port, 13000);
+		assert!(ports.ports_randomized);
 	}
 }

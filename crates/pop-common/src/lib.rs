@@ -215,6 +215,15 @@ mod tests {
 	}
 
 	#[test]
+	fn find_free_port_skips_busy_preferred_port() -> Result<()> {
+		let listener = TcpListener::bind("127.0.0.1:0")?;
+		let busy_port = listener.local_addr()?.port();
+		let port = find_free_port(Some(busy_port));
+		assert_ne!(port, busy_port);
+		Ok(())
+	}
+
+	#[test]
 	fn sorted_slice_sorts_by_function() {
 		let mut values = ["one", "two", "three"];
 		let sorted = SortedSlice::by(values.as_mut_slice(), |a, b| a.cmp(b));
