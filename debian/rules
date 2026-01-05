@@ -1,5 +1,6 @@
 #!/usr/bin/make -f
 
+export PATH := $(HOME)/.cargo/bin:$(PATH)
 export DH_VERBOSE = 1
 
 %:
