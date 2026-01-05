@@ -10,10 +10,11 @@ override_dh_auto_clean:
 	cargo clean
 
 override_dh_auto_build:
-	cargo build --release --locked
+	# Build offline using the vendored crates.
+	cargo build --locked --offline --workspace --profile=production
 
 override_dh_auto_test:
 	# Skip tests during package build
 
 override_dh_auto_install:
-	install -D -m 755 target/release/pop debian/pop-cli/usr/bin/pop
+	install -D -m 755 target/production/pop debian/pop-cli/usr/bin/pop
