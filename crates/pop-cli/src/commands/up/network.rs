@@ -181,7 +181,7 @@ impl<const FILTER: u8> BuildCommand<FILTER> {
 	) -> anyhow::Result<()> {
 		cli.intro(format!("Launch a local {} network", relay.name()))?;
 
-		let mut rollups = self.parachain.take();
+		let mut rollups = self.parachain.clone().take();
 
 		// Check for any missing dependencies, auto-adding as required.
 		if let Some(ref mut rollups) = rollups {

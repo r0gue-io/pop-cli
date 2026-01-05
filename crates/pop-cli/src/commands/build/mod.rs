@@ -133,7 +133,7 @@ impl BuildArgs {
 		#[cfg(feature = "contract")]
 		{
 			if let Some(metadata) = &self.metadata {
-				full_message.push_str(&format!(" --metadata {:?}", metadata));
+				full_message.push_str(&format!(" --metadata {}", metadata));
 			}
 		}
 		full_message

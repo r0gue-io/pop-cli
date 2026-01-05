@@ -219,13 +219,13 @@ impl NewPalletCommand {
 				Mode::Advanced(advanced) => {
 					full_message.push_str(" advanced");
 					for t in &advanced.config_common_types {
-						full_message.push_str(&format!(" --config-common-types {:?}", t));
+						full_message.push_str(&format!(" --config-common-types {}", t));
 					}
 					if advanced.default_config {
 						full_message.push_str(" --default-config");
 					}
 					for s in &advanced.storage {
-						full_message.push_str(&format!(" --storage {:?}", s));
+						full_message.push_str(&format!(" --storage {}", s));
 					}
 					if advanced.genesis_config {
 						full_message.push_str(" --genesis-config");

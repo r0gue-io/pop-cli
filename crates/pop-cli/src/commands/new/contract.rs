@@ -139,7 +139,7 @@ impl NewContractCommand {
 			}
 		}
 		if let Some(pm) = &self.package_manager {
-			full_message.push_str(&format!(" --package-manager {:?}", pm));
+			full_message.push_str(&format!(" --package-manager {}", pm.name()));
 		}
 		full_message
 	}
