@@ -43,7 +43,7 @@ pub fn build_smart_contract(
 			}
 		}
 		if manifest_paths.is_empty() {
-			return Err(anyhow::anyhow!("Workspace must contain at least one member"));
+			return Err(anyhow::anyhow!("Workspace must contain at least one ink! contract member"));
 		}
 	} else {
 		manifest_paths.push(manifest_path);
@@ -97,10 +97,10 @@ fn resolve_metadata_spec(manifest_path: &Path) -> anyhow::Result<Option<Metadata
 ///   specified.
 pub fn is_supported(path: &Path) -> Result<bool, Error> {
 	let manifest = pop_common::manifest::from_path(path)?;
-	Ok(match manifest.workspace {
-		Some(workspace) => return Ok(workspace.dependencies.contains_key("ink")),
-		None => manifest.dependencies.contains_key("ink"),
-	})
+	match manifest.workspace {
+		Some(workspace) => Ok(workspace.dependencies.contains_key("ink")),
+		None => Ok(manifest.dependencies.contains_key("ink")),
+	}
 }
 
 #[cfg(test)]
