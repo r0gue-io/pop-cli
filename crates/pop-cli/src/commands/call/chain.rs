@@ -1630,7 +1630,6 @@ mod tests {
 			res.unwrap_err().to_string(),
 			"When skipping confirmation, a signer must be provided via --use-wallet or --suri."
 		);
-		// Test skip_confirm and use_wallet works without prompting
 		cmd = CallChainCommand { skip_confirm: true, use_wallet: true, ..Default::default() };
 		let (use_wallet, suri) = cmd.determine_signing_method(&mut cli)?;
 		assert!(use_wallet);
