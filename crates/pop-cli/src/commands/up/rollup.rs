@@ -705,7 +705,7 @@ mod tests {
 				Some(true),
 				true,
 				Some(vec![
-					("Local".to_string(), "Deploy in a local node".to_string()),
+					("Local".to_string(), "Deploy on a local node".to_string()),
 					("Custom".to_string(), "Type the chain URL manually".to_string()),
 				]),
 				1,
