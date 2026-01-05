@@ -268,6 +268,7 @@ mod tests {
 		let cmd = NewContractCommand {
 			name: Some("my-contract".to_string()),
 			template: Some(ContractTemplate::Standard),
+			list: false,
 			with_frontend: Some("typink".to_string()),
 			package_manager: Some(PackageManager::Npm),
 		};

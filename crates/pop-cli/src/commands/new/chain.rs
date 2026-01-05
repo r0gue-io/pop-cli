@@ -562,6 +562,7 @@ mod tests {
 			initial_endowment: Some("1000000".to_string()),
 			release_tag: Some("v1.0.0".to_string()),
 			verify: true,
+			list: false,
 			with_frontend: Some("create-dot-app".to_string()),
 			package_manager: Some(PackageManager::Npm),
 		};
