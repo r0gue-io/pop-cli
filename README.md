@@ -36,6 +36,14 @@ brew install r0gue-io/pop-cli/pop
 
 ### Linux
 
+**Using Ubuntu PPA:**
+```shell
+sudo add-apt-repository ppa:r0gue-io/pop
+sudo apt-get update
+sudo apt-get install pop-cli
+```
+> :information_source: If `add-apt-repository` is not found, install it with `sudo apt-get install software-properties-common`.
+
 **Using Homebrew:**
 ```shell
 brew install r0gue-io/pop-cli/pop
