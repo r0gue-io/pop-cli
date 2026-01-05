@@ -251,8 +251,8 @@ mod tests {
 
 	#[test]
 	fn chain_works() {
-		let mut chain = Chain::new("test-rollup", 2_000, "test-local");
-		assert_eq!(chain.name(), "test-rollup");
+		let mut chain = Chain::new("test-chain", 2_000, "test-local");
+		assert_eq!(chain.name(), "test-chain");
 		assert_eq!(chain.id(), 2_000);
 		assert_eq!(chain.chain(), "test-local");
 		assert!(chain.port().is_none());
@@ -265,7 +265,7 @@ mod tests {
 	}
 
 	#[test]
-	fn impl_rollup_works() {
+	fn impl_chain_works() {
 		let mut asset_hub = AssetHub::new(1_000, Paseo);
 		asset_hub.as_chain_mut().id = 1;
 		assert_eq!(asset_hub.id(), 1);

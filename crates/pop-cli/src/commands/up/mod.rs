@@ -190,7 +190,7 @@ mod tests {
 
 	#[tokio::test]
 	#[cfg(feature = "chain")]
-	async fn detects_rollup_correctly() -> anyhow::Result<()> {
+	async fn detects_chain_correctly() -> anyhow::Result<()> {
 		let temp_dir = tempfile::tempdir()?;
 		let name = "chain";
 		let project_path = temp_dir.path().join(name);

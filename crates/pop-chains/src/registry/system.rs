@@ -50,7 +50,7 @@ impl Args for System {
 }
 
 // Macro for reducing boilerplate code.
-macro_rules! impl_system_rollup {
+macro_rules! impl_system_chain {
 	($name:ident) => {
 		impl_chain!($name);
 		impl Requires for $name {}
@@ -93,7 +93,7 @@ impl AssetHub {
 		Self(Chain::new("asset-hub", id, format!("asset-hub-{}", relay.chain())))
 	}
 }
-impl_system_rollup!(AssetHub);
+impl_system_chain!(AssetHub);
 
 /// The Bridge Hub facilitates trustless interactions between Polkadot, Kusama, Ethereum, and
 /// other blockchain ecosystems.
@@ -111,7 +111,7 @@ impl BridgeHub {
 		Self(Chain::new("bridge-hub", id, format!("bridge-hub-{}", relay.chain())))
 	}
 }
-impl_system_rollup!(BridgeHub);
+impl_system_chain!(BridgeHub);
 
 /// The Collectives chain operates as a dedicated chain exclusive to the Polkadot network.
 /// This specialized infrastructure provides a foundation for various on-chain governance groups
@@ -130,7 +130,7 @@ impl Collectives {
 		Self(Chain::new("collectives", id, format!("collectives-{}", relay.chain())))
 	}
 }
-impl_system_rollup!(Collectives);
+impl_system_chain!(Collectives);
 
 /// The Coretime system chain facilitates the allocation, procurement, sale, and scheduling of
 /// bulk coretime, enabling tasks (such as chains) to utilize the computation and security
@@ -149,7 +149,7 @@ impl Coretime {
 		Self(Chain::new("coretime", id, format!("coretime-{}", relay.chain())))
 	}
 }
-impl_system_rollup!(Coretime);
+impl_system_chain!(Coretime);
 
 /// The People system chain is a specialized chain within the Polkadot ecosystem dedicated
 /// to secure, decentralized identity management.
@@ -167,7 +167,7 @@ impl People {
 		Self(Chain::new("people", id, format!("people-{}", relay.chain())))
 	}
 }
-impl_system_rollup!(People);
+impl_system_chain!(People);
 
 /// The PassetHub system chain is a temporary chain within the Polkadot ecosystem dedicated
 /// to deploy smart contracts..
@@ -185,7 +185,7 @@ impl PassetHub {
 		Self(Chain::new("passet-hub", id, format!("passet-hub-{}", relay.chain())))
 	}
 }
-impl_system_rollup!(PassetHub);
+impl_system_chain!(PassetHub);
 
 #[cfg(test)]
 mod tests {

@@ -118,7 +118,7 @@ pub(crate) struct BuildCommand<const FILTER: u8> {
 	/// The parachain(s) to be included. An optional parachain identifier and/or port can be
 	/// affixed via #id and :port specifiers (e.g. `asset-hub#1000:9944`).
 	#[serde(skip_serializing)]
-	#[arg(short, long, value_delimiter = ',', value_parser = SupportedRollups::<FILTER>::new())]
+	#[arg(short, long, value_delimiter = ',', value_parser = SupportedChains::<FILTER>::new())]
 	parachain: Option<Vec<Box<dyn ChainT>>>,
 	/// The port to be used for the first relay chain validator.
 	#[clap(short = 'P', long)]
@@ -193,9 +193,9 @@ impl<const FILTER: u8> BuildCommand<FILTER> {
 }
 
 #[derive(Clone)]
-struct SupportedRollups<const FILTER: u8>(PossibleValuesParser);
+struct SupportedChains<const FILTER: u8>(PossibleValuesParser);
 
-impl<const FILTER: u8> SupportedRollups<FILTER> {
+impl<const FILTER: u8> SupportedChains<FILTER> {
 	fn new() -> Self {
 		let relay = Relay::from(FILTER).expect("expected valid relay variant index as filter");
 		Self(PossibleValuesParser::new(
@@ -206,7 +206,7 @@ impl<const FILTER: u8> SupportedRollups<FILTER> {
 	}
 }
 
-impl<const FILTER: u8> TypedValueParser for SupportedRollups<FILTER> {
+impl<const FILTER: u8> TypedValueParser for SupportedChains<FILTER> {
 	type Value = Box<dyn ChainT>;
 
 	fn parse_ref(
