@@ -19,12 +19,12 @@ use strum_macros::{AsRefStr, Display, EnumMessage, EnumProperty, EnumString, Var
 )]
 pub enum DeploymentProvider {
 	/// Polkadot Deployment Portal (PDP). This provider enables seamless deployment of Polkadot
-	/// Native Rollups through the Polkadot Cloud.
+	/// Native Chains through the Polkadot Cloud.
 	#[strum(
 		ascii_case_insensitive,
 		serialize = "pdp",
 		message = "Polkadot Deployment Portal",
-		detailed_message = "Effortlessly deploy Polkadot Native Rollups on the Polkadot Cloud",
+		detailed_message = "Effortlessly deploy Polkadot Native Chains on the Polkadot Cloud",
 		props(
 			BaseURL = "https://staging.deploypolkadot.xyz",
 			CollatorKeysURI = "/api/public/v1/parachains/{para_id}/collators/{chain_name}",
@@ -159,7 +159,7 @@ mod tests {
 	fn get_description_works() {
 		assert_eq!(
 			DeploymentProvider::PDP.description(),
-			"Effortlessly deploy Polkadot Native Rollups on the Polkadot Cloud"
+			"Effortlessly deploy Polkadot Native Chains on the Polkadot Cloud"
 		);
 	}
 
