@@ -69,6 +69,9 @@ pub struct NewChainCommand {
 		help = "Verifies the commit SHA when fetching the latest license and release from GitHub."
 	)]
 	pub(crate) verify: bool,
+	/// List available templates.
+	#[arg(short, long)]
+	pub(crate) list: bool,
 	/// Also scaffold a frontend. Optionally specify template. If flag provided without value,
 	/// prompts for template selection.
 	#[arg(
@@ -89,6 +92,16 @@ pub struct NewChainCommand {
 impl NewChainCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(&self) -> Result<()> {
+		if self.list {
+			let mut cli = cli::Cli;
+			cli.intro("Available templates")?;
+			for template in ChainTemplate::templates() {
+				if !template.is_deprecated() {
+					cli.info(format!("{}: {}", template.name(), template.description()))?;
+				}
+			}
+			return Ok(());
+		}
 		// If user doesn't select the name guide them to generate a parachain.
 		let parachain_config = if self.name.is_none() {
 			guide_user_to_generate_parachain(self.verify, self.with_frontend.clone(), &mut cli::Cli)
@@ -217,6 +230,7 @@ async fn guide_user_to_generate_parachain(
 		decimals: Some(customizable_options.decimals),
 		initial_endowment: Some(customizable_options.initial_endowment),
 		verify,
+		list: false,
 		with_frontend,
 		package_manager: None,
 	})
@@ -671,6 +685,13 @@ mod tests {
 		assert_eq!(latest.published_at, "2025-01-01T00:00:00Z");
 		assert!(latest.commit.is_none());
 		mock.assert_async().await;
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_new_chain_list_templates() -> Result<()> {
+		let command = NewChainCommand { list: true, ..Default::default() };
+		command.execute().await?;
 		Ok(())
 	}
 }

@@ -35,6 +35,9 @@ macro_rules! enum_variants {
 pub struct NewArgs {
 	#[command(subcommand)]
 	pub command: Option<Command>,
+	/// List available templates.
+	#[arg(short, long)]
+	pub list: bool,
 }
 
 /// Generate a new parachain, pallet or smart contract.
@@ -108,6 +111,7 @@ pub fn guide_user_to_select_command(cli: &mut impl Cli) -> AnyhowResult<Command>
 			decimals: None,
 			initial_endowment: None,
 			verify: false,
+			list: false,
 			with_frontend: None,
 			package_manager: None,
 		})),
@@ -122,6 +126,7 @@ pub fn guide_user_to_select_command(cli: &mut impl Cli) -> AnyhowResult<Command>
 		"contract" => Ok(Command::Contract(contract::NewContractCommand {
 			name: None,
 			template: None,
+			list: false,
 			with_frontend: None,
 			package_manager: None,
 		})),
