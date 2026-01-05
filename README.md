@@ -21,6 +21,13 @@ You can install Pop CLI
 ```shell
 brew install r0gue-io/pop-cli/pop
 ```
+- from Ubuntu PPA:
+```shell
+sudo add-apt-repository ppa:r0gue-io/pop
+sudo apt-get update
+sudo apt-get install pop-cli
+```
+> :information_source: If `add-apt-repository` is not found, install it with `sudo apt-get install software-properties-common`.
 - from [crates.io](https://crates.io/crates/pop-cli):
 ```shell
 cargo install --force --locked pop-cli
