@@ -55,6 +55,8 @@ pub enum Dependencies {
 	Unzip,
 	#[strum(serialize = "lsof")]
 	Lsof,
+	#[strum(serialize = "pkg-config")]
+	PkgConfig,
 }
 
 /// Arguments for installing.
@@ -253,10 +255,13 @@ async fn install_ubuntu(
 		Libssl.to_string(),
 		ProtobufCompiler.to_string(),
 		Lsof.to_string(),
+		PkgConfig.to_string(),
 	];
 
-	let mut package_names =
-		format!("{}, {}, {}, {}, {}, {}", Git, Clang, Curl, Libssl, ProtobufCompiler, Lsof);
+	let mut package_names = format!(
+		"{}, {}, {}, {}, {}, {}, {}",
+		Git, Clang, Curl, Libssl, ProtobufCompiler, Lsof, PkgConfig
+	);
 
 	if install_frontend {
 		packages.push(Unzip.to_string());
@@ -488,7 +493,7 @@ mod tests {
 	}
 	#[tokio::test]
 	async fn install_ubuntu_works() -> anyhow::Result<()> {
-		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#linux").expect_confirm("📦 Do you want to proceed with the installation of the following packages: git, clang, curl, libssl-dev, protobuf-compiler, lsof and rustup?", false);
+		let mut cli = MockCli::new().expect_info("More information about the packages to be installed here: https://docs.polkadot.com/develop/parachains/install-polkadot-sdk/#linux").expect_confirm("📦 Do you want to proceed with the installation of the following packages: git, clang, curl, libssl-dev, protobuf-compiler, lsof, pkg-config and rustup?", false);
 		assert!(matches!(
 			install_ubuntu(false, false, &mut cli)
 				.await,
