@@ -34,7 +34,7 @@ pub struct CleanCommandArgs {
 	#[arg(short, long)]
 	pub(crate) all: bool,
 	/// Pass flag to remove artifacts for a specific process id list.
-	#[arg(short, long)]
+	#[arg(short, long, num_args = 1..)]
 	pub(crate) pid: Option<Vec<String>>,
 }
 
