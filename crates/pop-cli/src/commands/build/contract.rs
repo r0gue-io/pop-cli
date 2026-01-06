@@ -27,9 +27,11 @@ impl BuildContract {
 	fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
 		cli.intro("Building your contract")?;
 		// Build contract.
-		let build_result =
+		let build_results =
 			build_smart_contract(&self.path, self.release, Verbosity::Default, self.metadata)?;
-		cli.success(build_result.display())?;
+		for result in build_results {
+			cli.success(result.display())?;
+		}
 		cli.outro("Build completed successfully!")?;
 		Ok("contract")
 	}
