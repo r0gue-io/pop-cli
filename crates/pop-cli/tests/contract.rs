@@ -5,7 +5,7 @@
 #![cfg(all(feature = "contract", feature = "integration-tests"))]
 
 use anyhow::Result;
-use pop_common::{find_free_port, pop, set_executable_permission};
+use pop_common::{pop, resolve_port, set_executable_permission};
 use pop_contracts::{
 	CallOpts, Contract, UpOpts, Weight, dry_run_call, dry_run_gas_estimate_call,
 	dry_run_gas_estimate_instantiate, ink_node_generator, instantiate_smart_contract, run_ink_node,
@@ -71,7 +71,7 @@ pub struct SubmitRequest {
 #[tokio::test]
 async fn contract_lifecycle() -> Result<()> {
 	const WALLET_INT_URI: &str = "http://127.0.0.1:9090";
-	let endpoint_port = find_free_port(None);
+	let endpoint_port = resolve_port(None, &[]);
 	let default_endpoint: &str = &format!("ws://127.0.0.1:{}", endpoint_port);
 	let temp = tempfile::tempdir()?;
 	let temp_dir = temp.path();

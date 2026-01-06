@@ -5,7 +5,7 @@ use axum::{
 	response::Html,
 	routing::{get, post},
 };
-use pop_common::find_free_port;
+use pop_common::resolve_port;
 use serde::Serialize;
 use std::{path::PathBuf, sync::Arc};
 use tokio::{
@@ -80,7 +80,7 @@ impl WalletIntegrationManager {
 		payload: TransactionData,
 		maybe_port: Option<u16>,
 	) -> Self {
-		let port = find_free_port(maybe_port);
+		let port = resolve_port(maybe_port, &[]);
 		Self::new_with_address(frontend, payload, format!("127.0.0.1:{}", port))
 	}
 

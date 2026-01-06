@@ -122,21 +122,28 @@ pub fn pop(
 	command
 }
 
-/// Checks if preferred port is available, otherwise returns a random available port.
-pub fn find_free_port(preferred_port: Option<u16>) -> u16 {
-	// Try to bind to preferred port if provided.
+/// Checks if the preferred port is available; otherwise returns a random available port.
+/// Ports listed in `avoid_ports` are never returned.
+pub fn resolve_port(preferred_port: Option<u16>, avoid_ports: &[u16]) -> u16 {
+	// Try to bind to the preferred port if provided.
 	if let Some(port) = preferred_port &&
+		!avoid_ports.contains(&port) &&
 		TcpListener::bind(format!("127.0.0.1:{}", port)).is_ok()
 	{
 		return port;
 	}
 
-	// Else, fallback to a random available port
-	TcpListener::bind("127.0.0.1:0")
-		.expect("Failed to bind to an available port")
-		.local_addr()
-		.expect("Failed to retrieve local address. This should never occur.")
-		.port()
+	// Else, fallback to a random available port.
+	loop {
+		let port = TcpListener::bind("127.0.0.1:0")
+			.expect("Failed to bind to an available port")
+			.local_addr()
+			.expect("Failed to retrieve local address. This should never occur.")
+			.port();
+		if !avoid_ports.contains(&port) {
+			return port;
+		}
+	}
 }
 
 /// A slice of `T` items which have been sorted.
@@ -205,21 +212,21 @@ mod tests {
 	}
 
 	#[test]
-	fn find_free_port_works() -> Result<()> {
-		let port = find_free_port(None);
-		let addr = format!("127.0.0.1:{}", port);
-		// Constructs the TcpListener from the above port
-		let listener = TcpListener::bind(&addr);
+	fn resolve_port_works() -> Result<()> {
+		let port = resolve_port(None, &[]);
+		let listener = TcpListener::bind(format!("127.0.0.1:{}", port));
 		assert!(listener.is_ok());
 		Ok(())
 	}
 
 	#[test]
-	fn find_free_port_skips_busy_preferred_port() -> Result<()> {
+	fn resolve_port_skips_busy_preferred_port() -> Result<()> {
 		let listener = TcpListener::bind("127.0.0.1:0")?;
 		let busy_port = listener.local_addr()?.port();
-		let port = find_free_port(Some(busy_port));
+		let port = resolve_port(Some(busy_port), &[]);
 		assert_ne!(port, busy_port);
+		let listener = TcpListener::bind(format!("127.0.0.1:{}", port));
+		assert!(listener.is_ok());
 		Ok(())
 	}
 
