@@ -162,8 +162,8 @@ impl UpContractCommand {
 			}
 			let spinner = spinner();
 			spinner.start("Building contract in RELEASE mode...");
-			let result = match build_smart_contract(&self.path, true, Verbosity::Quiet, None) {
-				Ok(result) => result,
+			let results = match build_smart_contract(&self.path, true, Verbosity::Quiet, None) {
+				Ok(results) => results,
 				Err(e) => {
 					Cli.outro_cancel(format!("🚫 An error occurred building your contract: {e}\nUse `pop build` to retry with build output."))?;
 					return Ok(());
@@ -171,7 +171,11 @@ impl UpContractCommand {
 			};
 			spinner.stop(format!(
 				"Your contract artifacts are ready. You can find them in: {}",
-				result.target_directory.display()
+				results
+					.iter()
+					.map(|r| r.target_directory.display().to_string())
+					.collect::<Vec<_>>()
+					.join("\n")
 			));
 		}
 
