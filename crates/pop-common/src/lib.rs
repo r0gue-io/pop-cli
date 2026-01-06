@@ -122,8 +122,14 @@ pub fn pop(
 	command
 }
 
+const MAX_PORT_ATTEMPTS: usize = 100;
+
 /// Checks if the preferred port is available; otherwise returns a random available port.
 /// Ports listed in `avoid_ports` are never returned.
+///
+/// Note: There is a small window between checking port availability and the caller
+/// binding to it where another process could claim the port. Callers should handle
+/// bind failures gracefully.
 pub fn resolve_port(preferred_port: Option<u16>, avoid_ports: &[u16]) -> u16 {
 	// Try to bind to the preferred port if provided.
 	if let Some(port) = preferred_port &&
@@ -134,7 +140,7 @@ pub fn resolve_port(preferred_port: Option<u16>, avoid_ports: &[u16]) -> u16 {
 	}
 
 	// Else, fallback to a random available port.
-	loop {
+	for _ in 0..MAX_PORT_ATTEMPTS {
 		let port = TcpListener::bind("127.0.0.1:0")
 			.expect("Failed to bind to an available port")
 			.local_addr()
@@ -144,6 +150,7 @@ pub fn resolve_port(preferred_port: Option<u16>, avoid_ports: &[u16]) -> u16 {
 			return port;
 		}
 	}
+	panic!("Failed to find available port after {MAX_PORT_ATTEMPTS} attempts")
 }
 
 /// A slice of `T` items which have been sorted.
@@ -227,6 +234,16 @@ mod tests {
 		assert_ne!(port, busy_port);
 		let listener = TcpListener::bind(format!("127.0.0.1:{}", port));
 		assert!(listener.is_ok());
+		Ok(())
+	}
+
+	#[test]
+	fn resolve_port_skips_avoid_port() -> Result<()> {
+		let listener = TcpListener::bind("127.0.0.1:0")?;
+		let avoid_port = listener.local_addr()?.port();
+		drop(listener); // Port is now free but in avoid list
+		let port = resolve_port(Some(avoid_port), &[avoid_port]);
+		assert_ne!(port, avoid_port);
 		Ok(())
 	}
 

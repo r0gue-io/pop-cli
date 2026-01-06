@@ -775,12 +775,10 @@ mod tests {
 	#[test]
 	fn resolve_ink_node_ports_errors_on_busy_explicit_port() {
 		use std::net::TcpListener;
-		let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-		let busy_port = listener.local_addr().unwrap().port();
-
-		let result = resolve_ink_node_ports(busy_port, DEFAULT_ETH_RPC_PORT);
+		let _listener = TcpListener::bind("127.0.0.1:55000").unwrap();
+		let result = resolve_ink_node_ports(55000, DEFAULT_ETH_RPC_PORT);
 		assert!(result.is_err());
-		let result = resolve_ink_node_ports(DEFAULT_PORT, busy_port);
+		let result = resolve_ink_node_ports(DEFAULT_PORT, 55000);
 		assert!(result.is_err());
 	}
 
