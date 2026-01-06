@@ -33,7 +33,7 @@ pub struct CleanCommandArgs {
 	/// Pass flag to remove all cache artifacts or running nodes.
 	#[arg(short, long)]
 	pub(crate) all: bool,
-	/// Pass flag to remove artifacts for a specific process id list.
+	/// Pass one or more process IDs to remove artifacts for specific processes.
 	#[arg(short, long, num_args = 1..)]
 	pub(crate) pid: Option<Vec<String>>,
 }
