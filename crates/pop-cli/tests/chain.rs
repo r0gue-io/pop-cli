@@ -160,7 +160,7 @@ async fn parachain_lifecycle() -> Result<()> {
 	// Overwrite the config file to manually set the port to test pop call parachain.
 	let network_toml_path = working_dir.join("network.toml");
 	fs::create_dir_all(&working_dir)?;
-	let random_port = resolve_port(None, &[]);
+	let random_port = resolve_port(None);
 	let localhost_url = format!("ws://127.0.0.1:{}", random_port);
 	fs::write(
 		&network_toml_path,

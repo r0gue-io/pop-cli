@@ -71,7 +71,7 @@ pub struct SubmitRequest {
 #[tokio::test]
 async fn contract_lifecycle() -> Result<()> {
 	const WALLET_INT_URI: &str = "http://127.0.0.1:9090";
-	let endpoint_port = resolve_port(None, &[]);
+	let endpoint_port = resolve_port(None);
 	let default_endpoint: &str = &format!("ws://127.0.0.1:{}", endpoint_port);
 	let temp = tempfile::tempdir()?;
 	let temp_dir = temp.path();

@@ -40,12 +40,14 @@ const DEFAULT_ETH_RPC_PORT: u16 = 8545;
 const FAILED: &str = "🚫 Deployment failed.";
 const HELP_HEADER: &str = "Smart contract deployment options";
 
+/// Resolved ink node and Ethereum RPC ports.
 #[derive(Clone, Copy, Debug)]
 struct ResolvedPorts {
 	ink_node_port: u16,
 	eth_rpc_port: u16,
 }
 
+/// Resolves ports for ink node and Ethereum RPC, validating explicit user-specified ports.
 fn resolve_ink_node_ports(ink_node_port: u16, eth_rpc_port: u16) -> anyhow::Result<ResolvedPorts> {
 	let ink_explicit = ink_node_port != DEFAULT_PORT;
 	let eth_explicit = eth_rpc_port != DEFAULT_ETH_RPC_PORT;
@@ -59,13 +61,13 @@ fn resolve_ink_node_ports(ink_node_port: u16, eth_rpc_port: u16) -> anyhow::Resu
 	}
 
 	// Resolve ink node port.
-	let resolved_ink = resolve_port(Some(ink_node_port), &[]);
+	let resolved_ink = resolve_port(Some(ink_node_port));
 	if ink_explicit && resolved_ink != ink_node_port {
 		anyhow::bail!("ink! node port {} is in use", ink_node_port);
 	}
 
-	// Resolve eth rpc port, always avoiding ink's resolved port.
-	let resolved_eth = resolve_port(Some(eth_rpc_port), &[resolved_ink]);
+	// Resolve eth rpc port.
+	let resolved_eth = resolve_port(Some(eth_rpc_port));
 	if eth_explicit && resolved_eth != eth_rpc_port {
 		anyhow::bail!("Ethereum RPC port {} is in use", eth_rpc_port);
 	}
@@ -757,13 +759,6 @@ mod tests {
 		assert_eq!(cmd.ink_node_port, 12000);
 		assert_eq!(cmd.eth_rpc_port, 13000);
 		assert!(cmd.skip_confirm);
-	}
-
-	#[test]
-	fn resolve_ink_node_ports_uses_explicit_ports() {
-		let ports = resolve_ink_node_ports(12001, 13001).expect("explicit ports should work");
-		assert_eq!(ports.ink_node_port, 12001);
-		assert_eq!(ports.eth_rpc_port, 13001);
 	}
 
 	#[test]

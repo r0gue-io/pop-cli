@@ -80,7 +80,7 @@ impl WalletIntegrationManager {
 		payload: TransactionData,
 		maybe_port: Option<u16>,
 	) -> Self {
-		let port = resolve_port(maybe_port, &[]);
+		let port = resolve_port(maybe_port);
 		Self::new_with_address(frontend, payload, format!("127.0.0.1:{}", port))
 	}
 

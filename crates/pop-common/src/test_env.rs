@@ -63,7 +63,7 @@ impl TestNode {
 	/// Spawns a local ink! node and waits until it's ready.
 	pub async fn spawn() -> anyhow::Result<Self> {
 		let temp_dir = tempfile::tempdir()?;
-		let random_port = resolve_port(None, &[]);
+		let random_port = resolve_port(None);
 		let cache = temp_dir.path().to_path_buf();
 
 		let binary = Binary::Source {
