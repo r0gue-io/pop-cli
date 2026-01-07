@@ -32,7 +32,7 @@ pub enum TemplatePalletConfigCommonTypes {
 
 impl fmt::Display for TemplatePalletConfigCommonTypes {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-		write!(f, "{}", self.get_detailed_message().unwrap_or("Unknown"))
+		write!(f, "{}", self.get_message().unwrap_or("Unknown"))
 	}
 }
 
@@ -82,7 +82,7 @@ pub enum TemplatePalletStorageTypes {
 
 impl fmt::Display for TemplatePalletStorageTypes {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		write!(f, "{}", self.get_detailed_message().unwrap_or("Unknown"))
+		write!(f, "{}", self.get_message().unwrap_or("Unknown"))
 	}
 }
 

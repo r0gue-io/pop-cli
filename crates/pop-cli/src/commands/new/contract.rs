@@ -274,7 +274,7 @@ mod tests {
 		};
 		assert_eq!(
 			cmd.display(),
-			"pop new contract my-contract --template Standard --with-frontend typink --package-manager Npm"
+			"pop new contract my-contract --template Standard --with-frontend typink --package-manager npm"
 		);
 
 		let cmd = NewContractCommand {

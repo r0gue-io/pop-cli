@@ -347,7 +347,7 @@ mod tests {
 		}
 		#[cfg(feature = "contract")]
 		{
-			expected.push_str(" --metadata Solidity");
+			expected.push_str(" --metadata solidity");
 		}
 		assert_eq!(args.display(), expected);
 
