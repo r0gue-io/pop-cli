@@ -193,6 +193,7 @@ impl NewPalletCommand {
 			.output()?;
 
 		spinner.stop("Generation complete");
+		cli.info(self.display())?;
 		cli.outro(format!(
 			"cd into \"{}\" and enjoy hacking! 🚀",
 			pallet_path
@@ -200,6 +201,42 @@ impl NewPalletCommand {
 				.expect("If the path isn't valid, create_pallet_template detects it; qed")
 		))?;
 		Ok(())
+	}
+
+	fn display(&self) -> String {
+		let mut full_message = "pop new pallet".to_string();
+		if let Some(name) = &self.name {
+			full_message.push_str(&format!(" {}", name));
+		}
+		if let Some(authors) = &self.authors {
+			full_message.push_str(&format!(" --authors \"{}\"", authors));
+		}
+		if let Some(description) = &self.description {
+			full_message.push_str(&format!(" --description \"{}\"", description));
+		}
+		if let Some(mode) = &self.mode {
+			match mode {
+				Mode::Advanced(advanced) => {
+					full_message.push_str(" advanced");
+					for t in &advanced.config_common_types {
+						full_message.push_str(&format!(" --config-common-types {}", t));
+					}
+					if advanced.default_config {
+						full_message.push_str(" --default-config");
+					}
+					for s in &advanced.storage {
+						full_message.push_str(&format!(" --storage {}", s));
+					}
+					if advanced.genesis_config {
+						full_message.push_str(" --genesis-config");
+					}
+					if advanced.custom_origin {
+						full_message.push_str(" --custom-origin");
+					}
+				},
+			}
+		}
+		full_message
 	}
 }
 
@@ -209,6 +246,37 @@ mod tests {
 	use crate::cli::MockCli;
 	use std::fs;
 	use tempfile::tempdir;
+
+	#[test]
+	fn test_new_pallet_command_display() {
+		let cmd = NewPalletCommand {
+			name: Some("my-pallet".to_string()),
+			authors: Some("Me".to_string()),
+			description: Some("My Pallet".to_string()),
+			mode: None,
+		};
+		assert_eq!(
+			cmd.display(),
+			"pop new pallet my-pallet --authors \"Me\" --description \"My Pallet\""
+		);
+
+		let cmd = NewPalletCommand {
+			name: Some("my-pallet".to_string()),
+			authors: Some("Me".to_string()),
+			description: Some("My Pallet".to_string()),
+			mode: Some(Mode::Advanced(AdvancedMode {
+				config_common_types: vec![TemplatePalletConfigCommonTypes::RuntimeEvent],
+				default_config: true,
+				storage: vec![TemplatePalletStorageTypes::StorageValue],
+				genesis_config: true,
+				custom_origin: true,
+			})),
+		};
+		assert_eq!(
+			cmd.display(),
+			"pop new pallet my-pallet --authors \"Me\" --description \"My Pallet\" advanced --config-common-types RuntimeEvent --default-config --storage StorageValue --genesis-config --custom-origin"
+		);
+	}
 
 	#[tokio::test]
 	async fn generate_simple_pallet_works() -> anyhow::Result<()> {

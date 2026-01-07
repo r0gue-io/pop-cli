@@ -42,7 +42,16 @@ impl FrontendCommand {
 			cli.outro_cancel("Frontend directory not found")?;
 		}
 
+		cli.info(self.display())?;
 		Ok(())
+	}
+
+	fn display(&self) -> String {
+		let mut full_message = "pop up frontend".to_string();
+		if let Some(path) = &self.path {
+			full_message.push_str(&format!(" --path {}", path.display()));
+		}
+		full_message
 	}
 }
 
@@ -136,6 +145,15 @@ mod tests {
 	use crate::cli::MockCli;
 	use std::fs;
 	use tempfile::tempdir;
+
+	#[test]
+	fn test_frontend_command_display() {
+		let cmd = FrontendCommand { path: Some(PathBuf::from("my-frontend")) };
+		assert_eq!(cmd.display(), "pop up frontend --path my-frontend");
+
+		let cmd = FrontendCommand { path: None };
+		assert_eq!(cmd.display(), "pop up frontend");
+	}
 
 	#[test]
 	fn resolve_frontend_dir_finds_existing_frontend_works() -> anyhow::Result<()> {

@@ -16,7 +16,6 @@ use clap::{Args, ValueEnum};
 use cliclack::spinner;
 use pop_chains::{
 	ChainSpec, ChainSpecBuilder, generate_genesis_state_file_with_node, is_supported,
-	utils::helpers::get_preset_names,
 };
 use pop_common::{Profile, manifest::from_path};
 use serde::Serialize;
@@ -236,7 +235,77 @@ impl BuildSpecCommand {
 				"🚫 Can't build a specification for target. Maybe not a chain project ?",
 			)?;
 		}
+		cli.info(self.display())?;
 		Ok(())
+	}
+
+	fn display(&self) -> String {
+		let mut full_message = "pop build spec".to_string();
+		full_message.push_str(&format!(" --path {}", self.path.display()));
+		if let Some(output) = &self.output_file {
+			full_message.push_str(&format!(" --output {}", output.display()));
+		}
+		if let Some(profile) = self.profile {
+			full_message.push_str(&format!(" --profile {}", profile));
+		}
+		if let Some(para_id) = self.para_id {
+			full_message.push_str(&format!(" --para-id {}", para_id));
+		}
+		if let Some(bootnode) = self.default_bootnode {
+			full_message.push_str(&format!(" --default-bootnode {}", bootnode));
+		}
+		if let Some(chain_type) = &self.chain_type {
+			full_message.push_str(&format!(" --type {}", chain_type));
+		}
+		if !self.features.is_empty() {
+			full_message.push_str(&format!(" --features \"{}\"", self.features));
+		}
+		if self.skip_build {
+			full_message.push_str(" --skip-build");
+		}
+		if let Some(chain) = &self.chain {
+			full_message.push_str(&format!(" --chain {}", chain));
+		}
+		if self.is_relay {
+			full_message.push_str(" --is-relay");
+		}
+		if let Some(relay) = &self.relay {
+			full_message.push_str(&format!(" --relay {}", relay));
+		}
+		if let Some(name) = &self.name {
+			full_message.push_str(&format!(" --name \"{}\"", name));
+		}
+		if let Some(id) = &self.id {
+			full_message.push_str(&format!(" --id {}", id));
+		}
+		if let Some(protocol_id) = &self.protocol_id {
+			full_message.push_str(&format!(" --protocol-id {}", protocol_id));
+		}
+		if let Some(properties) = &self.properties {
+			full_message.push_str(&format!(" --properties \"{}\"", properties));
+		}
+		if let Some(gs) = self.genesis_state {
+			full_message.push_str(&format!(" --genesis-state {}", gs));
+		}
+		if let Some(gc) = self.genesis_code {
+			full_message.push_str(&format!(" --genesis-code {}", gc));
+		}
+		if let Some(det) = self.deterministic {
+			full_message.push_str(&format!(" --deterministic {}", det));
+		}
+		if let Some(tag) = &self.tag {
+			full_message.push_str(&format!(" --tag {}", tag));
+		}
+		if let Some(runtime_dir) = &self.runtime_dir {
+			full_message.push_str(&format!(" --runtime-dir {}", runtime_dir.display()));
+		}
+		if let Some(package) = &self.package {
+			full_message.push_str(&format!(" --package {}", package));
+		}
+		if self.raw {
+			full_message.push_str(" --raw");
+		}
+		full_message
 	}
 
 	/// Configure chain specification requirements by prompting for missing inputs, validating
@@ -623,7 +692,7 @@ impl BuildSpec {
 				chain
 			} else if is_runtime_build {
 				cli.info("Fetching runtime presets...")?;
-				let preset_names = get_preset_names(&builder.artifact_path()?)?;
+				let preset_names = pop_chains::get_preset_names(&builder.artifact_path()?)?;
 				let mut prompt = cli.select("Select the preset");
 				for preset_name in preset_names {
 					prompt = prompt.item(preset_name.clone(), preset_name, "");
@@ -843,6 +912,41 @@ mod tests {
 		path::PathBuf,
 	};
 	use tempfile::{TempDir, tempdir};
+
+	#[test]
+	fn test_build_spec_command_display() {
+		let cmd = BuildSpecCommand {
+			path: PathBuf::from("./my-project"),
+			output_file: Some(PathBuf::from("output.json")),
+			profile: Some(Profile::Release),
+			para_id: Some(2000),
+			default_bootnode: Some(true),
+			chain_type: Some(ChainType::Development),
+			features: "feature1,feature2".to_string(),
+			skip_build: true,
+			chain: Some("dev".to_string()),
+			is_relay: true,
+			relay: Some(RelayChain::Paseo),
+			name: Some("My Chain".to_string()),
+			id: Some("my_chain".to_string()),
+			protocol_id: Some("my_protocol".to_string()),
+			properties: Some("tokenSymbol=UNIT,decimals=12".to_string()),
+			genesis_state: Some(true),
+			genesis_code: Some(true),
+			deterministic: Some(true),
+			tag: Some("v1".to_string()),
+			runtime_dir: Some(PathBuf::from("./runtime")),
+			package: Some("my-package".to_string()),
+			raw: true,
+		};
+		assert_eq!(
+			cmd.display(),
+			"pop build spec --path ./my-project --output output.json --profile release --para-id 2000 --default-bootnode true --type Development --features \"feature1,feature2\" --skip-build --chain dev --is-relay --relay paseo --name \"My Chain\" --id my_chain --protocol-id my_protocol --properties \"tokenSymbol=UNIT,decimals=12\" --genesis-state true --genesis-code true --deterministic true --tag v1 --runtime-dir ./runtime --package my-package --raw"
+		);
+
+		let cmd = BuildSpecCommand { path: PathBuf::from("./"), ..Default::default() };
+		assert_eq!(cmd.display(), "pop build spec --path ./");
+	}
 
 	#[tokio::test]
 	async fn configure_build_spec_works() -> anyhow::Result<()> {
