@@ -17,7 +17,7 @@ edition = "2024"
 documentation = "https://learn.onpop.io/"
 license = "GPL-3.0"
 repository = "https://github.com/r0gue-io/pop-cli"
-rust-version = "1.91.1"
+rust-version = "1.92"
 version = "0.12.1"
 
 [workspace.dependencies]
