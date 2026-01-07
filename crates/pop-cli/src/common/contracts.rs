@@ -331,7 +331,7 @@ mod tests {
 	use crate::cli::MockCli;
 	use cliclack::spinner;
 	use duct::cmd;
-	use pop_common::{find_free_port, set_executable_permission};
+	use pop_common::{resolve_port, set_executable_permission};
 	use pop_contracts::{Param, is_chain_alive, run_eth_rpc_node, run_ink_node};
 	use std::fs::{self, File};
 	use url::Url;
@@ -639,9 +639,9 @@ mod tests {
 		let binary_2 = eth_rpc_generator(PathBuf::from(cache.path()), None).await?;
 		binary_2.source(false, &(), true).await?;
 		set_executable_permission(binary_2.path())?;
-		let process_1_port = find_free_port(None);
+		let process_1_port = resolve_port(None);
 		let process_1 = run_ink_node(&binary_1.path(), None, process_1_port).await?;
-		let process_2_port = find_free_port(None);
+		let process_2_port = resolve_port(None);
 		let chain_url = format!("ws://127.0.0.1:{}", process_1_port);
 		let process_2 =
 			run_eth_rpc_node(&binary_2.path(), None, &chain_url, process_2_port).await?;

@@ -20,6 +20,7 @@ use crate::{
 use clap::Args;
 use cliclack::spinner;
 use console::Emoji;
+use pop_common::resolve_port;
 use pop_contracts::{
 	FunctionType, UpOpts, Verbosity, Weight, build_smart_contract,
 	dry_run_gas_estimate_instantiate, dry_run_upload, extract_function, get_contract_code,
@@ -38,6 +39,41 @@ const DEFAULT_PORT: u16 = 9944;
 const DEFAULT_ETH_RPC_PORT: u16 = 8545;
 const FAILED: &str = "🚫 Deployment failed.";
 const HELP_HEADER: &str = "Smart contract deployment options";
+
+/// Resolved ink node and Ethereum RPC ports.
+#[derive(Clone, Copy, Debug)]
+struct ResolvedPorts {
+	ink_node_port: u16,
+	eth_rpc_port: u16,
+}
+
+/// Resolves ports for ink node and Ethereum RPC, validating explicit user-specified ports.
+fn resolve_ink_node_ports(ink_node_port: u16, eth_rpc_port: u16) -> anyhow::Result<ResolvedPorts> {
+	let ink_explicit = ink_node_port != DEFAULT_PORT;
+	let eth_explicit = eth_rpc_port != DEFAULT_ETH_RPC_PORT;
+
+	// Fail fast if both same.
+	if ink_node_port == eth_rpc_port {
+		anyhow::bail!(
+			"ink! node port and Ethereum RPC port cannot be the same ({})",
+			ink_node_port
+		);
+	}
+
+	// Resolve ink node port.
+	let resolved_ink = resolve_port(Some(ink_node_port));
+	if ink_explicit && resolved_ink != ink_node_port {
+		anyhow::bail!("ink! node port {} is in use", ink_node_port);
+	}
+
+	// Resolve eth rpc port.
+	let resolved_eth = resolve_port(Some(eth_rpc_port));
+	if eth_explicit && resolved_eth != eth_rpc_port {
+		anyhow::bail!("Ethereum RPC port {} is in use", eth_rpc_port);
+	}
+
+	Ok(ResolvedPorts { ink_node_port: resolved_ink, eth_rpc_port: resolved_eth })
+}
 
 /// Launch a local ink! node.
 #[derive(Args, Clone, Serialize, Debug)]
@@ -59,9 +95,18 @@ pub(crate) struct InkNodeCommand {
 impl InkNodeCommand {
 	pub(crate) async fn execute(&self, cli: &mut Cli) -> anyhow::Result<()> {
 		cli.intro("Launch a local Ink! node")?;
-		let url = Url::parse(&format!("ws://localhost:{}", self.ink_node_port))?;
+		let ports = match resolve_ink_node_ports(self.ink_node_port, self.eth_rpc_port) {
+			Ok(ports) => ports,
+			Err(e) => {
+				cli.error(e.to_string())?;
+				cli.outro_cancel("🚫 Unable to start local ink! node.")?;
+				return Ok(());
+			},
+		};
+		let url = Url::parse(&format!("ws://localhost:{}", ports.ink_node_port))?;
 		let ((mut ink_node_process, ink_node_log), (mut eth_rpc_process, eth_rpc_log)) =
-			start_ink_node(&url, self.skip_confirm, self.ink_node_port, self.eth_rpc_port).await?;
+			start_ink_node(&url, self.skip_confirm, ports.ink_node_port, ports.eth_rpc_port)
+				.await?;
 
 		if !self.detach {
 			// Wait for the process to terminate
@@ -189,7 +234,7 @@ impl UpContractCommand {
 			return Ok(());
 		}
 
-		let url = if let Some(url) = self.url.clone() {
+		let mut url = if let Some(url) = self.url.clone() {
 			url
 		} else if self.skip_confirm {
 			Url::parse(urls::LOCAL).expect("default url is valid")
@@ -203,8 +248,6 @@ impl UpContractCommand {
 			)
 			.await?
 		};
-		self.url = Some(url.clone());
-
 		// Check if specified chain is accessible
 		let processes = if !is_chain_alive(url.clone()).await? {
 			let local_url = Url::parse(urls::LOCAL).expect("default url is valid");
@@ -217,9 +260,16 @@ impl UpContractCommand {
 					.interact()?
 				{
 					Cli.info("Fetching and launching a local ink! node")?;
+					let ports = resolve_ink_node_ports(DEFAULT_PORT, DEFAULT_ETH_RPC_PORT)?;
+					url = Url::parse(&format!("ws://localhost:{}", ports.ink_node_port))?;
 					Some(
-						start_ink_node(&url, self.skip_confirm, DEFAULT_PORT, DEFAULT_ETH_RPC_PORT)
-							.await?,
+						start_ink_node(
+							&url,
+							self.skip_confirm,
+							ports.ink_node_port,
+							ports.eth_rpc_port,
+						)
+						.await?,
 					)
 				} else {
 					Cli.outro_cancel(
@@ -236,6 +286,7 @@ impl UpContractCommand {
 		} else {
 			None
 		};
+		self.url = Some(url.clone());
 
 		// Track the deployed contract address across both deployment flows.
 		let mut deployed_contract_address: Option<String> = None;
@@ -708,5 +759,29 @@ mod tests {
 		assert_eq!(cmd.ink_node_port, 12000);
 		assert_eq!(cmd.eth_rpc_port, 13000);
 		assert!(cmd.skip_confirm);
+	}
+
+	#[test]
+	fn resolve_ink_node_ports_errors_on_same_explicit_ports() {
+		let result = resolve_ink_node_ports(12000, 12000);
+		assert!(result.is_err());
+	}
+
+	#[test]
+	fn resolve_ink_node_ports_errors_on_busy_explicit_port() {
+		use std::net::TcpListener;
+		let _listener = TcpListener::bind("127.0.0.1:55000").unwrap();
+		let result = resolve_ink_node_ports(55000, DEFAULT_ETH_RPC_PORT);
+		assert!(result.is_err());
+		let result = resolve_ink_node_ports(DEFAULT_PORT, 55000);
+		assert!(result.is_err());
+	}
+
+	#[test]
+	fn resolve_ink_node_ports_resolves_defaults() {
+		let ports = resolve_ink_node_ports(DEFAULT_PORT, DEFAULT_ETH_RPC_PORT)
+			.expect("default ports should resolve");
+		assert_eq!(ports.ink_node_port, DEFAULT_PORT);
+		assert_eq!(ports.eth_rpc_port, DEFAULT_ETH_RPC_PORT);
 	}
 }
