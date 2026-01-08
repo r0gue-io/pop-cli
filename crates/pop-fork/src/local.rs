@@ -449,66 +449,6 @@ impl LocalStorageLayer {
 			.collect())
 	}
 
-	/// Merge modifications from another layer into this one.
-	///
-	/// # Arguments
-	/// * `other` - The layer whose modifications to merge
-	///
-	/// # Returns
-	/// * `Ok(())` - Merge completed successfully
-	/// * `Err(_)` - Lock error
-	///
-	/// # Behavior
-	/// - All modifications from `other` are copied to `self`
-	/// - If both layers have modifications for the same key, `other`'s value wins
-	/// - Deleted prefixes from `other` are added to `self`, avoiding duplicates
-	/// - Does not modify `other` in any way
-	pub fn merge(&self, other: &LocalStorageLayer) -> Result<(), LocalStorageError> {
-		let mut self_modifications =
-			self.modifications.write().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
-		let other_modifications =
-			other.modifications.read().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
-		let mut self_deleted_prefixes = self
-			.deleted_prefixes
-			.write()
-			.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
-		let other_deleted_prefixes = other
-			.deleted_prefixes
-			.read()
-			.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
-
-		// Merge modifications (other's values take precedence)
-		for (key, value) in other_modifications.iter() {
-			self_modifications.insert(key.clone(), value.clone());
-		}
-
-		// Extend deleted prefixes, avoiding duplicates
-		for prefix in other_deleted_prefixes.iter() {
-			if !self_deleted_prefixes.iter().any(|p| p.as_slice() == prefix.as_slice()) {
-				self_deleted_prefixes.push(prefix.clone());
-			}
-		}
-
-		Ok(())
-	}
-
-	/// Create a child layer for nested modifications.
-	///
-	/// # Returns
-	/// A cloned `LocalStorageLayer` that shares the same parent and state.
-	///
-	/// # Behavior
-	/// - The child shares the same `modifications` and `deleted_prefixes` via `Arc`
-	/// - Changes in the child affect the parent and vice versa
-	/// - Useful for creating temporary scopes that can be discarded
-	///
-	/// # Note
-	/// This is currently a simple clone. In the future, this may be updated to create
-	/// true isolated child layers with proper parent-child relationships.
-	pub fn child(&self) -> LocalStorageLayer {
-		self.clone()
-	}
-
 	/// Commit all modifications to the local_storage table in the cache, leaving that state as
 	/// latest_block_number height.
 	///
@@ -605,8 +545,8 @@ mod tests {
 		// Verify empty modifications
 		let diff = layer.diff().unwrap();
 		assert_eq!(diff.len(), 0, "New layer should have no modifications");
-        assert_eq!(layer.first_forked_block_number, ctx.block_number);
-        assert_eq!(layer.latest_block_number, ctx.block_number + 1);
+		assert_eq!(layer.first_forked_block_number, ctx.block_number);
+		assert_eq!(layer.latest_block_number, ctx.block_number + 1);
 	}
 
 	// Tests for get()
@@ -628,6 +568,19 @@ mod tests {
 			Some(Arc::new(value.as_slice().to_vec())),
 			"get() should return local modification"
 		);
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn get_non_existent_block_returns_none() {
+		let ctx = create_test_context().await;
+		let layer = create_layer(&ctx);
+
+		// Query a block that doesn't exist
+		let non_existent_block = u32::MAX;
+		let key = b"some_key";
+
+		let result = layer.get(non_existent_block, key).await.unwrap();
+		assert!(result.is_none(), "Non-existent block should return None");
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -868,13 +821,12 @@ mod tests {
 		let key2 = b"key2";
 
 		layer.set_batch(&[(key1, Some(b"val")), (key2, Some(b"val"))]).unwrap();
-        layer.delete_prefix(key2).unwrap();
+		layer.delete_prefix(key2).unwrap();
 
 		let results = layer.get_batch(ctx.block_number, &[key1, key2]).await.unwrap();
 		assert!(results[0].is_some());
 		assert!(results[1].is_none());
 	}
-
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_batch_falls_back_to_parent() {
@@ -979,12 +931,16 @@ mod tests {
 		layer.commit().await.unwrap();
 
 		// Set and commit at block N
-		layer.set_batch(&[(key1, Some(value1_block_1)), (key2, Some(value2_block_1))]).unwrap();
+		layer
+			.set_batch(&[(key1, Some(value1_block_1)), (key2, Some(value2_block_1))])
+			.unwrap();
 		layer.commit().await.unwrap();
 		let block_1 = layer.get_latest_block_number() - 1;
 
 		// Set and commit at block N+1
-		layer.set_batch(&[(key1, Some(value1_block_2)), (key2, Some(value2_block_2))]).unwrap();
+		layer
+			.set_batch(&[(key1, Some(value1_block_2)), (key2, Some(value2_block_2))])
+			.unwrap();
 		layer.commit().await.unwrap();
 		let block_2 = layer.get_latest_block_number() - 1;
 
@@ -1070,7 +1026,7 @@ mod tests {
 		assert_eq!(diff.len(), 0);
 	}
 
-    #[tokio::test(flavor = "multi_thread")]
+	#[tokio::test(flavor = "multi_thread")]
 	async fn get_batch_non_existent_block_returns_none() {
 		let ctx = create_test_context().await;
 		let layer = create_layer(&ctx);
@@ -1097,11 +1053,11 @@ mod tests {
 		// 1. Latest block (from modifications)
 		// 2. Historical block (from cache/RPC)
 
-        // Advance some blocks
-        layer.commit().await.unwrap();
-        layer.commit().await.unwrap();
+		// Advance some blocks
+		layer.commit().await.unwrap();
+		layer.commit().await.unwrap();
 
-        let latest_block_1 = layer.get_latest_block_number();
+		let latest_block_1 = layer.get_latest_block_number();
 
 		let key1 = b"local_key";
 		let key2 = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
@@ -1121,7 +1077,7 @@ mod tests {
 		// Commit block modifications
 		layer.commit().await.unwrap();
 
-        let latest_block_2 = layer.get_latest_block_number();
+		let latest_block_2 = layer.get_latest_block_number();
 
 		layer.set(key1, Some(b"local_value_2")).unwrap();
 
@@ -1382,160 +1338,6 @@ mod tests {
 		assert_eq!(diff.len(), 0, "diff() should not include prefix-deleted keys");
 	}
 
-	// Tests for merge()
-	#[tokio::test(flavor = "multi_thread")]
-	async fn merge_combines_modifications() {
-		let ctx = create_test_context().await;
-
-		let layer1 = create_layer(&ctx);
-		let layer2 = create_layer(&ctx);
-
-		let key1 = b"key1";
-		let key2 = b"key2";
-		let value1 = b"value1";
-		let value2 = b"value2";
-
-		layer1.set(key1, Some(value1)).unwrap();
-		layer2.set(key2, Some(value2)).unwrap();
-
-		layer1.merge(&layer2).unwrap();
-
-		// layer1 should have both
-		let diff = layer1.diff().unwrap();
-		assert_eq!(diff.len(), 2);
-	}
-
-	#[tokio::test(flavor = "multi_thread")]
-	async fn merge_other_takes_precedence() {
-		let ctx = create_test_context().await;
-
-		let layer1 = create_layer(&ctx);
-		let layer2 = create_layer(&ctx);
-
-		let key = b"key";
-		let value1 = b"value1";
-		let value2 = b"value2";
-
-		layer1.set(key, Some(value1)).unwrap();
-		layer2.set(key, Some(value2)).unwrap();
-
-		layer1.merge(&layer2).unwrap();
-
-		// layer1 should have layer2's value
-		let result = layer1.get(ctx.block_number, key).await.unwrap();
-		assert_eq!(result.as_ref().map(|v| v.as_slice()), Some(value2.as_slice()));
-	}
-
-	#[tokio::test(flavor = "multi_thread")]
-	async fn merge_combines_deleted_prefixes() {
-		let ctx = create_test_context().await;
-
-		let layer1 = create_layer(&ctx);
-		let layer2 = create_layer(&ctx);
-
-		let prefix1 = b"prefix1_";
-		let prefix2 = b"prefix2_";
-
-		layer1.delete_prefix(prefix1).unwrap();
-		layer2.delete_prefix(prefix2).unwrap();
-
-		layer1.merge(&layer2).unwrap();
-
-		// Both should be deleted in layer1
-		assert!(layer1.is_deleted(prefix1).unwrap());
-		assert!(layer1.is_deleted(prefix2).unwrap());
-	}
-
-	#[tokio::test(flavor = "multi_thread")]
-	async fn merge_avoids_duplicate_prefixes() {
-		let ctx = create_test_context().await;
-
-		let layer1 = create_layer(&ctx);
-		let layer2 = create_layer(&ctx);
-
-		let prefix = b"prefix_";
-
-		layer1.delete_prefix(prefix).unwrap();
-		layer2.delete_prefix(prefix).unwrap();
-
-		let before_count = layer1.deleted_prefixes.read().unwrap().len();
-
-		layer1.merge(&layer2).unwrap();
-
-		let after_count = layer1.deleted_prefixes.read().unwrap().len();
-		assert_eq!(before_count, after_count, "merge() should avoid duplicate prefixes");
-	}
-
-	#[tokio::test(flavor = "multi_thread")]
-	async fn merge_does_not_modify_other() {
-		let ctx = create_test_context().await;
-
-		let layer1 = create_layer(&ctx);
-		let layer2 = create_layer(&ctx);
-
-		let key = b"key";
-		let value = b"value";
-
-		layer1.set(key, Some(value)).unwrap();
-
-		let before_diff = layer2.diff().unwrap();
-
-		layer1.merge(&layer2).unwrap();
-
-		let after_diff = layer2.diff().unwrap();
-		assert_eq!(before_diff.len(), after_diff.len(), "merge() should not modify other");
-	}
-
-	// Tests for child()
-	#[tokio::test(flavor = "multi_thread")]
-	async fn child_shares_parent() {
-		let ctx = create_test_context().await;
-		let layer = create_layer(&ctx);
-
-		let child = layer.child();
-
-		// Both should be able to read from parent
-		let key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
-		let parent_result = layer.get(ctx.block_number, &key).await.unwrap();
-		let child_result = child.get(ctx.block_number, &key).await.unwrap();
-
-		assert_eq!(parent_result, child_result);
-	}
-
-	#[tokio::test(flavor = "multi_thread")]
-	async fn child_shares_modifications() {
-		let ctx = create_test_context().await;
-		let layer = create_layer(&ctx);
-
-		let key = b"key";
-		let value = b"value";
-
-		layer.set(key, Some(value)).unwrap();
-
-		let child = layer.child();
-
-		// Child should see parent's modification
-		let result = child.get(ctx.block_number, key).await.unwrap();
-		assert_eq!(result.as_ref().map(|v| v.as_slice()), Some(value.as_slice()));
-	}
-
-	#[tokio::test(flavor = "multi_thread")]
-	async fn child_modifications_affect_parent() {
-		let ctx = create_test_context().await;
-		let layer = create_layer(&ctx);
-
-		let child = layer.child();
-
-		let key = b"key";
-		let value = b"value";
-
-		child.set(key, Some(value)).unwrap();
-
-		// Parent should see child's modification (shared state)
-		let result = layer.get(ctx.block_number, key).await.unwrap();
-		assert_eq!(result.as_ref().map(|v| v.as_slice()), Some(value.as_slice()));
-	}
-
 	// Tests for commit()
 	#[tokio::test(flavor = "multi_thread")]
 	async fn commit_writes_to_cache() {
@@ -1659,19 +1461,4 @@ mod tests {
 		assert_eq!(cached1, Some(Some(value.to_vec())));
 		assert_eq!(cached2, Some(Some(value.to_vec())));
 	}
-
-	#[tokio::test(flavor = "multi_thread")]
-	async fn get_non_existent_block_returns_none() {
-		let ctx = create_test_context().await;
-		let layer = create_layer(&ctx);
-
-		// Query a block that doesn't exist
-		let non_existent_block = u32::MAX;
-		let key = b"some_key";
-
-		let result = layer.get(non_existent_block, key).await.unwrap();
-		assert!(result.is_none(), "Non-existent block should return None");
-	}
-
-	
 }
