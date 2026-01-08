@@ -1,4 +1,4 @@
-pop-cli (0.12.1-8) noble; urgency=medium
+pop-cli (0.12.1-10) noble; urgency=medium
 
   * Initial Debian package release
   * Version 0.12.1 of pop-cli

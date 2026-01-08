@@ -7,25 +7,13 @@ export DH_VERBOSE = 1
 	dh $@
 
 override_dh_auto_clean:
-	cargo clean || true
+	cargo clean
 
 override_dh_auto_build:
-	if [ -f pop ]; then \
-		echo "Using pre-compiled binary found in root"; \
-	else \
-		cargo build --locked --offline --workspace --profile=production; \
-	fi
+	cargo build --locked --offline -p pop-cli --profile=production
 
 override_dh_auto_test:
 	# Skip tests during package build
 
 override_dh_auto_install:
-	if [ -f pop ]; then \
-		install -D -m 755 pop debian/pop-cli/usr/bin/pop; \
-	else \
-		install -D -m 755 target/production/pop debian/pop-cli/usr/bin/pop; \
-	fi
-
-override_dh_strip:
-	# Skip stripping to avoid "Unable to recognise the format of the input file"
-	# errors when using pre-compiled binaries from different environments.
+	install -D -m 755 target/production/pop debian/pop-cli/usr/bin/pop
