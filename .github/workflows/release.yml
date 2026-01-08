@@ -119,14 +119,11 @@ jobs:
           DEBEMAIL: "go@r0gue.io"
           USER: "R0GUE"
         run: |
+          cp target/production/pop .
           cargo clean
-          VERSION=${GITHUB_REF#refs/tags/v}
-          mkdir -p .cargo
-          cargo vendor > .cargo/config.toml
-          # Create source tarball including vendor and .cargo
-          tar --exclude='./debian' -czf ../pop-cli_${VERSION}.orig.tar.gz .
           echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import --batch
-          debuild -S -sa -k"${{ secrets.GPG_KEY_ID }}" -d --no-lintian
+          GPG_KEY_ID=$(gpg --list-secret-keys --keyid-format LONG | grep sec | awk '{print $2}' | cut -d'/' -f2 | tail -n1)
+          yes | debuild -S -sa -k"${GPG_KEY_ID}" -d --lintian-opts --no-lintian 
           dput ${{ secrets.LAUNCHPAD_PPA }} ${{ github.workspace }}/../pop-cli_*.changes
 
   publish-homebrew:
