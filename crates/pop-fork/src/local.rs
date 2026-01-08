@@ -134,7 +134,7 @@ impl LocalStorageLayer {
 	/// - First checks if block is already in cache
 	/// - If not cached, fetches from remote RPC and caches it
 	/// - If block doesn't exist, returns None
-	async fn fetch_and_cache_block_if_needed(
+	async fn get_block(
 		&self,
 		block_number: u32,
 	) -> Result<Option<BlockRow>, LocalStorageError> {
@@ -212,7 +212,7 @@ impl LocalStorageLayer {
 		}
 
 		// Case 3: Block before or at fork point - fetch and cache block if needed
-		let block = self.fetch_and_cache_block_if_needed(block_number).await?;
+		let block = self.get_block(block_number).await?;
 
 		if let Some(block_row) = block {
 			let block_hash = H256::from_slice(&block_row.hash);
@@ -327,7 +327,7 @@ impl LocalStorageLayer {
 		}
 
 		// Case 3: Block before or at fork point - fetch and cache block if needed
-		let block = self.fetch_and_cache_block_if_needed(block_number).await?;
+		let block = self.get_block(block_number).await?;
 
 		if let Some(block_row) = block {
 			let block_hash = H256::from_slice(&block_row.hash);
@@ -1456,7 +1456,7 @@ mod tests {
 		assert_eq!(cached2, Some(Some(value.to_vec())));
 	}
 
-	// Tests for fetch_and_cache_block_if_needed (via get/get_batch for historical blocks)
+	// Tests for get_block (via get/get_batch for historical blocks)
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_historical_block() {
 		let ctx = create_test_context().await;
