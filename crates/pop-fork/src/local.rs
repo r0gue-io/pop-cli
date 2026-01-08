@@ -134,10 +134,7 @@ impl LocalStorageLayer {
 	/// - First checks if block is already in cache
 	/// - If not cached, fetches from remote RPC and caches it
 	/// - If block doesn't exist, returns None
-	async fn get_block(
-		&self,
-		block_number: u32,
-	) -> Result<Option<BlockRow>, LocalStorageError> {
+	async fn get_block(&self, block_number: u32) -> Result<Option<BlockRow>, LocalStorageError> {
 		// First check if block is already in cache
 		if let Some(cached_block) = self.parent.cache().get_block_by_number(block_number).await? {
 			return Ok(Some(cached_block));
@@ -203,15 +200,17 @@ impl LocalStorageLayer {
 			return Ok(self.parent.get(self.first_forked_block_hash, key).await?.map(Arc::new));
 		}
 
-		// Case 2: Historical block after fork - check local_storage table
-		if block_number > self.first_forked_block_number &&
-			block_number < latest_block_number &&
-			let Some(cached) = self.parent.cache().get_local_storage(block_number, key).await?
-		{
-			return Ok(cached.map(Arc::new));
+		// Case 2: Historical block after fork - check local_storage table, otherwise query remote
+		// at first_forked_block
+		if block_number > self.first_forked_block_number && block_number < latest_block_number {
+			if let Some(cached) = self.parent.cache().get_local_storage(block_number, key).await? {
+				return Ok(cached.map(Arc::new));
+			} else {
+				return Ok(self.parent.get(self.first_forked_block_hash, key).await?.map(Arc::new));
+			}
 		}
 
-		// Case 3: Block before or at fork point - fetch and cache block if needed
+		// Case 3: Block before or at fork point
 		let block = self.get_block(block_number).await?;
 
 		if let Some(block_row) = block {
@@ -323,7 +322,19 @@ impl LocalStorageLayer {
 		if block_number > self.first_forked_block_number && block_number < latest_block_number {
 			let cached_values =
 				self.parent.cache().get_local_storage_batch(block_number, keys).await?;
-			return Ok(cached_values.into_iter().map(|v| v.flatten().map(Arc::new)).collect());
+
+			// For non cached values, we need to query the remote storage at the first forked block
+			let mut results = Vec::with_capacity(cached_values.len());
+			for (i, value) in cached_values.into_iter().enumerate() {
+                let value = value.flatten();
+				let final_value = if value.is_some() {
+					value
+				} else {
+					self.parent.get(self.first_forked_block_hash, keys[i]).await?
+				};
+				results.push(final_value.map(Arc::new));
+			}
+			return Ok(results);
 		}
 
 		// Case 3: Block before or at fork point - fetch and cache block if needed
@@ -1254,11 +1265,11 @@ mod tests {
 		layer1.delete_prefix(prefix).unwrap();
 		layer2.delete_prefix(prefix).unwrap();
 
-		let before_count = layer1.deleted_prefixes.try_read().unwrap().len();
+		let before_count = layer1.deleted_prefixes.read().unwrap().len();
 
 		layer1.merge(&layer2).unwrap();
 
-		let after_count = layer1.deleted_prefixes.try_read().unwrap().len();
+		let after_count = layer1.deleted_prefixes.read().unwrap().len();
 		assert_eq!(before_count, after_count, "merge() should avoid duplicate prefixes");
 	}
 
