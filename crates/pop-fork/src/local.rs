@@ -554,6 +554,7 @@ mod tests {
 	async fn get_returns_local_modification() {
 		let ctx = create_test_context().await;
 		let layer = create_layer(&ctx);
+		let block = layer.get_latest_block_number();
 
 		let key = b"test_key";
 		let value = b"test_value";
@@ -562,12 +563,8 @@ mod tests {
 		layer.set(key, Some(value)).unwrap();
 
 		// Get should return the local value
-		let result = layer.get(ctx.block_number, key).await.unwrap();
-		assert_eq!(
-			result,
-			Some(Arc::new(value.as_slice().to_vec())),
-			"get() should return local modification"
-		);
+		let result = layer.get(block, key).await.unwrap();
+		assert_eq!(result, Some(Arc::new(value.as_slice().to_vec())));
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -587,6 +584,7 @@ mod tests {
 	async fn get_returns_none_for_deleted_prefix_if_exact_key_not_found() {
 		let ctx = create_test_context().await;
 		let layer = create_layer(&ctx);
+		let block = layer.get_latest_block_number();
 
 		let key = b"key";
 		let prefix = b"ke";
@@ -597,14 +595,15 @@ mod tests {
 		layer.delete_prefix(prefix).unwrap();
 
 		// Get should return None
-		let result = layer.get(ctx.block_number, key).await.unwrap();
-		assert!(result.is_none(), "get() should return None for deleted key");
+		let result = layer.get(block, key).await.unwrap();
+		assert!(result.is_none());
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_returns_some_for_deleted_prefix_if_exact_key_found_after_deletion() {
 		let ctx = create_test_context().await;
 		let layer = create_layer(&ctx);
+		let block = layer.get_latest_block_number();
 
 		let key = b"key";
 		let prefix = b"ke";
@@ -615,11 +614,11 @@ mod tests {
 		layer.delete_prefix(prefix).unwrap();
 
 		// Get should return None
-		let result = layer.get(ctx.block_number, key).await.unwrap();
+		let result = layer.get(block, key).await.unwrap();
 		assert!(result.is_none(), "get() should return None for deleted key");
 
 		layer.set(key, Some(value)).unwrap();
-		let result = layer.get(ctx.block_number, key).await.unwrap();
+		let result = layer.get(block, key).await.unwrap();
 		// the exact key is found
 		assert_eq!(result.unwrap().as_slice(), value.as_slice());
 		// even for a deleted prefix
@@ -630,11 +629,12 @@ mod tests {
 	async fn get_falls_back_to_parent() {
 		let ctx = create_test_context().await;
 		let layer = create_layer(&ctx);
+		let block = layer.get_latest_block_number();
 
 		let key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 
 		// Get without local modification - should fetch from parent
-		let result = layer.get(ctx.block_number, &key).await.unwrap().unwrap();
+		let result = layer.get(block, &key).await.unwrap().unwrap();
 		assert_eq!(u32::decode(&mut &result[..]).unwrap(), ctx.block_number);
 	}
 
@@ -642,19 +642,20 @@ mod tests {
 	async fn get_local_overrides_parent() {
 		let ctx = create_test_context().await;
 		let layer = create_layer(&ctx);
+		let block = layer.get_latest_block_number();
 
 		let key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 		let local_value = b"local_override";
 
 		// Get parent value first
-		let parent_value = layer.get(ctx.block_number, &key).await.unwrap().unwrap();
+		let parent_value = layer.get(block, &key).await.unwrap().unwrap();
 		assert_eq!(u32::decode(&mut &parent_value[..]).unwrap(), ctx.block_number);
 
 		// Set local value
 		layer.set(&key, Some(local_value)).unwrap();
 
 		// Get should return local value, not parent
-		let result = layer.get(ctx.block_number, &key).await.unwrap();
+		let result = layer.get(block, &key).await.unwrap();
 		assert_eq!(result, Some(Arc::new(local_value.as_slice().to_vec())));
 	}
 
@@ -662,11 +663,12 @@ mod tests {
 	async fn get_returns_none_for_nonexistent_key() {
 		let ctx = create_test_context().await;
 		let layer = create_layer(&ctx);
+		let block = layer.get_latest_block_number();
 
 		let key = b"nonexistent_key_12345";
 
 		// Get should return None for nonexistent key
-		let result = layer.get(ctx.block_number, key).await.unwrap();
+		let result = layer.get(block, key).await.unwrap();
 		assert!(result.is_none());
 	}
 
@@ -798,6 +800,7 @@ mod tests {
 	async fn get_batch_returns_local_modifications() {
 		let ctx = create_test_context().await;
 		let layer = create_layer(&ctx);
+		let block = layer.get_latest_block_number();
 
 		let key1 = b"key1";
 		let key2 = b"key2";
@@ -806,7 +809,7 @@ mod tests {
 
 		layer.set_batch(&[(key1, Some(value1)), (key2, Some(value2))]).unwrap();
 
-		let results = layer.get_batch(ctx.block_number, &[key1, key2]).await.unwrap();
+		let results = layer.get_batch(block, &[key1, key2]).await.unwrap();
 		assert_eq!(results.len(), 2);
 		assert_eq!(results[0].as_ref().map(|v| v.as_slice()), Some(value1.as_slice()));
 		assert_eq!(results[1].as_ref().map(|v| v.as_slice()), Some(value2.as_slice()));
@@ -816,6 +819,7 @@ mod tests {
 	async fn get_batch_returns_none_for_deleted_prefix() {
 		let ctx = create_test_context().await;
 		let layer = create_layer(&ctx);
+		let block = layer.get_latest_block_number();
 
 		let key1 = b"key1";
 		let key2 = b"key2";
@@ -823,7 +827,7 @@ mod tests {
 		layer.set_batch(&[(key1, Some(b"val")), (key2, Some(b"val"))]).unwrap();
 		layer.delete_prefix(key2).unwrap();
 
-		let results = layer.get_batch(ctx.block_number, &[key1, key2]).await.unwrap();
+		let results = layer.get_batch(block, &[key1, key2]).await.unwrap();
 		assert!(results[0].is_some());
 		assert!(results[1].is_none());
 	}
@@ -832,14 +836,12 @@ mod tests {
 	async fn get_batch_falls_back_to_parent() {
 		let ctx = create_test_context().await;
 		let layer = create_layer(&ctx);
+		let block = layer.get_latest_block_number();
 
 		let key1 = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 		let key2 = hex::decode(SYSTEM_PARENT_HASH_KEY).unwrap();
 
-		let results = layer
-			.get_batch(ctx.block_number, &[key1.as_slice(), key2.as_slice()])
-			.await
-			.unwrap();
+		let results = layer.get_batch(block, &[key1.as_slice(), key2.as_slice()]).await.unwrap();
 		assert!(results[0].is_some());
 		assert!(results[1].is_some());
 	}
@@ -848,6 +850,7 @@ mod tests {
 	async fn get_batch_local_overrides_parent() {
 		let ctx = create_test_context().await;
 		let layer = create_layer(&ctx);
+		let block = layer.get_latest_block_number();
 
 		let key1 = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 		let key2 = hex::decode(SYSTEM_PARENT_HASH_KEY).unwrap();
@@ -856,10 +859,7 @@ mod tests {
 		// Set one key locally
 		layer.set(&key1, Some(local_value)).unwrap();
 
-		let results = layer
-			.get_batch(ctx.block_number, &[key1.as_slice(), key2.as_slice()])
-			.await
-			.unwrap();
+		let results = layer.get_batch(block, &[key1.as_slice(), key2.as_slice()]).await.unwrap();
 		assert_eq!(results[0].as_ref().map(|v| v.as_slice()), Some(local_value.as_slice()));
 		assert!(results[1].is_some());
 	}
@@ -868,6 +868,7 @@ mod tests {
 	async fn get_batch_mixed_sources() {
 		let ctx = create_test_context().await;
 		let layer = create_layer(&ctx);
+		let block = layer.get_latest_block_number();
 
 		let local_key = b"local_key";
 		let remote_key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
@@ -878,10 +879,7 @@ mod tests {
 		layer.set(deleted_key, None).unwrap();
 
 		let results = layer
-			.get_batch(
-				ctx.block_number,
-				&[local_key, remote_key.as_slice(), deleted_key, nonexistent_key],
-			)
+			.get_batch(block, &[local_key, remote_key.as_slice(), deleted_key, nonexistent_key])
 			.await
 			.unwrap();
 
@@ -896,6 +894,7 @@ mod tests {
 	async fn get_batch_maintains_order() {
 		let ctx = create_test_context().await;
 		let layer = create_layer(&ctx);
+		let block = layer.get_latest_block_number();
 
 		let key1 = b"key1";
 		let key2 = b"key2";
@@ -909,7 +908,7 @@ mod tests {
 			.unwrap();
 
 		// Request in different order
-		let results = layer.get_batch(ctx.block_number, &[key3, key1, key2]).await.unwrap();
+		let results = layer.get_batch(block, &[key3, key1, key2]).await.unwrap();
 		assert_eq!(results[0].as_ref().map(|v| v.as_slice()), Some(value3.as_slice()));
 		assert_eq!(results[1].as_ref().map(|v| v.as_slice()), Some(value1.as_slice()));
 		assert_eq!(results[2].as_ref().map(|v| v.as_slice()), Some(value2.as_slice()));
@@ -1014,18 +1013,6 @@ mod tests {
 		assert_eq!(u32::decode(&mut &results[0].as_ref().unwrap()[..]).unwrap(), block_number);
 	}
 
-	// Tests for set_batch()
-	#[tokio::test(flavor = "multi_thread")]
-	async fn set_batch_empty_entries() {
-		let ctx = create_test_context().await;
-		let layer = create_layer(&ctx);
-
-		layer.set_batch(&[]).unwrap();
-
-		let diff = layer.diff().unwrap();
-		assert_eq!(diff.len(), 0);
-	}
-
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_batch_non_existent_block_returns_none() {
 		let ctx = create_test_context().await;
@@ -1088,6 +1075,18 @@ mod tests {
 		assert_eq!(*result_latest_block, b"local_value_2".to_vec());
 	}
 
+	// Tests for set_batch()
+	#[tokio::test(flavor = "multi_thread")]
+	async fn set_batch_empty_entries() {
+		let ctx = create_test_context().await;
+		let layer = create_layer(&ctx);
+
+		layer.set_batch(&[]).unwrap();
+
+		let diff = layer.diff().unwrap();
+		assert_eq!(diff.len(), 0);
+	}
+
 	#[tokio::test(flavor = "multi_thread")]
 	async fn set_batch_stores_multiple_values() {
 		let ctx = create_test_context().await;
@@ -1112,6 +1111,7 @@ mod tests {
 	async fn set_batch_with_deletions() {
 		let ctx = create_test_context().await;
 		let layer = create_layer(&ctx);
+        let block = layer.get_latest_block_number();
 
 		let key1 = b"key1";
 		let key2 = b"key2";
@@ -1119,7 +1119,7 @@ mod tests {
 
 		layer.set_batch(&[(key1, Some(value1)), (key2, None)]).unwrap();
 
-		let results = layer.get_batch(ctx.block_number, &[key1, key2]).await.unwrap();
+		let results = layer.get_batch(block, &[key1, key2]).await.unwrap();
 		assert!(results[0].is_some());
 		assert!(results[1].is_none());
 	}
@@ -1128,6 +1128,7 @@ mod tests {
 	async fn set_batch_overwrites_previous_values() {
 		let ctx = create_test_context().await;
 		let layer = create_layer(&ctx);
+        let block = layer.get_latest_block_number();
 
 		let key = b"key";
 		let value1 = b"value1";
@@ -1136,7 +1137,7 @@ mod tests {
 		layer.set(key, Some(value1)).unwrap();
 		layer.set_batch(&[(key, Some(value2))]).unwrap();
 
-		let result = layer.get(ctx.block_number, key).await.unwrap();
+		let result = layer.get(block, key).await.unwrap();
 		assert_eq!(result.as_ref().map(|v| v.as_slice()), Some(value2.as_slice()));
 	}
 
@@ -1144,6 +1145,7 @@ mod tests {
 	async fn set_batch_duplicate_keys_last_wins() {
 		let ctx = create_test_context().await;
 		let layer = create_layer(&ctx);
+        let block = layer.get_latest_block_number();
 
 		let key = b"key";
 		let value1 = b"value1";
@@ -1152,7 +1154,7 @@ mod tests {
 		// Set same key twice in one batch - last should win
 		layer.set_batch(&[(key, Some(value1)), (key, Some(value2))]).unwrap();
 
-		let result = layer.get(ctx.block_number, key).await.unwrap();
+		let result = layer.get(block, key).await.unwrap();
 		assert_eq!(result.as_ref().map(|v| v.as_slice()), Some(value2.as_slice()));
 	}
 
@@ -1185,20 +1187,21 @@ mod tests {
 	async fn delete_prefix_blocks_parent_reads() {
 		let ctx = create_test_context().await;
 		let layer = create_layer(&ctx);
+		let block = layer.get_latest_block_number();
 
 		let prefix = hex::decode(SYSTEM_PALLET_PREFIX).unwrap();
 		let key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 
 		// Verify key exists in parent
-		let before = layer.get(ctx.block_number, &key).await.unwrap();
+		let before = layer.get(block, &key).await.unwrap();
 		assert!(before.is_some());
 
 		// Delete prefix
 		layer.delete_prefix(&prefix).unwrap();
 
 		// Should return None now
-		let after = layer.get(ctx.block_number, &key).await.unwrap();
-		assert!(after.is_none(), "delete_prefix() should block parent reads");
+		let after = layer.get(block, &key).await.unwrap();
+		assert!(after.is_none());
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -1344,6 +1347,8 @@ mod tests {
 		let ctx = create_test_context().await;
 		let mut layer = create_layer(&ctx);
 
+		let block = layer.get_latest_block_number();
+
 		let key1 = b"commit_key1";
 		let key2 = b"commit_key2";
 		let value1 = b"commit_value1";
@@ -1354,29 +1359,15 @@ mod tests {
 		layer.set(key2, Some(value2)).unwrap();
 
 		// Verify not in cache yet
-		assert!(
-			ctx.remote
-				.cache()
-				.get_local_storage(ctx.block_number, key1)
-				.await
-				.unwrap()
-				.is_none()
-		);
-		assert!(
-			ctx.remote
-				.cache()
-				.get_local_storage(ctx.block_number, key2)
-				.await
-				.unwrap()
-				.is_none()
-		);
+		assert!(ctx.remote.cache().get_local_storage(block, key1).await.unwrap().is_none());
+		assert!(ctx.remote.cache().get_local_storage(block, key2).await.unwrap().is_none());
 
 		// Commit
 		layer.commit().await.unwrap();
 
 		// Verify now in cache at the block_number it was committed to
-		let cached1 = ctx.remote.cache().get_local_storage(ctx.block_number, key1).await.unwrap();
-		let cached2 = ctx.remote.cache().get_local_storage(ctx.block_number, key2).await.unwrap();
+		let cached1 = ctx.remote.cache().get_local_storage(block, key1).await.unwrap();
+		let cached2 = ctx.remote.cache().get_local_storage(block, key2).await.unwrap();
 
 		assert_eq!(cached1, Some(Some(value1.to_vec())));
 		assert_eq!(cached2, Some(Some(value2.to_vec())));
@@ -1387,6 +1378,8 @@ mod tests {
 		let ctx = create_test_context().await;
 		let mut layer = create_layer(&ctx);
 
+		let block = layer.get_latest_block_number();
+
 		let key = b"preserve_key";
 		let value = b"preserve_value";
 
@@ -1395,7 +1388,7 @@ mod tests {
 		layer.commit().await.unwrap();
 
 		// Modifications should still be in local layer
-		let local_result = layer.get(ctx.block_number + 1, key).await.unwrap();
+		let local_result = layer.get(block + 1, key).await.unwrap();
 		assert_eq!(local_result.as_ref().map(|v| v.as_slice()), Some(value.as_slice()));
 
 		// Should also be in diff
@@ -1408,6 +1401,7 @@ mod tests {
 	async fn commit_with_deletions() {
 		let ctx = create_test_context().await;
 		let mut layer = create_layer(&ctx);
+		let block = layer.get_latest_block_number();
 
 		let key1 = b"delete_key1";
 		let key2 = b"delete_key2";
@@ -1421,8 +1415,8 @@ mod tests {
 		layer.commit().await.unwrap();
 
 		// Both should be in cache
-		let cached1 = ctx.remote.cache().get_local_storage(ctx.block_number, key1).await.unwrap();
-		let cached2 = ctx.remote.cache().get_local_storage(ctx.block_number, key2).await.unwrap();
+		let cached1 = ctx.remote.cache().get_local_storage(block, key1).await.unwrap();
+		let cached2 = ctx.remote.cache().get_local_storage(block, key2).await.unwrap();
 
 		assert_eq!(cached1, Some(Some(value.to_vec())));
 		assert_eq!(cached2, Some(None)); // Cached as empty
@@ -1442,6 +1436,7 @@ mod tests {
 	async fn commit_multiple_times() {
 		let ctx = create_test_context().await;
 		let mut layer = create_layer(&ctx);
+		let block = layer.get_latest_block_number();
 
 		let key = b"multi_block_key";
 		let value = b"multi_block_value";
@@ -1454,9 +1449,8 @@ mod tests {
 		layer.commit().await.unwrap();
 
 		// Both block numbers should have the value in cache
-		let cached1 = ctx.remote.cache().get_local_storage(ctx.block_number, key).await.unwrap();
-		let cached2 =
-			ctx.remote.cache().get_local_storage(ctx.block_number + 1, key).await.unwrap();
+		let cached1 = ctx.remote.cache().get_local_storage(block, key).await.unwrap();
+		let cached2 = ctx.remote.cache().get_local_storage(block + 1, key).await.unwrap();
 
 		assert_eq!(cached1, Some(Some(value.to_vec())));
 		assert_eq!(cached2, Some(Some(value.to_vec())));
