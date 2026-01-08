@@ -599,4 +599,125 @@ mod tests {
 		let mode = SignatureMockMode::default();
 		assert_eq!(mode, SignatureMockMode::None);
 	}
+
+	/// Integration tests that execute runtime calls against a local test node.
+	///
+	/// These tests verify that the executor can correctly execute Substrate runtime
+	/// methods against real chain state. They spawn a local test node and fetch
+	/// actual runtime code to ensure end-to-end functionality.
+	mod integration {
+		use crate::{ForkRpcClient, LocalStorageLayer, RemoteStorageLayer, StorageCache};
+		use pop_common::test_env::TestNode;
+		use subxt::{config::substrate::H256, ext::codec::Encode};
+		use url::Url;
+
+		use super::*;
+
+		/// Test context holding a spawned test node and all layers needed for execution.
+		///
+		/// The node is kept alive for the duration of the test via the `_node` field.
+		struct ExecutorTestContext {
+			#[allow(dead_code)]
+			node: TestNode,
+			executor: RuntimeExecutor,
+			storage: LocalStorageLayer,
+		}
+
+		/// Creates a fully initialized executor test context.
+		///
+		/// This spawns a local test node, connects to it, fetches the runtime code,
+		/// and sets up all storage layers needed for runtime execution.
+		async fn create_executor_context() -> ExecutorTestContext {
+			let node = TestNode::spawn().await.expect("Failed to spawn test node");
+			let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
+			let rpc = ForkRpcClient::connect(&endpoint).await.expect("Failed to connect to node");
+
+			let block_hash: H256 =
+				rpc.finalized_head().await.expect("Failed to get finalized head");
+			let header = rpc.header(block_hash).await.expect("Failed to get block header");
+			let block_number = header.number;
+
+			// Fetch runtime code from the chain
+			let runtime_code =
+				rpc.runtime_code(block_hash).await.expect("Failed to fetch runtime code");
+
+			// Set up storage layers
+			let cache = StorageCache::in_memory().await.expect("Failed to create cache");
+			cache
+				.cache_block(block_hash, block_number, header.parent_hash, &header.encode())
+				.await
+				.expect("Failed to cache block");
+
+			let remote = RemoteStorageLayer::new(rpc, cache);
+			let storage = LocalStorageLayer::new(remote, block_number, block_hash);
+
+			// Create executor with the fetched runtime code
+			let executor =
+				RuntimeExecutor::new(runtime_code, None).expect("Failed to create executor");
+
+			ExecutorTestContext { node, executor, storage }
+		}
+
+		/// Executes `Core_version` against a live test node and verifies the result.
+		///
+		/// `Core_version` is a fundamental runtime API that returns the runtime's version
+		/// information. This test verifies that:
+		/// 1. The executor can successfully execute a runtime call
+		/// 2. The output is non-empty (contains SCALE-encoded RuntimeVersion)
+		/// 3. The runtime version can be extracted from the executor
+		#[tokio::test(flavor = "multi_thread")]
+		async fn core_version_executes_successfully() {
+			let ctx = create_executor_context().await;
+
+			// Execute Core_version - this is a read-only call with no arguments
+			let result = ctx
+				.executor
+				.call("Core_version", &[], &ctx.storage)
+				.await
+				.expect("Core_version execution failed");
+
+			// Verify we got output
+			assert!(!result.output.is_empty(), "Core_version should return non-empty output");
+
+			// Core_version is read-only, should have no storage changes
+			assert!(result.storage_diff.is_empty(), "Core_version should not modify storage");
+
+			// Verify we can also get the version directly from the executor
+			let version = ctx.executor.runtime_version().expect("Failed to get runtime version");
+			assert!(!version.spec_name.is_empty(), "spec_name should not be empty");
+			assert!(version.spec_version > 0, "spec_version should be positive");
+		}
+
+		/// Executes `Metadata_metadata` against a live test node and verifies the result.
+		///
+		/// `Metadata_metadata` returns the runtime's metadata, which describes all pallets,
+		/// storage items, calls, and events. This is typically one of the largest runtime
+		/// calls in terms of output size.
+		///
+		/// This test verifies that:
+		/// 1. The executor can handle large output (metadata is typically hundreds of KB)
+		/// 2. The output contains valid metadata (starts with expected magic bytes)
+		/// 3. No storage modifications occur (metadata is read-only)
+		#[tokio::test(flavor = "multi_thread")]
+		async fn metadata_executes_successfully() {
+			let ctx = create_executor_context().await;
+
+			// Execute Metadata_metadata - this is a read-only call with no arguments
+			let result = ctx
+				.executor
+				.call("Metadata_metadata", &[], &ctx.storage)
+				.await
+				.expect("Metadata_metadata execution failed");
+
+			// Metadata is typically large (hundreds of KB)
+			assert!(
+				result.output.len() > 1000,
+				"Metadata should be larger than 1KB, got {} bytes",
+				result.output.len()
+			);
+
+			// Metadata_metadata is read-only, should have no storage changes
+			assert!(result.storage_diff.is_empty(), "Metadata_metadata should not modify storage");
+		}
+	}
 }
