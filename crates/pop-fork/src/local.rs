@@ -81,7 +81,7 @@ type DiffLocalStorage = Vec<(Vec<u8>, Option<SharedValue>)>;
 /// # Thread Safety
 ///
 /// The layer is `Send + Sync` and can be shared across async tasks. All
-/// operations use `try_read`/`try_write` to avoid blocking.
+/// operations use `read`/`write` locks which will block until the lock is acquired.
 #[derive(Clone, Debug)]
 pub struct LocalStorageLayer {
 	parent: RemoteStorageLayer,
@@ -182,11 +182,11 @@ impl LocalStorageLayer {
 			{
 				let modifications_lock = self
 					.modifications
-					.try_read()
+					.read()
 					.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
 				let deleted_prefixes_lock = self
 					.deleted_prefixes
-					.try_read()
+					.read()
 					.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
 				match modifications_lock.get(key) {
 					Some(value) => return Ok(value.clone()),
@@ -238,10 +238,8 @@ impl LocalStorageLayer {
 	/// - Overwrites any previous local modification for this key
 	/// - Passing `None` marks the key as explicitly deleted (different from never set)
 	pub fn set(&self, key: &[u8], value: Option<&[u8]>) -> Result<(), LocalStorageError> {
-		let mut modifications_lock = self
-			.modifications
-			.try_write()
-			.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
+		let mut modifications_lock =
+			self.modifications.write().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
 
 		modifications_lock.insert(key.to_vec(), value.map(|value| Arc::new(value.to_vec())));
 
@@ -285,11 +283,11 @@ impl LocalStorageLayer {
 			{
 				let modifications_lock = self
 					.modifications
-					.try_read()
+					.read()
 					.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
 				let deleted_prefixes_lock = self
 					.deleted_prefixes
-					.try_read()
+					.read()
 					.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
 
 				for (i, key) in keys.iter().enumerate() {
@@ -360,10 +358,8 @@ impl LocalStorageLayer {
 			return Ok(());
 		}
 
-		let mut modifications_lock = self
-			.modifications
-			.try_write()
-			.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
+		let mut modifications_lock =
+			self.modifications.write().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
 
 		for (key, value) in entries {
 			modifications_lock.insert(key.to_vec(), value.map(|v| Arc::new(v.to_vec())));
@@ -386,13 +382,11 @@ impl LocalStorageLayer {
 	/// - Marks the prefix as deleted, affecting future `get()` calls
 	/// - Keys in the parent layer matching this prefix will return `None` after this call
 	pub fn delete_prefix(&self, prefix: &[u8]) -> Result<(), LocalStorageError> {
-		let mut modifications_lock = self
-			.modifications
-			.try_write()
-			.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
+		let mut modifications_lock =
+			self.modifications.write().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
 		let mut deleted_prefixes_lock = self
 			.deleted_prefixes
-			.try_write()
+			.write()
 			.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
 
 		// Remove all keys starting with the prefix using retain
@@ -416,7 +410,7 @@ impl LocalStorageLayer {
 	pub fn is_deleted(&self, prefix: &[u8]) -> Result<bool, LocalStorageError> {
 		let deleted_prefixes_lock = self
 			.deleted_prefixes
-			.try_read()
+			.read()
 			.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
 
 		Ok(deleted_prefixes_lock
@@ -435,10 +429,8 @@ impl LocalStorageLayer {
 	/// - `None` values indicate keys that were explicitly deleted
 	/// - Does not include keys deleted via prefix deletion
 	pub fn diff(&self) -> Result<DiffLocalStorage, LocalStorageError> {
-		let modifications_lock = self
-			.modifications
-			.try_read()
-			.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
+		let modifications_lock =
+			self.modifications.read().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
 
 		Ok(modifications_lock
 			.iter()
@@ -461,21 +453,17 @@ impl LocalStorageLayer {
 	/// - Deleted prefixes from `other` are added to `self`, avoiding duplicates
 	/// - Does not modify `other` in any way
 	pub fn merge(&self, other: &LocalStorageLayer) -> Result<(), LocalStorageError> {
-		let mut self_modifications = self
-			.modifications
-			.try_write()
-			.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
-		let other_modifications = other
-			.modifications
-			.try_read()
-			.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
+		let mut self_modifications =
+			self.modifications.write().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
+		let other_modifications =
+			other.modifications.read().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
 		let mut self_deleted_prefixes = self
 			.deleted_prefixes
-			.try_write()
+			.write()
 			.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
 		let other_deleted_prefixes = other
 			.deleted_prefixes
-			.try_read()
+			.read()
 			.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
 
 		// Merge modifications (other's values take precedence)
