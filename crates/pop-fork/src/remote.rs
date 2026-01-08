@@ -48,6 +48,12 @@
 use crate::{ForkRpcClient, StorageCache, error::RemoteStorageError};
 use subxt::config::substrate::H256;
 
+/// Default number of keys to fetch per RPC call during prefix scans.
+///
+/// This balances RPC overhead (fewer calls = better) against memory usage
+/// and response latency. 1000 keys typically fits well within RPC response limits.
+const DEFAULT_PREFETCH_PAGE_SIZE: u32 = 1000;
+
 /// Remote storage layer that lazily fetches state from a live chain.
 ///
 /// Provides a cache-through abstraction: reads check the local cache first,
@@ -188,24 +194,35 @@ impl RemoteStorageLayer {
 		Ok(results)
 	}
 
-	/// Prefetch a range of storage keys by prefix.
+	/// Prefetch a range of storage keys by prefix (resumable).
 	///
 	/// Fetches all keys matching the prefix and caches their values.
-	/// Useful for warming the cache before intensive operations.
+	/// This operation is resumable - if interrupted, calling it again will
+	/// continue from where it left off.
 	///
 	/// # Arguments
 	/// * `prefix` - Storage key prefix to match
 	/// * `page_size` - Number of keys to fetch per RPC call
 	///
 	/// # Returns
-	/// The total number of keys prefetched.
+	/// The total number of keys for this prefix (including previously cached).
 	pub async fn prefetch_prefix(
 		&self,
 		prefix: &[u8],
 		page_size: u32,
 	) -> Result<usize, RemoteStorageError> {
-		let mut total_fetched = 0usize;
-		let mut start_key: Option<Vec<u8>> = None;
+		// Check existing progress
+		let progress = self.cache.get_prefix_scan_progress(self.block_hash, prefix).await?;
+
+		if let Some(ref p) = progress &&
+			p.is_complete
+		{
+			// Already done - return cached count
+			return Ok(self.cache.count_keys_by_prefix(self.block_hash, prefix).await?);
+		}
+
+		// Resume from last scanned key if we have progress
+		let mut start_key = progress.and_then(|p| p.last_scanned_key);
 
 		loop {
 			// Get next page of keys
@@ -215,8 +232,16 @@ impl RemoteStorageLayer {
 				.await?;
 
 			if keys.is_empty() {
+				// No keys found - mark as complete if this is the first page
+				if start_key.is_none() {
+					// Empty prefix, mark complete with empty marker
+					self.cache.update_prefix_scan(self.block_hash, prefix, prefix, true).await?;
+				}
 				break;
 			}
+
+			// Determine pagination state before consuming keys
+			let is_last_page = keys.len() < page_size as usize;
 
 			// Fetch values for these keys
 			let key_refs: Vec<&[u8]> = keys.iter().map(|k| k.as_slice()).collect();
@@ -228,18 +253,51 @@ impl RemoteStorageLayer {
 
 			self.cache.set_storage_batch(self.block_hash, &cache_entries).await?;
 
-			total_fetched += keys.len();
+			// Update progress with the last key from this page.
+			// We consume keys here to avoid cloning for the next iteration's start_key.
+			let last_key = keys.into_iter().last();
+			if let Some(ref key) = last_key {
+				self.cache
+					.update_prefix_scan(self.block_hash, prefix, key, is_last_page)
+					.await?;
+			}
 
-			// Check if we've reached the end
-			if keys.len() < page_size as usize {
+			if is_last_page {
 				break;
 			}
 
-			// Set up for next page
-			start_key = keys.into_iter().last();
+			// Set up for next page (last_key is already owned, no extra allocation)
+			start_key = last_key;
 		}
 
-		Ok(total_fetched)
+		// Return total count (includes any previously cached keys)
+		Ok(self.cache.count_keys_by_prefix(self.block_hash, prefix).await?)
+	}
+
+	/// Get all keys for a prefix, fetching from RPC if not fully cached.
+	///
+	/// This is a convenience method that:
+	/// 1. Ensures the prefix is fully scanned (calls [`Self::prefetch_prefix`] if needed)
+	/// 2. Returns all cached keys matching the prefix
+	///
+	/// Useful for enumerating all entries in a storage map (e.g., all accounts
+	/// in a balances pallet).
+	///
+	/// # Arguments
+	/// * `prefix` - Storage key prefix to match (typically a pallet + storage item prefix)
+	///
+	/// # Returns
+	/// All keys matching the prefix at the configured block hash.
+	///
+	/// # Performance
+	/// First call may be slow if the prefix hasn't been scanned yet.
+	/// Subsequent calls return cached data immediately.
+	pub async fn get_keys(&self, prefix: &[u8]) -> Result<Vec<Vec<u8>>, RemoteStorageError> {
+		// Ensure prefix is fully scanned
+		self.prefetch_prefix(prefix, DEFAULT_PREFETCH_PAGE_SIZE).await?;
+
+		// Return from cache
+		Ok(self.cache.get_keys_by_prefix(self.block_hash, prefix).await?)
 	}
 }
 
