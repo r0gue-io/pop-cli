@@ -1,4 +1,4 @@
-pop-cli (0.12.1-17) resolute; urgency=medium
+pop-cli (0.12.1-19) questing; urgency=medium
 
   * Initial Debian package release
   * Version 0.12.1 of pop-cli

@@ -15,7 +15,7 @@ Vcs-Git: https://github.com/r0gue-io/pop-cli.git
 Vcs-Browser: https://github.com/r0gue-io/pop-cli
 
 Package: pop-cli
-Architecture: any
+Architecture: amd64 amd64v3 arm64
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: An all-in-one tool for Polkadot development
  Pop CLI is a comprehensive command-line tool for developing on Polkadot.
