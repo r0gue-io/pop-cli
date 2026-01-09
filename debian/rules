@@ -2,6 +2,7 @@
 
 export PATH := $(HOME)/.cargo/bin:$(PATH)
 export DH_VERBOSE = 1
+export SKIP_WASM_BUILD = 1
 
 %:
 	dh $@
@@ -17,7 +18,6 @@ override_dh_autoreconf:
 
 override_dh_auto_configure:
 	# For every vendored crate, remove checksum entries for files that are missing
-	# This fixes errors like "failed to calculate checksum of ... .orig"
 	@for json in $$(find vendor -name .cargo-checksum.json); do \
 		dir=$$(dirname $$json); \
 		python3 -c 'import json, os, sys; \
