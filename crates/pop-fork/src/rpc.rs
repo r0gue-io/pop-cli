@@ -51,7 +51,10 @@ use crate::{
 };
 use subxt::{
 	SubstrateConfig,
-	backend::{legacy::LegacyRpcMethods, rpc::RpcClient},
+	backend::{
+		legacy::{LegacyRpcMethods, rpc_methods::Block},
+		rpc::RpcClient,
+	},
 	config::substrate::H256,
 };
 use url::Url;
@@ -136,6 +139,47 @@ impl ForkRpcClient {
 				message: e.to_string(),
 			})?
 			.ok_or_else(|| RpcClientError::InvalidResponse(format!("No header found for {hash:?}")))
+	}
+
+	/// Get full block data by block number.
+	///
+	/// This method first fetches the block hash for the given block number using
+	/// `chain_getBlockHash`, then fetches the full block data using `chain_getBlock`.
+	///
+	/// # Arguments
+	/// * `block_number` - The block number to query
+	///
+	/// # Returns
+	/// * `Ok(Some((hash, block)))` - Block exists with hash and data
+	/// * `Ok(None)` - Block number doesn't exist yet
+	/// * `Err(_)` - RPC error
+	pub async fn block_by_number(
+		&self,
+		block_number: u32,
+	) -> Result<Option<(H256, Block<SubstrateConfig>)>, RpcClientError> {
+		// Get block hash from block number
+		let block_hash =
+			self.legacy.chain_get_block_hash(Some(block_number.into())).await.map_err(|e| {
+				RpcClientError::RequestFailed {
+					method: methods::CHAIN_GET_BLOCK_HASH,
+					message: e.to_string(),
+				}
+			})?;
+
+		let block_hash = match block_hash {
+			Some(hash) => hash,
+			None => return Ok(None),
+		};
+
+		// Get full block data
+		let block = self.legacy.chain_get_block(Some(block_hash)).await.map_err(|e| {
+			RpcClientError::RequestFailed {
+				method: methods::CHAIN_GET_BLOCK,
+				message: e.to_string(),
+			}
+		})?;
+
+		Ok(block.map(|block| (block_hash, block.block)))
 	}
 
 	/// Get a single storage value at a specific block.
@@ -345,6 +389,7 @@ mod tests {
 	mod sequential {
 		use super::*;
 		use pop_common::test_env::TestNode;
+		use std::time::Duration;
 
 		/// System pallet prefix: twox128("System")
 		const SYSTEM_PALLET_PREFIX: &str = "26aa394eea5630e07c48ae0c9558cef7";
@@ -552,6 +597,87 @@ mod tests {
 			// Empty keys should return empty results
 			let values = client.storage_batch(&[], hash).await.unwrap();
 			assert!(values.is_empty());
+		}
+
+		#[tokio::test]
+		async fn fetch_block_by_number_returns_block() {
+			let node = TestNode::spawn().await.expect("Failed to spawn test node");
+			let endpoint: Url = node.ws_url().parse().unwrap();
+			let client = ForkRpcClient::connect(&endpoint).await.unwrap();
+
+			// Get finalized block number by fetching the header first
+			let finalized_hash = client.finalized_head().await.unwrap();
+			let finalized_header = client.header(finalized_hash).await.unwrap();
+			let finalized_number = finalized_header.number;
+
+			// Fetch the block by number
+			let result = client.block_by_number(finalized_number).await.unwrap();
+
+			assert!(result.is_some(), "Finalized block should exist");
+			let (hash, block) = result.unwrap();
+
+			// Verify the hash matches the finalized head
+			assert_eq!(hash, finalized_hash, "Block hash should match finalized head");
+
+			// Verify the block has a header
+			assert_eq!(
+				block.header.number, finalized_number,
+				"Block header number should match requested number"
+			);
+		}
+
+		#[tokio::test]
+		async fn fetch_block_by_number_non_existent_returns_none() {
+			let node = TestNode::spawn().await.expect("Failed to spawn test node");
+			let endpoint: Url = node.ws_url().parse().unwrap();
+			let client = ForkRpcClient::connect(&endpoint).await.unwrap();
+
+			// Use a very large block number that doesn't exist
+			let non_existent_number = u32::MAX;
+			let result = client.block_by_number(non_existent_number).await.unwrap();
+
+			assert!(result.is_none(), "Non-existent block should return None");
+		}
+
+		#[tokio::test]
+		async fn fetch_block_by_number_multiple_blocks() {
+			let node = TestNode::spawn().await.expect("Failed to spawn test node");
+			let endpoint: Url = node.ws_url().parse().unwrap();
+			let client = ForkRpcClient::connect(&endpoint).await.unwrap();
+
+			// Wait a bit to get some finalized blocks
+			std::thread::sleep(Duration::from_secs(30));
+
+			// Get finalized block number
+			let finalized_hash = client.finalized_head().await.unwrap();
+			let finalized_header = client.header(finalized_hash).await.unwrap();
+			let finalized_number = finalized_header.number;
+
+			// Fetch multiple blocks (0 to finalized)
+			let mut previous_hash = None;
+			for block_num in 0..=finalized_number.min(5) {
+				let result = client.block_by_number(block_num).await.unwrap();
+				assert!(
+					result.is_some(),
+					"Block {} should exist (finalized is {})",
+					block_num,
+					finalized_number
+				);
+
+				let (hash, block) = result.unwrap();
+				assert_eq!(block.header.number, block_num);
+
+				// Verify parent hash chain (except for genesis)
+				if let Some(prev) = previous_hash {
+					assert_eq!(
+						block.header.parent_hash, prev,
+						"Block {} parent hash should match previous block hash",
+						block_num
+					);
+				}
+
+				previous_hash = Some(hash);
+			}
 		}
 	}
 }
