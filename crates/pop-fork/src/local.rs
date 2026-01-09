@@ -757,6 +757,7 @@ mod tests {
 	async fn set_stores_value() {
 		let ctx = create_test_context().await;
 		let layer = create_layer(&ctx);
+		let block = layer.get_latest_block_number();
 
 		let key = b"key";
 		let value = b"value";
@@ -764,7 +765,7 @@ mod tests {
 		layer.set(key, Some(value)).unwrap();
 
 		// Verify via get
-		let result = layer.get(ctx.block_number, key).await.unwrap();
+		let result = layer.get(block, key).await.unwrap();
 		assert_eq!(result, Some(Arc::new(value.as_slice().to_vec())));
 	}
 
@@ -772,6 +773,7 @@ mod tests {
 	async fn set_overwrites_previous_value() {
 		let ctx = create_test_context().await;
 		let layer = create_layer(&ctx);
+		let block = layer.get_latest_block_number();
 
 		let key = b"key";
 		let value1 = b"value1";
@@ -781,7 +783,7 @@ mod tests {
 		layer.set(key, Some(value2)).unwrap();
 
 		// Should have the second value
-		let result = layer.get(ctx.block_number, key).await.unwrap();
+		let result = layer.get(block, key).await.unwrap();
 		assert_eq!(result.as_ref().map(|v| v.as_slice()), Some(value2.as_slice()));
 	}
 
