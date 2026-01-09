@@ -15,9 +15,7 @@ use pop_contracts::{
 	Verbosity, build_smart_contract, eth_rpc_generator, ink_node_generator,
 };
 use regex::{Captures, Regex};
-use rustilities::manifest::find_workspace_manifest;
 use std::{
-	env,
 	path::{Path, PathBuf},
 	process::{Child, Command},
 	sync::LazyLock,
@@ -117,21 +115,7 @@ pub fn has_contract_been_built(path: &Path) -> bool {
 
 	let project_root =
 		if path.ends_with("Cargo.toml") { path.parent().unwrap_or(path) } else { path };
-
-	let mut ink_dirs = vec![project_root.join("target").join("ink")];
-	if let Some(workspace_toml) = find_workspace_manifest(project_root) &&
-		let Some(workspace_root) = workspace_toml.parent()
-	{
-		ink_dirs.push(workspace_root.join("target").join("ink"));
-	}
-	if let Ok(target_dir) = env::var("CARGO_TARGET_DIR") &&
-		!target_dir.trim().is_empty()
-	{
-		ink_dirs.push(PathBuf::from(target_dir).join("ink"));
-	}
-
-	let artifact = format!("{}.contract", package.name());
-	ink_dirs.into_iter().any(|ink_dir| ink_dir.join(&artifact).exists())
+	find_contract_artifact_path(project_root, package.name()).is_some()
 }
 
 /// Builds contract artifacts and reports progress/errors to the user.
