@@ -18,13 +18,13 @@
 
 ### Quick Install (Recommended)
 
-**Using cargo-binstall** (fastest - downloads pre-built binaries for Linux/macOS):
+**Using cargo-binstall** (cross-platform - downloads pre-built binaries when available):
 ```shell
 # Install cargo-binstall if you don't have it
 curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
 
 # Install pop-cli
-cargo binstall pop-cli
+cargo binstall pop-cli --locked
 ```
 
 ### macOS
