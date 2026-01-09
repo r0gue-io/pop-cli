@@ -1,0 +1,9 @@
+#!/bin/sh
+
+set -e
+
+# Verify the binary is in the PATH and can execute
+pop --version
+
+# Run a basic help command to ensure it's functional
+pop --help
