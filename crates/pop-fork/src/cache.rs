@@ -7,8 +7,8 @@
 
 use crate::{
 	error::cache::CacheError,
-	models::{BlockRow, NewBlockRow, NewPrefixScanRow, NewStorageRow},
-	schema::{blocks, prefix_scans, storage},
+	models::{BlockRow, NewBlockRow, NewLocalStorageRow, NewPrefixScanRow, NewStorageRow},
+	schema::{blocks, local_storage, prefix_scans, storage},
 	strings::cache::{errors, lock_patterns, pragmas, urls},
 };
 use bb8::CustomizeConnection;

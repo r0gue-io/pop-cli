@@ -1,4 +1,4 @@
-use crate::schema::{blocks, prefix_scans, storage};
+use crate::schema::{blocks, local_storage, prefix_scans, storage};
 use diesel::{Insertable, Queryable, Selectable};
 
 #[derive(Insertable, Clone)]

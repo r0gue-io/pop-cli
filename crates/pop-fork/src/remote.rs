@@ -213,13 +213,13 @@ impl RemoteStorageLayer {
 		page_size: u32,
 	) -> Result<usize, RemoteStorageError> {
 		// Check existing progress
-		let progress = self.cache.get_prefix_scan_progress(self.block_hash, prefix).await?;
+		let progress = self.cache.get_prefix_scan_progress(block_hash, prefix).await?;
 
 		if let Some(ref p) = progress &&
 			p.is_complete
 		{
 			// Already done - return cached count
-			return Ok(self.cache.count_keys_by_prefix(self.block_hash, prefix).await?);
+			return Ok(self.cache.count_keys_by_prefix(block_hash, prefix).await?);
 		}
 
 		// Resume from last scanned key if we have progress
@@ -236,7 +236,7 @@ impl RemoteStorageLayer {
 				// No keys found - mark as complete if this is the first page
 				if start_key.is_none() {
 					// Empty prefix, mark complete with empty marker
-					self.cache.update_prefix_scan(self.block_hash, prefix, prefix, true).await?;
+					self.cache.update_prefix_scan(block_hash, prefix, prefix, true).await?;
 				}
 				break;
 			}
@@ -258,9 +258,7 @@ impl RemoteStorageLayer {
 			// We consume keys here to avoid cloning for the next iteration's start_key.
 			let last_key = keys.into_iter().last();
 			if let Some(ref key) = last_key {
-				self.cache
-					.update_prefix_scan(self.block_hash, prefix, key, is_last_page)
-					.await?;
+				self.cache.update_prefix_scan(block_hash, prefix, key, is_last_page).await?;
 			}
 
 			if is_last_page {
@@ -272,7 +270,7 @@ impl RemoteStorageLayer {
 		}
 
 		// Return total count (includes any previously cached keys)
-		Ok(self.cache.count_keys_by_prefix(self.block_hash, prefix).await?)
+		Ok(self.cache.count_keys_by_prefix(block_hash, prefix).await?)
 	}
 
 	/// Get all keys for a prefix, fetching from RPC if not fully cached.
@@ -293,12 +291,16 @@ impl RemoteStorageLayer {
 	/// # Performance
 	/// First call may be slow if the prefix hasn't been scanned yet.
 	/// Subsequent calls return cached data immediately.
-	pub async fn get_keys(&self, prefix: &[u8]) -> Result<Vec<Vec<u8>>, RemoteStorageError> {
+	pub async fn get_keys(
+		&self,
+		block_hash: H256,
+		prefix: &[u8],
+	) -> Result<Vec<Vec<u8>>, RemoteStorageError> {
 		// Ensure prefix is fully scanned
-		self.prefetch_prefix(prefix, DEFAULT_PREFETCH_PAGE_SIZE).await?;
+		self.prefetch_prefix(block_hash, prefix, DEFAULT_PREFETCH_PAGE_SIZE).await?;
 
 		// Return from cache
-		Ok(self.cache.get_keys_by_prefix(self.block_hash, prefix).await?)
+		Ok(self.cache.get_keys_by_prefix(block_hash, prefix).await?)
 	}
 
 	/// Fetch a block by number from the remote RPC and cache it.

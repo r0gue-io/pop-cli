@@ -1111,7 +1111,7 @@ mod tests {
 	async fn set_batch_with_deletions() {
 		let ctx = create_test_context().await;
 		let layer = create_layer(&ctx);
-        let block = layer.get_latest_block_number();
+		let block = layer.get_latest_block_number();
 
 		let key1 = b"key1";
 		let key2 = b"key2";
@@ -1128,7 +1128,7 @@ mod tests {
 	async fn set_batch_overwrites_previous_values() {
 		let ctx = create_test_context().await;
 		let layer = create_layer(&ctx);
-        let block = layer.get_latest_block_number();
+		let block = layer.get_latest_block_number();
 
 		let key = b"key";
 		let value1 = b"value1";
@@ -1145,7 +1145,7 @@ mod tests {
 	async fn set_batch_duplicate_keys_last_wins() {
 		let ctx = create_test_context().await;
 		let layer = create_layer(&ctx);
-        let block = layer.get_latest_block_number();
+		let block = layer.get_latest_block_number();
 
 		let key = b"key";
 		let value1 = b"value1";
