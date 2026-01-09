@@ -63,8 +63,7 @@ type DiffLocalStorage = Vec<(Vec<u8>, Option<SharedValue>)>;
 ///
 /// Provides transactional semantics: modifications are tracked locally without
 /// affecting the underlying remote layer or cache. Changes can be inspected via
-/// [`diff`](Self::diff), merged with [`merge`](Self::merge), or child layers
-/// can be created with [`child`](Self::child).
+/// [`diff`](Self::diff).
 ///
 /// # Block-based Storage Strategy
 ///
