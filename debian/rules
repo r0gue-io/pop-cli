@@ -9,6 +9,27 @@ export DH_VERBOSE = 1
 override_dh_auto_clean:
 	cargo clean
 
+override_dh_update_autotools_config:
+	# Do nothing to prevent modifying vendored files
+
+override_dh_autoreconf:
+	dh_autoreconf -Xvendor
+
+override_dh_auto_configure:
+	# For every vendored crate, remove checksum entries for files that are missing
+	# This fixes errors like "failed to calculate checksum of ... .orig"
+	@for json in $$(find vendor -name .cargo-checksum.json); do \
+		dir=$$(dirname $$json); \
+		python3 -c 'import json, os, sys; \
+			f = open(sys.argv[1], "r+"); \
+			data = json.load(f); \
+			data["files"] = {k: v for k, v in data["files"].items() if os.path.exists(os.path.join(sys.argv[2], k))}; \
+			f.seek(0); \
+			json.dump(data, f); \
+			f.truncate()' "$$json" "$$dir"; \
+	done
+	dh_auto_configure
+
 override_dh_auto_build:
 	cargo build --locked --offline -p pop-cli --profile=production
 

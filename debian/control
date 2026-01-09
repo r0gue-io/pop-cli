@@ -5,6 +5,7 @@ Maintainer: R0GUE <go@r0gue.io>
 Build-Depends: debhelper-compat (= 13),
                cargo,
                rustc,
+               python3,
                libssl-dev,
                pkg-config,
                protobuf-compiler
