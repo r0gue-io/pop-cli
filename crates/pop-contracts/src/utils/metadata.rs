@@ -9,14 +9,13 @@ use contract_transcode::{
 	ink_metadata::{MessageParamSpec, layout::Layout},
 };
 use ink_env::call::utils::EncodeArgsWith;
-use pop_common::{DefaultConfig, format_type, manifest::from_path, parse_h160_account};
-use rustilities::manifest::find_workspace_manifest;
+use pop_common::{
+	DefaultConfig, find_contract_artifact_path, format_type, manifest::from_path,
+	parse_h160_account,
+};
 use scale_info::{PortableRegistry, Type, form::PortableForm};
 use sp_core::blake2_128;
-use std::{
-	env,
-	path::{Path, PathBuf},
-};
+use std::path::Path;
 use url::Url;
 
 const MAPPING_TYPE_PATH: &str = "ink_storage::lazy::mapping::Mapping";
@@ -156,8 +155,9 @@ fn get_contract_transcoder(path: &Path) -> anyhow::Result<ContractMessageTransco
 			|| ContractArtifacts::from_manifest_or_file(Some(&cargo_toml_path), None);
 		if let Ok(manifest) = from_path(&cargo_toml_path) {
 			if let Some(package) = manifest.package {
+				let project_root = cargo_toml_path.parent().unwrap_or(&cargo_toml_path);
 				if let Some(contract_path) =
-					find_contract_artifact(&cargo_toml_path, package.name())
+					find_contract_artifact_path(project_root, package.name())
 				{
 					ContractArtifacts::from_manifest_or_file(None, Some(&contract_path))?
 				} else {
@@ -173,28 +173,6 @@ fn get_contract_transcoder(path: &Path) -> anyhow::Result<ContractMessageTransco
 		ContractArtifacts::from_manifest_or_file(None, Some(&path.to_path_buf()))?
 	};
 	contract_artifacts.contract_transcoder()
-}
-
-// Mirror CLI artifact lookup for project, workspace, and CARGO_TARGET_DIR.
-fn find_contract_artifact(cargo_toml_path: &Path, package_name: &str) -> Option<PathBuf> {
-	let project_root = cargo_toml_path.parent().unwrap_or(cargo_toml_path);
-	let mut ink_dirs = vec![project_root.join("target").join("ink")];
-	if let Some(workspace_toml) = find_workspace_manifest(project_root) &&
-		let Some(workspace_root) = workspace_toml.parent()
-	{
-		ink_dirs.push(workspace_root.join("target").join("ink"));
-	}
-	if let Ok(target_dir) = env::var("CARGO_TARGET_DIR") &&
-		!target_dir.trim().is_empty()
-	{
-		ink_dirs.push(PathBuf::from(target_dir).join("ink"));
-	}
-
-	let artifact = format!("{package_name}.contract");
-	ink_dirs
-		.into_iter()
-		.map(|ink_dir| ink_dir.join(&artifact))
-		.find(|path| path.exists())
 }
 
 async fn decode_mapping(
