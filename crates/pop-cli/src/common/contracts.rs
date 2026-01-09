@@ -106,8 +106,7 @@ pub async fn terminate_nodes(
 /// the project, workspace, or `CARGO_TARGET_DIR` target/ink directories.
 ///
 /// # Arguments
-/// * `path` - An optional path to the project directory. If no path is provided, the current
-///   directory is used.
+/// * `path` - Path to the project directory or Cargo.toml.
 pub fn has_contract_been_built(path: &Path) -> bool {
 	let Ok(manifest) = from_path(path) else {
 		return false;
@@ -116,31 +115,26 @@ pub fn has_contract_been_built(path: &Path) -> bool {
 		return false;
 	};
 
-	let project_root = if path.ends_with("Cargo.toml") {
-		path.parent().unwrap_or(path)
-	} else {
-		path
-	};
+	let project_root =
+		if path.ends_with("Cargo.toml") { path.parent().unwrap_or(path) } else { path };
 
 	let mut ink_dirs = vec![project_root.join("target").join("ink")];
-	if let Some(workspace_toml) = find_workspace_manifest(project_root) {
-		if let Some(workspace_root) = workspace_toml.parent() {
-			ink_dirs.push(workspace_root.join("target").join("ink"));
-		}
+	if let Some(workspace_toml) = find_workspace_manifest(project_root) &&
+		let Some(workspace_root) = workspace_toml.parent()
+	{
+		ink_dirs.push(workspace_root.join("target").join("ink"));
 	}
-	if let Ok(target_dir) = env::var("CARGO_TARGET_DIR") {
-		if !target_dir.trim().is_empty() {
-			ink_dirs.push(PathBuf::from(target_dir).join("ink"));
-		}
+	if let Ok(target_dir) = env::var("CARGO_TARGET_DIR") &&
+		!target_dir.trim().is_empty()
+	{
+		ink_dirs.push(PathBuf::from(target_dir).join("ink"));
 	}
 
 	let artifact = format!("{}.contract", package.name());
-	ink_dirs
-		.into_iter()
-		.any(|ink_dir| ink_dir.join(&artifact).exists())
+	ink_dirs.into_iter().any(|ink_dir| ink_dir.join(&artifact).exists())
 }
 
-/// Builds contract artifacts and reports progress/errors to the CLI.
+/// Builds contract artifacts and reports progress/errors to the user.
 pub fn build_contract_artifacts(
 	cli: &mut impl Cli,
 	path: &Path,
@@ -383,17 +377,29 @@ pub fn resolve_signer(
 mod tests {
 	use super::*;
 	use crate::cli::{MockCli, Spinner};
-	use duct::cmd;
 	use pop_common::{resolve_port, set_executable_permission};
 	use pop_contracts::{Param, Verbosity, is_chain_alive, run_eth_rpc_node, run_ink_node};
 	use std::{
-		env,
 		fs::{self, File},
+		path::{Path, PathBuf},
 		sync::{LazyLock, Mutex},
 	};
+	use temp_env;
 	use url::Url;
 
 	static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+	// Minimal package layout for manifest parsing without shelling out to cargo.
+	fn write_package(root: &Path, name: &str) -> anyhow::Result<PathBuf> {
+		let package_root = root.join(name);
+		fs::create_dir_all(package_root.join("src"))?;
+		fs::write(
+			package_root.join("Cargo.toml"),
+			format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n"),
+		)?;
+		fs::write(package_root.join("src/lib.rs"), "")?;
+		Ok(package_root)
+	}
 
 	#[test]
 	fn validate_type_optional_empty_is_ok() {
@@ -573,67 +579,44 @@ mod tests {
 		let temp_dir = tempfile::tempdir()?;
 		let path = temp_dir.path();
 
-		// Standard rust project
+		// Project-local target/ink lookup.
 		let name = "hello_world";
-		cmd("cargo", ["new", name]).dir(path).run()?;
-		let contract_path = path.join(name);
+		let contract_path = write_package(path, name)?;
 		assert!(!has_contract_been_built(&contract_path));
 
-		cmd("cargo", ["build"]).dir(&contract_path).run()?;
 		// Mock build directory
-		fs::create_dir(contract_path.join("target/ink"))?;
-		assert!(!has_contract_been_built(&path.join(name)));
+		fs::create_dir_all(contract_path.join("target/ink"))?;
+		assert!(!has_contract_been_built(&contract_path));
 		// Create a mocked .contract file inside the target directory
 		File::create(contract_path.join(format!("target/ink/{}.contract", name)))?;
-		assert!(has_contract_been_built(&path.join(name)));
+		assert!(has_contract_been_built(&contract_path));
 
-		// Workspace target/ink directory
+		// Workspace target/ink lookup.
 		let workspace_root = path.join("workspace");
 		fs::create_dir(&workspace_root)?;
-		fs::write(
-			workspace_root.join("Cargo.toml"),
-			"[workspace]\nmembers = [\"member\"]\n",
-		)?;
-		cmd("cargo", ["new", "member"]).dir(&workspace_root).run()?;
-		let member_path = workspace_root.join("member");
+		fs::write(workspace_root.join("Cargo.toml"), "[workspace]\nmembers = [\"member\"]\n")?;
+		let member_path = write_package(&workspace_root, "member")?;
 		fs::create_dir_all(workspace_root.join("target/ink"))?;
 		File::create(workspace_root.join("target/ink/member.contract"))?;
 		assert!(has_contract_been_built(&member_path));
 
-		// CARGO_TARGET_DIR override
-		let env_contract = "env_contract";
-		cmd("cargo", ["new", env_contract]).dir(path).run()?;
-		let env_contract_path = path.join(env_contract);
+		// CARGO_TARGET_DIR lookup.
+		let env_contract_path = write_package(path, "env_contract")?;
 		let env_target = path.join("env_target");
 		fs::create_dir_all(env_target.join("ink"))?;
 		File::create(env_target.join("ink/env_contract.contract"))?;
 		let _env_guard = ENV_LOCK.lock().expect("env lock poisoned");
-		let original_target_dir = env::var("CARGO_TARGET_DIR").ok();
-		unsafe {
-			env::set_var("CARGO_TARGET_DIR", &env_target);
-		}
-		assert!(has_contract_been_built(&env_contract_path));
-		unsafe {
-			match original_target_dir {
-				Some(value) => env::set_var("CARGO_TARGET_DIR", value),
-				None => env::remove_var("CARGO_TARGET_DIR"),
-			}
-		}
+		temp_env::with_var("CARGO_TARGET_DIR", Some(env_target.as_os_str()), || {
+			assert!(has_contract_been_built(&env_contract_path));
+		});
 		Ok(())
 	}
 
 	#[test]
 	fn build_contract_artifacts_reports_error() -> anyhow::Result<()> {
 		let temp_dir = tempfile::tempdir()?;
-		let mut cli = MockCli::new();
-		let err = build_contract_artifacts(
-			&mut cli,
-			temp_dir.path(),
-			true,
-			Verbosity::Quiet,
-			None,
-		)
-		.expect_err("expected build to fail without a Cargo.toml");
+		let err = build_contract_artifacts(temp_dir.path(), true, Verbosity::Quiet, None)
+			.expect_err("expected build to fail without a Cargo.toml");
 		assert!(err.to_string().contains("Use `pop build` to retry with build output."));
 		Ok(())
 	}

@@ -10,9 +10,13 @@ use contract_transcode::{
 };
 use ink_env::call::utils::EncodeArgsWith;
 use pop_common::{DefaultConfig, format_type, manifest::from_path, parse_h160_account};
+use rustilities::manifest::find_workspace_manifest;
 use scale_info::{PortableRegistry, Type, form::PortableForm};
 use sp_core::blake2_128;
-use std::path::Path;
+use std::{
+	env,
+	path::{Path, PathBuf},
+};
 use url::Url;
 
 const MAPPING_TYPE_PATH: &str = "ink_storage::lazy::mapping::Mapping";
@@ -152,12 +156,9 @@ fn get_contract_transcoder(path: &Path) -> anyhow::Result<ContractMessageTransco
 			|| ContractArtifacts::from_manifest_or_file(Some(&cargo_toml_path), None);
 		if let Ok(manifest) = from_path(&cargo_toml_path) {
 			if let Some(package) = manifest.package {
-				let project_root = cargo_toml_path.parent().unwrap_or(cargo_toml_path.as_path());
-				let contract_path = project_root
-					.join("target")
-					.join("ink")
-					.join(format!("{}.contract", package.name()));
-				if contract_path.exists() {
+				if let Some(contract_path) =
+					find_contract_artifact(&cargo_toml_path, package.name())
+				{
 					ContractArtifacts::from_manifest_or_file(None, Some(&contract_path))?
 				} else {
 					artifact_from_manifest()?
@@ -172,6 +173,28 @@ fn get_contract_transcoder(path: &Path) -> anyhow::Result<ContractMessageTransco
 		ContractArtifacts::from_manifest_or_file(None, Some(&path.to_path_buf()))?
 	};
 	contract_artifacts.contract_transcoder()
+}
+
+// Mirror CLI artifact lookup for project, workspace, and CARGO_TARGET_DIR.
+fn find_contract_artifact(cargo_toml_path: &Path, package_name: &str) -> Option<PathBuf> {
+	let project_root = cargo_toml_path.parent().unwrap_or(cargo_toml_path);
+	let mut ink_dirs = vec![project_root.join("target").join("ink")];
+	if let Some(workspace_toml) = find_workspace_manifest(project_root) &&
+		let Some(workspace_root) = workspace_toml.parent()
+	{
+		ink_dirs.push(workspace_root.join("target").join("ink"));
+	}
+	if let Ok(target_dir) = env::var("CARGO_TARGET_DIR") &&
+		!target_dir.trim().is_empty()
+	{
+		ink_dirs.push(PathBuf::from(target_dir).join("ink"));
+	}
+
+	let artifact = format!("{package_name}.contract");
+	ink_dirs
+		.into_iter()
+		.map(|ink_dir| ink_dir.join(&artifact))
+		.find(|path| path.exists())
 }
 
 async fn decode_mapping(
@@ -780,6 +803,7 @@ mod tests {
 		path::PathBuf,
 		sync::{LazyLock, Mutex},
 	};
+	use temp_env;
 	// No need for SCALE encoding helpers in tests; for u8 values the SCALE encoding is the byte
 	// itself.
 
@@ -901,18 +925,11 @@ mod tests {
 			current_dir.join("./tests/files/testing.json"),
 		)?;
 
+		// Ensure the fallback uses the existing artifact instead of invoking cargo.
 		let _env_guard = ENV_LOCK.lock().expect("env lock poisoned");
-		let original_cargo = env::var("CARGO").ok();
-		unsafe {
-			env::set_var("CARGO", "/nonexistent/cargo");
-		}
-		let message = get_messages(temp_dir.path().join("testing"));
-		unsafe {
-			match original_cargo {
-				Some(value) => env::set_var("CARGO", value),
-				None => env::remove_var("CARGO"),
-			}
-		}
+		let message = temp_env::with_var("CARGO", Some("/nonexistent/cargo"), || {
+			get_messages(temp_dir.path().join("testing"))
+		});
 
 		let message = message?;
 		assert_eq!(message.len(), 3);

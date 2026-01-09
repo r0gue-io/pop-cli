@@ -52,6 +52,7 @@ pop-common = { path = "../pop-common", version = "0.13.0" }
 [dev-dependencies]
 # Used in doc tests.
 tokio-test.workspace = true
+temp-env.workspace = true
 
 [features]
 integration-tests = ["pop-common/integration-tests"]
