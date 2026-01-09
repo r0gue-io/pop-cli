@@ -3,7 +3,7 @@
 use crate::{Error, manifest::from_path};
 use std::{
 	collections::HashMap,
-	env, fs,
+	fs,
 	io::{Read, Write},
 	path::{Path, PathBuf},
 	process::Command,
@@ -58,17 +58,11 @@ pub fn get_relative_or_absolute_path(base: &Path, full: &Path) -> PathBuf {
 	}
 }
 
-/// Finds a built ink! contract artifact by searching project, workspace, and CARGO_TARGET_DIR
-/// target/ink directories.
+/// Finds a built ink! contract artifact by searching project and workspace target/ink directories.
 pub fn find_contract_artifact_path(project_root: &Path, package_name: &str) -> Option<PathBuf> {
 	let mut ink_dirs = vec![project_root.join("target").join("ink")];
 	if let Some(workspace_root) = find_workspace_root(project_root) {
 		ink_dirs.push(workspace_root.join("target").join("ink"));
-	}
-	if let Ok(target_dir) = env::var("CARGO_TARGET_DIR") &&
-		!target_dir.trim().is_empty()
-	{
-		ink_dirs.push(PathBuf::from(target_dir).join("ink"));
 	}
 
 	let artifact = format!("{package_name}.contract");
@@ -328,24 +322,35 @@ echo 1000"#,
 			assert_eq!(path, workspace_artifact);
 			Ok(())
 		}
+	}
 
-		#[test]
-		fn find_contract_artifact_falls_back_to_env_target_dir() -> anyhow::Result<()> {
-			let temp_dir = tempfile::tempdir()?;
-			let project_root = temp_dir.path().join("project");
-			fs::create_dir_all(&project_root)?;
+	#[test]
+	fn find_workspace_root_returns_workspace_dir() -> anyhow::Result<()> {
+		let temp_dir = tempfile::tempdir()?;
+		let workspace_root = temp_dir.path().join("workspace");
+		let member_root = workspace_root.join("member");
+		fs::create_dir_all(&member_root)?;
+		fs::write(workspace_root.join("Cargo.toml"), "[workspace]\nmembers = [\"member\"]\n")?;
+		fs::write(
+			member_root.join("Cargo.toml"),
+			"[package]\nname = \"member\"\nversion = \"0.1.0\"\n",
+		)?;
 
-			let target_dir = temp_dir.path().join("custom-target");
-			let env_artifact = target_dir.join("ink").join("my_contract.contract");
-			fs::create_dir_all(env_artifact.parent().unwrap())?;
-			fs::write(&env_artifact, b"env")?;
+		assert_eq!(find_workspace_root(&member_root), Some(workspace_root));
+		Ok(())
+	}
 
-			let path = temp_env::with_var("CARGO_TARGET_DIR", Some(target_dir.as_os_str()), || {
-				find_contract_artifact_path(&project_root, "my_contract")
-			})
-			.expect("artifact should be found");
-			assert_eq!(path, env_artifact);
-			Ok(())
-		}
+	#[test]
+	fn find_workspace_root_returns_none_when_absent() -> anyhow::Result<()> {
+		let temp_dir = tempfile::tempdir()?;
+		let project_root = temp_dir.path().join("project");
+		fs::create_dir_all(&project_root)?;
+		fs::write(
+			project_root.join("Cargo.toml"),
+			"[package]\nname = \"project\"\nversion = \"0.1.0\"\n",
+		)?;
+
+		assert_eq!(find_workspace_root(&project_root), None);
+		Ok(())
 	}
 }

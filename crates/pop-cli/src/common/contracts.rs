@@ -101,7 +101,7 @@ pub async fn terminate_nodes(
 }
 
 /// Checks if a contract has been built by verifying the existence of the {name}.contract file in
-/// the project, workspace, or `CARGO_TARGET_DIR` target/ink directories.
+/// the project or workspace target/ink directories.
 ///
 /// # Arguments
 /// * `path` - Path to the project directory or Cargo.toml.
@@ -366,12 +366,8 @@ mod tests {
 	use std::{
 		fs::{self, File},
 		path::{Path, PathBuf},
-		sync::{LazyLock, Mutex},
 	};
-	use temp_env;
 	use url::Url;
-
-	static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
 	// Minimal package layout for manifest parsing without shelling out to cargo.
 	fn write_package(root: &Path, name: &str) -> anyhow::Result<PathBuf> {
@@ -584,15 +580,6 @@ mod tests {
 		File::create(workspace_root.join("target/ink/member.contract"))?;
 		assert!(has_contract_been_built(&member_path));
 
-		// CARGO_TARGET_DIR lookup.
-		let env_contract_path = write_package(path, "env_contract")?;
-		let env_target = path.join("env_target");
-		fs::create_dir_all(env_target.join("ink"))?;
-		File::create(env_target.join("ink/env_contract.contract"))?;
-		let _env_guard = ENV_LOCK.lock().expect("env lock poisoned");
-		temp_env::with_var("CARGO_TARGET_DIR", Some(env_target.as_os_str()), || {
-			assert!(has_contract_been_built(&env_contract_path));
-		});
 		Ok(())
 	}
 
