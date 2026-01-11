@@ -3,8 +3,8 @@ Section: devel
 Priority: optional
 Maintainer: R0GUE <go@r0gue.io>
 Build-Depends: debhelper-compat (= 13),
-               cargo,
-               rustc,
+               cargo (>= 1.88.0),
+               rustc (>= 1.88.0),
                python3,
                libssl-dev,
                pkg-config,
