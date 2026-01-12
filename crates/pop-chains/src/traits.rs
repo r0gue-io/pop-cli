@@ -2,7 +2,7 @@
 
 use serde_json::{Map, Value};
 
-/// A rollup identifier.
+/// A chain identifier.
 pub type Id = u32;
 /// A function for providing genesis overrides.
 pub type Override = Box<dyn FnMut(&mut Map<String, Value>)>;
@@ -49,16 +49,16 @@ pub trait Node {
 }
 
 /// An application-specific blockchain, validated by the validators of the relay chain.
-pub trait Rollup {
-	/// The rollup identifier.
+pub trait Chain {
+	/// The chain identifier.
 	fn id(&self) -> Id;
 
 	/// The name of the chain.
 	fn name(&self) -> &str;
 
-	/// Set the rollup identifier.
+	/// Set the chain identifier.
 	///
 	/// # Arguments
-	/// * `id` - The rollup identifier.
+	/// * `id` - The chain identifier.
 	fn set_id(&mut self, id: Id);
 }

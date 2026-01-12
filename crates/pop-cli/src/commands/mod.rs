@@ -85,9 +85,9 @@ fn about_build() -> &'static str {
 #[cfg(any(feature = "contract", feature = "chain"))]
 fn about_up() -> &'static str {
 	#[cfg(all(feature = "chain", feature = "contract"))]
-	return "Deploy a rollup(parachain), deploy a smart contract or launch a local network.";
+	return "Deploy a chain(parachain), deploy a smart contract or launch a local network.";
 	#[cfg(all(feature = "chain", not(feature = "contract")))]
-	return "Deploy a rollup(parachain) or launch a local network.";
+	return "Deploy a chain(parachain) or launch a local network.";
 	#[cfg(all(feature = "contract", not(feature = "chain")))]
 	return "Deploy a smart contract.";
 }
