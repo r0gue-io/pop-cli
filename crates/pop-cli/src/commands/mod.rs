@@ -15,6 +15,8 @@ pub(crate) mod build;
 pub(crate) mod call;
 pub(crate) mod clean;
 pub(crate) mod convert;
+#[cfg(any(feature = "chain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
+pub(crate) mod fork;
 pub(crate) mod hash;
 #[cfg(any(feature = "chain", feature = "contract"))]
 pub(crate) mod install;
@@ -63,6 +65,10 @@ pub(crate) enum Command {
 	/// Convert between different formats.
 	#[clap(alias = "cv")]
 	Convert(convert::ConvertArgs),
+	/// Create local forks of live chains or contracts.
+	#[clap(alias = "f")]
+	#[cfg(any(feature = "chain", feature = "polkavm-contracts", feature = "wasm-contracts"))]
+	Fork(fork::ForkArgs),
 }
 
 /// Help message for the build command.
@@ -222,6 +228,20 @@ impl Command {
 				env_logger::init();
 				args.command.execute(&mut Cli)
 			},
+			#[cfg(any(
+				feature = "chain",
+				feature = "polkavm-contracts",
+				feature = "wasm-contracts"
+			))]
+			Self::Fork(args) => {
+				env_logger::init();
+				match args.command {
+					#[cfg(feature = "chain")]
+					fork::Command::Chain(cmd) => cmd.execute().map(|_| Null),
+					#[cfg(any(feature = "polkavm-contracts", feature = "wasm-contracts"))]
+					fork::Command::Contract(cmd) => cmd.execute().map(|_| Null),
+				}
+			},
 		}
 	}
 }
@@ -280,6 +300,12 @@ impl Display for Command {
 			Self::Bench(args) => write!(f, "bench {}", args.command),
 			Command::Hash(args) => write!(f, "hash {}", args.command),
 			Command::Convert(args) => write!(f, "convert {}", args.command),
+			#[cfg(any(
+				feature = "chain",
+				feature = "polkavm-contracts",
+				feature = "wasm-contracts"
+			))]
+			Command::Fork(args) => write!(f, "fork {}", args.command),
 			Command::Upgrade(_) => write!(f, "upgrade"),
 		}
 	}
@@ -388,6 +414,21 @@ mod tests {
 					command: bench::Command::Pallet(Default::default()),
 				}),
 				"bench pallet",
+			),
+			// Fork.
+			(
+				Command::Fork(fork::ForkArgs {
+					command: fork::Command::Chain(Default::default()),
+					endpoint: "localhost:9944".parse().unwrap(),
+				}),
+				"fork chain",
+			),
+			(
+				Command::Fork(fork::ForkArgs {
+					command: fork::Command::Contract(Default::default()),
+					endpoint: "localhost:9944".parse().unwrap(),
+				}),
+				"fork contract",
 			),
 		];
 
