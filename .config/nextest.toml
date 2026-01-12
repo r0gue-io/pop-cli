@@ -8,3 +8,7 @@ test-group = 'pop-fork-sequential'
 [[profile.default.overrides]]
 filter = 'package(pop-fork) and test(remote::tests::sequential::)'
 test-group = 'pop-fork-sequential'
+
+[[profile.default.overrides]]
+filter = 'package(pop-fork) and test(local::tests::)'
+test-group = 'pop-fork-sequential'

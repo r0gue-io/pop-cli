@@ -8,6 +8,8 @@
 pub mod methods {
 	pub const CHAIN_GET_FINALIZED_HEAD: &str = "chain_getFinalisedHead";
 	pub const CHAIN_GET_HEADER: &str = "chain_getHeader";
+	pub const CHAIN_GET_BLOCK_HASH: &str = "chain_getBlockHash";
+	pub const CHAIN_GET_BLOCK: &str = "chain_getBlock";
 	pub const STATE_GET_STORAGE: &str = "state_getStorage";
 	pub const STATE_QUERY_STORAGE_AT: &str = "state_queryStorageAt";
 	pub const STATE_GET_KEYS_PAGED: &str = "state_getKeysPaged";

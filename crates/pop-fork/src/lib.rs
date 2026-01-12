@@ -37,6 +37,7 @@
 
 mod cache;
 pub mod error;
+mod local;
 mod models;
 mod remote;
 mod rpc;
@@ -45,6 +46,7 @@ mod strings;
 
 pub use cache::{PrefixScanProgress, StorageCache};
 pub use error::{CacheError, RemoteStorageError, RpcClientError};
+pub use local::LocalStorageLayer;
 pub use models::BlockRow;
 pub use remote::RemoteStorageLayer;
 pub use rpc::ForkRpcClient;

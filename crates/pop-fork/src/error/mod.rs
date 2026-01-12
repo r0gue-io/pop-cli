@@ -10,9 +10,11 @@
 //! - [`remote::RemoteStorageError`] - Errors from remote storage layer operations.
 
 pub mod cache;
+pub mod local;
 pub mod remote;
 pub mod rpc;
 
 pub use cache::CacheError;
+pub use local::LocalStorageError;
 pub use remote::RemoteStorageError;
 pub use rpc::RpcClientError;
