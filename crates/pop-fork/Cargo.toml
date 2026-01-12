@@ -32,6 +32,4 @@ pop-common = { path = "../pop-common", version = "0.12.1" }
 [dev-dependencies]
 tempfile.workspace = true
 tokio-test.workspace = true
-
-[features]
-integration-tests = []
+scale.workspace = true

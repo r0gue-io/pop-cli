@@ -9315,6 +9315,7 @@ dependencies = [
  "diesel-async",
  "diesel_migrations",
  "hex",
+ "parity-scale-codec",
  "pop-common",
  "smoldot 0.21.0",
  "sp-core",

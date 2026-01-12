@@ -357,6 +357,7 @@ impl RemoteStorageLayer {
 	/// It fetches keys directly from the RPC without caching intermediate results.
 	///
 	/// # Arguments
+	/// * `block_hash` - Block hash to query at
 	/// * `prefix` - Storage key prefix to match
 	/// * `key` - The current key; returns the next key after this one
 	///
@@ -365,11 +366,12 @@ impl RemoteStorageLayer {
 	/// * `Ok(None)` - No more keys with this prefix
 	pub async fn next_key(
 		&self,
+		block_hash: H256,
 		prefix: &[u8],
 		key: &[u8],
 	) -> Result<Option<Vec<u8>>, RemoteStorageError> {
 		// Fetch just 1 key after the current key
-		let keys = self.rpc.storage_keys_paged(prefix, 1, Some(key), self.block_hash).await?;
+		let keys = self.rpc.storage_keys_paged(prefix, 1, Some(key), block_hash).await?;
 		Ok(keys.into_iter().next())
 	}
 }
