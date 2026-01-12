@@ -10,6 +10,15 @@ diesel::table! {
 }
 
 diesel::table! {
+	local_storage (block_number, key) {
+		block_number -> BigInt,
+		key -> Binary,
+		value -> Nullable<Binary>,
+		is_empty -> Bool,
+	}
+}
+
+diesel::table! {
 	storage (block_hash, key) {
 		block_hash -> Binary,
 		key -> Binary,
@@ -18,7 +27,7 @@ diesel::table! {
 	}
 }
 
-diesel::allow_tables_to_appear_in_same_query!(blocks, storage,);
+diesel::allow_tables_to_appear_in_same_query!(blocks, storage, local_storage);
 
 diesel::table! {
 	prefix_scans (block_hash, prefix) {

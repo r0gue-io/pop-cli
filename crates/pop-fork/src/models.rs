@@ -1,10 +1,19 @@
-use crate::schema::{blocks, prefix_scans, storage};
+use crate::schema::{blocks, local_storage, prefix_scans, storage};
 use diesel::{Insertable, Queryable, Selectable};
 
 #[derive(Insertable, Clone)]
 #[diesel(table_name = storage)]
 pub(crate) struct NewStorageRow<'a> {
 	pub block_hash: &'a [u8],
+	pub key: &'a [u8],
+	pub value: Option<&'a [u8]>,
+	pub is_empty: bool,
+}
+
+#[derive(Insertable, Clone)]
+#[diesel(table_name = local_storage)]
+pub(crate) struct NewLocalStorageRow<'a> {
+	pub block_number: i64,
 	pub key: &'a [u8],
 	pub value: Option<&'a [u8]>,
 	pub is_empty: bool,
