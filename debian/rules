@@ -1,6 +1,8 @@
 #!/usr/bin/make -f
 
+export PATH := $(HOME)/.cargo/bin:$(PATH)
 export DH_VERBOSE = 1
+export SKIP_WASM_BUILD = 1
 
 %:
 	dh $@
@@ -8,11 +10,31 @@ export DH_VERBOSE = 1
 override_dh_auto_clean:
 	cargo clean
 
+override_dh_update_autotools_config:
+	# Do nothing to prevent modifying vendored files
+
+override_dh_autoreconf:
+	dh_autoreconf -Xvendor
+
+override_dh_auto_configure:
+	# For every vendored crate, remove checksum entries for files that are missing
+	@for json in $$(find vendor -name .cargo-checksum.json); do \
+		dir=$$(dirname $$json); \
+		python3 -c 'import json, os, sys; \
+			f = open(sys.argv[1], "r+"); \
+			data = json.load(f); \
+			data["files"] = {k: v for k, v in data["files"].items() if os.path.exists(os.path.join(sys.argv[2], k))}; \
+			f.seek(0); \
+			json.dump(data, f); \
+			f.truncate()' "$$json" "$$dir"; \
+	done
+	dh_auto_configure
+
 override_dh_auto_build:
-	cargo build --release --locked
+	cargo build --locked --offline -p pop-cli --profile=production
 
 override_dh_auto_test:
 	# Skip tests during package build
 
 override_dh_auto_install:
-	install -D -m 755 target/release/pop debian/pop-cli/usr/bin/pop
+	install -D -m 755 target/production/pop debian/pop-cli/usr/bin/pop
