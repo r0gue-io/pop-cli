@@ -704,8 +704,11 @@ mod tests {
 				"Select a chain (type to filter)".to_string(),
 				Some(true),
 				true,
-				Some(vec![("Custom".to_string(), "Type the chain URL manually".to_string())]),
-				0,
+				Some(vec![
+					("Local".to_string(), "Deploy on a local node".to_string()),
+					("Custom".to_string(), "Type the chain URL manually".to_string()),
+				]),
+				1,
 				None,
 			)
 			.expect_input("Enter the relay chain node URL", node_url.into());

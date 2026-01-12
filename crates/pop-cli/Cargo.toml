@@ -17,6 +17,10 @@ too_many_arguments = "allow"
 name = "pop"
 path = "src/main.rs"
 
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/pop-{ target }.tar.gz"
+pkg-fmt = "tgz"
+
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true

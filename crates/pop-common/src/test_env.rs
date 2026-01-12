@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	Error, find_free_port,
+	Error,
 	polkadot_sdk::sort_by_latest_semantic_version,
-	set_executable_permission,
+	resolve_port, set_executable_permission,
 	sourcing::{ArchiveFileSpec, Binary, GitHub::ReleaseArchive, Source::GitHub},
 };
 
@@ -63,7 +63,7 @@ impl TestNode {
 	/// Spawns a local ink! node and waits until it's ready.
 	pub async fn spawn() -> anyhow::Result<Self> {
 		let temp_dir = tempfile::tempdir()?;
-		let random_port = find_free_port(None);
+		let random_port = resolve_port(None);
 		let cache = temp_dir.path().to_path_buf();
 
 		let binary = Binary::Source {
