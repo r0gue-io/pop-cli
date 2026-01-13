@@ -351,7 +351,7 @@ impl RuntimeExecutor {
 					// Check local changes first
 					if let Some(value) = storage_changes.get(&key) {
 						req.inject_value(
-							value.clone().map(|x| (iter::once(x), TrieEntryVersion::V1)),
+							value.clone().map(|v| (iter::once(v), TrieEntryVersion::V1)),
 						)
 					} else {
 						// Fetch from storage backend at the latest block
@@ -362,9 +362,10 @@ impl RuntimeExecutor {
 								message: e.to_string(),
 							}
 						})?;
-						// Convert Arc<Vec<u8>> to Vec<u8> for inject_value
 						req.inject_value(
-							value.map(|arc| (iter::once((*arc).clone()), TrieEntryVersion::V1)),
+							value.map(|v| {
+								(iter::once(Arc::unwrap_or_clone(v)), TrieEntryVersion::V1)
+							}),
 						)
 					}
 				},
