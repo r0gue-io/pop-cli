@@ -245,14 +245,12 @@ impl LocalStorageLayer {
 		prefix: &[u8],
 		key: &[u8],
 	) -> Result<Option<Vec<u8>>, LocalStorageError> {
-		// Get deleted prefixes to filter results
-		let deleted_prefixes = {
-			let lock = self
-				.deleted_prefixes
-				.try_read()
-				.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
-			lock.clone()
-		};
+		// Clone deleted prefixes upfront - we can't hold the lock across await points
+		let deleted_prefixes = self
+			.deleted_prefixes
+			.read()
+			.map_err(|e| LocalStorageError::Lock(e.to_string()))?
+			.clone();
 
 		// Query parent and skip deleted keys
 		let mut current_key = key.to_vec();
@@ -1528,5 +1526,127 @@ mod tests {
 
 		assert_eq!(cached1, Some(Some(value.to_vec())));
 		assert_eq!(cached2, Some(Some(value.to_vec())));
+	}
+
+	// Tests for next_key()
+	#[tokio::test(flavor = "multi_thread")]
+	async fn next_key_returns_next_key_from_parent() {
+		let ctx = create_test_context().await;
+		let layer = create_layer(&ctx);
+
+		let prefix = hex::decode(SYSTEM_PALLET_PREFIX).unwrap();
+
+		// Get the first key in the System pallet (starting from empty key)
+		let first_key = layer.next_key(&prefix, &[]).await.unwrap();
+		assert!(first_key.is_some(), "System pallet should have at least one key");
+
+		let first_key = first_key.unwrap();
+		assert!(first_key.starts_with(&prefix), "Returned key should start with the prefix");
+
+		// Get the next key after the first one
+		let second_key = layer.next_key(&prefix, &first_key).await.unwrap();
+		assert!(second_key.is_some(), "System pallet should have more than one key");
+
+		let second_key = second_key.unwrap();
+		assert!(second_key.starts_with(&prefix), "Second key should also start with the prefix");
+		assert!(second_key > first_key, "Second key should be greater than first key");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn next_key_returns_none_when_no_more_keys() {
+		let ctx = create_test_context().await;
+		let layer = create_layer(&ctx);
+
+		// Use a prefix that doesn't exist
+		let nonexistent_prefix = b"nonexistent_prefix_12345";
+
+		let result = layer.next_key(nonexistent_prefix, &[]).await.unwrap();
+		assert!(result.is_none(), "Should return None for nonexistent prefix");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn next_key_skips_deleted_prefix() {
+		let ctx = create_test_context().await;
+		let layer = create_layer(&ctx);
+
+		let prefix = hex::decode(SYSTEM_PALLET_PREFIX).unwrap();
+
+		// Get the first two keys
+		let first_key = layer.next_key(&prefix, &[]).await.unwrap().unwrap();
+		let second_key = layer.next_key(&prefix, &first_key).await.unwrap().unwrap();
+
+		// Delete the prefix that matches the first key (delete the first key specifically)
+		layer.delete_prefix(&first_key).unwrap();
+
+		// Now when we query from empty, we should skip the first key and get the second
+		let result = layer.next_key(&prefix, &[]).await.unwrap();
+		assert!(result.is_some(), "Should find a key after skipping deleted one");
+		assert_eq!(
+			result.unwrap(),
+			second_key,
+			"Should return second key after skipping deleted first key"
+		);
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn next_key_skips_multiple_deleted_keys() {
+		let ctx = create_test_context().await;
+		let layer = create_layer(&ctx);
+
+		let prefix = hex::decode(SYSTEM_PALLET_PREFIX).unwrap();
+
+		// Get the first three keys
+		let first_key = layer.next_key(&prefix, &[]).await.unwrap().unwrap();
+		let second_key = layer.next_key(&prefix, &first_key).await.unwrap().unwrap();
+		let third_key = layer.next_key(&prefix, &second_key).await.unwrap().unwrap();
+
+		// Delete the first two keys
+		layer.delete_prefix(&first_key).unwrap();
+		layer.delete_prefix(&second_key).unwrap();
+
+		// Query from empty should skip both and return the third
+		let result = layer.next_key(&prefix, &[]).await.unwrap();
+		assert!(result.is_some(), "Should find a key after skipping deleted ones");
+		assert_eq!(
+			result.unwrap(),
+			third_key,
+			"Should return third key after skipping first two deleted keys"
+		);
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn next_key_returns_none_when_all_remaining_deleted() {
+		let ctx = create_test_context().await;
+		let layer = create_layer(&ctx);
+
+		let prefix = hex::decode(SYSTEM_PALLET_PREFIX).unwrap();
+
+		// Delete the entire System pallet prefix
+		layer.delete_prefix(&prefix).unwrap();
+
+		// All keys under System pallet should be skipped
+		let result = layer.next_key(&prefix, &[]).await.unwrap();
+		assert!(result.is_none(), "Should return None when all keys match deleted prefix");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn next_key_with_empty_prefix() {
+		let ctx = create_test_context().await;
+		let layer = create_layer(&ctx);
+
+		// Empty prefix should match all keys
+		let result = layer.next_key(&[], &[]).await.unwrap();
+		assert!(result.is_some(), "Empty prefix should return some key from storage");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn next_key_with_nonexistent_prefix() {
+		let ctx = create_test_context().await;
+		let layer = create_layer(&ctx);
+
+		let nonexistent_prefix = b"this_prefix_definitely_does_not_exist_xyz";
+
+		let result = layer.next_key(nonexistent_prefix, &[]).await.unwrap();
+		assert!(result.is_none(), "Nonexistent prefix should return None");
 	}
 }
