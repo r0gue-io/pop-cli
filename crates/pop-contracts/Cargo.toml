@@ -15,6 +15,7 @@ rust-version.workspace = true
 anyhow.workspace = true
 duct.workspace = true
 reqwest.workspace = true
+rustilities = { workspace = true, features = ["manifest"] }
 tempfile.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
@@ -44,6 +45,7 @@ pop-common = { path = "../pop-common", version = "0.12.1" }
 [dev-dependencies]
 # Used in doc tests.
 tokio-test.workspace = true
+temp-env.workspace = true
 
 [features]
 integration-tests = ["pop-common/integration-tests"]
