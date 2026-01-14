@@ -88,6 +88,14 @@ use smoldot::{
 };
 use std::{collections::BTreeMap, iter, sync::Arc};
 
+struct ArcBytes(Arc<Vec<u8>>);
+
+impl AsRef<[u8]> for ArcBytes {
+	fn as_ref(&self) -> &[u8] {
+		&self.0.as_ref()
+	}
+}
+
 /// Signature mock mode for testing.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum SignatureMockMode {
@@ -351,7 +359,7 @@ impl RuntimeExecutor {
 					// Check local changes first
 					if let Some(value) = storage_changes.get(&key) {
 						req.inject_value(
-							value.clone().map(|v| (iter::once(v), TrieEntryVersion::V1)),
+							value.as_ref().map(|v| (iter::once(v), TrieEntryVersion::V1)),
 						)
 					} else {
 						// Fetch from storage backend at the latest block
@@ -363,9 +371,7 @@ impl RuntimeExecutor {
 							}
 						})?;
 						req.inject_value(
-							value.map(|v| {
-								(iter::once(Arc::unwrap_or_clone(v)), TrieEntryVersion::V1)
-							}),
+							value.map(|v| (iter::once(ArcBytes(v)), TrieEntryVersion::V1)),
 						)
 					}
 				},
