@@ -374,13 +374,15 @@ mod tests {
 
 			child.storage_mut().set(key, Some(value2)).unwrap();
 
-			// Value should be readable both at child and parent block_numbers
+			// child.number is the latest committed block, but these changes aren't committed yet,
+			// they're happening in the block we're building
 			assert_eq!(
-				child.storage().get(child.number, key).await.unwrap().as_deref().unwrap(),
+				child.storage().get(child.number + 1, key).await.unwrap().as_deref().unwrap(),
 				value2
 			);
+			// child.number is the latest committed block
 			assert_eq!(
-				child.storage().get(parent.number, key).await.unwrap().as_deref().unwrap(),
+				child.storage().get(child.number, key).await.unwrap().as_deref().unwrap(),
 				value
 			);
 		}
