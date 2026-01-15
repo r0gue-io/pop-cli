@@ -38,6 +38,7 @@
 //! - [`RuntimeExecutor`] - Runtime executor for executing Substrate runtime calls
 
 mod block;
+mod builder;
 mod cache;
 pub mod error;
 pub mod executor;
@@ -49,9 +50,14 @@ mod schema;
 mod strings;
 
 pub use block::{Block, BlockForkPoint};
+pub use builder::{
+	consensus_engine, create_next_header, ApplyExtrinsicResult, BlockBuilder, ConsensusEngineId,
+	DigestItem, InherentProvider,
+};
 pub use cache::{PrefixScanProgress, StorageCache};
 pub use error::{
-	BlockError, CacheError, ExecutorError, LocalStorageError, RemoteStorageError, RpcClientError,
+	BlockBuilderError, BlockError, CacheError, ExecutorError, LocalStorageError,
+	RemoteStorageError, RpcClientError,
 };
 pub use executor::{
 	ExecutorConfig, RuntimeCallResult, RuntimeExecutor, RuntimeLog, RuntimeVersion,
