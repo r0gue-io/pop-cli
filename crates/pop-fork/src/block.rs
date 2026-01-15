@@ -174,8 +174,14 @@ impl Block {
 	/// * `hash` - The block hash
 	/// * `header` - The encoded block header
 	/// * `extrinsics` - The extrinsics (transactions) in this block
-	pub fn child(&self, hash: H256, header: Vec<u8>, extrinsics: Vec<Vec<u8>>) -> Self {
-		Self {
+	pub async fn child(
+		&mut self,
+		hash: H256,
+		header: Vec<u8>,
+		extrinsics: Vec<Vec<u8>>,
+	) -> Result<Self, BlockError> {
+		self.storage.commit().await?;
+		Ok(Self {
 			number: self.number,
 			hash,
 			parent_hash: self.hash,
@@ -183,7 +189,7 @@ impl Block {
 			extrinsics,
 			storage: self.storage.clone(),
 			parent: Some(Box::new(self.clone())),
-		}
+		})
 	}
 
 	/// Get a reference to the storage layer.
