@@ -1949,7 +1949,7 @@ mod tests {
 		assert_eq!(cached2, Some(Some(value.to_vec())));
 	}
 
-	#[tokio::test(flavor = "multi_thread")]
+	#[tokiosst(flavor = "multi_thread")]
 	async fn commit_validity_ranges_work_properly() {
 		let ctx = create_test_context().await;
 		let mut layer = create_layer(&ctx);
