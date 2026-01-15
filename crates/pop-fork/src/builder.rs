@@ -54,72 +54,11 @@
 //! let new_block = builder.finalize().await?;
 //! ```
 
-use crate::{Block, BlockBuilderError, RuntimeCallResult, RuntimeExecutor};
-use async_trait::async_trait;
+use crate::{
+	Block, BlockBuilderError, RuntimeCallResult, RuntimeExecutor, inherent::InherentProvider,
+};
 use scale::Encode;
 use subxt::config::substrate::H256;
-
-/// Trait for creating inherent extrinsics during block building.
-///
-/// Inherent providers generate the "inherent" extrinsics that are automatically
-/// included in each block (timestamp, parachain validation data, etc.).
-///
-/// Inherent extrinsics:
-/// - Are unsigned (no signature required)
-/// - Are mandatory (block is invalid without them)
-/// - Come from "outside" information (time, relay chain data)
-/// - Are applied before regular extrinsics
-///
-/// # Implementing
-///
-/// Implementations should return an empty `Vec` if the inherent doesn't apply
-/// to the current chain (e.g., parachain inherents on a relay chain).
-///
-/// # Example
-///
-/// ```ignore
-/// pub struct TimestampInherent {
-///     slot_duration_ms: u64,
-/// }
-///
-/// #[async_trait]
-/// impl InherentProvider for TimestampInherent {
-///     fn identifier(&self) -> &'static str {
-///         "Timestamp"
-///     }
-///
-///     async fn provide(
-///         &self,
-///         parent: &Block,
-///         executor: &RuntimeExecutor,
-///     ) -> Result<Vec<Vec<u8>>, BlockBuilderError> {
-///         // Read current timestamp, add slot_duration, encode call
-///         Ok(vec![encoded_timestamp_set_call])
-///     }
-/// }
-/// ```
-#[async_trait]
-pub trait InherentProvider: Send + Sync {
-	/// Identifier for this inherent provider (for debugging/logging).
-	fn identifier(&self) -> &'static str;
-
-	/// Generate inherent extrinsics for a new block.
-	///
-	/// # Arguments
-	///
-	/// * `parent` - The parent block being built upon
-	/// * `executor` - The runtime executor for accessing chain state/metadata
-	///
-	/// # Returns
-	///
-	/// A vector of encoded inherent extrinsics. Returns an empty vector if
-	/// this provider doesn't apply to the current chain.
-	async fn provide(
-		&self,
-		parent: &Block,
-		executor: &RuntimeExecutor,
-	) -> Result<Vec<Vec<u8>>, BlockBuilderError>;
-}
 
 /// Result of applying an extrinsic to the block.
 #[derive(Debug, Clone)]
@@ -157,6 +96,37 @@ pub enum ApplyExtrinsicResult {
 ///
 /// `BlockBuilder` is not `Sync` by default. It should be used from a single
 /// async task.
+///
+/// # Example
+///
+/// ```ignore
+/// use pop_fork::{Block, BlockBuilder, RuntimeExecutor, create_next_header};
+///
+/// // Create header for the new block
+/// let header = create_next_header(&parent_block, vec![]);
+///
+/// // Create builder with inherent providers
+/// let mut builder = BlockBuilder::new(parent_block, executor, header, inherent_providers);
+///
+/// // Build the block
+/// builder.initialize().await?;
+/// builder.apply_inherents().await?;
+///
+/// // Apply user extrinsics
+/// for extrinsic in user_extrinsics {
+///     match builder.apply_extrinsic(extrinsic).await? {
+///         ApplyExtrinsicResult::Success { storage_changes } => {
+///             println!("Applied with {} storage changes", storage_changes);
+///         }
+///         ApplyExtrinsicResult::DispatchFailed { error } => {
+///             println!("Dispatch failed: {}", error);
+///         }
+///     }
+/// }
+///
+/// // Finalize and get the new block
+/// let new_block = builder.finalize().await?;
+/// ```
 pub struct BlockBuilder {
 	/// The parent block being extended.
 	parent: Block,
