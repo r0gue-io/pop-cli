@@ -34,9 +34,12 @@
 //! - [`ForkRpcClient`] - RPC client for connecting to live chains
 //! - [`StorageCache`] - SQLite-based persistent cache for storage values
 //! - [`RemoteStorageLayer`] - Cache-through layer that lazily fetches from RPC
+//! - [`LocalStorageLayer`] - Local storage layer for tracking modifications to forked state
+//! - [`RuntimeExecutor`] - Runtime executor for executing Substrate runtime calls
 
 mod cache;
 pub mod error;
+pub mod executor;
 mod local;
 mod models;
 mod remote;
@@ -45,7 +48,11 @@ mod schema;
 mod strings;
 
 pub use cache::{PrefixScanProgress, StorageCache};
-pub use error::{CacheError, RemoteStorageError, RpcClientError};
+pub use error::{CacheError, ExecutorError, LocalStorageError, RemoteStorageError, RpcClientError};
+pub use executor::{
+	ExecutorConfig, RuntimeCallResult, RuntimeExecutor, RuntimeLog, RuntimeVersion,
+	SignatureMockMode,
+};
 pub use local::LocalStorageLayer;
 pub use models::BlockRow;
 pub use remote::RemoteStorageLayer;
