@@ -269,7 +269,7 @@ mod tests {
 			TestContext { node, endpoint, cache, block_hash, block_number, rpc }
 		}
 
-		#[tokio::test]
+		#[tokio::test(flavor = "multi_thread")]
 		async fn fork_point_with_hash_creates_block_with_correct_metadata() {
 			let ctx = create_test_context().await;
 
@@ -287,7 +287,7 @@ mod tests {
 			assert!(block.parent.is_none());
 		}
 
-		#[tokio::test]
+		#[tokio::test(flavor = "multi_thread")]
 		async fn fork_point_with_non_existent_hash_returns_error() {
 			let ctx = create_test_context().await;
 			let non_existent_hash = H256::from([0xde; 32]);
@@ -300,7 +300,7 @@ mod tests {
 			);
 		}
 
-		#[tokio::test]
+		#[tokio::test(flavor = "multi_thread")]
 		async fn fork_point_with_number_creates_block_with_correct_metadata() {
 			let ctx = create_test_context().await;
 			let expected_parent_hash = ctx.rpc.header(ctx.block_hash).await.unwrap().parent_hash;
@@ -330,7 +330,7 @@ mod tests {
 			);
 		}
 
-		#[tokio::test]
+		#[tokio::test(flavor = "multi_thread")]
 		async fn child_creates_block_with_correct_metadata() {
 			let ctx = create_test_context().await;
 			let mut parent = Block::fork_point(&ctx.endpoint, ctx.cache, ctx.block_hash.into())
@@ -354,7 +354,7 @@ mod tests {
 			assert_eq!(child.parent.unwrap().number, parent.number);
 		}
 
-		#[tokio::test]
+		#[tokio::test(flavor = "multi_thread")]
 		async fn child_commits_parent_storage() {
 			let ctx = create_test_context().await;
 			let mut parent = Block::fork_point(&ctx.endpoint, ctx.cache, ctx.block_hash.into())
@@ -385,7 +385,7 @@ mod tests {
 			);
 		}
 
-		#[tokio::test]
+		#[tokio::test(flavor = "multi_thread")]
 		async fn child_storage_inherits_parent_modifications() {
 			let ctx = create_test_context().await;
 			let mut parent = Block::fork_point(&ctx.endpoint, ctx.cache, ctx.block_hash.into())
