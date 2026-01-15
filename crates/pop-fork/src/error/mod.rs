@@ -10,12 +10,14 @@
 //! - [`rpc::RpcClientError`] - Errors from RPC client operations.
 //! - [`remote::RemoteStorageError`] - Errors from remote storage layer operations.
 
+pub mod block;
 pub mod cache;
 pub mod executor;
 pub mod local;
 pub mod remote;
 pub mod rpc;
 
+pub use block::BlockError;
 pub use cache::CacheError;
 pub use executor::ExecutorError;
 pub use local::LocalStorageError;
