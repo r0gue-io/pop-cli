@@ -56,6 +56,7 @@
 
 use crate::{
 	Block, BlockBuilderError, RuntimeCallResult, RuntimeExecutor, inherent::InherentProvider,
+	strings::builder::runtime_api,
 };
 use scale::Encode;
 use subxt::config::substrate::H256;
@@ -70,8 +71,7 @@ pub enum ApplyExtrinsicResult {
 	},
 	/// Extrinsic dispatch failed.
 	///
-	/// Storage changes from the failed extrinsic are NOT applied (clean mode),
-	/// matching chopsticks behavior.
+	/// Storage changes from the failed extrinsic are NOT applied.
 	DispatchFailed {
 		/// Error description from the runtime.
 		error: String,
@@ -89,8 +89,7 @@ pub enum ApplyExtrinsicResult {
 /// # Storage Handling
 ///
 /// Storage changes are applied directly to the parent block's storage layer.
-/// For failed extrinsics (dispatch errors), storage changes are NOT applied,
-/// matching chopsticks' "clean mode" behavior.
+/// For failed extrinsics (dispatch errors), storage changes are NOT applied.
 ///
 /// # Thread Safety
 ///
@@ -204,7 +203,7 @@ impl BlockBuilder {
 		// Call Core_initialize_block with the header
 		let result = self
 			.executor
-			.call("Core_initialize_block", &self.header, self.parent.storage())
+			.call(runtime_api::CORE_INITIALIZE_BLOCK, &self.header, self.parent.storage())
 			.await?;
 
 		// Apply storage changes
@@ -249,7 +248,11 @@ impl BlockBuilder {
 			for inherent in inherents {
 				let result = self
 					.executor
-					.call("BlockBuilder_apply_extrinsic", &inherent, self.parent.storage())
+					.call(
+						runtime_api::BLOCK_BUILDER_APPLY_EXTRINSIC,
+						&inherent,
+						self.parent.storage(),
+					)
 					.await?;
 
 				// Inherents should always succeed - apply storage changes
@@ -293,7 +296,7 @@ impl BlockBuilder {
 		// Call BlockBuilder_apply_extrinsic
 		let result = self
 			.executor
-			.call("BlockBuilder_apply_extrinsic", &extrinsic, self.parent.storage())
+			.call(runtime_api::BLOCK_BUILDER_APPLY_EXTRINSIC, &extrinsic, self.parent.storage())
 			.await?;
 
 		// Decode the dispatch result
@@ -335,7 +338,7 @@ impl BlockBuilder {
 		// Call BlockBuilder_finalize_block
 		let result = self
 			.executor
-			.call("BlockBuilder_finalize_block", &[], self.parent.storage())
+			.call(runtime_api::BLOCK_BUILDER_FINALIZE_BLOCK, &[], self.parent.storage())
 			.await?;
 
 		// Apply final storage changes
