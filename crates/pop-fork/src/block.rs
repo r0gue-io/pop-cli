@@ -182,7 +182,7 @@ impl Block {
 	) -> Result<Self, BlockError> {
 		self.storage.commit().await?;
 		Ok(Self {
-			number: self.number,
+			number: self.number + 1,
 			hash,
 			parent_hash: self.hash,
 			header,
