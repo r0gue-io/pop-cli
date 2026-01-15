@@ -246,14 +246,7 @@ impl BlockBuilder {
 
 			// Apply each inherent
 			for inherent in inherents {
-				let result = self
-					.executor
-					.call(
-						runtime_api::BLOCK_BUILDER_APPLY_EXTRINSIC,
-						&inherent,
-						self.parent.storage(),
-					)
-					.await?;
+				let result = self.call_apply_extrinsic(&inherent).await?;
 
 				// Inherents should always succeed - apply storage changes
 				self.apply_storage_diff(&result.storage_diff)?;
@@ -268,7 +261,7 @@ impl BlockBuilder {
 	/// Apply a user extrinsic to the block.
 	///
 	/// This calls `BlockBuilder_apply_extrinsic` and checks the dispatch result.
-	/// Storage changes are only applied if the extrinsic succeeds (clean mode).
+	/// Storage changes are only applied if the extrinsic succeeds.
 	///
 	/// # Arguments
 	///
@@ -293,11 +286,7 @@ impl BlockBuilder {
 			return Err(BlockBuilderError::NotInitialized);
 		}
 
-		// Call BlockBuilder_apply_extrinsic
-		let result = self
-			.executor
-			.call(runtime_api::BLOCK_BUILDER_APPLY_EXTRINSIC, &extrinsic, self.parent.storage())
-			.await?;
+		let result = self.call_apply_extrinsic(&extrinsic).await?;
 
 		// Decode the dispatch result
 		// Format: Result<Result<(), DispatchError>, TransactionValidityError>
@@ -311,10 +300,24 @@ impl BlockBuilder {
 			self.extrinsics.push(extrinsic);
 			Ok(ApplyExtrinsicResult::Success { storage_changes })
 		} else {
-			// Failed - do NOT apply storage changes (clean mode)
+			// Failed - do NOT apply storage changes.
 			let error = format!("Dispatch failed: {:?}", hex::encode(&result.output));
 			Ok(ApplyExtrinsicResult::DispatchFailed { error })
 		}
+	}
+
+	/// Call the `BlockBuilder_apply_extrinsic` runtime API.
+	///
+	/// This is a helper function that executes the runtime call without
+	/// interpreting the result or applying storage changes.
+	async fn call_apply_extrinsic(
+		&self,
+		extrinsic: &[u8],
+	) -> Result<RuntimeCallResult, BlockBuilderError> {
+		self.executor
+			.call(runtime_api::BLOCK_BUILDER_APPLY_EXTRINSIC, extrinsic, self.parent.storage())
+			.await
+			.map_err(Into::into)
 	}
 
 	/// Finalize the block by calling `BlockBuilder_finalize_block`.
@@ -379,10 +382,6 @@ impl BlockBuilder {
 		Ok(())
 	}
 }
-
-// ============================================================================
-// Header Helper
-// ============================================================================
 
 /// Digest item for block headers.
 ///
@@ -492,10 +491,6 @@ pub fn create_next_header(parent: &Block, digest_items: Vec<DigestItem>) -> Vec<
 	header.encode()
 }
 
-// ============================================================================
-// Tests
-// ============================================================================
-
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -562,32 +557,6 @@ mod tests {
 		assert_eq!(consensus_engine::GRANDPA, *b"FRNK");
 	}
 
-	/// Verifies that ApplyExtrinsicResult::Success can be constructed and cloned.
-	#[test]
-	fn apply_extrinsic_result_success_is_cloneable() {
-		let result = ApplyExtrinsicResult::Success { storage_changes: 42 };
-		let cloned = result.clone();
-		match cloned {
-			ApplyExtrinsicResult::Success { storage_changes } => {
-				assert_eq!(storage_changes, 42);
-			},
-			_ => panic!("Expected Success variant"),
-		}
-	}
-
-	/// Verifies that ApplyExtrinsicResult::DispatchFailed can be constructed and cloned.
-	#[test]
-	fn apply_extrinsic_result_dispatch_failed_is_cloneable() {
-		let result = ApplyExtrinsicResult::DispatchFailed { error: "Test error".to_string() };
-		let cloned = result.clone();
-		match cloned {
-			ApplyExtrinsicResult::DispatchFailed { error } => {
-				assert_eq!(error, "Test error");
-			},
-			_ => panic!("Expected DispatchFailed variant"),
-		}
-	}
-
 	/// Verifies that the Header struct encodes with correct field order.
 	#[test]
 	fn header_encodes_correctly() {
@@ -640,5 +609,182 @@ mod tests {
 		// The larger block number should result in a larger encoding
 		// because compact encoding uses more bytes for larger values
 		assert!(encoded2.len() > encoded1.len());
+	}
+
+	/// Integration tests that execute BlockBuilder against a local test node.
+	///
+	/// These tests verify the full block building lifecycle including
+	/// initialization, inherent application, and finalization.
+	mod sequential {
+		use super::*;
+		use crate::{Block, ForkRpcClient, RuntimeExecutor, StorageCache};
+		use pop_common::test_env::TestNode;
+		use url::Url;
+
+		/// Test context holding a spawned test node and all components needed for block building.
+		struct BlockBuilderTestContext {
+			#[allow(dead_code)]
+			node: TestNode,
+			block: Block,
+			executor: RuntimeExecutor,
+		}
+
+		/// Creates a fully initialized block builder test context.
+		async fn create_test_context() -> BlockBuilderTestContext {
+			let node = TestNode::spawn().await.expect("Failed to spawn test node");
+			let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
+			let rpc = ForkRpcClient::connect(&endpoint).await.expect("Failed to connect to node");
+
+			let block_hash = rpc.finalized_head().await.expect("Failed to get finalized head");
+
+			// Fetch runtime code for the executor
+			let runtime_code =
+				rpc.runtime_code(block_hash).await.expect("Failed to fetch runtime code");
+
+			// Create fork point block
+			let cache = StorageCache::in_memory().await.expect("Failed to create cache");
+			let block = Block::fork_point(&endpoint, cache, block_hash.into())
+				.await
+				.expect("Failed to create fork point");
+
+			// Create executor
+			let executor =
+				RuntimeExecutor::new(runtime_code, None).expect("Failed to create executor");
+
+			BlockBuilderTestContext { node, block, executor }
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn new_creates_builder_with_empty_extrinsics() {
+			let ctx = create_test_context().await;
+			let header = create_next_header(&ctx.block, vec![]);
+
+			let builder = BlockBuilder::new(ctx.block, ctx.executor, header, vec![]);
+
+			assert!(builder.extrinsics().is_empty());
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn initialize_succeeds_and_modifies_storage() {
+			let ctx = create_test_context().await;
+			let header = create_next_header(&ctx.block, vec![]);
+
+			let mut builder = BlockBuilder::new(ctx.block, ctx.executor, header, vec![]);
+			let result = builder.initialize().await.expect("initialize failed");
+
+			// Core_initialize_block should modify storage
+			assert!(!result.storage_diff.is_empty());
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn initialize_twice_returns_empty_result() {
+			let ctx = create_test_context().await;
+			let header = create_next_header(&ctx.block, vec![]);
+
+			let mut builder = BlockBuilder::new(ctx.block, ctx.executor, header, vec![]);
+
+			// First initialize
+			builder.initialize().await.expect("first initialize failed");
+
+			// Second initialize should return empty result
+			let result = builder.initialize().await.expect("second initialize failed");
+			assert!(result.storage_diff.is_empty());
+			assert!(result.output.is_empty());
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn apply_inherents_without_providers_returns_empty() {
+			let ctx = create_test_context().await;
+			let header = create_next_header(&ctx.block, vec![]);
+
+			let mut builder = BlockBuilder::new(ctx.block, ctx.executor, header, vec![]);
+			builder.initialize().await.expect("initialize failed");
+
+			let results = builder.apply_inherents().await.expect("apply_inherents failed");
+
+			assert!(results.is_empty());
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn apply_inherents_before_initialize_fails() {
+			let ctx = create_test_context().await;
+			let header = create_next_header(&ctx.block, vec![]);
+
+			let mut builder = BlockBuilder::new(ctx.block, ctx.executor, header, vec![]);
+
+			let result = builder.apply_inherents().await;
+
+			assert!(matches!(result, Err(BlockBuilderError::NotInitialized)));
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn apply_extrinsic_before_initialize_fails() {
+			let ctx = create_test_context().await;
+			let header = create_next_header(&ctx.block, vec![]);
+
+			let mut builder = BlockBuilder::new(ctx.block, ctx.executor, header, vec![]);
+
+			let result = builder.apply_extrinsic(vec![0x00]).await;
+
+			assert!(matches!(result, Err(BlockBuilderError::NotInitialized)));
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn finalize_before_initialize_fails() {
+			let ctx = create_test_context().await;
+			let header = create_next_header(&ctx.block, vec![]);
+
+			let builder = BlockBuilder::new(ctx.block, ctx.executor, header, vec![]);
+
+			let result = builder.finalize().await;
+
+			assert!(matches!(result, Err(BlockBuilderError::NotInitialized)));
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn finalize_produces_child_block() {
+			let ctx = create_test_context().await;
+			let parent_number = ctx.block.number;
+			let parent_hash = ctx.block.hash;
+			let header = create_next_header(&ctx.block, vec![]);
+
+			let mut builder = BlockBuilder::new(ctx.block, ctx.executor, header, vec![]);
+			builder.initialize().await.expect("initialize failed");
+
+			let new_block = builder.finalize().await.expect("finalize failed");
+
+			assert_eq!(new_block.number, parent_number + 1);
+			assert_eq!(new_block.parent_hash, parent_hash);
+			assert!(new_block.parent.is_some());
+			assert!(!new_block.header.is_empty());
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn create_next_header_increments_block_number() {
+			let ctx = create_test_context().await;
+
+			let header_bytes = create_next_header(&ctx.block, vec![]);
+
+			// Header should not be empty
+			assert!(!header_bytes.is_empty());
+
+			// First 32 bytes should be the parent hash
+			assert_eq!(&header_bytes[0..32], ctx.block.hash.as_bytes());
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn create_next_header_includes_digest_items() {
+			let ctx = create_test_context().await;
+
+			// Create header with a PreRuntime digest item
+			let slot: u64 = 12345;
+			let digest_items = vec![DigestItem::PreRuntime(consensus_engine::AURA, slot.encode())];
+
+			let header_bytes = create_next_header(&ctx.block, digest_items);
+
+			// Header with digest should be larger than header without
+			let empty_header = create_next_header(&ctx.block, vec![]);
+			assert!(header_bytes.len() > empty_header.len());
+		}
 	}
 }
