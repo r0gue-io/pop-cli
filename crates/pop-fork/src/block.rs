@@ -220,3 +220,190 @@ impl Block {
 		&mut self.storage
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn from_u32_creates_number_variant() {
+		let fork_point: BlockForkPoint = 42u32.into();
+		assert!(matches!(fork_point, BlockForkPoint::Number(42)));
+	}
+
+	#[test]
+	fn from_h256_creates_hash_variant() {
+		let hash = H256::from([0xab; 32]);
+		let fork_point: BlockForkPoint = hash.into();
+		assert!(matches!(fork_point, BlockForkPoint::Hash(h) if h == hash));
+	}
+
+	/// Tests that spawn local test nodes.
+	///
+	/// These tests are run sequentially via nextest configuration to avoid
+	/// concurrent node downloads causing race conditions.
+	mod sequential {
+		use super::*;
+		use crate::StorageCache;
+		use pop_common::test_env::TestNode;
+
+		/// Helper struct to hold the test node and context together.
+		struct TestContext {
+			#[allow(dead_code)]
+			node: TestNode,
+			endpoint: Url,
+			cache: StorageCache,
+			block_hash: H256,
+			block_number: u32,
+			rpc: ForkRpcClient,
+		}
+
+		async fn create_test_context() -> TestContext {
+			let node = TestNode::spawn().await.expect("Failed to spawn test node");
+			let endpoint: Url = node.ws_url().parse().unwrap();
+			let rpc = ForkRpcClient::connect(&endpoint).await.unwrap();
+			let block_hash = rpc.finalized_head().await.unwrap();
+			let header = rpc.header(block_hash).await.unwrap();
+			let block_number = header.number;
+			let cache = StorageCache::in_memory().await.unwrap();
+			TestContext { node, endpoint, cache, block_hash, block_number, rpc }
+		}
+
+		#[tokio::test]
+		async fn fork_point_with_hash_creates_block_with_correct_metadata() {
+			let ctx = create_test_context().await;
+
+			let expected_parent_hash = ctx.rpc.header(ctx.block_hash).await.unwrap().parent_hash;
+
+			let block = Block::fork_point(&ctx.endpoint, ctx.cache, ctx.block_hash.into())
+				.await
+				.unwrap();
+
+			assert_eq!(block.number, ctx.block_number);
+			assert_eq!(block.hash, ctx.block_hash);
+			assert_eq!(block.parent_hash, expected_parent_hash);
+			assert!(!block.header.is_empty());
+			assert!(block.extrinsics.is_empty());
+			assert!(block.parent.is_none());
+		}
+
+		#[tokio::test]
+		async fn fork_point_with_non_existent_hash_returns_error() {
+			let ctx = create_test_context().await;
+			let non_existent_hash = H256::from([0xde; 32]);
+
+			let result =
+				Block::fork_point(&ctx.endpoint, ctx.cache, non_existent_hash.into()).await;
+
+			assert!(
+				matches!(result, Err(BlockError::BlockHashNotFound(h)) if h == non_existent_hash)
+			);
+		}
+
+		#[tokio::test]
+		async fn fork_point_with_number_creates_block_with_correct_metadata() {
+			let ctx = create_test_context().await;
+			let expected_parent_hash = ctx.rpc.header(ctx.block_hash).await.unwrap().parent_hash;
+
+			let block = Block::fork_point(&ctx.endpoint, ctx.cache, ctx.block_number.into())
+				.await
+				.unwrap();
+
+			assert_eq!(block.number, ctx.block_number);
+			assert_eq!(block.hash, ctx.block_hash);
+			assert_eq!(block.parent_hash, expected_parent_hash);
+			assert!(!block.header.is_empty());
+			assert!(block.extrinsics.is_empty());
+			assert!(block.parent.is_none());
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn fork_point_with_non_existent_number_returns_error() {
+			let ctx = create_test_context().await;
+			let non_existent_number = u32::MAX;
+
+			let result =
+				Block::fork_point(&ctx.endpoint, ctx.cache, non_existent_number.into()).await;
+
+			assert!(
+				matches!(result, Err(BlockError::BlockNumberNotFound(n)) if n == non_existent_number)
+			);
+		}
+
+		#[tokio::test]
+		async fn child_creates_block_with_correct_metadata() {
+			let ctx = create_test_context().await;
+			let mut parent = Block::fork_point(&ctx.endpoint, ctx.cache, ctx.block_hash.into())
+				.await
+				.unwrap();
+
+			let child_hash = H256::from([0x42; 32]);
+			let child_header = vec![1, 2, 3, 4];
+			let child_extrinsics = vec![vec![5, 6, 7]];
+
+			let child = parent
+				.child(child_hash, child_header.clone(), child_extrinsics.clone())
+				.await
+				.unwrap();
+
+			assert_eq!(child.number, parent.number + 1);
+			assert_eq!(child.hash, child_hash);
+			assert_eq!(child.parent_hash, parent.hash);
+			assert_eq!(child.header, child_header);
+			assert_eq!(child.extrinsics, child_extrinsics);
+			assert_eq!(child.parent.unwrap().number, parent.number);
+		}
+
+		#[tokio::test]
+		async fn child_commits_parent_storage() {
+			let ctx = create_test_context().await;
+			let mut parent = Block::fork_point(&ctx.endpoint, ctx.cache, ctx.block_hash.into())
+				.await
+				.unwrap();
+
+			let key = b"committed_key";
+			let value = b"committed_value";
+
+			// Set value on parent
+			parent.storage_mut().set(key, Some(value)).unwrap();
+
+			// Create child (this commits parent storage)
+			let mut child = parent.child(H256::from([0x42; 32]), vec![], vec![]).await.unwrap();
+
+			let value2 = b"committed_value2";
+
+			child.storage_mut().set(key, Some(value2)).unwrap();
+
+			// Value should be readable both at child and parent block_numbers
+			assert_eq!(
+				child.storage().get(child.number, key).await.unwrap().as_deref().unwrap(),
+				value2
+			);
+			assert_eq!(
+				child.storage().get(parent.number, key).await.unwrap().as_deref().unwrap(),
+				value
+			);
+		}
+
+		#[tokio::test]
+		async fn child_storage_inherits_parent_modifications() {
+			let ctx = create_test_context().await;
+			let mut parent = Block::fork_point(&ctx.endpoint, ctx.cache, ctx.block_hash.into())
+				.await
+				.unwrap();
+
+			let key = b"inherited_key";
+			let value = b"inherited_value";
+
+			parent.storage_mut().set(key, Some(value)).unwrap();
+
+			let child = parent.child(H256::from([0x42; 32]), vec![], vec![]).await.unwrap();
+
+			// Child should see the value at its block number
+			assert_eq!(
+				child.storage().get(child.number, key).await.unwrap().as_deref().unwrap(),
+				value
+			);
+		}
+	}
+}
