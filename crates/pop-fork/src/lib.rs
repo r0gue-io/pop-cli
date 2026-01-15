@@ -51,8 +51,8 @@ mod strings;
 
 pub use block::{Block, BlockForkPoint};
 pub use builder::{
-	consensus_engine, create_next_header, ApplyExtrinsicResult, BlockBuilder, ConsensusEngineId,
-	DigestItem, InherentProvider,
+	ApplyExtrinsicResult, BlockBuilder, ConsensusEngineId, DigestItem, InherentProvider,
+	consensus_engine, create_next_header,
 };
 pub use cache::{PrefixScanProgress, StorageCache};
 pub use error::{

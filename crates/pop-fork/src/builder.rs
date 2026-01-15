@@ -11,22 +11,22 @@
 //!
 //! ```text
 //! ┌─────────────────────────────────────────────────────────────────┐
-//! │                      Block Building Flow                         │
-//! │                                                                   │
-//! │   1. new()          Create builder with parent block             │
-//! │         │                                                         │
-//! │         ▼                                                         │
-//! │   2. initialize()   Call Core_initialize_block                   │
-//! │         │                                                         │
-//! │         ▼                                                         │
+//! │                      Block Building Flow                        │
+//! │                                                                 │
+//! │   1. new()          Create builder with parent block            │
+//! │         │                                                       │
+//! │         ▼                                                       │
+//! │   2. initialize()   Call Core_initialize_block                  │
+//! │         │                                                       │
+//! │         ▼                                                       │
 //! │   3. apply_inherents()  Apply inherent extrinsics               │
-//! │         │                                                         │
-//! │         ▼                                                         │
+//! │         │                                                       │
+//! │         ▼                                                       │
 //! │   4. apply_extrinsic()  Apply user extrinsics (repeatable)      │
-//! │         │                                                         │
-//! │         ▼                                                         │
+//! │         │                                                       │
+//! │         ▼                                                       │
 //! │   5. finalize()     Call BlockBuilder_finalize_block            │
-//! │                     Returns new Block                            │
+//! │                     Returns new Block                           │
 //! └─────────────────────────────────────────────────────────────────┘
 //! ```
 //!
@@ -191,7 +191,14 @@ impl BlockBuilder {
 		header: Vec<u8>,
 		inherent_providers: Vec<Box<dyn InherentProvider>>,
 	) -> Self {
-		Self { parent, executor, inherent_providers, extrinsics: Vec::new(), header, initialized: false }
+		Self {
+			parent,
+			executor,
+			inherent_providers,
+			extrinsics: Vec::new(),
+			header,
+			initialized: false,
+		}
 	}
 
 	/// Get the current list of successfully applied extrinsics.
@@ -225,8 +232,10 @@ impl BlockBuilder {
 		}
 
 		// Call Core_initialize_block with the header
-		let result =
-			self.executor.call("Core_initialize_block", &self.header, self.parent.storage()).await?;
+		let result = self
+			.executor
+			.call("Core_initialize_block", &self.header, self.parent.storage())
+			.await?;
 
 		// Apply storage changes
 		self.apply_storage_diff(&result.storage_diff)?;
@@ -354,8 +363,10 @@ impl BlockBuilder {
 		}
 
 		// Call BlockBuilder_finalize_block
-		let result =
-			self.executor.call("BlockBuilder_finalize_block", &[], self.parent.storage()).await?;
+		let result = self
+			.executor
+			.call("BlockBuilder_finalize_block", &[], self.parent.storage())
+			.await?;
 
 		// Apply final storage changes
 		self.apply_storage_diff(&result.storage_diff)?;
@@ -369,7 +380,11 @@ impl BlockBuilder {
 		// Create the new block
 		let new_block = self
 			.parent
-			.child(subxt::config::substrate::H256::from_slice(&block_hash), final_header, self.extrinsics)
+			.child(
+				subxt::config::substrate::H256::from_slice(&block_hash),
+				final_header,
+				self.extrinsics,
+			)
 			.await?;
 
 		Ok(new_block)
@@ -590,8 +605,7 @@ mod tests {
 	/// Verifies that ApplyExtrinsicResult::DispatchFailed can be constructed and cloned.
 	#[test]
 	fn apply_extrinsic_result_dispatch_failed_is_cloneable() {
-		let result =
-			ApplyExtrinsicResult::DispatchFailed { error: "Test error".to_string() };
+		let result = ApplyExtrinsicResult::DispatchFailed { error: "Test error".to_string() };
 		let cloned = result.clone();
 		match cloned {
 			ApplyExtrinsicResult::DispatchFailed { error } => {
