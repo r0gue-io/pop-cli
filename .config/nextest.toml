@@ -16,3 +16,7 @@ test-group = 'pop-fork-sequential'
 [[profile.default.overrides]]
 filter = 'package(pop-fork) and test(executor::tests::sequential::)'
 test-group = 'pop-fork-sequential'
+
+[[profile.default.overrides]]
+filter = 'package(pop-fork) and test(block::tests::sequential::)'
+test-group = 'pop-fork-sequential'

@@ -37,6 +37,7 @@
 //! - [`LocalStorageLayer`] - Local storage layer for tracking modifications to forked state
 //! - [`RuntimeExecutor`] - Runtime executor for executing Substrate runtime calls
 
+mod block;
 mod cache;
 pub mod error;
 pub mod executor;
@@ -47,8 +48,11 @@ mod rpc;
 mod schema;
 mod strings;
 
+pub use block::{Block, BlockForkPoint};
 pub use cache::{PrefixScanProgress, StorageCache};
-pub use error::{CacheError, ExecutorError, LocalStorageError, RemoteStorageError, RpcClientError};
+pub use error::{
+	BlockError, CacheError, ExecutorError, LocalStorageError, RemoteStorageError, RpcClientError,
+};
 pub use executor::{
 	ExecutorConfig, RuntimeCallResult, RuntimeExecutor, RuntimeLog, RuntimeVersion,
 	SignatureMockMode,
