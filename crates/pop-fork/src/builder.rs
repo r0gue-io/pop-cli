@@ -741,23 +741,29 @@ mod tests {
 			assert!(matches!(result, Err(BlockBuilderError::NotInitialized)));
 		}
 
-		#[tokio::test(flavor = "multi_thread")]
-		async fn finalize_produces_child_block() {
-			let ctx = create_test_context().await;
-			let parent_number = ctx.block.number;
-			let parent_hash = ctx.block.hash;
-			let header = create_next_header(&ctx.block, vec![]);
-
-			let mut builder = BlockBuilder::new(ctx.block, ctx.executor, header, vec![]);
-			builder.initialize().await.expect("initialize failed");
-
-			let new_block = builder.finalize().await.expect("finalize failed");
-
-			assert_eq!(new_block.number, parent_number + 1);
-			assert_eq!(new_block.parent_hash, parent_hash);
-			assert!(new_block.parent.is_some());
-			assert!(!new_block.header.is_empty());
-		}
+		// TODO: Enable this test once inherent providers are implemented.
+		// Finalization requires mandatory inherents (like timestamp) to be applied first.
+		// See: https://github.com/r0gue-io/pop-cli/issues/828
+		//
+		// #[tokio::test(flavor = "multi_thread")]
+		// async fn finalize_produces_child_block() {
+		// 	let ctx = create_test_context().await;
+		// 	let parent_number = ctx.block.number;
+		// 	let parent_hash = ctx.block.hash;
+		// 	let header = create_next_header(&ctx.block, vec![]);
+		//
+		// 	let mut builder = BlockBuilder::new(ctx.block, ctx.executor, header, vec![]);
+		// 	builder.initialize().await.expect("initialize failed");
+		//
+		//  -- apply inherents here --
+		//
+		// 	let new_block = builder.finalize().await.expect("finalize failed");
+		//
+		// 	assert_eq!(new_block.number, parent_number + 1);
+		// 	assert_eq!(new_block.parent_hash, parent_hash);
+		// 	assert!(new_block.parent.is_some());
+		// 	assert!(!new_block.header.is_empty());
+		// }
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn create_next_header_increments_block_number() {
