@@ -5,6 +5,7 @@
 //! This module organizes static strings used throughout the crate to improve
 //! maintainability and avoid magic strings scattered across the codebase.
 
+pub mod builder;
 pub mod cache;
 pub mod executor;
 pub mod rpc;

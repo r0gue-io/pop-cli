@@ -9,6 +9,7 @@ rust-version.workspace = true
 
 [dependencies]
 # Fork-specific
+async-trait.workspace = true
 bb8.workspace = true
 diesel.workspace = true
 diesel-async.workspace = true
@@ -17,6 +18,7 @@ diesel_migrations.workspace = true
 # From workspace
 bytes.workspace = true
 hex.workspace = true
+scale.workspace = true
 sp-core.workspace = true
 subxt.workspace = true
 thiserror.workspace = true
