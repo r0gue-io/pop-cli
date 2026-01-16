@@ -5,10 +5,10 @@ permissions:
   packages: read
 
 on:
-  push:
+  workflow_dispatch:
+  pull_request:
     branches:
       - main
-  pull_request:
     types:
       - opened
       - synchronize
@@ -94,6 +94,20 @@ jobs:
           - macos-latest
     runs-on: ${{ matrix.os }}
     steps:
+      - name: Free up space on runner (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          set -xeuo pipefail
+          sudo rm -rf /usr/local/lib/android &
+          sudo rm -rf /usr/share/dotnet &
+          sudo rm -rf /usr/share/swift &
+          if command -v docker &> /dev/null; then
+            sudo docker image prune -af &
+          fi
+          sudo apt-get clean &
+          wait
+
       - uses: actions/checkout@v4
 
       - name: Install stable toolchain
