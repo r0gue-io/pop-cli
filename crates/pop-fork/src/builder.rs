@@ -811,6 +811,31 @@ mod tests {
 			let result = builder.finalize().await;
 			assert!(matches!(result, Err(BlockBuilderError::InherentsNotApplied)));
 		}
+		
+		#[tokio::test(flavor = "multi_thread")]
+		async fn finalize_produces_child_block() {
+			use crate::inherent::TimestampInherent;
+
+			let ctx = create_test_context().await;
+			let parent_number = ctx.block.number;
+			let parent_hash = ctx.block.hash;
+			let header = create_next_header(&ctx.block, vec![]);
+
+			// Create inherent providers - timestamp is required for finalization
+			let providers: Vec<Box<dyn crate::InherentProvider>> =
+				vec![Box::new(TimestampInherent::default_relay())];
+
+			let mut builder = BlockBuilder::new(ctx.block, ctx.executor, header, providers);
+			builder.initialize().await.expect("initialize failed");
+			builder.apply_inherents().await.expect("apply_inherents failed");
+
+			let new_block = builder.finalize().await.expect("finalize failed");
+
+			assert_eq!(new_block.number, parent_number + 1);
+			assert_eq!(new_block.parent_hash, parent_hash);
+			assert!(new_block.parent.is_some());
+			assert!(!new_block.header.is_empty());
+		}
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn create_next_header_increments_block_number() {
