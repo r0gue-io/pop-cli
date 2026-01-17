@@ -54,6 +54,12 @@
 //! }
 //! ```
 
+mod parachain;
+mod timestamp;
+
+pub use parachain::ParachainInherent;
+pub use timestamp::TimestampInherent;
+
 use crate::{Block, BlockBuilderError, RuntimeExecutor};
 use async_trait::async_trait;
 
@@ -87,4 +93,43 @@ pub trait InherentProvider: Send + Sync {
 		parent: &Block,
 		executor: &RuntimeExecutor,
 	) -> Result<Vec<Vec<u8>>, BlockBuilderError>;
+}
+
+/// Create default inherent providers for block building.
+///
+/// This factory function creates a standard set of inherent providers
+/// suitable for most chains.
+///
+/// # Arguments
+///
+/// * `slot_duration_ms` - Slot duration in milliseconds (e.g., 6000 for relay, 12000 for para)
+/// * `is_parachain` - Whether the chain is a parachain (adds parachain inherent provider)
+///
+/// # Returns
+///
+/// A vector of boxed inherent providers ready for use with `BlockBuilder`.
+///
+/// # Example
+///
+/// ```ignore
+/// use pop_fork::inherent::default_providers;
+///
+/// // For a relay chain
+/// let providers = default_providers(6000, false);
+///
+/// // For a parachain
+/// let providers = default_providers(12000, true);
+/// ```
+pub fn default_providers(
+	slot_duration_ms: u64,
+	is_parachain: bool,
+) -> Vec<Box<dyn InherentProvider>> {
+	let mut providers: Vec<Box<dyn InherentProvider>> =
+		vec![Box::new(TimestampInherent::new(slot_duration_ms))];
+
+	if is_parachain {
+		providers.push(Box::new(ParachainInherent::new()));
+	}
+
+	providers
 }

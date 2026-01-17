@@ -75,7 +75,7 @@ pub use executor::{
 	ExecutorConfig, RuntimeCallResult, RuntimeExecutor, RuntimeLog, RuntimeVersion,
 	SignatureMockMode,
 };
-pub use inherent::InherentProvider;
+pub use inherent::{InherentProvider, ParachainInherent, TimestampInherent, default_providers};
 pub use local::LocalStorageLayer;
 pub use models::BlockRow;
 pub use remote::RemoteStorageLayer;
