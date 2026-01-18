@@ -91,18 +91,25 @@ impl InherentProvider for ParachainInherent {
 
 	async fn provide(
 		&self,
-		_parent: &Block,
+		parent: &Block,
 		_executor: &RuntimeExecutor,
 	) -> Result<Vec<Vec<u8>>, BlockBuilderError> {
+		// Check if ParachainSystem pallet exists in metadata.
+		// If not, this is a relay chain or standalone chain - gracefully skip.
+		let metadata = parent.metadata();
+
+		if metadata.pallet_by_name(strings::metadata::PALLET_NAME).is_none() {
+			// No ParachainSystem pallet - this is not a parachain runtime
+			return Ok(vec![]);
+		}
+
 		// TODO: Implement full parachain validation data inherent.
 		//
 		// This would require:
-		// 1. Checking if parachainSystem pallet exists in metadata
-		// 2. Fetching validation data from relay chain
-		// 3. Encoding the setValidationData call
+		// 1. Fetching validation data from relay chain
+		// 2. Encoding the setValidationData call with dynamic pallet/call indices
 		//
 		// For now, return empty - suitable for:
-		// - Relay chains (no parachain inherent needed)
 		// - Testing scenarios without relay chain
 		// - Runtimes with mocked/bypassed inherent checks
 		Ok(vec![])

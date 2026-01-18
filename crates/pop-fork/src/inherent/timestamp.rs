@@ -8,10 +8,11 @@
 //!
 //! # How It Works
 //!
-//! 1. Read the current timestamp from `Timestamp::Now` storage
-//! 2. Add the configured slot duration
-//! 3. Encode a `timestamp.set(new_timestamp)` call
-//! 4. Wrap it as an unsigned inherent extrinsic
+//! 1. Look up the Timestamp pallet and `set` call indices from runtime metadata
+//! 2. Read the current timestamp from `Timestamp::Now` storage
+//! 3. Add the configured slot duration
+//! 4. Encode a `timestamp.set(new_timestamp)` call using the dynamic indices
+//! 5. Wrap it as an unsigned inherent extrinsic
 //!
 //! # Example
 //!
@@ -42,21 +43,6 @@ const DEFAULT_PARA_SLOT_DURATION_MS: u64 = 6_000;
 /// Version 5 is current; version 4 is legacy.
 const EXTRINSIC_FORMAT_VERSION: u8 = 5;
 
-// TODO: Pallet and call indices vary between runtimes. These hardcoded values work for
-// Polkadot SDK template runtimes but will fail for runtimes with different pallet ordering.
-// This should be improved by:
-// 1. Parsing the runtime metadata to discover the actual pallet index for "Timestamp"
-// 2. Looking up the call index for "set" within the timestamp pallet's calls
-// See: https://docs.rs/frame-metadata for metadata parsing utilities.
-
-/// Pallet index for timestamp in Polkadot SDK template runtimes.
-/// Note: This index varies between runtimes and should ideally be read from metadata.
-const TIMESTAMP_PALLET_INDEX: u8 = 3;
-
-/// Call index for `timestamp.set` (typically the first/only call in the timestamp pallet).
-/// Note: This index may vary between runtimes and should ideally be read from metadata.
-const TIMESTAMP_SET_CALL_INDEX: u8 = 0;
-
 /// Timestamp inherent provider.
 ///
 /// Generates the `timestamp.set(now)` inherent extrinsic that advances
@@ -67,17 +53,15 @@ const TIMESTAMP_SET_CALL_INDEX: u8 = 0;
 /// The slot duration determines how much time passes between blocks.
 /// Both relay chains and parachains typically use 6-second slots.
 ///
-/// # Pallet Index
+/// # Dynamic Metadata Lookup
 ///
-/// The timestamp pallet index varies by runtime. This provider uses the
-/// well-known index for Polkadot SDK template runtimes by default, but
-/// allows configuration for other runtimes.
+/// The pallet and call indices are looked up dynamically from the runtime
+/// metadata, making this provider work across different runtimes without
+/// manual configuration.
 #[derive(Debug, Clone)]
 pub struct TimestampInherent {
 	/// Slot duration in milliseconds.
 	slot_duration_ms: u64,
-	/// Pallet index for the timestamp pallet.
-	pallet_index: u8,
 }
 
 impl TimestampInherent {
@@ -87,19 +71,7 @@ impl TimestampInherent {
 	///
 	/// * `slot_duration_ms` - Slot duration in milliseconds
 	pub fn new(slot_duration_ms: u64) -> Self {
-		Self { slot_duration_ms, pallet_index: Self::default_pallet_index() }
-	}
-
-	/// Create a timestamp inherent provider with a custom pallet index.
-	///
-	/// Use this if your runtime has the timestamp pallet at a non-standard index.
-	///
-	/// # Arguments
-	///
-	/// * `slot_duration_ms` - Slot duration in milliseconds
-	/// * `pallet_index` - The index of the timestamp pallet in the runtime
-	pub fn with_pallet_index(slot_duration_ms: u64, pallet_index: u8) -> Self {
-		Self { slot_duration_ms, pallet_index }
+		Self { slot_duration_ms }
 	}
 
 	/// Create with default settings for relay chains (6-second slots).
@@ -112,18 +84,6 @@ impl TimestampInherent {
 		Self::new(DEFAULT_PARA_SLOT_DURATION_MS)
 	}
 
-	/// Get the pallet index for the timestamp pallet.
-	///
-	/// Returns the index commonly used in Polkadot SDK template runtimes.
-	/// Use [`Self::with_pallet_index`] if your runtime uses a different index.
-	///
-	/// # Note
-	///
-	/// This should ideally be read from the runtime metadata instead of hardcoded.
-	fn default_pallet_index() -> u8 {
-		TIMESTAMP_PALLET_INDEX
-	}
-
 	/// Compute the storage key for `Timestamp::Now`.
 	fn timestamp_now_key() -> Vec<u8> {
 		let pallet_hash = sp_core::twox_128(strings::storage_keys::PALLET_NAME);
@@ -134,9 +94,8 @@ impl TimestampInherent {
 	/// Encode the `timestamp.set(now)` call.
 	///
 	/// The call is encoded as: `[pallet_index, call_index, Compact<u64>]`
-	/// where call_index is always 0 (the only call in the timestamp pallet).
-	fn encode_timestamp_set_call(&self, timestamp: u64) -> Vec<u8> {
-		let mut call = vec![self.pallet_index, TIMESTAMP_SET_CALL_INDEX];
+	fn encode_timestamp_set_call(pallet_index: u8, call_index: u8, timestamp: u64) -> Vec<u8> {
+		let mut call = vec![pallet_index, call_index];
 		// Timestamp argument is encoded as Compact<u64>
 		call.extend(Compact(timestamp).encode());
 		call
@@ -177,6 +136,35 @@ impl InherentProvider for TimestampInherent {
 		parent: &Block,
 		_executor: &RuntimeExecutor,
 	) -> Result<Vec<Vec<u8>>, BlockBuilderError> {
+		// Look up pallet and call indices from metadata
+		let metadata = parent.metadata();
+
+		let pallet = metadata.pallet_by_name(strings::metadata::PALLET_NAME).ok_or_else(|| {
+			BlockBuilderError::InherentProvider {
+				provider: self.identifier().to_string(),
+				message: format!(
+					"{}: {}",
+					strings::errors::PALLET_NOT_FOUND,
+					strings::metadata::PALLET_NAME
+				),
+			}
+		})?;
+
+		let pallet_index = pallet.index();
+
+		let call_variant = pallet
+			.call_variant_by_name(strings::metadata::SET_CALL_NAME)
+			.ok_or_else(|| BlockBuilderError::InherentProvider {
+				provider: self.identifier().to_string(),
+				message: format!(
+					"{}: {}",
+					strings::errors::CALL_NOT_FOUND,
+					strings::metadata::SET_CALL_NAME
+				),
+			})?;
+
+		let call_index = call_variant.index;
+
 		// Read current timestamp from parent block storage
 		let key = Self::timestamp_now_key();
 		let storage = parent.storage();
@@ -201,8 +189,8 @@ impl InherentProvider for TimestampInherent {
 		// Calculate new timestamp
 		let new_timestamp = current_timestamp.saturating_add(self.slot_duration_ms);
 
-		// Encode the timestamp.set call
-		let call = self.encode_timestamp_set_call(new_timestamp);
+		// Encode the timestamp.set call with dynamic indices
+		let call = Self::encode_timestamp_set_call(pallet_index, call_index, new_timestamp);
 
 		// Wrap as unsigned extrinsic
 		let extrinsic = Self::encode_inherent_extrinsic(call);
@@ -218,8 +206,11 @@ mod tests {
 	/// Custom slot duration for testing (1 second).
 	const TEST_SLOT_DURATION_MS: u64 = 1_000;
 
-	/// Custom pallet index for testing.
-	const TEST_PALLET_INDEX: u8 = 42;
+	/// Test pallet index (arbitrary value for encoding tests).
+	const TEST_PALLET_INDEX: u8 = 3;
+
+	/// Test call index (arbitrary value for encoding tests).
+	const TEST_CALL_INDEX: u8 = 0;
 
 	#[test]
 	fn new_creates_provider_with_slot_duration() {
@@ -240,13 +231,6 @@ mod tests {
 	}
 
 	#[test]
-	fn with_pallet_index_sets_custom_index() {
-		let provider =
-			TimestampInherent::with_pallet_index(DEFAULT_RELAY_SLOT_DURATION_MS, TEST_PALLET_INDEX);
-		assert_eq!(provider.pallet_index, TEST_PALLET_INDEX);
-	}
-
-	#[test]
 	fn timestamp_now_key_is_32_bytes() {
 		let key = TimestampInherent::timestamp_now_key();
 		// twox128 produces 16 bytes per hash, storage key = pallet hash + item hash
@@ -257,21 +241,24 @@ mod tests {
 
 	#[test]
 	fn encode_timestamp_set_call_produces_valid_encoding() {
-		let provider = TimestampInherent::new(DEFAULT_RELAY_SLOT_DURATION_MS);
-		let call = provider.encode_timestamp_set_call(1_000_000);
+		let call = TimestampInherent::encode_timestamp_set_call(
+			TEST_PALLET_INDEX,
+			TEST_CALL_INDEX,
+			1_000_000,
+		);
 
 		// First byte is pallet index
-		assert_eq!(call[0], TIMESTAMP_PALLET_INDEX);
+		assert_eq!(call[0], TEST_PALLET_INDEX);
 		// Second byte is call index
-		assert_eq!(call[1], TIMESTAMP_SET_CALL_INDEX);
+		assert_eq!(call[1], TEST_CALL_INDEX);
 		// Rest is compact-encoded timestamp
 		assert!(call.len() > 2);
 	}
 
 	#[test]
 	fn encode_inherent_extrinsic_includes_version_and_length() {
-		// Create fake call data using actual constants
-		let call = vec![TIMESTAMP_PALLET_INDEX, TIMESTAMP_SET_CALL_INDEX, 1, 2, 3];
+		// Create fake call data
+		let call = vec![TEST_PALLET_INDEX, TEST_CALL_INDEX, 1, 2, 3];
 		let extrinsic = TimestampInherent::encode_inherent_extrinsic(call.clone());
 
 		// Should start with compact length (6 = version byte + 5 call bytes)

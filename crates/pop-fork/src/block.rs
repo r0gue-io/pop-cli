@@ -44,7 +44,8 @@
 //! ```
 
 use crate::{BlockError, ForkRpcClient, LocalStorageLayer, RemoteStorageLayer, StorageCache};
-use subxt::{config::substrate::H256, ext::codec::Encode};
+use scale::Decode;
+use subxt::{Metadata, config::substrate::H256, ext::codec::Encode};
 use url::Url;
 
 /// A block in a forked blockchain.
@@ -82,6 +83,12 @@ pub struct Block {
 	/// The parent block. Keeping blocks in memory is cheap as the `LocalStorageLayer` is shared
 	/// between all fork-produced blocks.
 	pub parent: Option<Box<Block>>,
+	/// The runtime metadata for this block.
+	///
+	/// Fetched via RPC at fork time and inherited by child blocks.
+	/// This enables dynamic lookup of pallet and call indices for inherent
+	/// providers instead of relying on hardcoded values.
+	metadata: Metadata,
 }
 
 /// Handy type to allow specifying both number and hash as the fork point.
@@ -146,6 +153,11 @@ impl Block {
 		let block_number = header.number;
 		let parent_hash = header.parent_hash;
 
+		// Fetch and decode runtime metadata
+		let metadata_bytes = rpc.metadata(block_hash).await?;
+		let metadata = Metadata::decode(&mut metadata_bytes.as_slice())
+			.map_err(|e| BlockError::MetadataDecodingFailed(e.to_string()))?;
+
 		// Create storage layers
 		let remote = RemoteStorageLayer::new(rpc, cache);
 		let storage = LocalStorageLayer::new(remote, block_number, block_hash);
@@ -161,6 +173,7 @@ impl Block {
 			extrinsics: vec![], // Fork point has no new extrinsics
 			storage,
 			parent: None,
+			metadata,
 		})
 	}
 
@@ -174,6 +187,12 @@ impl Block {
 	/// * `hash` - The block hash
 	/// * `header` - The encoded block header
 	/// * `extrinsics` - The extrinsics (transactions) in this block
+	///
+	/// # Note
+	///
+	/// The child block inherits the parent's runtime metadata. If a runtime
+	/// upgrade occurs (`:code` storage changes), the metadata should be
+	/// re-fetched. This is left for future work.
 	pub async fn child(
 		&mut self,
 		hash: H256,
@@ -189,6 +208,7 @@ impl Block {
 			extrinsics,
 			storage: self.storage.clone(),
 			parent: Some(Box::new(self.clone())),
+			metadata: self.metadata.clone(),
 		})
 	}
 
@@ -218,6 +238,24 @@ impl Block {
 	/// ```
 	pub fn storage_mut(&mut self) -> &mut LocalStorageLayer {
 		&mut self.storage
+	}
+
+	/// Get a reference to the runtime metadata.
+	///
+	/// This provides access to pallet and call indices for dynamic extrinsic
+	/// encoding. Use this in inherent providers to look up pallet indices
+	/// instead of relying on hardcoded values.
+	///
+	/// # Example
+	///
+	/// ```ignore
+	/// let pallet = block.metadata().pallet_by_name("Timestamp")?;
+	/// let pallet_index = pallet.index();
+	/// let call_variant = pallet.call_variant_by_name("set")?;
+	/// let call_index = call_variant.index;
+	/// ```
+	pub fn metadata(&self) -> &Metadata {
+		&self.metadata
 	}
 }
 
