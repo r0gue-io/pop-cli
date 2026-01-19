@@ -61,6 +61,21 @@ use crate::{
 use scale::Encode;
 use subxt::config::substrate::H256;
 
+/// Phase of the block building process.
+///
+/// Tracks the current state of the builder to enforce correct ordering:
+/// `Created` → `Initialized` → `InherentsApplied` → (extrinsics) → finalize
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum BuilderPhase {
+	/// Builder created, `initialize()` not yet called.
+	#[default]
+	Created,
+	/// Block initialized via `Core_initialize_block`, ready for inherents.
+	Initialized,
+	/// Inherents applied, ready for user extrinsics and finalization.
+	InherentsApplied,
+}
+
 /// Result of applying an extrinsic to the block.
 #[derive(Debug, Clone)]
 pub enum ApplyExtrinsicResult {
@@ -137,8 +152,8 @@ pub struct BlockBuilder {
 	extrinsics: Vec<Vec<u8>>,
 	/// Encoded header for the new block.
 	header: Vec<u8>,
-	/// Whether initialize() has been called.
-	initialized: bool,
+	/// Current phase of block building.
+	phase: BuilderPhase,
 }
 
 impl BlockBuilder {
@@ -166,7 +181,7 @@ impl BlockBuilder {
 			inherent_providers,
 			extrinsics: Vec::new(),
 			header,
-			initialized: false,
+			phase: BuilderPhase::Created,
 		}
 	}
 
@@ -178,9 +193,15 @@ impl BlockBuilder {
 		&self.extrinsics
 	}
 
+	/// Get the current phase of block building.
+	pub fn phase(&self) -> BuilderPhase {
+		self.phase
+	}
+
 	/// Initialize the block by calling `Core_initialize_block`.
 	///
-	/// This must be called before applying any extrinsics.
+	/// This must be called before applying any inherents or extrinsics.
+	/// Can only be called once (in `Created` phase).
 	///
 	/// # Returns
 	///
@@ -188,16 +209,13 @@ impl BlockBuilder {
 	///
 	/// # Errors
 	///
-	/// Returns an error if the runtime call fails.
+	/// Returns an error if:
+	/// - The block has already been initialized
+	/// - The runtime call fails
 	pub async fn initialize(&mut self) -> Result<RuntimeCallResult, BlockBuilderError> {
-		if self.initialized {
-			// Already initialized, return empty result
-			return Ok(RuntimeCallResult {
-				output: vec![],
-				storage_diff: vec![],
-				offchain_storage_diff: vec![],
-				logs: vec![],
-			});
+		if self.phase != BuilderPhase::Created {
+			// Already past Created phase
+			return Err(BlockBuilderError::AlreadyInitialized);
 		}
 
 		// Call Core_initialize_block with the header
@@ -209,14 +227,15 @@ impl BlockBuilder {
 		// Apply storage changes
 		self.apply_storage_diff(&result.storage_diff)?;
 
-		self.initialized = true;
+		self.phase = BuilderPhase::Initialized;
 		Ok(result)
 	}
 
 	/// Apply inherent extrinsics from all registered providers.
 	///
 	/// This calls each registered `InherentProvider` to generate inherent
-	/// extrinsics, then applies them to the block.
+	/// extrinsics, then applies them to the block. Can only be called once,
+	/// after `initialize()` and before any `apply_extrinsic()` calls.
 	///
 	/// # Returns
 	///
@@ -226,11 +245,15 @@ impl BlockBuilder {
 	///
 	/// Returns an error if:
 	/// - The block has not been initialized
+	/// - Inherents have already been applied
 	/// - Any inherent provider fails
 	/// - Any inherent extrinsic fails to apply
 	pub async fn apply_inherents(&mut self) -> Result<Vec<RuntimeCallResult>, BlockBuilderError> {
-		if !self.initialized {
-			return Err(BlockBuilderError::NotInitialized);
+		match self.phase {
+			BuilderPhase::Created => return Err(BlockBuilderError::NotInitialized),
+			BuilderPhase::InherentsApplied =>
+				return Err(BlockBuilderError::InherentsAlreadyApplied),
+			BuilderPhase::Initialized => {}, // Expected phase
 		}
 
 		let mut results = Vec::new();
@@ -255,6 +278,7 @@ impl BlockBuilder {
 			}
 		}
 
+		self.phase = BuilderPhase::InherentsApplied;
 		Ok(results)
 	}
 
@@ -276,14 +300,16 @@ impl BlockBuilder {
 	///
 	/// Returns an error if:
 	/// - The block has not been initialized
-	/// - The block has already been finalized
+	/// - Inherents have not been applied yet
 	/// - The runtime call itself fails (not dispatch failure)
 	pub async fn apply_extrinsic(
 		&mut self,
 		extrinsic: Vec<u8>,
 	) -> Result<ApplyExtrinsicResult, BlockBuilderError> {
-		if !self.initialized {
-			return Err(BlockBuilderError::NotInitialized);
+		match self.phase {
+			BuilderPhase::Created => return Err(BlockBuilderError::NotInitialized),
+			BuilderPhase::Initialized => return Err(BlockBuilderError::InherentsNotApplied),
+			BuilderPhase::InherentsApplied => {}, // Expected phase
 		}
 
 		let result = self.call_apply_extrinsic(&extrinsic).await?;
@@ -323,6 +349,7 @@ impl BlockBuilder {
 	/// Finalize the block by calling `BlockBuilder_finalize_block`.
 	///
 	/// This consumes the builder and returns the newly constructed block.
+	/// Can only be called after inherents have been applied.
 	///
 	/// # Returns
 	///
@@ -332,10 +359,13 @@ impl BlockBuilder {
 	///
 	/// Returns an error if:
 	/// - The block has not been initialized
+	/// - Inherents have not been applied
 	/// - The runtime call fails
 	pub async fn finalize(mut self) -> Result<Block, BlockBuilderError> {
-		if !self.initialized {
-			return Err(BlockBuilderError::NotInitialized);
+		match self.phase {
+			BuilderPhase::Created => return Err(BlockBuilderError::NotInitialized),
+			BuilderPhase::Initialized => return Err(BlockBuilderError::InherentsNotApplied),
+			BuilderPhase::InherentsApplied => {}, // Expected phase
 		}
 
 		// Call BlockBuilder_finalize_block
@@ -677,7 +707,7 @@ mod tests {
 		}
 
 		#[tokio::test(flavor = "multi_thread")]
-		async fn initialize_twice_returns_empty_result() {
+		async fn initialize_twice_fails() {
 			let ctx = create_test_context().await;
 			let header = create_next_header(&ctx.block, vec![]);
 
@@ -686,10 +716,9 @@ mod tests {
 			// First initialize
 			builder.initialize().await.expect("first initialize failed");
 
-			// Second initialize should return empty result
-			let result = builder.initialize().await.expect("second initialize failed");
-			assert!(result.storage_diff.is_empty());
-			assert!(result.output.is_empty());
+			// Second initialize should fail
+			let result = builder.initialize().await;
+			assert!(matches!(result, Err(BlockBuilderError::AlreadyInitialized)));
 		}
 
 		#[tokio::test(flavor = "multi_thread")]
@@ -739,6 +768,48 @@ mod tests {
 			let result = builder.finalize().await;
 
 			assert!(matches!(result, Err(BlockBuilderError::NotInitialized)));
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn apply_inherents_twice_fails() {
+			let ctx = create_test_context().await;
+			let header = create_next_header(&ctx.block, vec![]);
+
+			let mut builder = BlockBuilder::new(ctx.block, ctx.executor, header, vec![]);
+			builder.initialize().await.expect("initialize failed");
+
+			// First apply_inherents
+			builder.apply_inherents().await.expect("first apply_inherents failed");
+
+			// Second apply_inherents should fail
+			let result = builder.apply_inherents().await;
+			assert!(matches!(result, Err(BlockBuilderError::InherentsAlreadyApplied)));
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn apply_extrinsic_before_inherents_fails() {
+			let ctx = create_test_context().await;
+			let header = create_next_header(&ctx.block, vec![]);
+
+			let mut builder = BlockBuilder::new(ctx.block, ctx.executor, header, vec![]);
+			builder.initialize().await.expect("initialize failed");
+
+			// Try to apply extrinsic without applying inherents first
+			let result = builder.apply_extrinsic(vec![0x00]).await;
+			assert!(matches!(result, Err(BlockBuilderError::InherentsNotApplied)));
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn finalize_before_inherents_fails() {
+			let ctx = create_test_context().await;
+			let header = create_next_header(&ctx.block, vec![]);
+
+			let mut builder = BlockBuilder::new(ctx.block, ctx.executor, header, vec![]);
+			builder.initialize().await.expect("initialize failed");
+
+			// Try to finalize without applying inherents first
+			let result = builder.finalize().await;
+			assert!(matches!(result, Err(BlockBuilderError::InherentsNotApplied)));
 		}
 
 		// TODO: Enable this test once inherent providers are implemented.

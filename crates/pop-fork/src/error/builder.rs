@@ -28,9 +28,17 @@ pub enum BlockBuilderError {
 	#[error("Block not initialized - call initialize() first")]
 	NotInitialized,
 
-	/// Block has already been finalized.
-	#[error("Block already finalized")]
-	AlreadyFinalized,
+	/// Block has already been initialized.
+	#[error("Block already initialized - initialize() can only be called once")]
+	AlreadyInitialized,
+
+	/// Inherents have not been applied yet.
+	#[error("Inherents not applied - call apply_inherents() before apply_extrinsic()")]
+	InherentsNotApplied,
+
+	/// Inherents have already been applied.
+	#[error("Inherents already applied - apply_inherents() can only be called once")]
+	InherentsAlreadyApplied,
 
 	/// Inherent provider failed.
 	#[error("Inherent provider `{provider}` failed: {message}")]
