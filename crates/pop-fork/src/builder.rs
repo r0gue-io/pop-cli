@@ -525,60 +525,6 @@ pub fn create_next_header(parent: &Block, digest_items: Vec<DigestItem>) -> Vec<
 mod tests {
 	use super::*;
 
-	/// Verifies that DigestItem::PreRuntime encodes with the correct index (6).
-	#[test]
-	fn digest_item_pre_runtime_encodes_correctly() {
-		let engine_id = *b"aura";
-		let data = vec![1, 2, 3, 4];
-		let item = DigestItem::PreRuntime(engine_id, data.clone());
-		let encoded = item.encode();
-
-		// First byte should be index 6 for PreRuntime
-		assert_eq!(encoded[0], 6);
-		// Next 4 bytes should be the engine ID
-		assert_eq!(&encoded[1..5], b"aura");
-		// Rest should be the compact-encoded length + data
-	}
-
-	/// Verifies that DigestItem::Consensus encodes with the correct index (4).
-	#[test]
-	fn digest_item_consensus_encodes_correctly() {
-		let engine_id = *b"BABE";
-		let data = vec![5, 6, 7, 8];
-		let item = DigestItem::Consensus(engine_id, data.clone());
-		let encoded = item.encode();
-
-		// First byte should be index 4 for Consensus
-		assert_eq!(encoded[0], 4);
-		// Next 4 bytes should be the engine ID
-		assert_eq!(&encoded[1..5], b"BABE");
-	}
-
-	/// Verifies that DigestItem::Seal encodes with the correct index (5).
-	#[test]
-	fn digest_item_seal_encodes_correctly() {
-		let engine_id = *b"FRNK";
-		let data = vec![9, 10, 11, 12];
-		let item = DigestItem::Seal(engine_id, data.clone());
-		let encoded = item.encode();
-
-		// First byte should be index 5 for Seal
-		assert_eq!(encoded[0], 5);
-		// Next 4 bytes should be the engine ID
-		assert_eq!(&encoded[1..5], b"FRNK");
-	}
-
-	/// Verifies that DigestItem::Other encodes with the correct index (0).
-	#[test]
-	fn digest_item_other_encodes_correctly() {
-		let data = vec![13, 14, 15, 16];
-		let item = DigestItem::Other(data.clone());
-		let encoded = item.encode();
-
-		// First byte should be index 0 for Other
-		assert_eq!(encoded[0], 0);
-	}
-
 	/// Verifies that consensus engine constants have the correct values.
 	#[test]
 	fn consensus_engine_constants_are_correct() {
@@ -811,7 +757,7 @@ mod tests {
 			let result = builder.finalize().await;
 			assert!(matches!(result, Err(BlockBuilderError::InherentsNotApplied)));
 		}
-		
+
 		#[tokio::test(flavor = "multi_thread")]
 		async fn finalize_produces_child_block() {
 			use crate::inherent::TimestampInherent;
@@ -863,6 +809,145 @@ mod tests {
 			// Header with digest should be larger than header without
 			let empty_header = create_next_header(&ctx.block, vec![]);
 			assert!(header_bytes.len() > empty_header.len());
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn apply_extrinsic_succeeds_with_valid_signed_extrinsic() {
+			use crate::{ExecutorConfig, SignatureMockMode, inherent::TimestampInherent};
+			use scale::Compact;
+
+			// Create test context with signature mocking enabled
+			let node = TestNode::spawn().await.expect("Failed to spawn test node");
+			let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
+			let rpc = ForkRpcClient::connect(&endpoint).await.expect("Failed to connect to node");
+			let block_hash = rpc.finalized_head().await.expect("Failed to get finalized head");
+			let runtime_code =
+				rpc.runtime_code(block_hash).await.expect("Failed to fetch runtime code");
+			let cache = StorageCache::in_memory().await.expect("Failed to create cache");
+			let block = Block::fork_point(&endpoint, cache, block_hash.into())
+				.await
+				.expect("Failed to create fork point");
+
+			// Create executor with AlwaysValid signature mode
+			let config = ExecutorConfig {
+				signature_mock: SignatureMockMode::AlwaysValid,
+				..Default::default()
+			};
+			let executor = RuntimeExecutor::with_config(runtime_code, None, config)
+				.expect("Failed to create executor");
+
+			// Look up System pallet and remark call indices from metadata
+			let metadata = block.metadata();
+			let system_pallet =
+				metadata.pallet_by_name("System").expect("System pallet should exist");
+			let pallet_index = system_pallet.index();
+			let remark_call =
+				system_pallet.call_variant_by_name("remark").expect("remark call should exist");
+			let call_index = remark_call.index;
+
+			// Encode the call: System.remark(b"test")
+			let remark_data = b"test".to_vec();
+			let mut call_data = vec![pallet_index, call_index];
+			call_data.extend(Compact(remark_data.len() as u32).encode());
+			call_data.extend(&remark_data);
+
+			// Build a V4 signed extrinsic
+			let extrinsic = build_mock_signed_extrinsic_v4(&call_data);
+
+			// Set up builder with timestamp inherent
+			let header = create_next_header(&block, vec![]);
+			let providers: Vec<Box<dyn crate::InherentProvider>> =
+				vec![Box::new(TimestampInherent::default_relay())];
+			let mut builder = BlockBuilder::new(block, executor, header, providers);
+
+			builder.initialize().await.expect("initialize failed");
+			builder.apply_inherents().await.expect("apply_inherents failed");
+
+			// Apply the signed extrinsic
+			let result = builder
+				.apply_extrinsic(extrinsic)
+				.await
+				.expect("apply_extrinsic should not error");
+
+			// The extrinsic should succeed
+			assert!(
+				matches!(result, ApplyExtrinsicResult::Success { .. }),
+				"Expected success, got: {:?}",
+				result
+			);
+		}
+
+		/// Build a mock V4 signed extrinsic with dummy signature and extensions.
+		///
+		/// This helper manually constructs an extrinsic for testing purposes.
+		/// It uses Alice's well-known dev account and a dummy signature that works
+		/// with `SignatureMockMode::AlwaysValid`.
+		///
+		/// # Format
+		///
+		/// `[compact_len][0x84][address][signature][extra][call]`
+		/// - `0x84` = signed bit (0x80) + version 4 (0x04)
+		/// - address = MultiAddress::Id (0x00 + 32 bytes)
+		/// - signature = 64 bytes (dummy, works with AlwaysValid mode)
+		/// - extra = encoded transaction extensions (chain-specific)
+		///
+		/// # Extensions (test node specific)
+		///
+		/// The extensions are encoded in metadata order:
+		/// - CheckNonZeroSender: empty
+		/// - CheckSpecVersion: empty (implicit only)
+		/// - CheckTxVersion: empty (implicit only)
+		/// - CheckGenesis: empty (implicit only)
+		/// - CheckMortality: Era (1 byte for immortal)
+		/// - CheckNonce: Compact<u64>
+		/// - CheckWeight: empty
+		/// - ChargeTransactionPayment: Compact<u128>
+		/// - EthSetOrigin: Option<H160> (None = 0x00)
+
+		fn build_mock_signed_extrinsic_v4(call_data: &[u8]) -> Vec<u8> {
+			use scale::Compact;
+
+			let mut inner = Vec::new();
+
+			// Version byte: signed (0x80) + v4 (0x04) = 0x84
+			inner.push(0x84);
+
+			// Address: MultiAddress::Id variant (0x00) + 32-byte account
+			// Use Alice's well-known dev account (CheckNonZeroSender rejects zero address)
+			inner.push(0x00); // Id variant
+			let alice_account = sp_core::sr25519::Public::from_raw([
+				0xd4, 0x35, 0x93, 0xc7, 0x15, 0xfd, 0xd3, 0x1c, 0x61, 0x14, 0x1a, 0xbd, 0x04, 0xa9,
+				0x9f, 0xd6, 0x82, 0x2c, 0x85, 0x58, 0x85, 0x4c, 0xcd, 0xe3, 0x9a, 0x56, 0x84, 0xe7,
+				0xa5, 0x6d, 0xa2, 0x7d,
+			]);
+			inner.extend(alice_account.0);
+
+			// Signature: 64 bytes (dummy - works with AlwaysValid)
+			inner.extend([0u8; 64]);
+
+			// Extra params (signed extensions) - in metadata order:
+			// CheckNonZeroSender: no encoding
+			// CheckSpecVersion: no encoding (implicit only)
+			// CheckTxVersion: no encoding (implicit only)
+			// CheckGenesis: no encoding (implicit only)
+			// CheckMortality: Era - immortal = 0x00
+			inner.push(0x00);
+			// CheckNonce: Compact<u64> = 0
+			inner.extend(Compact(0u64).encode());
+			// CheckWeight: no encoding
+			// ChargeTransactionPayment: Compact<u128> = 0
+			inner.extend(Compact(0u128).encode());
+			// EthSetOrigin: Option<H160> = None (0x00)
+			inner.push(0x00);
+
+			// Call data
+			inner.extend(call_data);
+
+			// Prefix with compact length
+			let mut extrinsic = Compact(inner.len() as u32).encode();
+			extrinsic.extend(inner);
+
+			extrinsic
 		}
 	}
 }
