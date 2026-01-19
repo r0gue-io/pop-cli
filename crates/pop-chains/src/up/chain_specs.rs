@@ -116,9 +116,9 @@ impl Runtime {
 		self.as_ref()
 	}
 
-	/// Returns the rollups registered for the relay chain.
-	pub fn rollups(&self) -> &'static [Box<dyn traits::Rollup>] {
-		crate::registry::rollups(self)
+	/// Returns the chains registered for the relay chain.
+	pub fn chains(&self) -> &'static [Box<dyn traits::Chain>] {
+		crate::registry::chains(self)
 	}
 }
 
@@ -267,19 +267,16 @@ mod tests {
 	}
 
 	#[test]
-	fn rollups_works() {
-		let comparator = |rollups: &[Box<dyn traits::Rollup>]| {
-			rollups
+	fn chains_works() {
+		let comparator = |chains: &[Box<dyn traits::Chain>]| {
+			chains
 				.iter()
 				.map(|r| (r.id(), r.chain().to_string(), r.name().to_string()))
 				.collect::<Vec<_>>()
 		};
 		{};
 		for runtime in Runtime::VARIANTS {
-			assert_eq!(
-				comparator(runtime.rollups()),
-				comparator(crate::registry::rollups(runtime))
-			);
+			assert_eq!(comparator(runtime.chains()), comparator(crate::registry::chains(runtime)));
 		}
 	}
 }

@@ -16,15 +16,15 @@ use std::collections::HashMap;
 
 /// Pop Network makes it easy for smart contract developers to use the power of Polkadot.
 #[derive(Clone)]
-pub struct Pop(Rollup);
+pub struct Pop(Chain);
 impl Pop {
 	/// A new instance of Pop.
 	///
 	/// # Arguments
-	/// * `id` - The rollup identifier.
+	/// * `id` - The chain identifier.
 	/// * `chain` - The identifier of the chain, as used by the chain specification.
 	pub fn new(id: Id, chain: impl Into<String>) -> Self {
-		Self(Rollup::new("pop", id, chain))
+		Self(Chain::new("pop", id, chain))
 	}
 }
 
@@ -56,14 +56,14 @@ impl Binary for Pop {
 }
 
 impl Requires for Pop {
-	/// Defines the requirements of a rollup, namely which other chains it depends on and any
+	/// Defines the requirements of a chain, namely which other chains it depends on and any
 	/// corresponding overrides to genesis state.
-	fn requires(&self) -> Option<HashMap<RollupTypeId, Override>> {
+	fn requires(&self) -> Option<HashMap<ChainTypeId, Override>> {
 		let id = self.id();
 		let amount: u128 = 1_200_000_000_000_000_000;
 
 		Some(HashMap::from([(
-			RollupTypeId::of::<AssetHub>(),
+			ChainTypeId::of::<AssetHub>(),
 			Box::new(move |genesis_overrides: &mut Map<String, Value>| {
 				let sovereign_account = accounts::sibl(id).to_ss58check();
 				let endowment = json!([sovereign_account, amount]);
@@ -105,7 +105,7 @@ impl Args for Pop {
 
 impl GenesisOverrides for Pop {}
 
-impl_rollup!(Pop);
+impl_chain!(Pop);
 
 #[cfg(test)]
 mod tests {
@@ -142,7 +142,7 @@ mod tests {
 	fn requires_asset_hub() {
 		let pop = Pop::new(3395, "pop");
 		let mut requires = pop.requires().unwrap();
-		let r#override = requires.get_mut(&RollupTypeId::of::<AssetHub>()).unwrap();
+		let r#override = requires.get_mut(&ChainTypeId::of::<AssetHub>()).unwrap();
 		let expected = json!({
 			"balances": {
 				"balances": [["5Eg2fnsomjubNiqxnqSSeVwcmQYQzsHdyr79YhcJDKRYfPCL", 1200000000000000000u64]]

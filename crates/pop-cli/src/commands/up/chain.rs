@@ -77,7 +77,7 @@ pub struct UpCommand {
 impl UpCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(&mut self, cli: &mut impl Cli) -> Result<()> {
-		cli.intro("Deploy a rollup")?;
+		cli.intro("Deploy a chain")?;
 		let mut deployment = self.prepare_for_deployment(cli)?;
 		let show_deployment_steps = self.should_show_deployment_steps(&deployment);
 		let config = match self
@@ -377,7 +377,7 @@ impl Deployment {
 	}
 }
 
-// Represents the configuration for rollup registration.
+// Represents the configuration for chain registration.
 struct Registration {
 	id: u32,
 	genesis_artifacts: GenesisArtifacts,
@@ -542,7 +542,7 @@ fn prompt_provider(
 		predefined_action = predefined_action.item(
 			None,
 			"Register",
-			"Register the rollup on the relay chain without deploying with a provider",
+			"Register the chain on the relay chain without deploying with a provider",
 		);
 	}
 	Ok(predefined_action.interact()?)
@@ -574,7 +574,7 @@ fn prompt_api_key(
 
 // Prompts the user to choose which template was used.
 fn prompt_template_used(cli: &mut impl Cli) -> Result<&str> {
-	cli.warning("We could not automatically detect which template was used to build your rollup.")?;
+	cli.warning("We could not automatically detect which template was used to build your chain.")?;
 	let mut template = cli.select("Select the template used:");
 	for supported_template in ChainTemplate::VARIANTS.iter().filter_map(|variant| {
 		variant
@@ -708,7 +708,7 @@ mod tests {
 					.map(|action| (action.name().to_string(), format_url(action.base_url())))
 					.chain(std::iter::once((
 						"Register".to_string(),
-						"Register the rollup on the relay chain without deploying with a provider"
+						"Register the chain on the relay chain without deploying with a provider"
 							.to_string(),
 					)))
 					.collect::<Vec<_>>(),
@@ -853,7 +853,7 @@ mod tests {
 		let node = TestNode::spawn().await?;
 		let node_url = node.ws_url();
 		let mut cli = MockCli::new()
-            .expect_intro("Deploy a rollup")
+            .expect_intro("Deploy a chain")
             .expect_select(
                 "Select your deployment method:",
                 Some(false),
@@ -864,7 +864,7 @@ mod tests {
                         .map(|action| (action.name().to_string(), format_url(action.base_url())))
                         .chain(std::iter::once((
                             "Register".to_string(),
-                            "Register the rollup on the relay chain without deploying with a provider".to_string(),
+                            "Register the chain on the relay chain without deploying with a provider".to_string(),
                         )))
                         .collect::<Vec<_>>(),
                 ),
@@ -944,7 +944,7 @@ mod tests {
 		let node = TestNode::spawn().await?;
 		let node_url = node.ws_url();
 		let mut cli = MockCli::new()
-            .expect_intro("Deploy a rollup")
+            .expect_intro("Deploy a chain")
             .expect_select(
                 "Select your deployment method:",
                 Some(false),
@@ -955,7 +955,7 @@ mod tests {
                         .map(|action| (action.name().to_string(), format_url(action.base_url())))
                         .chain(std::iter::once((
                             "Register".to_string(),
-                            "Register the rollup on the relay chain without deploying with a provider".to_string(),
+                            "Register the chain on the relay chain without deploying with a provider".to_string(),
                         )))
                         .collect::<Vec<_>>(),
                 ),
@@ -1041,7 +1041,7 @@ mod tests {
 	async fn prompt_template_used_works() -> Result<()> {
 		let mut cli = MockCli::new()
 			.expect_warning(
-				"We could not automatically detect which template was used to build your rollup.",
+				"We could not automatically detect which template was used to build your chain.",
 			)
 			.expect_select(
 				"Select the template used:",
