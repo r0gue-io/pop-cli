@@ -54,10 +54,12 @@ use std::{
 };
 use subxt::config::substrate::H256;
 
-#[derive(Debug)]
+/// A value that can be shared accross different local storage layer instances
+#[derive(Debug, PartialEq)]
 pub struct LocalSharedValue {
 	last_modification_block: u32,
-	value: Vec<u8>,
+	/// The actual value
+	pub value: Vec<u8>,
 }
 
 impl AsRef<[u8]> for LocalSharedValue {
@@ -790,7 +792,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_returns_local_modification() {
 		let ctx = create_test_context().await;
-		let layer = create_layer(&ctx);
+		let mut layer = create_layer(&ctx);
 		let block = layer.get_latest_block_number();
 
 		let key = b"test_key";
@@ -801,7 +803,26 @@ mod tests {
 
 		// Get should return the local value
 		let result = layer.get(block, key).await.unwrap();
-		assert_eq!(result, Some(Arc::new(value.as_slice().to_vec())));
+		assert_eq!(
+			result,
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: block,
+				value: value.as_slice().to_vec()
+			}))
+		);
+
+		// After a few commits, the last modification blocks remains the same
+		layer.commit().await.unwrap();
+		layer.commit().await.unwrap();
+		let new_block = layer.get_latest_block_number();
+		let result = layer.get(new_block, key).await.unwrap();
+		assert_eq!(
+			result,
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: block,
+				value: value.as_slice().to_vec()
+			}))
+		);
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -857,7 +878,7 @@ mod tests {
 		layer.set(key, Some(value)).unwrap();
 		let result = layer.get(block, key).await.unwrap();
 		// the exact key is found
-		assert_eq!(result.unwrap().as_slice(), value.as_slice());
+		assert_eq!(result.unwrap().value.as_slice(), value.as_slice());
 		// even for a deleted prefix
 		assert!(layer.is_deleted(prefix).unwrap());
 	}
@@ -871,7 +892,7 @@ mod tests {
 		let key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 
 		// Get without local modification - should fetch from parent
-		let result = layer.get(block, &key).await.unwrap().unwrap();
+		let result = layer.get(block, &key).await.unwrap().unwrap().value.clone();
 		assert_eq!(u32::decode(&mut &result[..]).unwrap(), ctx.block_number);
 	}
 
@@ -885,7 +906,7 @@ mod tests {
 		let local_value = b"local_override";
 
 		// Get parent value first
-		let parent_value = layer.get(block, &key).await.unwrap().unwrap();
+		let parent_value = layer.get(block, &key).await.unwrap().unwrap().value.clone();
 		assert_eq!(u32::decode(&mut &parent_value[..]).unwrap(), ctx.block_number);
 
 		// Set local value
@@ -893,7 +914,13 @@ mod tests {
 
 		// Get should return local value, not parent
 		let result = layer.get(block, &key).await.unwrap();
-		assert_eq!(result, Some(Arc::new(local_value.as_slice().to_vec())));
+		assert_eq!(
+			result,
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: block,
+				value: local_value.as_slice().to_vec()
+			}))
+		);
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -933,15 +960,33 @@ mod tests {
 
 		// Query at block_1 - should get value_block_1 from local_storage table
 		let result_block_1 = layer.get(block_1, key).await.unwrap();
-		assert_eq!(result_block_1, Some(Arc::new(value_block_1.to_vec())),);
+		assert_eq!(
+			result_block_1,
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: block_1,
+				value: value_block_1.to_vec()
+			}))
+		);
 
 		// Query at block_2 - should get value_block_2 from local_storage table
 		let result_block_2 = layer.get(block_2, key).await.unwrap();
-		assert_eq!(result_block_2, Some(Arc::new(value_block_2.to_vec())),);
+		assert_eq!(
+			result_block_2,
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: block_2,
+				value: value_block_2.to_vec()
+			}))
+		);
 
 		// Query at latest block - should get value_block_2 from modifications
 		let result_latest = layer.get(layer.get_latest_block_number(), key).await.unwrap();
-		assert_eq!(result_latest, Some(Arc::new(value_block_2.to_vec())),);
+		assert_eq!(
+			result_latest,
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: block_2,
+				value: value_block_2.to_vec()
+			}))
+		);
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -982,7 +1027,7 @@ mod tests {
 		assert!(cached_before.is_none());
 
 		// Get storage from historical block
-		let result = layer.get(block_number, &key).await.unwrap().unwrap();
+		let result = layer.get(block_number, &key).await.unwrap().unwrap().value.clone();
 		assert_eq!(u32::decode(&mut &result[..]).unwrap(), ctx.block_number);
 
 		// Cached after
@@ -1004,7 +1049,13 @@ mod tests {
 
 		// Verify via get
 		let result = layer.get(block, key).await.unwrap();
-		assert_eq!(result, Some(Arc::new(value.as_slice().to_vec())));
+		assert_eq!(
+			result,
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: block,
+				value: value.as_slice().to_vec()
+			}))
+		);
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -1022,7 +1073,7 @@ mod tests {
 
 		// Should have the second value
 		let result = layer.get(block, key).await.unwrap();
-		assert_eq!(result.as_ref().map(|v| v.as_slice()), Some(value2.as_slice()));
+		assert_eq!(result.as_ref().map(|v| v.value.as_slice()), Some(value2.as_slice()));
 	}
 
 	// Tests for get_batch()
@@ -1050,8 +1101,8 @@ mod tests {
 
 		let results = layer.get_batch(block, &[key1, key2]).await.unwrap();
 		assert_eq!(results.len(), 2);
-		assert_eq!(results[0].as_ref().map(|v| v.as_slice()), Some(value1.as_slice()));
-		assert_eq!(results[1].as_ref().map(|v| v.as_slice()), Some(value2.as_slice()));
+		assert_eq!(results[0].as_ref().map(|v| v.value.as_slice()), Some(value1.as_slice()));
+		assert_eq!(results[1].as_ref().map(|v| v.value.as_slice()), Some(value2.as_slice()));
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -1099,7 +1150,7 @@ mod tests {
 		layer.set(&key1, Some(local_value)).unwrap();
 
 		let results = layer.get_batch(block, &[key1.as_slice(), key2.as_slice()]).await.unwrap();
-		assert_eq!(results[0].as_ref().map(|v| v.as_slice()), Some(local_value.as_slice()));
+		assert_eq!(results[0].as_ref().map(|v| v.value.as_slice()), Some(local_value.as_slice()));
 		assert!(results[1].is_some());
 	}
 
@@ -1123,8 +1174,14 @@ mod tests {
 			.unwrap();
 
 		assert_eq!(results.len(), 4);
-		assert_eq!(results[0].as_ref().map(|v| v.as_slice()), Some(b"local_value".as_slice()));
-		assert_eq!(u32::decode(&mut &results[1].as_ref().unwrap()[..]).unwrap(), ctx.block_number); // from parent
+		assert_eq!(
+			results[0].as_ref().map(|v| v.value.as_slice()),
+			Some(b"local_value".as_slice())
+		);
+		assert_eq!(
+			u32::decode(&mut &results[1].as_ref().unwrap().value[..]).unwrap(),
+			ctx.block_number
+		); // from parent
 		assert!(results[2].is_none()); // deleted
 		assert!(results[3].is_none()); // nonexistent
 	}
@@ -1148,9 +1205,9 @@ mod tests {
 
 		// Request in different order
 		let results = layer.get_batch(block, &[key3, key1, key2]).await.unwrap();
-		assert_eq!(results[0].as_ref().map(|v| v.as_slice()), Some(value3.as_slice()));
-		assert_eq!(results[1].as_ref().map(|v| v.as_slice()), Some(value1.as_slice()));
-		assert_eq!(results[2].as_ref().map(|v| v.as_slice()), Some(value2.as_slice()));
+		assert_eq!(results[0].as_ref().map(|v| v.value.as_slice()), Some(value3.as_slice()));
+		assert_eq!(results[1].as_ref().map(|v| v.value.as_slice()), Some(value1.as_slice()));
+		assert_eq!(results[2].as_ref().map(|v| v.value.as_slice()), Some(value2.as_slice()));
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -1184,19 +1241,55 @@ mod tests {
 
 		// Query at block_1 - should get values from local_storage table
 		let results_block_1 = layer.get_batch(block_1, &[key1, key2]).await.unwrap();
-		assert_eq!(results_block_1[0], Some(Arc::new(value1_block_1.to_vec())));
-		assert_eq!(results_block_1[1], Some(Arc::new(value2_block_1.to_vec())));
+		assert_eq!(
+			results_block_1[0],
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: block_1,
+				value: value1_block_1.to_vec()
+			}))
+		);
+		assert_eq!(
+			results_block_1[1],
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: block_1,
+				value: value2_block_1.to_vec()
+			}))
+		);
 
 		// Query at block_2 - should get values from local_storage table
 		let results_block_2 = layer.get_batch(block_2, &[key1, key2]).await.unwrap();
-		assert_eq!(results_block_2[0], Some(Arc::new(value1_block_2.to_vec())));
-		assert_eq!(results_block_2[1], Some(Arc::new(value2_block_2.to_vec())));
+		assert_eq!(
+			results_block_2[0],
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: block_2,
+				value: value1_block_2.to_vec()
+			}))
+		);
+		assert_eq!(
+			results_block_2[1],
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: block_2,
+				value: value2_block_2.to_vec()
+			}))
+		);
 
 		// Query at latest block - should get values from modifications
 		let results_latest =
 			layer.get_batch(layer.get_latest_block_number(), &[key1, key2]).await.unwrap();
-		assert_eq!(results_latest[0], Some(Arc::new(value1_block_2.to_vec())));
-		assert_eq!(results_latest[1], Some(Arc::new(value2_block_2.to_vec())));
+		assert_eq!(
+			results_latest[0],
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: block_2,
+				value: value1_block_2.to_vec()
+			}))
+		);
+		assert_eq!(
+			results_latest[1],
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: block_2,
+				value: value2_block_2.to_vec()
+			}))
+		);
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -1249,7 +1342,10 @@ mod tests {
 			.await
 			.unwrap();
 		assert_eq!(results.len(), 2);
-		assert_eq!(u32::decode(&mut &results[0].as_ref().unwrap()[..]).unwrap(), block_number);
+		assert_eq!(
+			u32::decode(&mut &results[0].as_ref().unwrap().value[..]).unwrap(),
+			block_number
+		);
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -1293,11 +1389,17 @@ mod tests {
 
 		// Get from latest block (should hit modifications)
 		let results1 = layer.get(latest_block_1, key1).await.unwrap();
-		assert_eq!(results1.as_ref().map(|v| v.as_slice()), Some(b"local_value".as_slice()));
+		assert_eq!(results1.as_ref().map(|v| v.value.as_slice()), Some(b"local_value".as_slice()));
 
 		// Get from historical block (should fetch and cache block)
 		let historical_block = ctx.block_number;
-		let results2 = layer.get(historical_block, key2.as_slice()).await.unwrap().unwrap();
+		let results2 = layer
+			.get(historical_block, key2.as_slice())
+			.await
+			.unwrap()
+			.unwrap()
+			.value
+			.clone();
 		assert_eq!(u32::decode(&mut &results2[..]).unwrap(), historical_block);
 
 		// Commit block modifications
@@ -1310,8 +1412,20 @@ mod tests {
 		let result_previous_block = layer.get(latest_block_1, key1).await.unwrap().unwrap();
 		let result_latest_block = layer.get(latest_block_2, key1).await.unwrap().unwrap();
 
-		assert_eq!(*result_previous_block, b"local_value".to_vec());
-		assert_eq!(*result_latest_block, b"local_value_2".to_vec());
+		assert_eq!(
+			*result_previous_block,
+			LocalSharedValue {
+				last_modification_block: latest_block_1,
+				value: b"local_value".to_vec()
+			}
+		);
+		assert_eq!(
+			*result_latest_block,
+			LocalSharedValue {
+				last_modification_block: latest_block_2,
+				value: b"local_value_2".to_vec()
+			}
+		);
 	}
 
 	// Tests for set_batch()
@@ -1377,7 +1491,7 @@ mod tests {
 		layer.set_batch(&[(key, Some(value2))]).unwrap();
 
 		let result = layer.get(block, key).await.unwrap();
-		assert_eq!(result.as_ref().map(|v| v.as_slice()), Some(value2.as_slice()));
+		assert_eq!(result.as_ref().map(|v| v.value.as_slice()), Some(value2.as_slice()));
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -1394,7 +1508,7 @@ mod tests {
 		layer.set_batch(&[(key, Some(value1)), (key, Some(value2))]).unwrap();
 
 		let result = layer.get(block, key).await.unwrap();
-		assert_eq!(result.as_ref().map(|v| v.as_slice()), Some(value2.as_slice()));
+		assert_eq!(result.as_ref().map(|v| v.value.as_slice()), Some(value2.as_slice()));
 	}
 
 	// Tests for delete_prefix()
@@ -1538,14 +1652,12 @@ mod tests {
 		let diff = layer.diff().unwrap();
 		assert_eq!(diff.len(), 2);
 		assert!(
-			diff.iter()
-				.any(|(k, v)| k == key1 &&
-					v.as_ref().map(|v| v.as_slice()) == Some(value1.as_slice()))
+			diff.iter().any(|(k, v)| k == key1 &&
+				v.as_ref().map(|v| v.value.as_slice()) == Some(value1.as_slice()))
 		);
 		assert!(
-			diff.iter()
-				.any(|(k, v)| k == key2 &&
-					v.as_ref().map(|v| v.as_slice()) == Some(value2.as_slice()))
+			diff.iter().any(|(k, v)| k == key2 &&
+				v.as_ref().map(|v| v.value.as_slice()) == Some(value2.as_slice()))
 		);
 	}
 
@@ -1628,7 +1740,7 @@ mod tests {
 
 		// Modifications should still be in local layer
 		let local_result = layer.get(block + 1, key).await.unwrap();
-		assert_eq!(local_result.as_ref().map(|v| v.as_slice()), Some(value.as_slice()));
+		assert_eq!(local_result.as_ref().map(|v| v.value.as_slice()), Some(value.as_slice()));
 
 		// Should also be in diff
 		let diff = layer.diff().unwrap();

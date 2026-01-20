@@ -377,12 +377,19 @@ mod tests {
 			// child.number is the latest committed block, but these changes aren't committed yet,
 			// they're happening in the block we're building
 			assert_eq!(
-				child.storage().get(child.number + 1, key).await.unwrap().as_deref().unwrap(),
+				child
+					.storage()
+					.get(child.number + 1, key)
+					.await
+					.unwrap()
+					.as_deref()
+					.unwrap()
+					.value,
 				value2
 			);
 			// child.number is the latest committed block
 			assert_eq!(
-				child.storage().get(child.number, key).await.unwrap().as_deref().unwrap(),
+				child.storage().get(child.number, key).await.unwrap().as_deref().unwrap().value,
 				value
 			);
 		}
@@ -403,7 +410,7 @@ mod tests {
 
 			// Child should see the value at its block number
 			assert_eq!(
-				child.storage().get(child.number, key).await.unwrap().as_deref().unwrap(),
+				child.storage().get(child.number, key).await.unwrap().as_deref().unwrap().value,
 				value
 			);
 		}
