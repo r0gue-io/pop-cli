@@ -21,17 +21,25 @@ CREATE TABLE blocks (
 -- Index to support lookups by number
 CREATE INDEX idx_blocks_number ON blocks(number);
 
--- Create local storage table
-CREATE TABLE local_storage (
-    block_number BIGINT NOT NULL,
-    key BLOB NOT NULL,
-    value BLOB,
-    is_empty BOOLEAN NOT NULL DEFAULT FALSE,
-    PRIMARY KEY (block_number, key)
+-- Create local keys table (stores unique keys that have been saved)
+CREATE TABLE local_keys (
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    key BLOB NOT NULL UNIQUE
 );
 
--- Index to accelerate block-wide deletes/queries
-CREATE INDEX idx_local_storage_block ON local_storage(block_number);
+-- Create local values table (stores temporal values for each key)
+CREATE TABLE local_values (
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    key_id INTEGER NOT NULL,
+    value BLOB NOT NULL,
+    valid_from BIGINT NOT NULL,
+    valid_until BIGINT,
+    FOREIGN KEY (key_id) REFERENCES local_keys(id)
+);
+
+-- Index to accelerate lookups by key_id and valid_from for range queries
+-- Query pattern: WHERE key_id = ? AND valid_from <= X AND (valid_until IS NULL OR valid_until > X)
+CREATE INDEX idx_local_values_key_validity ON local_values(key_id, valid_from);
 
 -- Create prefix_scans table for tracking prefix scan progress
 CREATE TABLE prefix_scans (
