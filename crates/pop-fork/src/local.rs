@@ -61,6 +61,7 @@ pub struct LocalSharedValue {
 }
 
 impl AsRef<[u8]> for LocalSharedValue {
+	/// AsRef implementation to get the value bytes of this local shared value
 	fn as_ref(&self) -> &[u8] {
 		self.value.as_ref()
 	}
@@ -243,9 +244,8 @@ impl LocalStorageLayer {
 
 		// Case 2: Historical block after fork such that the local modification is still valid -
 		// check the local modifications map
-		match self.get_local_modification(key, block_number) {
-			local_modification @ Ok(Some(_)) => return local_modification,
-			_ => (),
+		if let local_modification @ Ok(Some(_)) = self.get_local_modification(key, block_number) {
+			return local_modification;
 		}
 
 		// Case 3: Historical block after fork such that the key isn't valid - check local_storage
@@ -537,25 +537,17 @@ impl LocalStorageLayer {
 			let parent_values = self.parent.get_batch(block_hash, keys).await?;
 			Ok(parent_values
 				.into_iter()
+				.flatten()
 				.map(|value| {
-					if let Some(value) = value {
-						Some(LocalSharedValue {
-							last_modification_block: 0, /* <- We don't care about this value as
-							                             * it came
-							                             * from the remote layer, */
-							value,
-						})
-					} else {
-						None
+					LocalSharedValue {
+						last_modification_block: 0, /* <- We don't care about this value as
+						                             * it came
+						                             * from the remote layer, */
+						value,
 					}
 				})
-				.map(|value| {
-					if let Some(local_shared_value) = value {
-						Some(Arc::new(local_shared_value))
-					} else {
-						None
-					}
-				})
+				.map(Arc::new)
+				.map(Some)
 				.collect())
 		} else {
 			// Block not found - return None for all keys
