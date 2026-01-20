@@ -903,7 +903,6 @@ mod tests {
 		/// - CheckWeight: empty
 		/// - ChargeTransactionPayment: Compact<u128>
 		/// - EthSetOrigin: Option<H160> (None = 0x00)
-
 		fn build_mock_signed_extrinsic_v4(call_data: &[u8]) -> Vec<u8> {
 			use scale::Compact;
 
