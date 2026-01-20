@@ -54,7 +54,19 @@ use std::{
 };
 use subxt::config::substrate::H256;
 
-type SharedValue = Arc<Vec<u8>>;
+#[derive(Debug)]
+pub struct LocalSharedValue {
+	last_modification_block: u32,
+	value: Vec<u8>,
+}
+
+impl AsRef<[u8]> for LocalSharedValue {
+	fn as_ref(&self) -> &[u8] {
+		self.value.as_ref()
+	}
+}
+
+type SharedValue = Arc<LocalSharedValue>;
 type Modifications = HashMap<Vec<u8>, Option<SharedValue>>;
 type DeletedPrefixes = Vec<Vec<u8>>;
 type DiffLocalStorage = Vec<(Vec<u8>, Option<SharedValue>)>;
@@ -68,7 +80,8 @@ type DiffLocalStorage = Vec<(Vec<u8>, Option<SharedValue>)>;
 /// # Block-based Storage Strategy
 ///
 /// - `latest_block_number`: Current working block number (modifications in HashMap)
-/// - `first_forked_block_number`: Initial fork point (immutable)
+/// - Keys queried at a block higher than the last modification of that key, queried at
+///   modifications HashMap
 /// - Blocks between first_forked_block_number and latest_block_number are in local_storage table
 /// - Blocks before first_forked_block_number come from remote provider
 ///
@@ -148,6 +161,27 @@ impl LocalStorageLayer {
 		self.latest_block_number
 	}
 
+	/// Return the value of the specified key at height `block_number` if the value contained in the
+	/// local modifications is valid at that height.
+	///
+	/// # Arguments
+	/// - `key`
+	/// - `block_number`
+	fn get_local_modification(
+		&self,
+		key: &[u8],
+		block_number: u32,
+	) -> Result<Option<SharedValue>, LocalStorageError> {
+		let modifications_lock =
+			self.modifications.read().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
+		match modifications_lock.get(key) {
+			local_modification @ Some(Some(shared_value))
+				if shared_value.last_modification_block < block_number =>
+				Ok(local_modification.expect("The match guard ensures this is Some; qed;").clone()), /* <- Cheap clone as it's Option<Arc<_>> */
+			_ => Ok(None),
+		}
+	}
+
 	/// Get a storage value, checking local modifications first.
 	///
 	/// # Arguments
@@ -160,8 +194,8 @@ impl LocalStorageLayer {
 	///
 	/// # Behavior
 	/// Storage lookup strategy based on block_number:
-	/// 1. If `block_number == latest_block_number`: Check modifications HashMap, then remote at
-	///    first_forked_block
+	/// 1. If `block_number == latest_block_number` or the key in local modifications is valid for
+	///    this block: Check modifications HashMap, then remote at first_forked_block
 	/// 2. If `first_forked_block_number < block_number < latest_block_number`: Check local_storage
 	///    table
 	/// 3. Otherwise: Check remote provider directly (fetches block_hash from blocks table)
@@ -195,25 +229,63 @@ impl LocalStorageLayer {
 				}
 			}
 			// Not in modifications, query remote at first_forked_block
-			return Ok(self.parent.get(self.first_forked_block_hash, key).await?.map(Arc::new));
+			return Ok(self
+				.parent
+				.get(self.first_forked_block_hash, key)
+				.await?
+				.map(|value| LocalSharedValue {
+					last_modification_block: 0, /* <- We don't care about the validity block for
+					                             * this value as it came from the remote layer */
+					value,
+				})
+				.map(Arc::new));
 		}
 
-		// Case 2: Historical block after fork - check local_storage table, otherwise query remote
-		// at first_forked_block
+		// Case 2: Historical block after fork such that the local modification is still valid -
+		// check the local modifications map
+		match self.get_local_modification(key, block_number) {
+			local_modification @ Ok(Some(_)) => return local_modification,
+			_ => (),
+		}
+
+		// Case 3: Historical block after fork such that the key isn't valid - check local_storage
+		// table, otherwise query remote at first_forked_block
 		if block_number > self.first_forked_block_number && block_number < latest_block_number {
-			if let Some(cached) = self.parent.cache().get_local_storage(block_number, key).await? {
-				return Ok(cached.map(Arc::new));
+			let value = if let Some(cached) =
+				self.parent.cache().get_local_storage(block_number, key).await?.flatten()
+			{
+				cached
+			} else if let Some(remote_value) =
+				self.parent.get(self.first_forked_block_hash, key).await?
+			{
+				remote_value
 			} else {
-				return Ok(self.parent.get(self.first_forked_block_hash, key).await?.map(Arc::new));
-			}
+				return Ok(None);
+			};
+
+			return Ok(Some(Arc::new(LocalSharedValue {
+				last_modification_block: 0, /* <- We don't care about the validity block of this
+				                             * value as it came from the remote or the cache
+				                             * layer */
+				value,
+			})))
 		}
 
-		// Case 3: Block before or at fork point
+		// Case 4: Block before or at fork point
 		let block = self.get_block(block_number).await?;
 
 		if let Some(block_row) = block {
 			let block_hash = H256::from_slice(&block_row.hash);
-			Ok(self.parent.get(block_hash, key).await?.map(Arc::new))
+			Ok(self
+				.parent
+				.get(block_hash, key)
+				.await?
+				.map(|value| LocalSharedValue {
+					last_modification_block: 0, /* <- We don't care about the validity block of
+					                             * this value as it came from the remote layer */
+					value,
+				})
+				.map(Arc::new))
 		} else {
 			// Block not found
 			Ok(None)
@@ -293,7 +365,19 @@ impl LocalStorageLayer {
 		let mut modifications_lock =
 			self.modifications.write().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
 
-		modifications_lock.insert(key.to_vec(), value.map(|value| Arc::new(value.to_vec())));
+		let latest_block_number = self.get_latest_block_number();
+
+		modifications_lock.insert(
+			key.to_vec(),
+			value.map(|value| {
+				Arc::new({
+					LocalSharedValue {
+						last_modification_block: latest_block_number,
+						value: value.to_vec(),
+					}
+				})
+			}),
+		);
 
 		Ok(())
 	}
@@ -312,9 +396,11 @@ impl LocalStorageLayer {
 	/// Storage lookup strategy based on block_number (same as `get`):
 	/// 1. If `block_number == latest_block_number`: Check modifications HashMap, then remote at
 	///    first_forked_block
-	/// 2. If `first_forked_block_number < block_number < latest_block_number`: Check local_storage
+	/// 2. If `first_forked_block_number < block_number < latest_block_number` and the key is valid
+	///    for `block_number`: Check modifications HashMap table
+	/// 3. If `first_forked_block_number < block_number < latest_block_number`: Check local_storage
 	///    table
-	/// 3. Otherwise: Check remote provider directly (fetches block_hash from blocks table)
+	/// 4. Otherwise: Check remote provider directly (fetches block_hash from blocks table)
 	pub async fn get_batch(
 		&self,
 		block_number: u32,
@@ -364,28 +450,81 @@ impl LocalStorageLayer {
 					self.parent.get_batch(self.first_forked_block_hash, &parent_keys).await?;
 				for (i, parent_value) in parent_values.into_iter().enumerate() {
 					let result_idx = parent_indices[i];
-					results[result_idx] = parent_value.map(Arc::new);
+					results[result_idx] = parent_value
+						.map(|value| LocalSharedValue {
+							last_modification_block: 0, /* <- We don't care about the validity
+							                             * block for this value as it came from
+							                             * remote layer */
+							value,
+						})
+						.map(Arc::new);
 				}
 			}
 
 			return Ok(results);
 		}
 
-		// Case 2: Historical block after fork - check local_storage table
+		// Case 2: Historical block after fork - check modifications HashMap for hot keys and
+		// local_storage table for the others. Remote query for non found keys
 		if block_number > self.first_forked_block_number && block_number < latest_block_number {
-			let cached_values =
-				self.parent.cache().get_local_storage_batch(block_number, keys).await?;
+			let mut found_results: Vec<Option<SharedValue>> = Vec::with_capacity(keys.len());
+			let mut cache_keys: Vec<&[u8]> = Vec::new();
+			let mut cache_indices: Vec<usize> = Vec::new();
 
-			// For non cached values, we need to query the remote storage at the first forked block
-			let mut results = Vec::with_capacity(cached_values.len());
-			for (i, value) in cached_values.into_iter().enumerate() {
-				let value = value.flatten();
+			for (i, key) in keys.iter().enumerate() {
+				match self.get_local_modification(key, block_number) {
+					local_modification @ Ok(Some(_)) => found_results.push(
+						local_modification
+							.expect("The match guard ensures this is Ok; qed;")
+							.clone(),
+					),
+					_ => {
+						found_results.push(None); // Placeholder
+						cache_keys.push(*key);
+						cache_indices.push(i);
+					},
+				}
+			}
+
+			if !cache_keys.is_empty() {
+				let cached_values =
+					self.parent.cache().get_local_storage_batch(block_number, &cache_keys).await?;
+				for (i, cache_value) in cached_values.into_iter().enumerate() {
+					let result_idx = cache_indices[i];
+					found_results[result_idx] = cache_value
+						.flatten()
+						.map(|value| LocalSharedValue {
+							last_modification_block: 0, /* <- We don't care about the validity
+							                             * block for this value as it came from
+							                             * cache */
+							value,
+						})
+						.map(Arc::new);
+				}
+			}
+
+			// For non found values, we need to query the remote storage at the first forked block
+			let mut results = Vec::with_capacity(keys.len());
+			for (i, value) in found_results.into_iter().enumerate() {
 				let final_value = if value.is_some() {
 					value
 				} else {
-					self.parent.get(self.first_forked_block_hash, keys[i]).await?
+					self.parent
+						.get(self.first_forked_block_hash, keys[i])
+						.await?
+						.map(|value| {
+							LocalSharedValue {
+								last_modification_block: 0, /* <- We don't care about the
+								                             * validity
+								                             * block of this value as it came
+								                             * from
+								                             * remote layer */
+								value,
+							}
+						})
+						.map(Arc::new)
 				};
-				results.push(final_value.map(Arc::new));
+				results.push(final_value);
 			}
 			return Ok(results);
 		}
@@ -396,7 +535,28 @@ impl LocalStorageLayer {
 		if let Some(block_row) = block {
 			let block_hash = H256::from_slice(&block_row.hash);
 			let parent_values = self.parent.get_batch(block_hash, keys).await?;
-			Ok(parent_values.into_iter().map(|v| v.map(Arc::new)).collect())
+			Ok(parent_values
+				.into_iter()
+				.map(|value| {
+					if let Some(value) = value {
+						Some(LocalSharedValue {
+							last_modification_block: 0, /* <- We don't care about this value as
+							                             * it came
+							                             * from the remote layer, */
+							value,
+						})
+					} else {
+						None
+					}
+				})
+				.map(|value| {
+					if let Some(local_shared_value) = value {
+						Some(Arc::new(local_shared_value))
+					} else {
+						None
+					}
+				})
+				.collect())
 		} else {
 			// Block not found - return None for all keys
 			Ok(vec![None; keys.len()])
@@ -422,11 +582,21 @@ impl LocalStorageLayer {
 			return Ok(());
 		}
 
+		let latest_block_number = self.get_latest_block_number();
+
 		let mut modifications_lock =
 			self.modifications.write().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
 
 		for (key, value) in entries {
-			modifications_lock.insert(key.to_vec(), value.map(|v| Arc::new(v.to_vec())));
+			modifications_lock.insert(
+				key.to_vec(),
+				value.map(|value| {
+					Arc::new(LocalSharedValue {
+						last_modification_block: latest_block_number,
+						value: value.to_vec(),
+					})
+				}),
+			);
 		}
 
 		Ok(())
@@ -527,7 +697,12 @@ impl LocalStorageLayer {
 			let entries = diff
 				.iter()
 				.map(|(key, shared_value)| {
-					(key.as_slice(), shared_value.as_deref().map(|vec| vec.as_slice()))
+					(
+						key.as_slice(),
+						shared_value
+							.as_deref()
+							.map(|local_shared_value| local_shared_value.value.as_slice()),
+					)
 				})
 				.collect::<Vec<_>>();
 			self.parent
