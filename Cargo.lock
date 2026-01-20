@@ -9332,6 +9332,7 @@ dependencies = [
 name = "pop-fork"
 version = "0.12.1"
 dependencies = [
+ "async-trait",
  "bb8",
  "bytes",
  "diesel",
