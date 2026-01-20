@@ -76,7 +76,7 @@ pub fn instantiate_standard_template(
 	{
 		use askama::Template;
 		let chain_spec_path = target.join("node/src/chain_spec.rs");
-		if chain_spec_path.parent().map_or(false, |p| p.exists()) {
+		if chain_spec_path.parent().is_some_and(|p| p.exists()) {
 			write_to_file(&chain_spec_path, chainspec.render().expect("infallible").as_ref())?;
 		}
 		// Add network configuration
