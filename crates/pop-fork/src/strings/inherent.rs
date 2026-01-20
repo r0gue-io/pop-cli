@@ -25,6 +25,12 @@ pub mod timestamp {
 		pub const SET_CALL_NAME: &str = "set";
 	}
 
+	/// Constants for slot duration detection from runtime.
+	pub mod slot_duration {
+		/// Runtime API method for Aura slot duration.
+		pub const AURA_API_METHOD: &str = "AuraApi_slot_duration";
+	}
+
 	/// Error message formats.
 	pub mod errors {
 		/// Format string for timestamp decode failures.

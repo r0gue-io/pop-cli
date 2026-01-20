@@ -9,10 +9,12 @@
 //! # How It Works
 //!
 //! 1. Look up the Timestamp pallet and `set` call indices from runtime metadata
-//! 2. Read the current timestamp from `Timestamp::Now` storage
-//! 3. Add the configured slot duration
-//! 4. Encode a `timestamp.set(new_timestamp)` call using the dynamic indices
-//! 5. Wrap it as an unsigned inherent extrinsic
+//! 2. Try to get slot duration from `AuraApi_slot_duration` runtime API
+//! 3. If that fails, fall back to the configured slot duration
+//! 4. Read the current timestamp from `Timestamp::Now` storage
+//! 5. Add the slot duration to get the new timestamp
+//! 6. Encode a `timestamp.set(new_timestamp)` call using the dynamic indices
+//! 7. Wrap it as an unsigned inherent extrinsic
 //!
 //! # Example
 //!
@@ -46,12 +48,14 @@ const EXTRINSIC_FORMAT_VERSION: u8 = 5;
 /// Timestamp inherent provider.
 ///
 /// Generates the `timestamp.set(now)` inherent extrinsic that advances
-/// the chain's timestamp by the configured slot duration.
+/// the chain's timestamp by the slot duration.
 ///
-/// # Slot Duration
+/// # Slot Duration Detection
 ///
-/// The slot duration determines how much time passes between blocks.
-/// Both relay chains and parachains typically use 6-second slots.
+/// The provider attempts to detect the slot duration dynamically:
+/// 1. First, it tries the `AuraApi_slot_duration` runtime API
+/// 2. If that fails (e.g., chain uses Babe instead of Aura), it falls back to the configured slot
+///    duration (default: 6 seconds)
 ///
 /// # Dynamic Metadata Lookup
 ///
@@ -117,6 +121,22 @@ impl TimestampInherent {
 		result.extend(extrinsic);
 		result
 	}
+
+	/// Try to get slot duration from the `AuraApi_slot_duration` runtime API.
+	///
+	/// Returns `None` if the API call fails (e.g., chain uses Babe instead of Aura).
+	async fn get_slot_duration_from_runtime(
+		executor: &RuntimeExecutor,
+		storage: &crate::LocalStorageLayer,
+	) -> Option<u64> {
+		let result = executor
+			.call(strings::slot_duration::AURA_API_METHOD, &[], storage)
+			.await
+			.ok()?;
+
+		// AuraApi_slot_duration returns a SCALE-encoded u64
+		u64::decode(&mut result.output.as_slice()).ok()
+	}
 }
 
 impl Default for TimestampInherent {
@@ -134,7 +154,7 @@ impl InherentProvider for TimestampInherent {
 	async fn provide(
 		&self,
 		parent: &Block,
-		_executor: &RuntimeExecutor,
+		executor: &RuntimeExecutor,
 	) -> Result<Vec<Vec<u8>>, BlockBuilderError> {
 		// Look up pallet and call indices from metadata
 		let metadata = parent.metadata();
@@ -165,9 +185,14 @@ impl InherentProvider for TimestampInherent {
 
 		let call_index = call_variant.index;
 
+		// Get slot duration: try runtime API first, fall back to configured value
+		let storage = parent.storage();
+		let slot_duration = Self::get_slot_duration_from_runtime(executor, storage)
+			.await
+			.unwrap_or(self.slot_duration_ms);
+
 		// Read current timestamp from parent block storage
 		let key = Self::timestamp_now_key();
-		let storage = parent.storage();
 
 		let current_timestamp = match storage.get(parent.number, &key).await? {
 			Some(value) => u64::decode(&mut value.as_slice()).map_err(|e| {
@@ -187,7 +212,7 @@ impl InherentProvider for TimestampInherent {
 		};
 
 		// Calculate new timestamp
-		let new_timestamp = current_timestamp.saturating_add(self.slot_duration_ms);
+		let new_timestamp = current_timestamp.saturating_add(slot_duration);
 
 		// Encode the timestamp.set call with dynamic indices
 		let call = Self::encode_timestamp_set_call(pallet_index, call_index, new_timestamp);
