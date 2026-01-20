@@ -9,12 +9,14 @@
 //! # How It Works
 //!
 //! 1. Look up the Timestamp pallet and `set` call indices from runtime metadata
-//! 2. Try to get slot duration from `AuraApi_slot_duration` runtime API
-//! 3. If that fails, fall back to the configured slot duration
-//! 4. Read the current timestamp from `Timestamp::Now` storage
-//! 5. Add the slot duration to get the new timestamp
-//! 6. Encode a `timestamp.set(new_timestamp)` call using the dynamic indices
-//! 7. Wrap it as an unsigned inherent extrinsic
+//! 2. Detect slot duration using the following fallback chain:
+//!    - `AuraApi_slot_duration` runtime API (Aura-based chains)
+//!    - `Babe::ExpectedBlockTime` metadata constant (Babe-based chains)
+//!    - Configured default slot duration
+//! 3. Read the current timestamp from `Timestamp::Now` storage
+//! 4. Add the slot duration to get the new timestamp
+//! 5. Encode a `timestamp.set(new_timestamp)` call using the dynamic indices
+//! 6. Wrap it as an unsigned inherent extrinsic
 //!
 //! # Example
 //!
@@ -34,6 +36,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use scale::{Compact, Decode, Encode};
+use subxt::Metadata;
 
 /// Default slot duration for relay chains (6 seconds).
 const DEFAULT_RELAY_SLOT_DURATION_MS: u64 = 6_000;
@@ -52,10 +55,11 @@ const EXTRINSIC_FORMAT_VERSION: u8 = 5;
 ///
 /// # Slot Duration Detection
 ///
-/// The provider attempts to detect the slot duration dynamically:
-/// 1. First, it tries the `AuraApi_slot_duration` runtime API
-/// 2. If that fails (e.g., chain uses Babe instead of Aura), it falls back to the configured slot
-///    duration (default: 6 seconds)
+/// The provider attempts to detect the slot duration dynamically using
+/// the following fallback chain:
+/// 1. `AuraApi_slot_duration` runtime API (Aura-based chains)
+/// 2. `Babe::ExpectedBlockTime` metadata constant (Babe-based chains)
+/// 3. Configured default slot duration (default: 6 seconds)
 ///
 /// # Dynamic Metadata Lookup
 ///
@@ -122,20 +126,51 @@ impl TimestampInherent {
 		result
 	}
 
-	/// Try to get slot duration from the `AuraApi_slot_duration` runtime API.
+	/// Get slot duration from the runtime, falling back to the provided default.
 	///
-	/// Returns `None` if the API call fails (e.g., chain uses Babe instead of Aura).
+	/// Detection order:
+	/// 1. `AuraApi_slot_duration` runtime API (Aura-based chains)
+	/// 2. `Babe::ExpectedBlockTime` metadata constant (Babe-based chains)
+	/// 3. Fallback to configured default
 	async fn get_slot_duration_from_runtime(
 		executor: &RuntimeExecutor,
 		storage: &crate::LocalStorageLayer,
-	) -> Option<u64> {
-		let result = executor
+		metadata: &Metadata,
+		fallback: u64,
+	) -> u64 {
+		// 1. Try AuraApi_slot_duration runtime API
+		if let Some(duration) = executor
 			.call(strings::slot_duration::AURA_API_METHOD, &[], storage)
 			.await
-			.ok()?;
+			.ok()
+			.and_then(|r| u64::decode(&mut r.output.as_slice()).ok())
+		{
+			return duration;
+		}
 
-		// AuraApi_slot_duration returns a SCALE-encoded u64
-		u64::decode(&mut result.output.as_slice()).ok()
+		// 2. Try Babe::ExpectedBlockTime metadata constant
+		if let Some(duration) = Self::get_constant_from_metadata(
+			metadata,
+			strings::slot_duration::BABE_PALLET,
+			strings::slot_duration::BABE_EXPECTED_BLOCK_TIME,
+		) {
+			return duration;
+		}
+
+		// 3. Fall back to configured default
+		fallback
+	}
+
+	/// Attempt to read a u64 constant from metadata.
+	fn get_constant_from_metadata(
+		metadata: &Metadata,
+		pallet_name: &str,
+		constant_name: &str,
+	) -> Option<u64> {
+		metadata
+			.pallet_by_name(pallet_name)?
+			.constant_by_name(constant_name)
+			.and_then(|c| u64::decode(&mut &c.value()[..]).ok())
 	}
 }
 
@@ -185,11 +220,15 @@ impl InherentProvider for TimestampInherent {
 
 		let call_index = call_variant.index;
 
-		// Get slot duration: try runtime API first, fall back to configured value
+		// Get slot duration: try runtime API/constants, fall back to configured value
 		let storage = parent.storage();
-		let slot_duration = Self::get_slot_duration_from_runtime(executor, storage)
-			.await
-			.unwrap_or(self.slot_duration_ms);
+		let slot_duration = Self::get_slot_duration_from_runtime(
+			executor,
+			storage,
+			metadata,
+			self.slot_duration_ms,
+		)
+		.await;
 
 		// Read current timestamp from parent block storage
 		let key = Self::timestamp_now_key();
@@ -300,5 +339,164 @@ mod tests {
 	fn identifier_returns_timestamp() {
 		let provider = TimestampInherent::default();
 		assert_eq!(provider.identifier(), strings::IDENTIFIER);
+	}
+
+	/// Integration tests that execute against a local test node.
+	///
+	/// These tests verify the runtime API call for slot duration detection.
+	mod sequential {
+		use super::*;
+		use crate::{
+			ForkRpcClient, LocalStorageLayer, RemoteStorageLayer, RuntimeExecutor, StorageCache,
+		};
+		use pop_common::test_env::TestNode;
+		use url::Url;
+
+		/// Test context for slot duration tests with a local test node.
+		struct LocalTestContext {
+			#[allow(dead_code)]
+			node: TestNode,
+			executor: RuntimeExecutor,
+			storage: LocalStorageLayer,
+			metadata: Metadata,
+		}
+
+		/// Test context for slot duration tests with a remote endpoint.
+		struct RemoteTestContext {
+			executor: RuntimeExecutor,
+			storage: LocalStorageLayer,
+			metadata: Metadata,
+		}
+
+		/// Creates a test context from a local test node.
+		async fn create_local_context() -> LocalTestContext {
+			let node = TestNode::spawn().await.expect("Failed to spawn test node");
+			let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
+			let RemoteTestContext { executor, storage, metadata } =
+				create_remote_context(&endpoint).await;
+
+			LocalTestContext { node, executor, storage, metadata }
+		}
+
+		/// Creates a test context from a remote endpoint URL.
+		async fn create_remote_context(endpoint: &Url) -> RemoteTestContext {
+			let rpc = ForkRpcClient::connect(endpoint).await.expect("Failed to connect");
+			let block_hash = rpc.finalized_head().await.expect("Failed to get finalized head");
+			let header = rpc.header(block_hash).await.expect("Failed to get header");
+			let block_number = header.number;
+			let runtime_code = rpc.runtime_code(block_hash).await.expect("Failed to get runtime");
+			let metadata_bytes = rpc.metadata(block_hash).await.expect("Failed to get metadata");
+			let metadata = Metadata::decode(&mut metadata_bytes.as_slice())
+				.expect("Failed to decode metadata");
+			let cache = StorageCache::in_memory().await.expect("Failed to create cache");
+			let remote = RemoteStorageLayer::new(rpc, cache);
+			let storage = LocalStorageLayer::new(remote, block_number, block_hash);
+			let executor =
+				RuntimeExecutor::new(runtime_code, None).expect("Failed to create executor");
+
+			RemoteTestContext { executor, storage, metadata }
+		}
+
+		/// Tests that slot duration detection falls back to configured default when
+		/// the runtime doesn't expose `AuraApi_slot_duration`.
+		///
+		/// The test node uses manual seal consensus, not Aura,
+		/// so the runtime API call fails and returns the fallback value directly.
+		#[tokio::test(flavor = "multi_thread")]
+		async fn get_slot_duration_falls_back_when_aura_api_unavailable() {
+			let ctx = create_local_context().await;
+
+			let slot_duration = TimestampInherent::get_slot_duration_from_runtime(
+				&ctx.executor,
+				&ctx.storage,
+				&ctx.metadata,
+				DEFAULT_RELAY_SLOT_DURATION_MS,
+			)
+			.await;
+
+			// TestNode doesn't implement AuraApi or Babe constants,
+			// so we get the fallback value directly.
+			println!("Slot duration (with fallback): {slot_duration}ms");
+			assert_eq!(
+				slot_duration, DEFAULT_RELAY_SLOT_DURATION_MS,
+				"Expected fallback to configured default since test node doesn't implement AuraApi or Babe"
+			);
+		}
+
+		/// Tests that slot duration can be fetched from a live Aura-based chain.
+		///
+		/// This test connects to Asset Hub Paseo (an Aura-based parachain) and
+		/// verifies that `AuraApi_slot_duration` returns the expected 12-second slots.
+		///
+		/// # Note
+		///
+		/// This test is ignored by default since it requires network access.
+		/// Run manually with:
+		/// ```bash
+		/// cargo nextest run -p pop-fork --lib "get_slot_duration_from_live_aura_chain" --run-ignored all --nocapture
+		/// ```
+		#[tokio::test(flavor = "multi_thread")]
+		#[ignore = "requires network access to live chain"]
+		async fn get_slot_duration_from_live_aura_chain() {
+			const ASSET_HUB_PASEO_ENDPOINT: &str = "wss://sys.ibp.network/asset-hub-paseo";
+			const EXPECTED_SLOT_DURATION_MS: u64 = 12_000;
+
+			let endpoint: Url = ASSET_HUB_PASEO_ENDPOINT.parse().expect("Invalid endpoint URL");
+			let ctx = create_remote_context(&endpoint).await;
+
+			let slot_duration = TimestampInherent::get_slot_duration_from_runtime(
+				&ctx.executor,
+				&ctx.storage,
+				&ctx.metadata,
+				0, // fallback won't be used
+			)
+			.await;
+
+			println!("Asset Hub Paseo - slot duration: {slot_duration}ms");
+
+			assert_eq!(
+				slot_duration, EXPECTED_SLOT_DURATION_MS,
+				"Expected 12-second slots from Asset Hub Paseo via AuraApi"
+			);
+		}
+
+		/// Tests that slot duration is fetched from Babe::ExpectedBlockTime on a live Babe-based
+		/// chain.
+		///
+		/// This test connects to Paseo relay chain (a Babe-based chain) and
+		/// verifies that the slot duration is read from the `Babe::ExpectedBlockTime`
+		/// metadata constant, returning the expected 6-second slots.
+		///
+		/// # Note
+		///
+		/// This test is ignored by default since it requires network access.
+		/// Run manually with:
+		/// ```bash
+		/// cargo nextest run -p pop-fork --lib "get_slot_duration_from_live_babe_chain" --run-ignored all --nocapture
+		/// ```
+		#[tokio::test(flavor = "multi_thread")]
+		#[ignore = "requires network access to live chain"]
+		async fn get_slot_duration_from_live_babe_chain() {
+			const PASEO_ENDPOINT: &str = "wss://rpc.ibp.network/paseo";
+			const EXPECTED_SLOT_DURATION_MS: u64 = 6_000;
+
+			let endpoint: Url = PASEO_ENDPOINT.parse().expect("Invalid endpoint URL");
+			let ctx = create_remote_context(&endpoint).await;
+
+			let slot_duration = TimestampInherent::get_slot_duration_from_runtime(
+				&ctx.executor,
+				&ctx.storage,
+				&ctx.metadata,
+				0, // fallback won't be used
+			)
+			.await;
+
+			println!("Paseo (Babe) - slot duration: {slot_duration}ms");
+
+			assert_eq!(
+				slot_duration, EXPECTED_SLOT_DURATION_MS,
+				"Expected 6-second slots from Paseo via Babe::ExpectedBlockTime"
+			);
+		}
 	}
 }

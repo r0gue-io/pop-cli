@@ -29,6 +29,12 @@ pub mod timestamp {
 	pub mod slot_duration {
 		/// Runtime API method for Aura slot duration.
 		pub const AURA_API_METHOD: &str = "AuraApi_slot_duration";
+
+		/// Babe pallet name for metadata constant lookup.
+		pub const BABE_PALLET: &str = "Babe";
+
+		/// Babe constant name for expected block time.
+		pub const BABE_EXPECTED_BLOCK_TIME: &str = "ExpectedBlockTime";
 	}
 
 	/// Error message formats.
