@@ -1313,17 +1313,19 @@ mod tests {
 		let block_number = ctx.block_number;
 		let key1 = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 		let key2 = hex::decode(SYSTEM_PARENT_HASH_KEY).unwrap();
+		let key3 = b"non_existent_key";
 
 		// Get storage from historical block
 		let results = layer
-			.get_batch(block_number, &[key1.as_slice(), key2.as_slice()])
+			.get_batch(block_number, &[key1.as_slice(), key2.as_slice(), key3])
 			.await
 			.unwrap();
-		assert_eq!(results.len(), 2);
+		assert_eq!(results.len(), 3);
 		assert_eq!(
 			u32::decode(&mut &results[0].as_ref().unwrap().value[..]).unwrap(),
 			block_number
 		);
+		assert!(results[2].is_none());
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
