@@ -352,6 +352,22 @@ mod tests {
 		use pop_common::test_env::TestNode;
 		use url::Url;
 
+		/// Asset Hub Paseo endpoints (Aura-based parachain).
+		/// Multiple endpoints for redundancy in CI.
+		const ASSET_HUB_PASEO_ENDPOINTS: &[&str] = &[
+			"wss://sys.ibp.network/asset-hub-paseo",
+			"wss://sys.turboflakes.io/asset-hub-paseo",
+			"wss://asset-hub-paseo.dotters.network",
+		];
+
+		/// Paseo relay chain endpoints (Babe-based chain).
+		/// Multiple endpoints for redundancy in CI.
+		const PASEO_RELAY_ENDPOINTS: &[&str] = &[
+			"wss://rpc.ibp.network/paseo",
+			"wss://pas-rpc.stakeworld.io",
+			"wss://paseo.dotters.network",
+		];
+
 		/// Test context for slot duration tests with a local test node.
 		struct LocalTestContext {
 			#[allow(dead_code)]
@@ -373,28 +389,49 @@ mod tests {
 			let node = TestNode::spawn().await.expect("Failed to spawn test node");
 			let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
 			let RemoteTestContext { executor, storage, metadata } =
-				create_remote_context(&endpoint).await;
+				try_create_remote_context(&endpoint).await.expect("Failed to create context");
 
 			LocalTestContext { node, executor, storage, metadata }
 		}
 
-		/// Creates a test context from a remote endpoint URL.
-		async fn create_remote_context(endpoint: &Url) -> RemoteTestContext {
-			let rpc = ForkRpcClient::connect(endpoint).await.expect("Failed to connect");
-			let block_hash = rpc.finalized_head().await.expect("Failed to get finalized head");
-			let header = rpc.header(block_hash).await.expect("Failed to get header");
+		/// Attempts to create a test context from a remote endpoint URL.
+		/// Returns None if connection fails, allowing callers to try alternative endpoints.
+		async fn try_create_remote_context(endpoint: &Url) -> Option<RemoteTestContext> {
+			let rpc = ForkRpcClient::connect(endpoint).await.ok()?;
+			let block_hash = rpc.finalized_head().await.ok()?;
+			let header = rpc.header(block_hash).await.ok()?;
 			let block_number = header.number;
-			let runtime_code = rpc.runtime_code(block_hash).await.expect("Failed to get runtime");
-			let metadata_bytes = rpc.metadata(block_hash).await.expect("Failed to get metadata");
-			let metadata = Metadata::decode(&mut metadata_bytes.as_slice())
-				.expect("Failed to decode metadata");
-			let cache = StorageCache::in_memory().await.expect("Failed to create cache");
+			let runtime_code = rpc.runtime_code(block_hash).await.ok()?;
+			let metadata_bytes = rpc.metadata(block_hash).await.ok()?;
+			let metadata = Metadata::decode(&mut metadata_bytes.as_slice()).ok()?;
+			let cache = StorageCache::in_memory().await.ok()?;
 			let remote = RemoteStorageLayer::new(rpc, cache);
 			let storage = LocalStorageLayer::new(remote, block_number, block_hash);
-			let executor =
-				RuntimeExecutor::new(runtime_code, None).expect("Failed to create executor");
+			let executor = RuntimeExecutor::new(runtime_code, None).ok()?;
 
-			RemoteTestContext { executor, storage, metadata }
+			Some(RemoteTestContext { executor, storage, metadata })
+		}
+
+		/// Creates a test context by trying multiple endpoints in sequence.
+		/// Returns the first successful connection, or None if all fail.
+		async fn create_context_with_fallbacks(endpoints: &[&str]) -> Option<RemoteTestContext> {
+			for endpoint_str in endpoints {
+				let endpoint: Url = match endpoint_str.parse() {
+					Ok(url) => url,
+					Err(_) => continue,
+				};
+
+				println!("Trying endpoint: {endpoint_str}");
+
+				if let Some(ctx) = try_create_remote_context(&endpoint).await {
+					println!("Connected to: {endpoint_str}");
+					return Some(ctx);
+				}
+
+				println!("Failed to connect to: {endpoint_str}");
+			}
+
+			None
 		}
 
 		/// Tests that slot duration detection falls back to configured default when
@@ -428,21 +465,21 @@ mod tests {
 		/// This test connects to Asset Hub Paseo (an Aura-based parachain) and
 		/// verifies that `AuraApi_slot_duration` returns the expected 12-second slots.
 		///
-		/// # Note
-		///
-		/// This test is ignored by default since it requires network access.
-		/// Run manually with:
-		/// ```bash
-		/// cargo nextest run -p pop-fork --lib "get_slot_duration_from_live_aura_chain" --run-ignored all --nocapture
-		/// ```
+		/// Multiple endpoints are tried for redundancy in CI environments.
 		#[tokio::test(flavor = "multi_thread")]
-		#[ignore = "requires network access to live chain"]
 		async fn get_slot_duration_from_live_aura_chain() {
-			const ASSET_HUB_PASEO_ENDPOINT: &str = "wss://sys.ibp.network/asset-hub-paseo";
 			const EXPECTED_SLOT_DURATION_MS: u64 = 12_000;
 
-			let endpoint: Url = ASSET_HUB_PASEO_ENDPOINT.parse().expect("Invalid endpoint URL");
-			let ctx = create_remote_context(&endpoint).await;
+			let ctx = match create_context_with_fallbacks(ASSET_HUB_PASEO_ENDPOINTS).await {
+				Some(ctx) => ctx,
+				None => {
+					eprintln!(
+						"Skipping test: all Asset Hub Paseo endpoints unavailable: {:?}",
+						ASSET_HUB_PASEO_ENDPOINTS
+					);
+					return;
+				},
+			};
 
 			let slot_duration = TimestampInherent::get_slot_duration_from_runtime(
 				&ctx.executor,
@@ -467,21 +504,21 @@ mod tests {
 		/// verifies that the slot duration is read from the `Babe::ExpectedBlockTime`
 		/// metadata constant, returning the expected 6-second slots.
 		///
-		/// # Note
-		///
-		/// This test is ignored by default since it requires network access.
-		/// Run manually with:
-		/// ```bash
-		/// cargo nextest run -p pop-fork --lib "get_slot_duration_from_live_babe_chain" --run-ignored all --nocapture
-		/// ```
+		/// Multiple endpoints are tried for redundancy in CI environments.
 		#[tokio::test(flavor = "multi_thread")]
-		#[ignore = "requires network access to live chain"]
 		async fn get_slot_duration_from_live_babe_chain() {
-			const PASEO_ENDPOINT: &str = "wss://rpc.ibp.network/paseo";
 			const EXPECTED_SLOT_DURATION_MS: u64 = 6_000;
 
-			let endpoint: Url = PASEO_ENDPOINT.parse().expect("Invalid endpoint URL");
-			let ctx = create_remote_context(&endpoint).await;
+			let ctx = match create_context_with_fallbacks(PASEO_RELAY_ENDPOINTS).await {
+				Some(ctx) => ctx,
+				None => {
+					eprintln!(
+						"Skipping test: all Paseo relay endpoints unavailable: {:?}",
+						PASEO_RELAY_ENDPOINTS
+					);
+					return;
+				},
+			};
 
 			let slot_duration = TimestampInherent::get_slot_duration_from_runtime(
 				&ctx.executor,
