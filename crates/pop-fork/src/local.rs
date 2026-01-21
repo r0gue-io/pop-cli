@@ -47,7 +47,11 @@
 //! local.delete_prefix(&prefix)?;
 //! ```
 
-use crate::{error::LocalStorageError, models::BlockRow, remote::RemoteStorageLayer};
+use crate::{
+	error::LocalStorageError,
+	models::{BlockRow, LocalKeyRow},
+	remote::RemoteStorageLayer,
+};
 use std::{
 	collections::HashMap,
 	sync::{Arc, RwLock},
@@ -250,14 +254,17 @@ impl LocalStorageLayer {
 			return local_modification;
 		}
 
-		// Case 3: Historical block after fork such that the key isn't valid - check local_storage
-		// table, otherwise query remote at first_forked_block
+		// Case 3: Historical block after fork such that the key isn't valid - check local_values
+		// table using validity, otherwise query remote at first_forked_block
 		if block_number > self.first_forked_block_number && block_number < latest_block_number {
-			let value = if let Some(cached) =
-				self.parent.cache().get_local_storage(block_number, key).await?.flatten()
+			// Try to get value from local_values table using validity ranges
+			let value = if let Some(local_value) =
+				self.parent.cache().get_local_value_at_block(key, block_number).await?
 			{
-				cached
-			} else if let Some(remote_value) =
+				local_value
+			}
+			// Not found in local storage, try remote at first_forked_block
+			else if let Some(remote_value) =
 				self.parent.get(self.first_forked_block_hash, key).await?
 			{
 				remote_value
@@ -266,11 +273,9 @@ impl LocalStorageLayer {
 			};
 
 			return Ok(Some(Arc::new(LocalSharedValue {
-				last_modification_block: 0, /* <- We don't care about the validity block of this
-				                             * value as it came from the remote or the cache
-				                             * layer */
+				last_modification_block: 0, /* <- Value came from remote or cache layer */
 				value,
-			})))
+			})));
 		}
 
 		// Case 4: Block before or at fork point
@@ -467,7 +472,7 @@ impl LocalStorageLayer {
 		}
 
 		// Case 2: Historical block after fork - check modifications HashMap for hot keys and
-		// local_storage table for the others. Remote query for non found keys
+		// local_values table (using validity) for the others. Remote query for non found keys
 		if block_number > self.first_forked_block_number && block_number < latest_block_number {
 			let mut found_results: Vec<Option<SharedValue>> = Vec::with_capacity(keys.len());
 			let mut cache_keys: Vec<&[u8]> = Vec::new();
@@ -489,12 +494,15 @@ impl LocalStorageLayer {
 			}
 
 			if !cache_keys.is_empty() {
-				let cached_values =
-					self.parent.cache().get_local_storage_batch(block_number, &cache_keys).await?;
+				// Use validity-based query to get values from local_values table
+				let cached_values = self
+					.parent
+					.cache()
+					.get_local_values_at_block_batch(&cache_keys, block_number)
+					.await?;
 				for (i, cache_value) in cached_values.into_iter().enumerate() {
 					let result_idx = cache_indices[i];
 					found_results[result_idx] = cache_value
-						.flatten()
 						.map(|value| LocalSharedValue {
 							last_modification_block: 0, /* <- We don't care about the validity
 							                             * block for this value as it came from
@@ -516,11 +524,7 @@ impl LocalStorageLayer {
 						.await?
 						.map(|value| {
 							LocalSharedValue {
-								last_modification_block: 0, /* <- We don't care about the
-								                             * validity
-								                             * block of this value as it came
-								                             * from
-								                             * remote layer */
+								last_modification_block: 0, /* <- Value came from remote layer */
 								value,
 							}
 						})
@@ -666,43 +670,61 @@ impl LocalStorageLayer {
 			.collect())
 	}
 
-	/// Commit all modifications to the local_storage table in the cache, leaving that state as
-	/// latest_block_number height.
+	/// Commit modifications to the local storage tables, creating new validity entries.
 	///
 	/// # Returns
 	/// * `Ok(())` - All modifications were successfully committed to the cache
 	/// * `Err(_)` - Lock error or cache error
 	///
 	/// # Behavior
-	/// - Writes all locally modified key-value pairs to the local_storage table
+	/// - Only commits modifications whose `last_modification_block == latest_block_number`
+	/// - For each key to commit:
+	///   - If key not in local_keys: insert key, then insert value with valid_from =
+	///     latest_block_number
+	///   - If key exists: close current open value (set valid_until), insert new value
 	/// - The modifications HashMap remains intact and available after commit
-	/// - Uses the parent layer's cache to persist the data
-	/// - Uses batch operation for efficiency
 	/// - Increases the latest block number
 	pub async fn commit(&mut self) -> Result<(), LocalStorageError> {
+		let latest_block_number = self.get_latest_block_number();
 		let new_latest_block =
-			self.latest_block_number.checked_add(1).ok_or(LocalStorageError::Arithmetic)?;
+			latest_block_number.checked_add(1).ok_or(LocalStorageError::Arithmetic)?;
 
-		// Collect all modifications into a batch
+		// Collect modifications that need to be committed (only those modified at
+		// latest_block_number)
 		let diff = self.diff()?;
 
-		// Write all modifications to the local_storage table in a batch
-		if !diff.is_empty() {
-			let entries = diff
-				.iter()
-				.map(|(key, shared_value)| {
-					(
-						key.as_slice(),
-						shared_value
-							.as_deref()
-							.map(|local_shared_value| local_shared_value.value.as_slice()),
-					)
+		// Filter to only include modifications made at the current latest_block_number
+		let entries_to_commit: Vec<(&[u8], &[u8])> = diff
+			.iter()
+			.filter_map(|(key, shared_value)| {
+				shared_value.as_ref().and_then(|sv| {
+					if sv.last_modification_block == latest_block_number {
+						Some((key.as_slice(), sv.value.as_slice()))
+					} else {
+						None
+					}
 				})
-				.collect::<Vec<_>>();
-			self.parent
-				.cache()
-				.set_local_storage_batch(self.latest_block_number, entries.as_slice())
-				.await?;
+			})
+			.collect();
+
+		// Commit
+		for (key, value) in entries_to_commit {
+			match self.parent.cache().get_local_key(key).await? {
+				Some(LocalKeyRow { id: key_id, .. }) => {
+					self.parent.cache().close_local_value(key_id, latest_block_number).await?;
+					self.parent
+						.cache()
+						.insert_local_value(key_id, value, latest_block_number)
+						.await?;
+				},
+				_ => {
+					let key_id = self.parent.cache().insert_local_key(key).await?;
+					self.parent
+						.cache()
+						.insert_local_value(key_id, value, latest_block_number)
+						.await?;
+				},
+			}
 		}
 
 		self.latest_block_number = new_latest_block;

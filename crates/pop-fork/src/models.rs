@@ -20,7 +20,7 @@ pub(crate) struct NewLocalKeyRow<'a> {
 /// Local key row for query results
 #[derive(Queryable, Selectable, Clone, Debug)]
 #[diesel(table_name = local_keys)]
-pub(crate) struct LocalKeyRow {
+pub struct LocalKeyRow {
 	pub id: i32,
 	pub key: Vec<u8>,
 }
@@ -29,17 +29,6 @@ pub(crate) struct LocalKeyRow {
 #[derive(Insertable, Clone)]
 #[diesel(table_name = local_values)]
 pub(crate) struct NewLocalValueRow {
-	pub key_id: i32,
-	pub value: Vec<u8>,
-	pub valid_from: i64,
-	pub valid_until: Option<i64>,
-}
-
-/// Local value row for query results
-#[derive(Queryable, Selectable, Clone, Debug)]
-#[diesel(table_name = local_values)]
-pub(crate) struct LocalValueRow {
-	pub id: i32,
 	pub key_id: i32,
 	pub value: Vec<u8>,
 	pub valid_from: i64,
