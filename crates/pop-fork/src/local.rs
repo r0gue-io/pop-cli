@@ -1732,18 +1732,32 @@ mod tests {
 		layer.set(key2, Some(value2)).unwrap();
 
 		// Verify not in cache yet
-		assert!(ctx.remote.cache().get_local_storage(block, key1).await.unwrap().is_none());
-		assert!(ctx.remote.cache().get_local_storage(block, key2).await.unwrap().is_none());
+		assert!(
+			ctx.remote
+				.cache()
+				.get_local_value_at_block(key1, block)
+				.await
+				.unwrap()
+				.is_none()
+		);
+		assert!(
+			ctx.remote
+				.cache()
+				.get_local_value_at_block(key2, block)
+				.await
+				.unwrap()
+				.is_none()
+		);
 
 		// Commit
 		layer.commit().await.unwrap();
 
 		// Verify now in cache at the block_number it was committed to
-		let cached1 = ctx.remote.cache().get_local_storage(block, key1).await.unwrap();
-		let cached2 = ctx.remote.cache().get_local_storage(block, key2).await.unwrap();
+		let cached1 = ctx.remote.cache().get_local_value_at_block(key1, block).await.unwrap();
+		let cached2 = ctx.remote.cache().get_local_value_at_block(key2, block).await.unwrap();
 
-		assert_eq!(cached1, Some(Some(value1.to_vec())));
-		assert_eq!(cached2, Some(Some(value2.to_vec())));
+		assert_eq!(cached1, Some(value1.to_vec()));
+		assert_eq!(cached2, Some(value2.to_vec()));
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -1788,11 +1802,11 @@ mod tests {
 		layer.commit().await.unwrap();
 
 		// Both should be in cache
-		let cached1 = ctx.remote.cache().get_local_storage(block, key1).await.unwrap();
-		let cached2 = ctx.remote.cache().get_local_storage(block, key2).await.unwrap();
+		let cached1 = ctx.remote.cache().get_local_value_at_block(key1, block).await.unwrap();
+		let cached2 = ctx.remote.cache().get_local_value_at_block(key2, block).await.unwrap();
 
-		assert_eq!(cached1, Some(Some(value.to_vec())));
-		assert_eq!(cached2, Some(None)); // Cached as empty
+		assert_eq!(cached1, Some(value.to_vec()));
+		assert_eq!(cached2, None); // Cached as empty
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -1821,12 +1835,175 @@ mod tests {
 		layer.commit().await.unwrap();
 		layer.commit().await.unwrap();
 
-		// Both block numbers should have the value in cache
-		let cached1 = ctx.remote.cache().get_local_storage(block, key).await.unwrap();
-		let cached2 = ctx.remote.cache().get_local_storage(block + 1, key).await.unwrap();
+		// Both block numbers should find the value in cache
+		let cached1 = ctx.remote.cache().get_local_value_at_block(key, block).await.unwrap();
+		let cached2 = ctx.remote.cache().get_local_value_at_block(key, block).await.unwrap();
 
-		assert_eq!(cached1, Some(Some(value.to_vec())));
-		assert_eq!(cached2, Some(Some(value.to_vec())));
+		assert_eq!(cached1, Some(value.to_vec()));
+		assert_eq!(cached2, Some(value.to_vec()));
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn commit_validity_ranges_work_properly() {
+		let ctx = create_test_context().await;
+		let mut layer = create_layer(&ctx);
+
+		let key = b"validity_test_key";
+		let value1 = b"value_version_1";
+		let value2 = b"value_version_2";
+		let value3 = b"value_version_3";
+
+		// Block N: Set initial value and commit
+		let block_n = layer.get_latest_block_number();
+		layer.set(key, Some(value1)).unwrap();
+		layer.commit().await.unwrap();
+
+		// Verify key was created in local_keys
+		let key_row = ctx.remote.cache().get_local_key(key).await.unwrap();
+		assert!(key_row.is_some());
+		let key_id = key_row.unwrap().id;
+
+		// Verify value1 is valid from block_n onwards
+		assert_eq!(
+			ctx.remote.cache().get_local_value_at_block(key, block_n).await.unwrap(),
+			Some(value1.to_vec())
+		);
+
+		// Block N+1, N+2: Commit without changes (value should remain valid)
+		layer.commit().await.unwrap();
+		layer.commit().await.unwrap();
+
+		// Value1 should still be valid at blocks N+1 and N+2
+		assert_eq!(
+			ctx.remote.cache().get_local_value_at_block(key, block_n + 1).await.unwrap(),
+			Some(value1.to_vec())
+		);
+		assert_eq!(
+			ctx.remote.cache().get_local_value_at_block(key, block_n + 2).await.unwrap(),
+			Some(value1.to_vec())
+		);
+
+		// Block N+3: Update the value and commit
+		layer.set(key, Some(value2)).unwrap();
+		layer.commit().await.unwrap();
+
+		// Verify validity ranges:
+		// - value1 should be valid from block_n to block_n_plus_3 (exclusive)
+		// - value2 should be valid from block_n_plus_3 onwards
+		assert_eq!(
+			ctx.remote.cache().get_local_value_at_block(key, block_n).await.unwrap(),
+			Some(value1.to_vec()),
+		);
+		assert_eq!(
+			ctx.remote.cache().get_local_value_at_block(key, block_n + 2).await.unwrap(),
+			Some(value1.to_vec()),
+		);
+		assert_eq!(
+			ctx.remote.cache().get_local_value_at_block(key, block_n + 3).await.unwrap(),
+			Some(value2.to_vec()),
+		);
+		assert_eq!(
+			ctx.remote
+				.cache()
+				.get_local_value_at_block(key, block_n + 3 + 10)
+				.await
+				.unwrap(),
+			Some(value2.to_vec()),
+		);
+
+		// Block N+4: Another update
+		layer.set(key, Some(value3)).unwrap();
+		layer.commit().await.unwrap();
+
+		// Verify all three validity ranges
+		assert_eq!(
+			ctx.remote.cache().get_local_value_at_block(key, block_n).await.unwrap(),
+			Some(value1.to_vec())
+		);
+		assert_eq!(
+			ctx.remote.cache().get_local_value_at_block(key, block_n + 3).await.unwrap(),
+			Some(value2.to_vec())
+		);
+		assert_eq!(
+			ctx.remote.cache().get_local_value_at_block(key, block_n + 4).await.unwrap(),
+			Some(value3.to_vec())
+		);
+
+		// Key ID should remain the same throughout
+		let key_row_after = ctx.remote.cache().get_local_key(key).await.unwrap();
+		assert_eq!(key_row_after.unwrap().id, key_id);
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn commit_only_commits_the_minimal_information_needed() {
+		use crate::schema::local_values::{self, columns as lvc};
+		use diesel::prelude::*;
+		use diesel_async::RunQueryDsl;
+		let ctx = create_test_context().await;
+		let mut layer = create_layer(&ctx);
+		let cache_clone = layer.parent.cache().clone();
+		let mut conn = cache_clone.get_conn().await.unwrap();
+
+		let key1 = b"key_block_n";
+		let key2 = b"key_block_n_plus_1";
+		let value1 = b"value1";
+		let value2 = b"value2";
+		let value3 = b"value3";
+
+		// Block N: Set key1 and commit
+		let block_n = layer.get_latest_block_number() as i64;
+		layer.set(key1, Some(value1)).unwrap();
+		layer.commit().await.unwrap();
+
+		// Block N+1: Set key2 (key1 was set in previous block, shouldn't be re-committed)
+		layer.set(key2, Some(value2)).unwrap();
+		layer.commit().await.unwrap();
+
+		let key_1_id = 1;
+		let key_2_id = 2;
+
+		// Both keys have only one entry in the ddbb
+		let key_1_entries: Vec<(i64, Option<i64>)> = local_values::table
+			.filter(lvc::key_id.eq(key_1_id))
+			.select((lvc::valid_from, lvc::valid_until))
+			.load(&mut conn)
+			.await
+			.unwrap();
+
+		let key_2_entries: Vec<(i64, Option<i64>)> = local_values::table
+			.filter(lvc::key_id.eq(key_2_id))
+			.select((lvc::valid_from, lvc::valid_until))
+			.load(&mut conn)
+			.await
+			.unwrap();
+
+		assert_eq!(key_1_entries.len(), 1);
+		assert_eq!(key_1_entries[0], (block_n, None));
+		assert_eq!(key_2_entries.len(), 1);
+		assert_eq!(key_2_entries[0], (block_n + 1, None));
+
+		layer.set(key1, Some(value3)).unwrap();
+		layer.commit().await.unwrap();
+
+		let key_1_entries: Vec<(i64, Option<i64>)> = local_values::table
+			.filter(lvc::key_id.eq(key_1_id))
+			.select((lvc::valid_from, lvc::valid_until))
+			.load(&mut conn)
+			.await
+			.unwrap();
+
+		let key_2_entries: Vec<(i64, Option<i64>)> = local_values::table
+			.filter(lvc::key_id.eq(key_2_id))
+			.select((lvc::valid_from, lvc::valid_until))
+			.load(&mut conn)
+			.await
+			.unwrap();
+
+		assert_eq!(key_1_entries.len(), 1);
+		assert_eq!(key_1_entries[0], (block_n, Some(block_n + 2)));
+		assert_eq!(key_1_entries[1], (block_n + 2, None));
+		assert_eq!(key_2_entries.len(), 1);
+		assert_eq!(key_2_entries[0], (block_n + 1, None));
 	}
 
 	// Tests for next_key()

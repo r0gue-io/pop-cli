@@ -101,7 +101,7 @@ impl std::fmt::Debug for StorageConn {
 /// Connection guard that handles both pool and single connection types.
 ///
 /// Automatically returns the connection to the pool or unlocks the mutex when dropped.
-enum ConnectionGuard<'a> {
+pub(crate) enum ConnectionGuard<'a> {
 	Pool(PooledConnection<'a, SyncConnectionWrapper<SqliteConnection>>),
 	Single(MutexGuard<'a, SyncConnectionWrapper<SqliteConnection>>),
 }
@@ -221,7 +221,7 @@ impl StorageCache {
 	///
 	/// Handles acquiring the connection from either the pool or single mutex.
 	/// The connection is automatically returned to the pool or unlocks the mutex when dropped.
-	async fn get_conn(&self) -> Result<ConnectionGuard<'_>, CacheError> {
+	pub(crate) async fn get_conn(&self) -> Result<ConnectionGuard<'_>, CacheError> {
 		match &self.inner {
 			StorageConn::Pool(pool) => {
 				let conn = pool.get().await.map_err(|e| {
@@ -466,8 +466,14 @@ impl StorageCache {
 				.await;
 
 			match res {
-				Ok(id) => {
-					return i32::try_from(id).map_err(|err| CacheError::Arithmetic(err.to_string()));
+				Ok(_) => {
+					// Fetch the ID (either just inserted or already existed)
+					let key_id: i32 = local_keys::table
+						.filter(lkc::key.eq(key))
+						.select(lkc::id)
+						.first(&mut conn)
+						.await?;
+					return Ok(key_id);
 				},
 				Err(e) if is_locked_error(&e) && attempts < MAX_LOCK_RETRIES => {
 					retry_conn(&mut attempts).await;
@@ -638,6 +644,38 @@ impl StorageCache {
 			.set(lvc::valid_until.eq(Some(valid_until as i64)))
 			.execute(&mut conn)
 			.await;
+
+			match res {
+				Ok(_) => return Ok(()),
+				Err(e) if is_locked_error(&e) && attempts < MAX_LOCK_RETRIES => {
+					retry_conn(&mut attempts).await;
+					continue;
+				},
+				Err(e) => return Err(e.into()),
+			}
+		}
+	}
+
+	/// Clear all local storage data (both local_keys and local_values tables).
+	///
+	/// This removes all locally tracked key-value pairs and their validity history.
+	/// Uses a transaction to ensure both tables are cleared atomically.
+	pub async fn clear_local_storage(&self) -> Result<(), CacheError> {
+		let mut attempts = 0;
+		loop {
+			let mut conn = self.get_conn().await?;
+
+			let res = conn
+				.transaction::<_, DieselError, _>(|conn| {
+					Box::pin(async move {
+						// Delete local_values first (has foreign key to local_keys)
+						diesel::delete(local_values::table).execute(conn).await?;
+						// Then delete local_keys
+						diesel::delete(local_keys::table).execute(conn).await?;
+						Ok(())
+					})
+				})
+				.await;
 
 			match res {
 				Ok(_) => return Ok(()),
@@ -1435,5 +1473,194 @@ mod tests {
 
 		// Prefix scan progress should be removed
 		assert!(cache.get_prefix_scan_progress(hash, prefix).await.unwrap().is_none());
+	}
+
+	// Tests for local storage with validity
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn get_local_key_returns_none_for_nonexistent_key() {
+		let cache = StorageCache::in_memory().await.unwrap();
+
+		let result = cache.get_local_key(b"nonexistent_key").await.unwrap();
+		assert!(result.is_none());
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn insert_local_key_creates_new_key() {
+		let cache = StorageCache::in_memory().await.unwrap();
+		let key = b"new_key";
+
+		// Insert new key
+		let key_id = cache.insert_local_key(key).await.unwrap();
+		assert_eq!(key_id, 1);
+
+		// Verify it exists
+		let result = cache.get_local_key(key).await.unwrap();
+		assert!(result.is_some());
+		assert_eq!(result.unwrap().id, key_id);
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn insert_local_key_returns_existing_id() {
+		let cache = StorageCache::in_memory().await.unwrap();
+		let key = b"duplicate_key";
+
+		// Insert key twice
+		let key_id1 = cache.insert_local_key(key).await.unwrap();
+		let key_id2 = cache.insert_local_key(key).await.unwrap();
+
+		// Should return the same ID
+		assert_eq!(key_id1, key_id2);
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn insert_and_get_local_value_at_block() {
+		let cache = StorageCache::in_memory().await.unwrap();
+		let key = b"test_key";
+		let value = b"test_value";
+
+		// Insert key and value
+		let key_id = cache.insert_local_key(key).await.unwrap();
+		cache.insert_local_value(key_id, value, 100).await.unwrap();
+
+		// Query at block 100 - should find it (valid_from = 100, valid_until = NULL)
+		let result = cache.get_local_value_at_block(key, 100).await.unwrap();
+		assert_eq!(result, Some(value.to_vec()));
+
+		// Query at block 150 - should still find it (valid_until = NULL means still valid)
+		let result = cache.get_local_value_at_block(key, 150).await.unwrap();
+		assert_eq!(result, Some(value.to_vec()));
+
+		// Query at block 99 - should not find it (before valid_from)
+		let result = cache.get_local_value_at_block(key, 99).await.unwrap();
+		assert!(result.is_none());
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn get_local_value_at_block_nonexistent_key() {
+		let cache = StorageCache::in_memory().await.unwrap();
+
+		let result = cache.get_local_value_at_block(b"nonexistent", 100).await.unwrap();
+		assert!(result.is_none());
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn close_local_value_sets_valid_until() {
+		let cache = StorageCache::in_memory().await.unwrap();
+		let key = b"closing_key";
+		let value1 = b"value1";
+		let value2 = b"value2";
+
+		// Insert key and first value at block 100
+		let key_id = cache.insert_local_key(key).await.unwrap();
+		cache.insert_local_value(key_id, value1, 100).await.unwrap();
+
+		// Close at block 150 and insert new value
+		cache.close_local_value(key_id, 150).await.unwrap();
+		cache.insert_local_value(key_id, value2, 150).await.unwrap();
+
+		// Query at block 120 - should get value1
+		let result = cache.get_local_value_at_block(key, 120).await.unwrap();
+		assert_eq!(result, Some(value1.to_vec()));
+
+		// Query at block 150 - should get value2
+		let result = cache.get_local_value_at_block(key, 150).await.unwrap();
+		assert_eq!(result, Some(value2.to_vec()));
+
+		// Query at block 200 - should get value2 (still valid)
+		let result = cache.get_local_value_at_block(key, 200).await.unwrap();
+		assert_eq!(result, Some(value2.to_vec()));
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn get_local_values_at_block_batch_works() {
+		let cache = StorageCache::in_memory().await.unwrap();
+
+		let key1 = b"batch_key1";
+		let key2 = b"batch_key2";
+		let key3 = b"batch_key3";
+		let value1 = b"batch_value1";
+		let value2 = b"batch_value2";
+
+		// Insert keys and values
+		let key_id1 = cache.insert_local_key(key1).await.unwrap();
+		let key_id2 = cache.insert_local_key(key2).await.unwrap();
+		cache.insert_local_value(key_id1, value1, 100).await.unwrap();
+		cache.insert_local_value(key_id2, value2, 100).await.unwrap();
+
+		// Batch query
+		let keys: Vec<&[u8]> = vec![key1, key2, key3];
+		let results = cache.get_local_values_at_block_batch(&keys, 100).await.unwrap();
+
+		assert_eq!(results.len(), 3);
+		assert_eq!(results[0], Some(value1.to_vec()));
+		assert_eq!(results[1], Some(value2.to_vec()));
+		assert!(results[2].is_none()); // key3 doesn't exist
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn get_local_values_at_block_batch_respects_validity() {
+		let cache = StorageCache::in_memory().await.unwrap();
+
+		let key = b"validity_key";
+		let value1 = b"value_v1";
+		let value2 = b"value_v2";
+
+		// Insert key and values with validity ranges
+		let key_id = cache.insert_local_key(key).await.unwrap();
+		cache.insert_local_value(key_id, value1, 100).await.unwrap();
+		cache.close_local_value(key_id, 200).await.unwrap();
+		cache.insert_local_value(key_id, value2, 200).await.unwrap();
+
+		// Query at different blocks
+		let keys: Vec<&[u8]> = vec![key];
+
+		let results = cache.get_local_values_at_block_batch(&keys, 150).await.unwrap();
+		assert_eq!(results[0], Some(value1.to_vec()));
+
+		let results = cache.get_local_values_at_block_batch(&keys, 200).await.unwrap();
+		assert_eq!(results[0], Some(value2.to_vec()));
+
+		let results = cache.get_local_values_at_block_batch(&keys, 99).await.unwrap();
+		assert!(results[0].is_none());
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn get_local_values_at_block_batch_with_duplicate_keys() {
+		let cache = StorageCache::in_memory().await.unwrap();
+
+		let key = b"dup_key";
+		let keys: Vec<&[u8]> = vec![key, key]; // duplicate
+
+		let result = cache.get_local_values_at_block_batch(&keys, 100).await;
+		assert!(matches!(result, Err(CacheError::DuplicatedKeys)));
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn clear_local_storage_removes_all_data() {
+		let cache = StorageCache::in_memory().await.unwrap();
+
+		let key1 = b"clear_key1";
+		let key2 = b"clear_key2";
+		let value = b"some_value";
+
+		// Insert some data
+		let key_id1 = cache.insert_local_key(key1).await.unwrap();
+		let key_id2 = cache.insert_local_key(key2).await.unwrap();
+		cache.insert_local_value(key_id1, value, 100).await.unwrap();
+		cache.insert_local_value(key_id2, value, 100).await.unwrap();
+
+		// Verify data exists
+		assert!(cache.get_local_key(key1).await.unwrap().is_some());
+		assert!(cache.get_local_key(key2).await.unwrap().is_some());
+		assert!(cache.get_local_value_at_block(key1, 100).await.unwrap().is_some());
+
+		// Clear all local storage
+		cache.clear_local_storage().await.unwrap();
+
+		// Verify data is gone
+		assert!(cache.get_local_key(key1).await.unwrap().is_none());
+		assert!(cache.get_local_key(key2).await.unwrap().is_none());
+		assert!(cache.get_local_value_at_block(key1, 100).await.unwrap().is_none());
 	}
 }

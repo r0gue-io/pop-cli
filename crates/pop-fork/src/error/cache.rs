@@ -8,9 +8,6 @@ use thiserror::Error;
 /// Errors that can occur when interacting with the storage cache.
 #[derive(Debug, Error)]
 pub enum CacheError {
-	/// Arithmetic error
-	#[error("Arithmetic error: {0}")]
-	Arithmetic(String),
 	/// Database error.
 	#[error("Database error: {0}")]
 	Database(#[from] diesel::result::Error),
