@@ -234,7 +234,7 @@ impl InherentProvider for TimestampInherent {
 		let key = Self::timestamp_now_key();
 
 		let current_timestamp = match storage.get(parent.number, &key).await? {
-			Some(value) => u64::decode(&mut value.as_slice()).map_err(|e| {
+			Some(v) => u64::decode(&mut v.value.as_slice()).map_err(|e| {
 				BlockBuilderError::InherentProvider {
 					provider: self.identifier().to_string(),
 					message: format!("{}: {}", strings::errors::DECODE_FAILED, e),

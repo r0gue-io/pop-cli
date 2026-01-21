@@ -839,7 +839,7 @@ mod tests {
 				.get(block_number, &alice_key)
 				.await
 				.expect("Failed to get Alice balance")
-				.map(|v| decode_free_balance(&v))
+				.map(|v| decode_free_balance(&v.value))
 				.expect("Alice should have a balance");
 
 			let bob_balance_before = ctx
@@ -848,7 +848,7 @@ mod tests {
 				.get(block_number, &bob_key)
 				.await
 				.expect("Failed to get Bob balance")
-				.map(|v| decode_free_balance(&v))
+				.map(|v| decode_free_balance(&v.value))
 				.expect("Bob should have a balance");
 
 			// Look up Balances pallet and transfer_keep_alive call indices from metadata
@@ -903,7 +903,7 @@ mod tests {
 				.get(new_block_number, &alice_key)
 				.await
 				.expect("Failed to get Alice balance after")
-				.map(|v| decode_free_balance(&v))
+				.map(|v| decode_free_balance(&v.value))
 				.expect("Alice should still have a balance");
 
 			let bob_balance_after = new_block
@@ -911,7 +911,7 @@ mod tests {
 				.get(new_block_number, &bob_key)
 				.await
 				.expect("Failed to get Bob balance after")
-				.map(|v| decode_free_balance(&v))
+				.map(|v| decode_free_balance(&v.value))
 				.expect("Bob should still have a balance");
 
 			// Verify the transfer happened
