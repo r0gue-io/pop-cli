@@ -1,4 +1,4 @@
-use crate::schema::{blocks, local_storage, prefix_scans, storage};
+use crate::schema::{blocks, local_keys, local_values, prefix_scans, storage};
 use diesel::{Insertable, Queryable, Selectable};
 
 #[derive(Insertable, Clone)]
@@ -10,13 +10,29 @@ pub(crate) struct NewStorageRow<'a> {
 	pub is_empty: bool,
 }
 
+/// Local key row for insertions
 #[derive(Insertable, Clone)]
-#[diesel(table_name = local_storage)]
-pub(crate) struct NewLocalStorageRow<'a> {
-	pub block_number: i64,
+#[diesel(table_name = local_keys)]
+pub(crate) struct NewLocalKeyRow<'a> {
 	pub key: &'a [u8],
-	pub value: Option<&'a [u8]>,
-	pub is_empty: bool,
+}
+
+/// Local key row for query results
+#[derive(Queryable, Selectable, Clone, Debug)]
+#[diesel(table_name = local_keys)]
+pub struct LocalKeyRow {
+	pub id: i32,
+	pub key: Vec<u8>,
+}
+
+/// Local value row for insertions
+#[derive(Insertable, Clone)]
+#[diesel(table_name = local_values)]
+pub(crate) struct NewLocalValueRow {
+	pub key_id: i32,
+	pub value: Vec<u8>,
+	pub valid_from: i64,
+	pub valid_until: Option<i64>,
 }
 
 /// Block row for insertions (uses borrowed data to avoid allocations)

@@ -10,11 +10,28 @@ diesel::table! {
 }
 
 diesel::table! {
-	local_storage (block_number, key) {
-		block_number -> BigInt,
+	local_keys (id) {
+		id -> Integer,
 		key -> Binary,
-		value -> Nullable<Binary>,
-		is_empty -> Bool,
+	}
+}
+
+diesel::table! {
+	local_values (id) {
+		id -> Integer,
+		key_id -> Integer,
+		value -> Binary,
+		valid_from -> BigInt,
+		valid_until -> Nullable<BigInt>,
+	}
+}
+
+diesel::table! {
+	prefix_scans (block_hash, prefix) {
+		block_hash -> Binary,
+		prefix -> Binary,
+		last_scanned_key -> Nullable<Binary>,
+		is_complete -> Bool,
 	}
 }
 
@@ -27,13 +44,12 @@ diesel::table! {
 	}
 }
 
-diesel::allow_tables_to_appear_in_same_query!(blocks, storage, local_storage);
+diesel::joinable!(local_values -> local_keys (key_id));
 
-diesel::table! {
-	prefix_scans (block_hash, prefix) {
-		block_hash -> Binary,
-		prefix -> Binary,
-		last_scanned_key -> Nullable<Binary>,
-		is_complete -> Bool,
-	}
-}
+diesel::allow_tables_to_appear_in_same_query!(
+	blocks,
+	local_keys,
+	local_values,
+	prefix_scans,
+	storage,
+);
