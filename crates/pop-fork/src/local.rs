@@ -916,7 +916,7 @@ mod tests {
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
-	async fn get_retrieves_modified_value_from_past_forked_block() {
+	async fn get_retrieves_modified_value_from_fork_history() {
 		let ctx = create_test_context().await;
 		let mut layer = create_layer(&ctx);
 
@@ -1190,7 +1190,7 @@ mod tests {
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
-	async fn get_batch_retrieves_modified_value_from_past_forked_block() {
+	async fn get_batch_retrieves_modified_value_from_fork_history() {
 		let ctx = create_test_context().await;
 		let mut layer = create_layer(&ctx);
 
