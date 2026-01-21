@@ -21,4 +21,10 @@ pub mod runtime_api {
 	/// Called after all extrinsics have been applied.
 	/// Returns the final block header with computed roots.
 	pub const BLOCK_BUILDER_FINALIZE_BLOCK: &str = "BlockBuilder_finalize_block";
+
+	/// Runtime method to retrieve runtime metadata.
+	///
+	/// Called to fetch the metadata of a runtime, typically after a runtime upgrade.
+	/// Returns SCALE-encoded metadata bytes.
+	pub const METADATA_METADATA: &str = "Metadata_metadata";
 }
