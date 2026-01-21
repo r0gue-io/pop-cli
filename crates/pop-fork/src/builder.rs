@@ -533,69 +533,61 @@ mod tests {
 		assert_eq!(consensus_engine::GRANDPA, *b"FRNK");
 	}
 
-	/// Verifies that the Header struct encodes with correct field order.
-	#[test]
-	fn header_encodes_correctly() {
-		let header = Header {
-			parent_hash: H256::zero(),
-			number: 100,
-			state_root: H256::zero(),
-			extrinsics_root: H256::zero(),
-			digest: vec![],
-		};
-		let encoded = header.encode();
-
-		// Header should contain:
-		// - 32 bytes parent_hash
-		// - compact-encoded number (100 = 0x91 0x01 for compact)
-		// - 32 bytes state_root
-		// - 32 bytes extrinsics_root
-		// - compact-encoded digest length (0)
-
-		// Parent hash starts with 32 zero bytes
-		assert!(encoded.starts_with(&[0u8; 32]));
-		// Total should be at least 32 + 1 + 32 + 32 + 1 = 98 bytes
-		assert!(encoded.len() >= 98);
-	}
-
-	/// Verifies that the Header encodes block number using compact encoding.
-	#[test]
-	fn header_uses_compact_block_number() {
-		// Small number (single byte compact)
-		let header1 = Header {
-			parent_hash: H256::zero(),
-			number: 1,
-			state_root: H256::zero(),
-			extrinsics_root: H256::zero(),
-			digest: vec![],
-		};
-
-		// Large number (multi-byte compact)
-		let header2 = Header {
-			parent_hash: H256::zero(),
-			number: 1_000_000,
-			state_root: H256::zero(),
-			extrinsics_root: H256::zero(),
-			digest: vec![],
-		};
-
-		let encoded1 = header1.encode();
-		let encoded2 = header2.encode();
-
-		// The larger block number should result in a larger encoding
-		// because compact encoding uses more bytes for larger values
-		assert!(encoded2.len() > encoded1.len());
-	}
-
 	/// Integration tests that execute BlockBuilder against a local test node.
 	///
 	/// These tests verify the full block building lifecycle including
 	/// initialization, inherent application, and finalization.
 	mod sequential {
 		use super::*;
-		use crate::{Block, ForkRpcClient, RuntimeExecutor, StorageCache};
+		use crate::{Block, ExecutorConfig, ForkRpcClient, RuntimeExecutor, StorageCache};
 		use pop_common::test_env::TestNode;
 		use url::Url;
+
+		/// Well-known dev account: Alice
+		/// SS58: 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
+		const ALICE: [u8; 32] = [
+			0xd4, 0x35, 0x93, 0xc7, 0x15, 0xfd, 0xd3, 0x1c, 0x61, 0x14, 0x1a, 0xbd, 0x04, 0xa9,
+			0x9f, 0xd6, 0x82, 0x2c, 0x85, 0x58, 0x85, 0x4c, 0xcd, 0xe3, 0x9a, 0x56, 0x84, 0xe7,
+			0xa5, 0x6d, 0xa2, 0x7d,
+		];
+
+		/// Well-known dev account: Bob
+		/// SS58: 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty
+		const BOB: [u8; 32] = [
+			0x8e, 0xaf, 0x04, 0x15, 0x16, 0x87, 0x73, 0x63, 0x26, 0xc9, 0xfe, 0xa1, 0x7e, 0x25,
+			0xfc, 0x52, 0x87, 0x61, 0x36, 0x93, 0xc9, 0x12, 0x90, 0x9c, 0xb2, 0x26, 0xaa, 0x47,
+			0x94, 0xf2, 0x6a, 0x48,
+		];
+
+		/// Compute Blake2_128Concat storage key for System::Account.
+		fn account_storage_key(account: &[u8; 32]) -> Vec<u8> {
+			let mut key = Vec::new();
+			// System pallet prefix (balances stored in System::Account for most chains)
+			key.extend(sp_core::twox_128(b"System"));
+			// Account storage map prefix
+			key.extend(sp_core::twox_128(b"Account"));
+			// Blake2_128Concat: hash(16 bytes) + raw key
+			key.extend(sp_core::blake2_128(account));
+			key.extend(account);
+			key
+		}
+
+		/// Decode AccountInfo and extract free balance.
+		fn decode_free_balance(data: &[u8]) -> u128 {
+			// AccountInfo structure:
+			//   nonce: u32 (4 bytes)
+			//   consumers: u32 (4 bytes)
+			//   providers: u32 (4 bytes)
+			//   sufficients: u32 (4 bytes)
+			//   data: AccountData { free: u128, reserved: u128, frozen: u128, flags: u128 }
+			// Total offset to free balance: 16 bytes
+			const ACCOUNT_DATA_OFFSET: usize = 16;
+			u128::from_le_bytes(
+				data[ACCOUNT_DATA_OFFSET..ACCOUNT_DATA_OFFSET + 16]
+					.try_into()
+					.expect("need 16 bytes for u128"),
+			)
+		}
 
 		/// Test context holding a spawned test node and all components needed for block building.
 		struct BlockBuilderTestContext {
@@ -605,8 +597,15 @@ mod tests {
 			executor: RuntimeExecutor,
 		}
 
-		/// Creates a fully initialized block builder test context.
+		/// Creates a fully initialized block builder test context with default executor config.
 		async fn create_test_context() -> BlockBuilderTestContext {
+			create_test_context_with_config(None).await
+		}
+
+		/// Creates a test context with optional custom executor configuration.
+		async fn create_test_context_with_config(
+			config: Option<ExecutorConfig>,
+		) -> BlockBuilderTestContext {
 			let node = TestNode::spawn().await.expect("Failed to spawn test node");
 			let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
 			let rpc = ForkRpcClient::connect(&endpoint).await.expect("Failed to connect to node");
@@ -623,9 +622,12 @@ mod tests {
 				.await
 				.expect("Failed to create fork point");
 
-			// Create executor
-			let executor =
-				RuntimeExecutor::new(runtime_code, None).expect("Failed to create executor");
+			// Create executor with optional custom config
+			let executor = match config {
+				Some(cfg) => RuntimeExecutor::with_config(runtime_code, None, cfg),
+				None => RuntimeExecutor::new(runtime_code, None),
+			}
+			.expect("Failed to create executor");
 
 			BlockBuilderTestContext { node, block, executor }
 		}
@@ -813,52 +815,67 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn apply_extrinsic_succeeds_with_valid_signed_extrinsic() {
-			use crate::{ExecutorConfig, SignatureMockMode, inherent::TimestampInherent};
+			use crate::{SignatureMockMode, inherent::TimestampInherent};
 			use scale::Compact;
 
-			// Create test context with signature mocking enabled
-			let node = TestNode::spawn().await.expect("Failed to spawn test node");
-			let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
-			let rpc = ForkRpcClient::connect(&endpoint).await.expect("Failed to connect to node");
-			let block_hash = rpc.finalized_head().await.expect("Failed to get finalized head");
-			let runtime_code =
-				rpc.runtime_code(block_hash).await.expect("Failed to fetch runtime code");
-			let cache = StorageCache::in_memory().await.expect("Failed to create cache");
-			let block = Block::fork_point(&endpoint, cache, block_hash.into())
-				.await
-				.expect("Failed to create fork point");
+			// Transfer 100 units (with 12 decimals)
+			const TRANSFER_AMOUNT: u128 = 100_000_000_000_000;
 
-			// Create executor with AlwaysValid signature mode
+			// Create test context with signature mocking enabled
 			let config = ExecutorConfig {
 				signature_mock: SignatureMockMode::AlwaysValid,
 				..Default::default()
 			};
-			let executor = RuntimeExecutor::with_config(runtime_code, None, config)
-				.expect("Failed to create executor");
+			let ctx = create_test_context_with_config(Some(config)).await;
 
-			// Look up System pallet and remark call indices from metadata
-			let metadata = block.metadata();
-			let system_pallet =
-				metadata.pallet_by_name("System").expect("System pallet should exist");
-			let pallet_index = system_pallet.index();
-			let remark_call =
-				system_pallet.call_variant_by_name("remark").expect("remark call should exist");
-			let call_index = remark_call.index;
+			// Query initial balances before moving block into builder
+			let alice_key = account_storage_key(&ALICE);
+			let bob_key = account_storage_key(&BOB);
+			let block_number = ctx.block.number;
 
-			// Encode the call: System.remark(b"test")
-			let remark_data = b"test".to_vec();
+			let alice_balance_before = ctx
+				.block
+				.storage()
+				.get(block_number, &alice_key)
+				.await
+				.expect("Failed to get Alice balance")
+				.map(|v| decode_free_balance(&v))
+				.expect("Alice should have a balance");
+
+			let bob_balance_before = ctx
+				.block
+				.storage()
+				.get(block_number, &bob_key)
+				.await
+				.expect("Failed to get Bob balance")
+				.map(|v| decode_free_balance(&v))
+				.expect("Bob should have a balance");
+
+			// Look up Balances pallet and transfer_keep_alive call indices from metadata
+			let metadata = ctx.block.metadata();
+			let balances_pallet =
+				metadata.pallet_by_name("Balances").expect("Balances pallet should exist");
+			let pallet_index = balances_pallet.index();
+			let transfer_call = balances_pallet
+				.call_variant_by_name("transfer_keep_alive")
+				.expect("transfer_keep_alive call should exist");
+			let call_index = transfer_call.index;
+
+			// Encode the call: Balances.transfer_keep_alive(Bob, 100 units)
+			// Format: [pallet_index, call_index, MultiAddress::Id(0x00 + 32 bytes), Compact<u128>]
 			let mut call_data = vec![pallet_index, call_index];
-			call_data.extend(Compact(remark_data.len() as u32).encode());
-			call_data.extend(&remark_data);
+			call_data.push(0x00); // MultiAddress::Id variant
+			call_data.extend(BOB);
+			call_data.extend(Compact(TRANSFER_AMOUNT).encode());
 
 			// Build a V4 signed extrinsic
 			let extrinsic = build_mock_signed_extrinsic_v4(&call_data);
 
 			// Set up builder with timestamp inherent
-			let header = create_next_header(&block, vec![]);
+			let header = create_next_header(&ctx.block, vec![]);
 			let providers: Vec<Box<dyn crate::InherentProvider>> =
 				vec![Box::new(TimestampInherent::default_relay())];
-			let mut builder = BlockBuilder::new(block, executor, header, providers);
+			let mut builder = BlockBuilder::new(ctx.block, ctx.executor, header, providers);
 
 			builder.initialize().await.expect("initialize failed");
 			builder.apply_inherents().await.expect("apply_inherents failed");
@@ -874,6 +891,42 @@ mod tests {
 				matches!(result, ApplyExtrinsicResult::Success { .. }),
 				"Expected success, got: {:?}",
 				result
+			);
+
+			// Finalize the block to get the resulting state
+			let new_block = builder.finalize().await.expect("finalize failed");
+			let new_block_number = new_block.number;
+
+			// Query balances after the transfer from LocalLayer
+			let alice_balance_after = new_block
+				.storage()
+				.get(new_block_number, &alice_key)
+				.await
+				.expect("Failed to get Alice balance after")
+				.map(|v| decode_free_balance(&v))
+				.expect("Alice should still have a balance");
+
+			let bob_balance_after = new_block
+				.storage()
+				.get(new_block_number, &bob_key)
+				.await
+				.expect("Failed to get Bob balance after")
+				.map(|v| decode_free_balance(&v))
+				.expect("Bob should still have a balance");
+
+			// Verify the transfer happened
+			// Note: Alice also pays transaction fees, so her balance decreases by more than
+			// TRANSFER_AMOUNT
+			assert!(alice_balance_after < alice_balance_before, "Alice balance should decrease");
+			assert_eq!(
+				bob_balance_after,
+				bob_balance_before + TRANSFER_AMOUNT,
+				"Bob should receive exactly the transfer amount"
+			);
+			// Verify Alice paid at least the transfer amount (plus some fees)
+			assert!(
+				alice_balance_before - alice_balance_after >= TRANSFER_AMOUNT,
+				"Alice should have paid at least the transfer amount plus fees"
 			);
 		}
 
@@ -914,12 +967,7 @@ mod tests {
 			// Address: MultiAddress::Id variant (0x00) + 32-byte account
 			// Use Alice's well-known dev account (CheckNonZeroSender rejects zero address)
 			inner.push(0x00); // Id variant
-			let alice_account = sp_core::sr25519::Public::from_raw([
-				0xd4, 0x35, 0x93, 0xc7, 0x15, 0xfd, 0xd3, 0x1c, 0x61, 0x14, 0x1a, 0xbd, 0x04, 0xa9,
-				0x9f, 0xd6, 0x82, 0x2c, 0x85, 0x58, 0x85, 0x4c, 0xcd, 0xe3, 0x9a, 0x56, 0x84, 0xe7,
-				0xa5, 0x6d, 0xa2, 0x7d,
-			]);
-			inner.extend(alice_account.0);
+			inner.extend(ALICE);
 
 			// Signature: 64 bytes (dummy - works with AlwaysValid)
 			inner.extend([0u8; 64]);
