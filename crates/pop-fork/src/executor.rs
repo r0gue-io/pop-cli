@@ -74,6 +74,7 @@
 use crate::{
 	LocalStorageLayer,
 	error::ExecutorError,
+	local::LocalSharedValue,
 	strings::executor::{magic_signature, storage_prefixes},
 };
 use smoldot::{
@@ -88,11 +89,11 @@ use smoldot::{
 };
 use std::{collections::BTreeMap, iter, sync::Arc};
 
-struct ArcBytes(Arc<Vec<u8>>);
+struct ArcLocalSharedValue(Arc<LocalSharedValue>);
 
-impl AsRef<[u8]> for ArcBytes {
+impl AsRef<[u8]> for ArcLocalSharedValue {
 	fn as_ref(&self) -> &[u8] {
-		self.0.as_ref()
+		self.0.as_ref().as_ref()
 	}
 }
 
@@ -371,7 +372,9 @@ impl RuntimeExecutor {
 							}
 						})?;
 						req.inject_value(
-							value.map(|v| (iter::once(ArcBytes(v)), TrieEntryVersion::V1)),
+							value.map(|v| {
+								(iter::once(ArcLocalSharedValue(v)), TrieEntryVersion::V1)
+							}),
 						)
 					}
 				},

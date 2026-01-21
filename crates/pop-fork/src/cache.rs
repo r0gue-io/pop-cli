@@ -7,8 +7,11 @@
 
 use crate::{
 	error::cache::CacheError,
-	models::{BlockRow, NewBlockRow, NewLocalStorageRow, NewPrefixScanRow, NewStorageRow},
-	schema::{blocks, local_storage, prefix_scans, storage},
+	models::{
+		BlockRow, LocalKeyRow, NewBlockRow, NewLocalKeyRow, NewLocalValueRow, NewPrefixScanRow,
+		NewStorageRow,
+	},
+	schema::{blocks, local_keys, local_values, prefix_scans, storage},
 	strings::cache::{errors, lock_patterns, pragmas, urls},
 };
 use bb8::CustomizeConnection;
@@ -98,7 +101,7 @@ impl std::fmt::Debug for StorageConn {
 /// Connection guard that handles both pool and single connection types.
 ///
 /// Automatically returns the connection to the pool or unlocks the mutex when dropped.
-enum ConnectionGuard<'a> {
+pub(crate) enum ConnectionGuard<'a> {
 	Pool(PooledConnection<'a, SyncConnectionWrapper<SqliteConnection>>),
 	Single(MutexGuard<'a, SyncConnectionWrapper<SqliteConnection>>),
 }
@@ -218,7 +221,7 @@ impl StorageCache {
 	///
 	/// Handles acquiring the connection from either the pool or single mutex.
 	/// The connection is automatically returned to the pool or unlocks the mutex when dropped.
-	async fn get_conn(&self) -> Result<ConnectionGuard<'_>, CacheError> {
+	pub(crate) async fn get_conn(&self) -> Result<ConnectionGuard<'_>, CacheError> {
 		match &self.inner {
 			StorageConn::Pool(pool) => {
 				let conn = pool.get().await.map_err(|e| {
@@ -424,64 +427,193 @@ impl StorageCache {
 		}
 	}
 
-	/// Get a cached local storage value.
+	/// Get a local key's ID from the local_keys table.
 	///
 	/// # Returns
-	/// * `Ok(Some(Some(value)))` - Cached with a value.
-	/// * `Ok(Some(None))` - Cached as empty (storage key exists but has no value).
-	/// * `Ok(None)` - Not in cache (unknown).
-	pub async fn get_local_storage(
-		&self,
-		block_number: u32,
-		key: &[u8],
-	) -> Result<Option<Option<Vec<u8>>>, CacheError> {
-		use crate::schema::local_storage::columns as lsc;
+	/// * `Ok(Some(key_row))` - Key exists with its ID
+	/// * `Ok(None)` - Key not in local_keys table
+	pub async fn get_local_key(&self, key: &[u8]) -> Result<Option<LocalKeyRow>, CacheError> {
+		use crate::schema::local_keys::columns as lkc;
 
 		let mut conn = self.get_conn().await?;
 
-		let row: Option<(Option<Vec<u8>>, bool)> = local_storage::table
-			.filter(lsc::block_number.eq(block_number as i64))
-			.filter(lsc::key.eq(key))
-			.select((lsc::value, lsc::is_empty))
-			.first::<(Option<Vec<u8>>, bool)>(&mut conn)
+		let row = local_keys::table
+			.filter(lkc::key.eq(key))
+			.select(LocalKeyRow::as_select())
+			.first(&mut conn)
 			.await
 			.optional()?;
 
-		Ok(row.map(|(val, empty)| if empty { None } else { val }))
+		Ok(row)
 	}
 
-	/// Cache a local storage value.
+	/// Insert a new key into local_keys and return its ID.
 	///
-	/// # Arguments
-	/// * `block_number` - The block number this local storage is associated with
-	/// * `key` - The storage key
-	/// * `value` - The storage value, or None if the key has no value (empty)
-	pub async fn set_local_storage(
-		&self,
-		block_number: u32,
-		key: &[u8],
-		value: Option<&[u8]>,
-	) -> Result<(), CacheError> {
-		use crate::schema::local_storage::columns as lsc;
+	/// If the key already exists, returns the existing ID.
+	pub async fn insert_local_key(&self, key: &[u8]) -> Result<i32, CacheError> {
+		use crate::schema::local_keys::columns as lkc;
 
 		let mut attempts = 0;
 		loop {
 			let mut conn = self.get_conn().await?;
 
-			let row = NewLocalStorageRow {
-				block_number: block_number as i64,
-				key,
-				value,
-				is_empty: value.is_none(),
-			};
-
-			let res = diesel::insert_into(local_storage::table)
-				.values(&row)
-				.on_conflict((lsc::block_number, lsc::key))
-				.do_update()
-				.set((lsc::value.eq(value), lsc::is_empty.eq(row.is_empty)))
+			// Try to insert, ignore conflict (key already exists)
+			let res = diesel::insert_into(local_keys::table)
+				.values(NewLocalKeyRow { key })
+				.on_conflict(lkc::key)
+				.do_nothing()
 				.execute(&mut conn)
 				.await;
+
+			match res {
+				Ok(_) => {
+					// Fetch the ID (either just inserted or already existed)
+					let key_id: i32 = local_keys::table
+						.filter(lkc::key.eq(key))
+						.select(lkc::id)
+						.first(&mut conn)
+						.await?;
+					return Ok(key_id);
+				},
+				Err(e) if is_locked_error(&e) && attempts < MAX_LOCK_RETRIES => {
+					retry_conn(&mut attempts).await;
+					continue;
+				},
+				Err(e) => return Err(e.into()),
+			}
+		}
+	}
+
+	/// Get a local storage value valid at a specific block number.
+	///
+	/// Queries the local_values table for a value that is valid at the given block:
+	/// valid_from <= block_number AND (valid_until IS NULL OR valid_until > block_number)
+	///
+	/// # Returns
+	/// * `Ok(Some(value))` - Value found
+	/// * `Ok(None)` - No value valid at this block
+	pub async fn get_local_value_at_block(
+		&self,
+		key: &[u8],
+		block_number: u32,
+	) -> Result<Option<Vec<u8>>, CacheError> {
+		use crate::schema::{local_keys::columns as lkc, local_values::columns as lvc};
+
+		let mut conn = self.get_conn().await?;
+		let block_num = block_number as i64;
+
+		// First get the key_id
+		let key_id: i32 = match local_keys::table
+			.filter(lkc::key.eq(key))
+			.select(lkc::id)
+			.first(&mut conn)
+			.await
+			.optional()?
+		{
+			Some(id) => id,
+			_ => return Ok(None),
+		};
+
+		// Query for value valid at block_number (value column is NOT NULL)
+		let value: Option<Vec<u8>> = local_values::table
+			.filter(lvc::key_id.eq(key_id))
+			.filter(lvc::valid_from.le(block_num))
+			.filter(lvc::valid_until.is_null().or(lvc::valid_until.gt(block_num)))
+			.select(lvc::value)
+			.first(&mut conn)
+			.await
+			.optional()?;
+
+		Ok(value)
+	}
+
+	/// Get multiple local storage values valid at a specific block number.
+	///
+	/// Returns results in the same order as the input keys.
+	pub async fn get_local_values_at_block_batch(
+		&self,
+		keys: &[&[u8]],
+		block_number: u32,
+	) -> Result<Vec<Option<Vec<u8>>>, CacheError> {
+		if keys.is_empty() {
+			return Ok(vec![]);
+		}
+
+		let mut seen = HashSet::with_capacity(keys.len());
+		if keys.iter().any(|key| !seen.insert(key)) {
+			return Err(CacheError::DuplicatedKeys);
+		}
+
+		use crate::schema::{local_keys::columns as lkc, local_values::columns as lvc};
+
+		let mut conn = self.get_conn().await?;
+		let block_num = block_number as i64;
+
+		// Get all key_ids for the requested keys
+		let key_rows: Vec<LocalKeyRow> = local_keys::table
+			.filter(lkc::key.eq_any(keys))
+			.select(LocalKeyRow::as_select())
+			.load(&mut conn)
+			.await?;
+
+		// Build a map from key bytes to key_id
+		let key_to_id: HashMap<Vec<u8>, i32> =
+			key_rows.iter().map(|r| (r.key.clone(), r.id)).collect();
+
+		// Get all key_ids that exist
+		let key_ids: Vec<i32> = key_to_id.values().copied().collect();
+
+		if key_ids.is_empty() {
+			return Ok(vec![None; keys.len()]);
+		}
+
+		// Query for values valid at block_number for all key_ids (value column is NOT NULL)
+		let value_rows: Vec<(i32, Vec<u8>)> = local_values::table
+			.filter(lvc::key_id.eq_any(&key_ids))
+			.filter(lvc::valid_from.le(block_num))
+			.filter(lvc::valid_until.is_null().or(lvc::valid_until.gt(block_num)))
+			.select((lvc::key_id, lvc::value))
+			.load(&mut conn)
+			.await?;
+
+		// Build a map from key_id to value
+		let mut id_to_value: HashMap<i32, Vec<u8>> = HashMap::new();
+		for (key_id, value) in value_rows {
+			id_to_value.insert(key_id, value);
+		}
+
+		// Build result in same order as input keys
+		Ok(keys
+			.iter()
+			.map(|key| key_to_id.get(*key).and_then(|key_id| id_to_value.remove(key_id)))
+			.collect())
+	}
+
+	/// Insert a new local value entry.
+	///
+	/// # Arguments
+	/// * `key_id` - The key ID from local_keys table
+	/// * `value` - The value bytes
+	/// * `valid_from` - Block number when this value becomes valid
+	pub async fn insert_local_value(
+		&self,
+		key_id: i32,
+		value: &[u8],
+		valid_from: u32,
+	) -> Result<(), CacheError> {
+		let mut attempts = 0;
+		loop {
+			let mut conn = self.get_conn().await?;
+
+			let row = NewLocalValueRow {
+				key_id,
+				value: value.to_vec(),
+				valid_from: valid_from as i64,
+				valid_until: None,
+			};
+
+			let res =
+				diesel::insert_into(local_values::table).values(&row).execute(&mut conn).await;
 
 			match res {
 				Ok(_) => return Ok(()),
@@ -494,102 +626,52 @@ impl StorageCache {
 		}
 	}
 
-	/// Get multiple cached local storage values in a batch.
+	/// Close the currently open local value entry (set valid_until).
 	///
-	/// Returns results in the same order as the input keys.
-	pub async fn get_local_storage_batch(
-		&self,
-		block_number: u32,
-		keys: &[&[u8]],
-	) -> Result<Vec<Option<Option<Vec<u8>>>>, CacheError> {
-		if keys.is_empty() {
-			return Ok(vec![]);
-		}
+	/// Finds the entry for this key_id where valid_until IS NULL and sets it.
+	pub async fn close_local_value(&self, key_id: i32, valid_until: u32) -> Result<(), CacheError> {
+		use crate::schema::local_values::columns as lvc;
 
-		let mut seen = HashSet::with_capacity(keys.len());
-		if keys.iter().any(|key| !seen.insert(key)) {
-			return Err(CacheError::DuplicatedKeys);
-		}
-
-		use crate::schema::local_storage::columns as lsc;
-		let mut conn = self.get_conn().await?;
-
-		let rows: Vec<(Vec<u8>, Option<Vec<u8>>, bool)> = local_storage::table
-			.filter(lsc::block_number.eq(block_number as i64))
-			.filter(lsc::key.eq_any(keys))
-			.select((lsc::key, lsc::value, lsc::is_empty))
-			.load::<(Vec<u8>, Option<Vec<u8>>, bool)>(&mut conn)
-			.await?;
-
-		// Build a map from the results. SQLite doesn't guarantee result order matches
-		// the IN clause order, so we use a HashMap to look up values by key.
-		let mut cache_map = HashMap::new();
-		for (key, value, empty) in rows {
-			let value = if empty { None } else { value };
-			cache_map.insert(key, value);
-		}
-
-		// Return values in the same order as input keys.
-		// Keys not found in cache_map (not in DB) return None (not cached).
-		// Keys found return Some(value) where value is None for empty or Some(bytes) for data.
-		Ok(keys.iter().map(|key| cache_map.remove(*key)).collect())
-	}
-
-	/// Cache multiple local storage values in a batch.
-	///
-	/// Uses a transaction for efficiency.
-	pub async fn set_local_storage_batch(
-		&self,
-		block_number: u32,
-		entries: &[(&[u8], Option<&[u8]>)],
-	) -> Result<(), CacheError> {
-		if entries.is_empty() {
-			return Ok(());
-		}
-
-		let mut seen = HashSet::with_capacity(entries.len());
-		if entries.iter().any(|(key, _)| !seen.insert(key)) {
-			return Err(CacheError::DuplicatedKeys);
-		}
-
-		// Use a transaction to batch all inserts together.
-		// This is significantly faster than individual inserts because:
-		// 1. SQLite commits are expensive (fsync to disk)
-		// 2. A transaction groups all inserts into a single commit
-		// 3. If any insert fails, the entire batch is rolled back
-		use crate::schema::local_storage::columns as lsc;
-		let entries = Arc::new(entries);
-		let block_number = Arc::new(block_number);
-
-		// Retry loop for transient SQLite lock/busy errors.
-		// SQLite may return SQLITE_BUSY when another connection holds a lock.
-		// We retry up to MAX_LOCK_RETRIES (30) times with increasing backoff delays.
 		let mut attempts = 0;
 		loop {
-			let entries = Arc::clone(&entries);
-			let block_number = Arc::clone(&block_number);
 			let mut conn = self.get_conn().await?;
+
+			let res = diesel::update(
+				local_values::table
+					.filter(lvc::key_id.eq(key_id))
+					.filter(lvc::valid_until.is_null()),
+			)
+			.set(lvc::valid_until.eq(Some(valid_until as i64)))
+			.execute(&mut conn)
+			.await;
+
+			match res {
+				Ok(_) => return Ok(()),
+				Err(e) if is_locked_error(&e) && attempts < MAX_LOCK_RETRIES => {
+					retry_conn(&mut attempts).await;
+					continue;
+				},
+				Err(e) => return Err(e.into()),
+			}
+		}
+	}
+
+	/// Clear all local storage data (both local_keys and local_values tables).
+	///
+	/// This removes all locally tracked key-value pairs and their validity history.
+	/// Uses a transaction to ensure both tables are cleared atomically.
+	pub async fn clear_local_storage(&self) -> Result<(), CacheError> {
+		let mut attempts = 0;
+		loop {
+			let mut conn = self.get_conn().await?;
+
 			let res = conn
-				.transaction::<_, DieselError, _>(move |conn| {
+				.transaction::<_, DieselError, _>(|conn| {
 					Box::pin(async move {
-						let new_rows: Vec<NewLocalStorageRow> = entries
-							.iter()
-							.map(|(key, value)| NewLocalStorageRow {
-								block_number: *block_number as i64,
-								key,
-								value: *value,
-								is_empty: value.is_none(),
-							})
-							.collect();
-						for row in new_rows {
-							diesel::insert_into(local_storage::table)
-								.values(&row)
-								.on_conflict((lsc::block_number, lsc::key))
-								.do_update()
-								.set((lsc::value.eq(row.value), lsc::is_empty.eq(row.is_empty)))
-								.execute(conn)
-								.await?;
-						}
+						// Delete local_values first (has foreign key to local_keys)
+						diesel::delete(local_values::table).execute(conn).await?;
+						// Then delete local_keys
+						diesel::delete(local_keys::table).execute(conn).await?;
 						Ok(())
 					})
 				})
@@ -1391,5 +1473,194 @@ mod tests {
 
 		// Prefix scan progress should be removed
 		assert!(cache.get_prefix_scan_progress(hash, prefix).await.unwrap().is_none());
+	}
+
+	// Tests for local storage with validity
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn get_local_key_returns_none_for_nonexistent_key() {
+		let cache = StorageCache::in_memory().await.unwrap();
+
+		let result = cache.get_local_key(b"nonexistent_key").await.unwrap();
+		assert!(result.is_none());
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn insert_local_key_creates_new_key() {
+		let cache = StorageCache::in_memory().await.unwrap();
+		let key = b"new_key";
+
+		// Insert new key
+		let key_id = cache.insert_local_key(key).await.unwrap();
+		assert_eq!(key_id, 1);
+
+		// Verify it exists
+		let result = cache.get_local_key(key).await.unwrap();
+		assert!(result.is_some());
+		assert_eq!(result.unwrap().id, key_id);
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn insert_local_key_returns_existing_id() {
+		let cache = StorageCache::in_memory().await.unwrap();
+		let key = b"duplicate_key";
+
+		// Insert key twice
+		let key_id1 = cache.insert_local_key(key).await.unwrap();
+		let key_id2 = cache.insert_local_key(key).await.unwrap();
+
+		// Should return the same ID
+		assert_eq!(key_id1, key_id2);
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn insert_and_get_local_value_at_block() {
+		let cache = StorageCache::in_memory().await.unwrap();
+		let key = b"test_key";
+		let value = b"test_value";
+
+		// Insert key and value
+		let key_id = cache.insert_local_key(key).await.unwrap();
+		cache.insert_local_value(key_id, value, 100).await.unwrap();
+
+		// Query at block 100 - should find it (valid_from = 100, valid_until = NULL)
+		let result = cache.get_local_value_at_block(key, 100).await.unwrap();
+		assert_eq!(result, Some(value.to_vec()));
+
+		// Query at block 150 - should still find it (valid_until = NULL means still valid)
+		let result = cache.get_local_value_at_block(key, 150).await.unwrap();
+		assert_eq!(result, Some(value.to_vec()));
+
+		// Query at block 99 - should not find it (before valid_from)
+		let result = cache.get_local_value_at_block(key, 99).await.unwrap();
+		assert!(result.is_none());
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn get_local_value_at_block_nonexistent_key() {
+		let cache = StorageCache::in_memory().await.unwrap();
+
+		let result = cache.get_local_value_at_block(b"nonexistent", 100).await.unwrap();
+		assert!(result.is_none());
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn close_local_value_sets_valid_until() {
+		let cache = StorageCache::in_memory().await.unwrap();
+		let key = b"closing_key";
+		let value1 = b"value1";
+		let value2 = b"value2";
+
+		// Insert key and first value at block 100
+		let key_id = cache.insert_local_key(key).await.unwrap();
+		cache.insert_local_value(key_id, value1, 100).await.unwrap();
+
+		// Close at block 150 and insert new value
+		cache.close_local_value(key_id, 150).await.unwrap();
+		cache.insert_local_value(key_id, value2, 150).await.unwrap();
+
+		// Query at block 120 - should get value1
+		let result = cache.get_local_value_at_block(key, 120).await.unwrap();
+		assert_eq!(result, Some(value1.to_vec()));
+
+		// Query at block 150 - should get value2
+		let result = cache.get_local_value_at_block(key, 150).await.unwrap();
+		assert_eq!(result, Some(value2.to_vec()));
+
+		// Query at block 200 - should get value2 (still valid)
+		let result = cache.get_local_value_at_block(key, 200).await.unwrap();
+		assert_eq!(result, Some(value2.to_vec()));
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn get_local_values_at_block_batch_works() {
+		let cache = StorageCache::in_memory().await.unwrap();
+
+		let key1 = b"batch_key1";
+		let key2 = b"batch_key2";
+		let key3 = b"batch_key3";
+		let value1 = b"batch_value1";
+		let value2 = b"batch_value2";
+
+		// Insert keys and values
+		let key_id1 = cache.insert_local_key(key1).await.unwrap();
+		let key_id2 = cache.insert_local_key(key2).await.unwrap();
+		cache.insert_local_value(key_id1, value1, 100).await.unwrap();
+		cache.insert_local_value(key_id2, value2, 100).await.unwrap();
+
+		// Batch query
+		let keys: Vec<&[u8]> = vec![key1, key2, key3];
+		let results = cache.get_local_values_at_block_batch(&keys, 100).await.unwrap();
+
+		assert_eq!(results.len(), 3);
+		assert_eq!(results[0], Some(value1.to_vec()));
+		assert_eq!(results[1], Some(value2.to_vec()));
+		assert!(results[2].is_none()); // key3 doesn't exist
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn get_local_values_at_block_batch_respects_validity() {
+		let cache = StorageCache::in_memory().await.unwrap();
+
+		let key = b"validity_key";
+		let value1 = b"value_v1";
+		let value2 = b"value_v2";
+
+		// Insert key and values with validity ranges
+		let key_id = cache.insert_local_key(key).await.unwrap();
+		cache.insert_local_value(key_id, value1, 100).await.unwrap();
+		cache.close_local_value(key_id, 200).await.unwrap();
+		cache.insert_local_value(key_id, value2, 200).await.unwrap();
+
+		// Query at different blocks
+		let keys: Vec<&[u8]> = vec![key];
+
+		let results = cache.get_local_values_at_block_batch(&keys, 150).await.unwrap();
+		assert_eq!(results[0], Some(value1.to_vec()));
+
+		let results = cache.get_local_values_at_block_batch(&keys, 200).await.unwrap();
+		assert_eq!(results[0], Some(value2.to_vec()));
+
+		let results = cache.get_local_values_at_block_batch(&keys, 99).await.unwrap();
+		assert!(results[0].is_none());
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn get_local_values_at_block_batch_with_duplicate_keys() {
+		let cache = StorageCache::in_memory().await.unwrap();
+
+		let key = b"dup_key";
+		let keys: Vec<&[u8]> = vec![key, key]; // duplicate
+
+		let result = cache.get_local_values_at_block_batch(&keys, 100).await;
+		assert!(matches!(result, Err(CacheError::DuplicatedKeys)));
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn clear_local_storage_removes_all_data() {
+		let cache = StorageCache::in_memory().await.unwrap();
+
+		let key1 = b"clear_key1";
+		let key2 = b"clear_key2";
+		let value = b"some_value";
+
+		// Insert some data
+		let key_id1 = cache.insert_local_key(key1).await.unwrap();
+		let key_id2 = cache.insert_local_key(key2).await.unwrap();
+		cache.insert_local_value(key_id1, value, 100).await.unwrap();
+		cache.insert_local_value(key_id2, value, 100).await.unwrap();
+
+		// Verify data exists
+		assert!(cache.get_local_key(key1).await.unwrap().is_some());
+		assert!(cache.get_local_key(key2).await.unwrap().is_some());
+		assert!(cache.get_local_value_at_block(key1, 100).await.unwrap().is_some());
+
+		// Clear all local storage
+		cache.clear_local_storage().await.unwrap();
+
+		// Verify data is gone
+		assert!(cache.get_local_key(key1).await.unwrap().is_none());
+		assert!(cache.get_local_key(key2).await.unwrap().is_none());
+		assert!(cache.get_local_value_at_block(key1, 100).await.unwrap().is_none());
 	}
 }

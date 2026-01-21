@@ -47,14 +47,35 @@
 //! local.delete_prefix(&prefix)?;
 //! ```
 
-use crate::{error::LocalStorageError, models::BlockRow, remote::RemoteStorageLayer};
+use crate::{
+	error::LocalStorageError,
+	models::{BlockRow, LocalKeyRow},
+	remote::RemoteStorageLayer,
+};
 use std::{
 	collections::HashMap,
 	sync::{Arc, RwLock},
 };
 use subxt::config::substrate::H256;
 
-type SharedValue = Arc<Vec<u8>>;
+const ONE_BLOCK: u32 = 1;
+
+/// A value that can be shared accross different local storage layer instances
+#[derive(Debug, PartialEq)]
+pub struct LocalSharedValue {
+	last_modification_block: u32,
+	/// The actual value
+	pub value: Vec<u8>,
+}
+
+impl AsRef<[u8]> for LocalSharedValue {
+	/// AsRef implementation to get the value bytes of this local shared value
+	fn as_ref(&self) -> &[u8] {
+		self.value.as_ref()
+	}
+}
+
+type SharedValue = Arc<LocalSharedValue>;
 type Modifications = HashMap<Vec<u8>, Option<SharedValue>>;
 type DeletedPrefixes = Vec<Vec<u8>>;
 type DiffLocalStorage = Vec<(Vec<u8>, Option<SharedValue>)>;
@@ -68,7 +89,8 @@ type DiffLocalStorage = Vec<(Vec<u8>, Option<SharedValue>)>;
 /// # Block-based Storage Strategy
 ///
 /// - `latest_block_number`: Current working block number (modifications in HashMap)
-/// - `first_forked_block_number`: Initial fork point (immutable)
+/// - Keys queried at a block higher than the last modification of that key, queried at
+///   modifications HashMap
 /// - Blocks between first_forked_block_number and latest_block_number are in local_storage table
 /// - Blocks before first_forked_block_number come from remote provider
 ///
@@ -148,6 +170,38 @@ impl LocalStorageLayer {
 		self.latest_block_number
 	}
 
+	/// Return the value of the specified key at height `block_number` if the value contained in the
+	/// local modifications is valid at that height.
+	///
+	/// # Arguments
+	/// - `key`
+	/// - `block_number`
+	fn get_local_modification(
+		&self,
+		key: &[u8],
+		block_number: u32,
+	) -> Result<Option<Option<SharedValue>>, LocalStorageError> {
+		let latest_block_number = self.get_latest_block_number();
+		let modifications_lock =
+			self.modifications.read().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
+		let deleted_prefixes_lock = self
+			.deleted_prefixes
+			.read()
+			.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
+
+		match modifications_lock.get(key) {
+			local_modification @ Some(Some(shared_value))
+				if latest_block_number == block_number ||
+					shared_value.last_modification_block < block_number =>
+				Ok(local_modification.cloned()), /* <- Cheap clone as it's Option<Option<Arc<_>>> */
+			None if deleted_prefixes_lock
+				.iter()
+				.any(|prefix| key.starts_with(prefix.as_slice())) =>
+				Ok(Some(None)),
+			_ => Ok(None),
+		}
+	}
+
 	/// Get a storage value, checking local modifications first.
 	///
 	/// # Arguments
@@ -160,8 +214,8 @@ impl LocalStorageLayer {
 	///
 	/// # Behavior
 	/// Storage lookup strategy based on block_number:
-	/// 1. If `block_number == latest_block_number`: Check modifications HashMap, then remote at
-	///    first_forked_block
+	/// 1. If `block_number == latest_block_number` or the key in local modifications is valid for
+	///    this block: Check modifications HashMap, then remote at first_forked_block
 	/// 2. If `first_forked_block_number < block_number < latest_block_number`: Check local_storage
 	///    table
 	/// 3. Otherwise: Check remote provider directly (fetches block_hash from blocks table)
@@ -172,40 +226,48 @@ impl LocalStorageLayer {
 	) -> Result<Option<SharedValue>, LocalStorageError> {
 		let latest_block_number = self.get_latest_block_number();
 
-		// Case 1: Query for latest block - check modifications, then remote at first_forked_block
-		if block_number == latest_block_number {
-			{
-				let modifications_lock = self
-					.modifications
-					.read()
-					.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
-				let deleted_prefixes_lock = self
-					.deleted_prefixes
-					.read()
-					.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
-				match modifications_lock.get(key) {
-					Some(value) => return Ok(value.clone()),
-					None if deleted_prefixes_lock
-						.iter()
-						.any(|prefix| key.starts_with(prefix.as_slice())) =>
-					{
-						return Ok(None);
-					},
-					_ => (),
-				}
-			}
-			// Not in modifications, query remote at first_forked_block
-			return Ok(self.parent.get(self.first_forked_block_hash, key).await?.map(Arc::new));
+		// First check if the key has a local modification
+		if let local_modification @ Ok(Some(_)) = self.get_local_modification(key, block_number) {
+			return local_modification.map(|local_modification| local_modification.flatten());
 		}
 
-		// Case 2: Historical block after fork - check local_storage table, otherwise query remote
-		// at first_forked_block
+		// Case 1: Query for latest block - check modifications, then remote at first_forked_block
+		if block_number == latest_block_number {
+			// Not in modifications, query remote at first_forked_block
+			return Ok(self
+				.parent
+				.get(self.first_forked_block_hash, key)
+				.await?
+				.map(|value| LocalSharedValue {
+					last_modification_block: 0, /* <- We don't care about the validity block for
+					                             * this value as it came from the remote layer */
+					value,
+				})
+				.map(Arc::new));
+		}
+
+		// Case 2: Historical block after fork such that the local modification is still valid -
+		// check the local modifications map, otherwise fallback to cache and finally remote layer.
 		if block_number > self.first_forked_block_number && block_number < latest_block_number {
-			if let Some(cached) = self.parent.cache().get_local_storage(block_number, key).await? {
-				return Ok(cached.map(Arc::new));
-			} else {
-				return Ok(self.parent.get(self.first_forked_block_hash, key).await?.map(Arc::new));
+			// Try to get value from local_values table using validity ranges
+			let value = if let Some(local_value) =
+				self.parent.cache().get_local_value_at_block(key, block_number).await?
+			{
+				local_value
 			}
+			// Not found in local storage, try remote at first_forked_block
+			else if let Some(remote_value) =
+				self.parent.get(self.first_forked_block_hash, key).await?
+			{
+				remote_value
+			} else {
+				return Ok(None);
+			};
+
+			return Ok(Some(Arc::new(LocalSharedValue {
+				last_modification_block: 0, /* <- Value came from remote or cache layer */
+				value,
+			})));
 		}
 
 		// Case 3: Block before or at fork point
@@ -213,7 +275,16 @@ impl LocalStorageLayer {
 
 		if let Some(block_row) = block {
 			let block_hash = H256::from_slice(&block_row.hash);
-			Ok(self.parent.get(block_hash, key).await?.map(Arc::new))
+			Ok(self
+				.parent
+				.get(block_hash, key)
+				.await?
+				.map(|value| LocalSharedValue {
+					last_modification_block: 0, /* <- We don't care about the validity block of
+					                             * this value as it came from the remote layer */
+					value,
+				})
+				.map(Arc::new))
 		} else {
 			// Block not found
 			Ok(None)
@@ -293,7 +364,19 @@ impl LocalStorageLayer {
 		let mut modifications_lock =
 			self.modifications.write().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
 
-		modifications_lock.insert(key.to_vec(), value.map(|value| Arc::new(value.to_vec())));
+		let latest_block_number = self.get_latest_block_number();
+
+		modifications_lock.insert(
+			key.to_vec(),
+			value.map(|value| {
+				Arc::new({
+					LocalSharedValue {
+						last_modification_block: latest_block_number,
+						value: value.to_vec(),
+					}
+				})
+			}),
+		);
 
 		Ok(())
 	}
@@ -312,9 +395,11 @@ impl LocalStorageLayer {
 	/// Storage lookup strategy based on block_number (same as `get`):
 	/// 1. If `block_number == latest_block_number`: Check modifications HashMap, then remote at
 	///    first_forked_block
-	/// 2. If `first_forked_block_number < block_number < latest_block_number`: Check local_storage
+	/// 2. If `first_forked_block_number < block_number < latest_block_number` and the key is valid
+	///    for `block_number`: Check modifications HashMap table
+	/// 3. If `first_forked_block_number < block_number < latest_block_number`: Check local_storage
 	///    table
-	/// 3. Otherwise: Check remote provider directly (fetches block_hash from blocks table)
+	/// 4. Otherwise: Check remote provider directly (fetches block_hash from blocks table)
 	pub async fn get_batch(
 		&self,
 		block_number: u32,
@@ -325,69 +410,85 @@ impl LocalStorageLayer {
 		}
 
 		let latest_block_number = self.get_latest_block_number();
+		let mut results: Vec<Option<SharedValue>> = Vec::with_capacity(keys.len());
+		let mut non_local_keys: Vec<&[u8]> = Vec::new();
+		let mut non_local_indices: Vec<usize> = Vec::new();
 
-		// Case 1: Query for latest block - check modifications, then remote at first_forked_block
-		if block_number == latest_block_number {
-			let mut results: Vec<Option<SharedValue>> = Vec::with_capacity(keys.len());
-			let mut parent_keys: Vec<&[u8]> = Vec::new();
-			let mut parent_indices: Vec<usize> = Vec::new();
-
-			{
-				let modifications_lock = self
-					.modifications
-					.read()
-					.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
-				let deleted_prefixes_lock = self
-					.deleted_prefixes
-					.read()
-					.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
-
-				for (i, key) in keys.iter().enumerate() {
-					if let Some(value) = modifications_lock.get(*key) {
-						results.push(value.clone());
-					} else if deleted_prefixes_lock
-						.iter()
-						.any(|prefix| key.starts_with(prefix.as_slice()))
-					{
-						results.push(None);
-					} else {
-						results.push(None); // Placeholder
-						parent_keys.push(*key);
-						parent_indices.push(i);
-					}
-				}
+		for (i, key) in keys.iter().enumerate() {
+			match self.get_local_modification(key, block_number)? {
+				Some(local_modification) => results.push(local_modification),
+				_ => {
+					results.push(None);
+					non_local_keys.push(*key);
+					non_local_indices.push(i)
+				},
 			}
+		}
 
-			// Fetch missing keys from remote at first_forked_block
-			if !parent_keys.is_empty() {
+		// Case 1: Query for latest block - Complete non local keys with the remote layer
+		if block_number == latest_block_number {
+			if !non_local_keys.is_empty() {
 				let parent_values =
-					self.parent.get_batch(self.first_forked_block_hash, &parent_keys).await?;
+					self.parent.get_batch(self.first_forked_block_hash, &non_local_keys).await?;
 				for (i, parent_value) in parent_values.into_iter().enumerate() {
-					let result_idx = parent_indices[i];
-					results[result_idx] = parent_value.map(Arc::new);
+					let result_idx = non_local_indices[i];
+					results[result_idx] = parent_value
+						.map(|value| LocalSharedValue {
+							last_modification_block: 0, /* <- We don't care about the validity
+							                             * block for this value as it came from
+							                             * remote layer */
+							value,
+						})
+						.map(Arc::new);
 				}
 			}
 
 			return Ok(results);
 		}
 
-		// Case 2: Historical block after fork - check local_storage table
+		// Case 2: Historical block after fork -
+		// local_values table (using validity) for non local keys. Remote query for non found keys
 		if block_number > self.first_forked_block_number && block_number < latest_block_number {
-			let cached_values =
-				self.parent.cache().get_local_storage_batch(block_number, keys).await?;
+			if !non_local_keys.is_empty() {
+				// Use validity-based query to get values from local_values table
+				let cached_values = self
+					.parent
+					.cache()
+					.get_local_values_at_block_batch(&non_local_keys, block_number)
+					.await?;
+				for (i, cache_value) in cached_values.into_iter().enumerate() {
+					let result_idx = non_local_indices[i];
+					results[result_idx] = cache_value
+						.map(|value| LocalSharedValue {
+							last_modification_block: 0, /* <- We don't care about the validity
+							                             * block for this value as it came from
+							                             * cache */
+							value,
+						})
+						.map(Arc::new);
+				}
+			}
 
-			// For non cached values, we need to query the remote storage at the first forked block
-			let mut results = Vec::with_capacity(cached_values.len());
-			for (i, value) in cached_values.into_iter().enumerate() {
-				let value = value.flatten();
+			// For non found values, we need to query the remote storage at the first forked block
+			let mut final_results = Vec::with_capacity(keys.len());
+			for (i, value) in results.into_iter().enumerate() {
 				let final_value = if value.is_some() {
 					value
 				} else {
-					self.parent.get(self.first_forked_block_hash, keys[i]).await?
+					self.parent
+						.get(self.first_forked_block_hash, keys[i])
+						.await?
+						.map(|value| {
+							LocalSharedValue {
+								last_modification_block: 0, /* <- Value came from remote layer */
+								value,
+							}
+						})
+						.map(Arc::new)
 				};
-				results.push(final_value.map(Arc::new));
+				final_results.push(final_value);
 			}
-			return Ok(results);
+			return Ok(final_results);
 		}
 
 		// Case 3: Block before or at fork point - fetch and cache block if needed
@@ -396,7 +497,19 @@ impl LocalStorageLayer {
 		if let Some(block_row) = block {
 			let block_hash = H256::from_slice(&block_row.hash);
 			let parent_values = self.parent.get_batch(block_hash, keys).await?;
-			Ok(parent_values.into_iter().map(|v| v.map(Arc::new)).collect())
+			Ok(parent_values
+				.into_iter()
+				.map(|value| {
+					value.map(|value| {
+						Arc::new(LocalSharedValue {
+							last_modification_block: 0, /* <- We don't care about this value as
+							                             * it came
+							                             * from the remote layer, */
+							value,
+						})
+					})
+				})
+				.collect())
 		} else {
 			// Block not found - return None for all keys
 			Ok(vec![None; keys.len()])
@@ -422,11 +535,21 @@ impl LocalStorageLayer {
 			return Ok(());
 		}
 
+		let latest_block_number = self.get_latest_block_number();
+
 		let mut modifications_lock =
 			self.modifications.write().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
 
 		for (key, value) in entries {
-			modifications_lock.insert(key.to_vec(), value.map(|v| Arc::new(v.to_vec())));
+			modifications_lock.insert(
+				key.to_vec(),
+				value.map(|value| {
+					Arc::new(LocalSharedValue {
+						last_modification_block: latest_block_number,
+						value: value.to_vec(),
+					})
+				}),
+			);
 		}
 
 		Ok(())
@@ -502,38 +625,62 @@ impl LocalStorageLayer {
 			.collect())
 	}
 
-	/// Commit all modifications to the local_storage table in the cache, leaving that state as
-	/// latest_block_number height.
+	/// Commit modifications to the local storage tables, creating new validity entries.
 	///
 	/// # Returns
 	/// * `Ok(())` - All modifications were successfully committed to the cache
 	/// * `Err(_)` - Lock error or cache error
 	///
 	/// # Behavior
-	/// - Writes all locally modified key-value pairs to the local_storage table
+	/// - Only commits modifications whose `last_modification_block == latest_block_number`
+	/// - For each key to commit:
+	///   - If key not in local_keys: insert key, then insert value with valid_from =
+	///     latest_block_number
+	///   - If key exists: close current open value (set valid_until), insert new value
 	/// - The modifications HashMap remains intact and available after commit
-	/// - Uses the parent layer's cache to persist the data
-	/// - Uses batch operation for efficiency
 	/// - Increases the latest block number
 	pub async fn commit(&mut self) -> Result<(), LocalStorageError> {
-		let new_latest_block =
-			self.latest_block_number.checked_add(1).ok_or(LocalStorageError::Arithmetic)?;
+		let latest_block_number = self.get_latest_block_number();
+		let new_latest_block = latest_block_number
+			.checked_add(ONE_BLOCK)
+			.ok_or(LocalStorageError::Arithmetic)?;
 
-		// Collect all modifications into a batch
+		// Collect modifications that need to be committed (only those modified at
+		// latest_block_number)
 		let diff = self.diff()?;
 
-		// Write all modifications to the local_storage table in a batch
-		if !diff.is_empty() {
-			let entries = diff
-				.iter()
-				.map(|(key, shared_value)| {
-					(key.as_slice(), shared_value.as_deref().map(|vec| vec.as_slice()))
+		// Filter to only include modifications made at the current latest_block_number
+		let entries_to_commit: Vec<(&[u8], &[u8])> = diff
+			.iter()
+			.filter_map(|(key, shared_value)| {
+				shared_value.as_ref().and_then(|sv| {
+					if sv.last_modification_block == latest_block_number {
+						Some((key.as_slice(), sv.value.as_slice()))
+					} else {
+						None
+					}
 				})
-				.collect::<Vec<_>>();
-			self.parent
-				.cache()
-				.set_local_storage_batch(self.latest_block_number, entries.as_slice())
-				.await?;
+			})
+			.collect();
+
+		// Commit
+		for (key, value) in entries_to_commit {
+			match self.parent.cache().get_local_key(key).await? {
+				Some(LocalKeyRow { id: key_id, .. }) => {
+					self.parent.cache().close_local_value(key_id, latest_block_number).await?;
+					self.parent
+						.cache()
+						.insert_local_value(key_id, value, latest_block_number)
+						.await?;
+				},
+				_ => {
+					let key_id = self.parent.cache().insert_local_key(key).await?;
+					self.parent
+						.cache()
+						.insert_local_value(key_id, value, latest_block_number)
+						.await?;
+				},
+			}
 		}
 
 		self.latest_block_number = new_latest_block;
@@ -623,7 +770,7 @@ mod tests {
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_returns_local_modification() {
 		let ctx = create_test_context().await;
-		let layer = create_layer(&ctx);
+		let mut layer = create_layer(&ctx);
 		let block = layer.get_latest_block_number();
 
 		let key = b"test_key";
@@ -634,7 +781,26 @@ mod tests {
 
 		// Get should return the local value
 		let result = layer.get(block, key).await.unwrap();
-		assert_eq!(result, Some(Arc::new(value.as_slice().to_vec())));
+		assert_eq!(
+			result,
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: block,
+				value: value.as_slice().to_vec()
+			}))
+		);
+
+		// After a few commits, the last modification blocks remains the same
+		layer.commit().await.unwrap();
+		layer.commit().await.unwrap();
+		let new_block = layer.get_latest_block_number();
+		let result = layer.get(new_block, key).await.unwrap();
+		assert_eq!(
+			result,
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: block,
+				value: value.as_slice().to_vec()
+			}))
+		);
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -690,7 +856,7 @@ mod tests {
 		layer.set(key, Some(value)).unwrap();
 		let result = layer.get(block, key).await.unwrap();
 		// the exact key is found
-		assert_eq!(result.unwrap().as_slice(), value.as_slice());
+		assert_eq!(result.unwrap().value.as_slice(), value.as_slice());
 		// even for a deleted prefix
 		assert!(layer.is_deleted(prefix).unwrap());
 	}
@@ -704,7 +870,7 @@ mod tests {
 		let key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 
 		// Get without local modification - should fetch from parent
-		let result = layer.get(block, &key).await.unwrap().unwrap();
+		let result = layer.get(block, &key).await.unwrap().unwrap().value.clone();
 		assert_eq!(u32::decode(&mut &result[..]).unwrap(), ctx.block_number);
 	}
 
@@ -718,7 +884,7 @@ mod tests {
 		let local_value = b"local_override";
 
 		// Get parent value first
-		let parent_value = layer.get(block, &key).await.unwrap().unwrap();
+		let parent_value = layer.get(block, &key).await.unwrap().unwrap().value.clone();
 		assert_eq!(u32::decode(&mut &parent_value[..]).unwrap(), ctx.block_number);
 
 		// Set local value
@@ -726,7 +892,13 @@ mod tests {
 
 		// Get should return local value, not parent
 		let result = layer.get(block, &key).await.unwrap();
-		assert_eq!(result, Some(Arc::new(local_value.as_slice().to_vec())));
+		assert_eq!(
+			result,
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: block,
+				value: local_value.as_slice().to_vec()
+			}))
+		);
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -743,7 +915,7 @@ mod tests {
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
-	async fn get_retrieves_modified_value_from_past_forked_block() {
+	async fn get_retrieves_modified_value_from_fork_history() {
 		let ctx = create_test_context().await;
 		let mut layer = create_layer(&ctx);
 
@@ -766,15 +938,33 @@ mod tests {
 
 		// Query at block_1 - should get value_block_1 from local_storage table
 		let result_block_1 = layer.get(block_1, key).await.unwrap();
-		assert_eq!(result_block_1, Some(Arc::new(value_block_1.to_vec())),);
+		assert_eq!(
+			result_block_1,
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: 0, // <- Comes from cache, not hot key so set to 0
+				value: value_block_1.to_vec()
+			}))
+		);
 
 		// Query at block_2 - should get value_block_2 from local_storage table
 		let result_block_2 = layer.get(block_2, key).await.unwrap();
-		assert_eq!(result_block_2, Some(Arc::new(value_block_2.to_vec())),);
+		assert_eq!(
+			result_block_2,
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: 0, // <- Comes from cache, not hot key so set to 0
+				value: value_block_2.to_vec()
+			}))
+		);
 
 		// Query at latest block - should get value_block_2 from modifications
 		let result_latest = layer.get(layer.get_latest_block_number(), key).await.unwrap();
-		assert_eq!(result_latest, Some(Arc::new(value_block_2.to_vec())),);
+		assert_eq!(
+			result_latest,
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: block_2,
+				value: value_block_2.to_vec()
+			}))
+		);
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -815,7 +1005,7 @@ mod tests {
 		assert!(cached_before.is_none());
 
 		// Get storage from historical block
-		let result = layer.get(block_number, &key).await.unwrap().unwrap();
+		let result = layer.get(block_number, &key).await.unwrap().unwrap().value.clone();
 		assert_eq!(u32::decode(&mut &result[..]).unwrap(), ctx.block_number);
 
 		// Cached after
@@ -837,7 +1027,13 @@ mod tests {
 
 		// Verify via get
 		let result = layer.get(block, key).await.unwrap();
-		assert_eq!(result, Some(Arc::new(value.as_slice().to_vec())));
+		assert_eq!(
+			result,
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: block,
+				value: value.as_slice().to_vec()
+			}))
+		);
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -855,7 +1051,7 @@ mod tests {
 
 		// Should have the second value
 		let result = layer.get(block, key).await.unwrap();
-		assert_eq!(result.as_ref().map(|v| v.as_slice()), Some(value2.as_slice()));
+		assert_eq!(result.as_ref().map(|v| v.value.as_slice()), Some(value2.as_slice()));
 	}
 
 	// Tests for get_batch()
@@ -883,8 +1079,8 @@ mod tests {
 
 		let results = layer.get_batch(block, &[key1, key2]).await.unwrap();
 		assert_eq!(results.len(), 2);
-		assert_eq!(results[0].as_ref().map(|v| v.as_slice()), Some(value1.as_slice()));
-		assert_eq!(results[1].as_ref().map(|v| v.as_slice()), Some(value2.as_slice()));
+		assert_eq!(results[0].as_ref().map(|v| v.value.as_slice()), Some(value1.as_slice()));
+		assert_eq!(results[1].as_ref().map(|v| v.value.as_slice()), Some(value2.as_slice()));
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -932,7 +1128,7 @@ mod tests {
 		layer.set(&key1, Some(local_value)).unwrap();
 
 		let results = layer.get_batch(block, &[key1.as_slice(), key2.as_slice()]).await.unwrap();
-		assert_eq!(results[0].as_ref().map(|v| v.as_slice()), Some(local_value.as_slice()));
+		assert_eq!(results[0].as_ref().map(|v| v.value.as_slice()), Some(local_value.as_slice()));
 		assert!(results[1].is_some());
 	}
 
@@ -956,8 +1152,14 @@ mod tests {
 			.unwrap();
 
 		assert_eq!(results.len(), 4);
-		assert_eq!(results[0].as_ref().map(|v| v.as_slice()), Some(b"local_value".as_slice()));
-		assert_eq!(u32::decode(&mut &results[1].as_ref().unwrap()[..]).unwrap(), ctx.block_number); // from parent
+		assert_eq!(
+			results[0].as_ref().map(|v| v.value.as_slice()),
+			Some(b"local_value".as_slice())
+		);
+		assert_eq!(
+			u32::decode(&mut &results[1].as_ref().unwrap().value[..]).unwrap(),
+			ctx.block_number
+		); // from parent
 		assert!(results[2].is_none()); // deleted
 		assert!(results[3].is_none()); // nonexistent
 	}
@@ -981,13 +1183,13 @@ mod tests {
 
 		// Request in different order
 		let results = layer.get_batch(block, &[key3, key1, key2]).await.unwrap();
-		assert_eq!(results[0].as_ref().map(|v| v.as_slice()), Some(value3.as_slice()));
-		assert_eq!(results[1].as_ref().map(|v| v.as_slice()), Some(value1.as_slice()));
-		assert_eq!(results[2].as_ref().map(|v| v.as_slice()), Some(value2.as_slice()));
+		assert_eq!(results[0].as_ref().map(|v| v.value.as_slice()), Some(value3.as_slice()));
+		assert_eq!(results[1].as_ref().map(|v| v.value.as_slice()), Some(value1.as_slice()));
+		assert_eq!(results[2].as_ref().map(|v| v.value.as_slice()), Some(value2.as_slice()));
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
-	async fn get_batch_retrieves_modified_value_from_past_forked_block() {
+	async fn get_batch_retrieves_modified_value_from_fork_history() {
 		let ctx = create_test_context().await;
 		let mut layer = create_layer(&ctx);
 
@@ -1017,19 +1219,55 @@ mod tests {
 
 		// Query at block_1 - should get values from local_storage table
 		let results_block_1 = layer.get_batch(block_1, &[key1, key2]).await.unwrap();
-		assert_eq!(results_block_1[0], Some(Arc::new(value1_block_1.to_vec())));
-		assert_eq!(results_block_1[1], Some(Arc::new(value2_block_1.to_vec())));
+		assert_eq!(
+			results_block_1[0],
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: 0, // <- Comes from cache, not hot key, so set to 0
+				value: value1_block_1.to_vec()
+			}))
+		);
+		assert_eq!(
+			results_block_1[1],
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: 0,
+				value: value2_block_1.to_vec()
+			}))
+		);
 
 		// Query at block_2 - should get values from local_storage table
 		let results_block_2 = layer.get_batch(block_2, &[key1, key2]).await.unwrap();
-		assert_eq!(results_block_2[0], Some(Arc::new(value1_block_2.to_vec())));
-		assert_eq!(results_block_2[1], Some(Arc::new(value2_block_2.to_vec())));
+		assert_eq!(
+			results_block_2[0],
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: 0, // <- Comes from cache, not hot key, so set to 0
+				value: value1_block_2.to_vec()
+			}))
+		);
+		assert_eq!(
+			results_block_2[1],
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: 0,
+				value: value2_block_2.to_vec()
+			}))
+		);
 
 		// Query at latest block - should get values from modifications
 		let results_latest =
 			layer.get_batch(layer.get_latest_block_number(), &[key1, key2]).await.unwrap();
-		assert_eq!(results_latest[0], Some(Arc::new(value1_block_2.to_vec())));
-		assert_eq!(results_latest[1], Some(Arc::new(value2_block_2.to_vec())));
+		assert_eq!(
+			results_latest[0],
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: block_2,
+				value: value1_block_2.to_vec()
+			}))
+		);
+		assert_eq!(
+			results_latest[1],
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: block_2,
+				value: value2_block_2.to_vec()
+			}))
+		);
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -1075,14 +1313,19 @@ mod tests {
 		let block_number = ctx.block_number;
 		let key1 = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 		let key2 = hex::decode(SYSTEM_PARENT_HASH_KEY).unwrap();
+		let key3 = b"non_existent_key";
 
 		// Get storage from historical block
 		let results = layer
-			.get_batch(block_number, &[key1.as_slice(), key2.as_slice()])
+			.get_batch(block_number, &[key1.as_slice(), key2.as_slice(), key3])
 			.await
 			.unwrap();
-		assert_eq!(results.len(), 2);
-		assert_eq!(u32::decode(&mut &results[0].as_ref().unwrap()[..]).unwrap(), block_number);
+		assert_eq!(results.len(), 3);
+		assert_eq!(
+			u32::decode(&mut &results[0].as_ref().unwrap().value[..]).unwrap(),
+			block_number
+		);
+		assert!(results[2].is_none());
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -1105,9 +1348,6 @@ mod tests {
 		let ctx = create_test_context().await;
 		let mut layer = create_layer(&ctx);
 
-		// Wait for some blocks to be finalized
-		std::thread::sleep(Duration::from_secs(30));
-
 		// Test multiple scenarios:
 		// 1. Latest block (from modifications)
 		// 2. Historical block (from cache/RPC)
@@ -1126,11 +1366,17 @@ mod tests {
 
 		// Get from latest block (should hit modifications)
 		let results1 = layer.get(latest_block_1, key1).await.unwrap();
-		assert_eq!(results1.as_ref().map(|v| v.as_slice()), Some(b"local_value".as_slice()));
+		assert_eq!(results1.as_ref().map(|v| v.value.as_slice()), Some(b"local_value".as_slice()));
 
 		// Get from historical block (should fetch and cache block)
 		let historical_block = ctx.block_number;
-		let results2 = layer.get(historical_block, key2.as_slice()).await.unwrap().unwrap();
+		let results2 = layer
+			.get(historical_block, key2.as_slice())
+			.await
+			.unwrap()
+			.unwrap()
+			.value
+			.clone();
 		assert_eq!(u32::decode(&mut &results2[..]).unwrap(), historical_block);
 
 		// Commit block modifications
@@ -1143,8 +1389,22 @@ mod tests {
 		let result_previous_block = layer.get(latest_block_1, key1).await.unwrap().unwrap();
 		let result_latest_block = layer.get(latest_block_2, key1).await.unwrap().unwrap();
 
-		assert_eq!(*result_previous_block, b"local_value".to_vec());
-		assert_eq!(*result_latest_block, b"local_value_2".to_vec());
+		assert_eq!(
+			*result_previous_block,
+			LocalSharedValue {
+				last_modification_block: 0, /* <- This has been committed, so this comes from
+				                             * cache and hence we're not interested in this
+				                             * value, so it's set to 0 */
+				value: b"local_value".to_vec()
+			}
+		);
+		assert_eq!(
+			*result_latest_block,
+			LocalSharedValue {
+				last_modification_block: latest_block_2,
+				value: b"local_value_2".to_vec()
+			}
+		);
 	}
 
 	// Tests for set_batch()
@@ -1210,7 +1470,7 @@ mod tests {
 		layer.set_batch(&[(key, Some(value2))]).unwrap();
 
 		let result = layer.get(block, key).await.unwrap();
-		assert_eq!(result.as_ref().map(|v| v.as_slice()), Some(value2.as_slice()));
+		assert_eq!(result.as_ref().map(|v| v.value.as_slice()), Some(value2.as_slice()));
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -1227,7 +1487,7 @@ mod tests {
 		layer.set_batch(&[(key, Some(value1)), (key, Some(value2))]).unwrap();
 
 		let result = layer.get(block, key).await.unwrap();
-		assert_eq!(result.as_ref().map(|v| v.as_slice()), Some(value2.as_slice()));
+		assert_eq!(result.as_ref().map(|v| v.value.as_slice()), Some(value2.as_slice()));
 	}
 
 	// Tests for delete_prefix()
@@ -1371,14 +1631,12 @@ mod tests {
 		let diff = layer.diff().unwrap();
 		assert_eq!(diff.len(), 2);
 		assert!(
-			diff.iter()
-				.any(|(k, v)| k == key1 &&
-					v.as_ref().map(|v| v.as_slice()) == Some(value1.as_slice()))
+			diff.iter().any(|(k, v)| k == key1 &&
+				v.as_ref().map(|v| v.value.as_slice()) == Some(value1.as_slice()))
 		);
 		assert!(
-			diff.iter()
-				.any(|(k, v)| k == key2 &&
-					v.as_ref().map(|v| v.as_slice()) == Some(value2.as_slice()))
+			diff.iter().any(|(k, v)| k == key2 &&
+				v.as_ref().map(|v| v.value.as_slice()) == Some(value2.as_slice()))
 		);
 	}
 
@@ -1431,18 +1689,32 @@ mod tests {
 		layer.set(key2, Some(value2)).unwrap();
 
 		// Verify not in cache yet
-		assert!(ctx.remote.cache().get_local_storage(block, key1).await.unwrap().is_none());
-		assert!(ctx.remote.cache().get_local_storage(block, key2).await.unwrap().is_none());
+		assert!(
+			ctx.remote
+				.cache()
+				.get_local_value_at_block(key1, block)
+				.await
+				.unwrap()
+				.is_none()
+		);
+		assert!(
+			ctx.remote
+				.cache()
+				.get_local_value_at_block(key2, block)
+				.await
+				.unwrap()
+				.is_none()
+		);
 
 		// Commit
 		layer.commit().await.unwrap();
 
 		// Verify now in cache at the block_number it was committed to
-		let cached1 = ctx.remote.cache().get_local_storage(block, key1).await.unwrap();
-		let cached2 = ctx.remote.cache().get_local_storage(block, key2).await.unwrap();
+		let cached1 = ctx.remote.cache().get_local_value_at_block(key1, block).await.unwrap();
+		let cached2 = ctx.remote.cache().get_local_value_at_block(key2, block).await.unwrap();
 
-		assert_eq!(cached1, Some(Some(value1.to_vec())));
-		assert_eq!(cached2, Some(Some(value2.to_vec())));
+		assert_eq!(cached1, Some(value1.to_vec()));
+		assert_eq!(cached2, Some(value2.to_vec()));
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -1461,7 +1733,7 @@ mod tests {
 
 		// Modifications should still be in local layer
 		let local_result = layer.get(block + 1, key).await.unwrap();
-		assert_eq!(local_result.as_ref().map(|v| v.as_slice()), Some(value.as_slice()));
+		assert_eq!(local_result.as_ref().map(|v| v.value.as_slice()), Some(value.as_slice()));
 
 		// Should also be in diff
 		let diff = layer.diff().unwrap();
@@ -1487,11 +1759,11 @@ mod tests {
 		layer.commit().await.unwrap();
 
 		// Both should be in cache
-		let cached1 = ctx.remote.cache().get_local_storage(block, key1).await.unwrap();
-		let cached2 = ctx.remote.cache().get_local_storage(block, key2).await.unwrap();
+		let cached1 = ctx.remote.cache().get_local_value_at_block(key1, block).await.unwrap();
+		let cached2 = ctx.remote.cache().get_local_value_at_block(key2, block).await.unwrap();
 
-		assert_eq!(cached1, Some(Some(value.to_vec())));
-		assert_eq!(cached2, Some(None)); // Cached as empty
+		assert_eq!(cached1, Some(value.to_vec()));
+		assert_eq!(cached2, None); // Cached as empty
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -1520,12 +1792,185 @@ mod tests {
 		layer.commit().await.unwrap();
 		layer.commit().await.unwrap();
 
-		// Both block numbers should have the value in cache
-		let cached1 = ctx.remote.cache().get_local_storage(block, key).await.unwrap();
-		let cached2 = ctx.remote.cache().get_local_storage(block + 1, key).await.unwrap();
+		// Both block numbers should find the value in cache
+		let cached1 = ctx.remote.cache().get_local_value_at_block(key, block).await.unwrap();
+		let cached2 = ctx.remote.cache().get_local_value_at_block(key, block).await.unwrap();
 
-		assert_eq!(cached1, Some(Some(value.to_vec())));
-		assert_eq!(cached2, Some(Some(value.to_vec())));
+		assert_eq!(cached1, Some(value.to_vec()));
+		assert_eq!(cached2, Some(value.to_vec()));
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn commit_validity_ranges_work_properly() {
+		let ctx = create_test_context().await;
+		let mut layer = create_layer(&ctx);
+
+		let key = b"validity_test_key";
+		let value1 = b"value_version_1";
+		let value2 = b"value_version_2";
+		let value3 = b"value_version_3";
+
+		// Block N: Set initial value and commit
+		let block_n = layer.get_latest_block_number();
+		layer.set(key, Some(value1)).unwrap();
+		layer.commit().await.unwrap();
+
+		// Verify key was created in local_keys
+		let key_row = ctx.remote.cache().get_local_key(key).await.unwrap();
+		assert!(key_row.is_some());
+		let key_id = key_row.unwrap().id;
+
+		// Verify value1 is valid from block_n onwards
+		assert_eq!(
+			ctx.remote.cache().get_local_value_at_block(key, block_n).await.unwrap(),
+			Some(value1.to_vec())
+		);
+
+		// Block N+1, N+2: Commit without changes (value should remain valid)
+		layer.commit().await.unwrap();
+		layer.commit().await.unwrap();
+
+		// Value1 should still be valid at blocks N+1 and N+2
+		assert_eq!(
+			ctx.remote.cache().get_local_value_at_block(key, block_n + 1).await.unwrap(),
+			Some(value1.to_vec())
+		);
+		assert_eq!(
+			ctx.remote.cache().get_local_value_at_block(key, block_n + 2).await.unwrap(),
+			Some(value1.to_vec())
+		);
+
+		// Block N+3: Update the value and commit
+		layer.set(key, Some(value2)).unwrap();
+		layer.commit().await.unwrap();
+
+		// Verify validity ranges:
+		// - value1 should be valid from block_n to block_n_plus_3 (exclusive)
+		// - value2 should be valid from block_n_plus_3 onwards
+		assert_eq!(
+			ctx.remote.cache().get_local_value_at_block(key, block_n).await.unwrap(),
+			Some(value1.to_vec()),
+		);
+		assert_eq!(
+			ctx.remote.cache().get_local_value_at_block(key, block_n + 2).await.unwrap(),
+			Some(value1.to_vec()),
+		);
+		assert_eq!(
+			ctx.remote.cache().get_local_value_at_block(key, block_n + 3).await.unwrap(),
+			Some(value2.to_vec()),
+		);
+		assert_eq!(
+			ctx.remote
+				.cache()
+				.get_local_value_at_block(key, block_n + 3 + 10)
+				.await
+				.unwrap(),
+			Some(value2.to_vec()),
+		);
+
+		// Block N+4: Another update
+		layer.set(key, Some(value3)).unwrap();
+		layer.commit().await.unwrap();
+
+		// Verify all three validity ranges
+		assert_eq!(
+			ctx.remote.cache().get_local_value_at_block(key, block_n).await.unwrap(),
+			Some(value1.to_vec())
+		);
+		assert_eq!(
+			ctx.remote.cache().get_local_value_at_block(key, block_n + 3).await.unwrap(),
+			Some(value2.to_vec())
+		);
+		assert_eq!(
+			ctx.remote.cache().get_local_value_at_block(key, block_n + 4).await.unwrap(),
+			Some(value3.to_vec())
+		);
+
+		// Key ID should remain the same throughout
+		let key_row_after = ctx.remote.cache().get_local_key(key).await.unwrap();
+		assert_eq!(key_row_after.unwrap().id, key_id);
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn commit_only_commits_the_minimal_information_needed() {
+		use crate::schema::local_values::{self, columns as lvc};
+		use diesel::prelude::*;
+		use diesel_async::RunQueryDsl;
+		let ctx = create_test_context().await;
+		let mut layer = create_layer(&ctx);
+		let cache_clone = layer.parent.cache().clone();
+
+		let key1 = b"key_block_n";
+		let key2 = b"key_block_n_plus_1";
+		let value1 = b"value1";
+		let value2 = b"value2";
+		let value3 = b"value3";
+
+		// Block N: Set key1 and commit
+		let block_n = layer.get_latest_block_number() as i64;
+		layer.set(key1, Some(value1)).unwrap();
+		layer.commit().await.unwrap();
+
+		// Block N+1: Set key2 (key1 was set in previous block, shouldn't be re-committed)
+		layer.set(key2, Some(value2)).unwrap();
+		layer.commit().await.unwrap();
+
+		// Empty ddbb, so the first commited keys have the first indices
+		let key_1_id = 1;
+		let key_2_id = 2;
+
+		// The in_memory connection can only handle one connection per time. So as layer.commit()
+		// needs one connection, we need to get the connection to directly query the ddbb just once
+		// everything's committed, and drop it right after the queries for the next commit. That's
+		// why this is inside its own scope
+		{
+			let mut conn = cache_clone.get_conn().await.unwrap();
+			// Both keys have only one entry in the ddbb
+			let key_1_entries: Vec<(i64, Option<i64>, Vec<u8>)> = local_values::table
+				.filter(lvc::key_id.eq(key_1_id))
+				.select((lvc::valid_from, lvc::valid_until, lvc::value))
+				.load(&mut conn)
+				.await
+				.unwrap();
+
+			let key_2_entries: Vec<(i64, Option<i64>, Vec<u8>)> = local_values::table
+				.filter(lvc::key_id.eq(key_2_id))
+				.select((lvc::valid_from, lvc::valid_until, lvc::value))
+				.load(&mut conn)
+				.await
+				.unwrap();
+
+			assert_eq!(key_1_entries.len(), 1);
+			assert_eq!(key_1_entries[0], (block_n, None, value1.to_vec()));
+			assert_eq!(key_2_entries.len(), 1);
+			assert_eq!(key_2_entries[0], (block_n + 1, None, value2.to_vec()));
+		}
+
+		layer.set(key1, Some(value3)).unwrap();
+		layer.commit().await.unwrap();
+
+		{
+			let mut conn = cache_clone.get_conn().await.unwrap();
+			let key_1_entries: Vec<(i64, Option<i64>, Vec<u8>)> = local_values::table
+				.filter(lvc::key_id.eq(key_1_id))
+				.select((lvc::valid_from, lvc::valid_until, lvc::value))
+				.load(&mut conn)
+				.await
+				.unwrap();
+
+			let key_2_entries: Vec<(i64, Option<i64>, Vec<u8>)> = local_values::table
+				.filter(lvc::key_id.eq(key_2_id))
+				.select((lvc::valid_from, lvc::valid_until, lvc::value))
+				.load(&mut conn)
+				.await
+				.unwrap();
+
+			assert_eq!(key_1_entries.len(), 2);
+			assert_eq!(key_1_entries[0], (block_n, Some(block_n + 2), value1.to_vec()));
+			assert_eq!(key_1_entries[1], (block_n + 2, None, value3.to_vec()));
+			assert_eq!(key_2_entries.len(), 1);
+			assert_eq!(key_2_entries[0], (block_n + 1, None, value2.to_vec()));
+		}
 	}
 
 	// Tests for next_key()
