@@ -58,6 +58,8 @@ use std::{
 };
 use subxt::config::substrate::H256;
 
+const ONE_BLOCK: u32 = 1;
+
 /// A value that can be shared accross different local storage layer instances
 #[derive(Debug, PartialEq)]
 pub struct LocalSharedValue {
@@ -642,7 +644,7 @@ impl LocalStorageLayer {
 	pub async fn commit(&mut self) -> Result<(), LocalStorageError> {
 		let latest_block_number = self.get_latest_block_number();
 		let new_latest_block =
-			latest_block_number.checked_add(1).ok_or(LocalStorageError::Arithmetic)?;
+			latest_block_number.checked_add(ONE_BLOCK).ok_or(LocalStorageError::Arithmetic)?;
 
 		// Collect modifications that need to be committed (only those modified at
 		// latest_block_number)
