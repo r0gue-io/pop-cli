@@ -197,9 +197,7 @@ impl LocalStorageLayer {
 			None if deleted_prefixes_lock
 				.iter()
 				.any(|prefix| key.starts_with(prefix.as_slice())) =>
-			{
-				Ok(Some(None))
-			},
+				Ok(Some(None)),
 			_ => Ok(None),
 		}
 	}
@@ -643,8 +641,9 @@ impl LocalStorageLayer {
 	/// - Increases the latest block number
 	pub async fn commit(&mut self) -> Result<(), LocalStorageError> {
 		let latest_block_number = self.get_latest_block_number();
-		let new_latest_block =
-			latest_block_number.checked_add(ONE_BLOCK).ok_or(LocalStorageError::Arithmetic)?;
+		let new_latest_block = latest_block_number
+			.checked_add(ONE_BLOCK)
+			.ok_or(LocalStorageError::Arithmetic)?;
 
 		// Collect modifications that need to be committed (only those modified at
 		// latest_block_number)
