@@ -985,7 +985,7 @@ mod tests {
 		assert_eq!(
 			result_block_1,
 			Some(Arc::new(LocalSharedValue {
-				last_modification_block: block_1,
+				last_modification_block: 0, // <- Comes from cache, not hot key so set to 0
 				value: value_block_1.to_vec()
 			}))
 		);
@@ -995,7 +995,7 @@ mod tests {
 		assert_eq!(
 			result_block_2,
 			Some(Arc::new(LocalSharedValue {
-				last_modification_block: block_2,
+				last_modification_block: 0, // <- Comes from cache, not hot key so set to 0
 				value: value_block_2.to_vec()
 			}))
 		);
@@ -1266,14 +1266,14 @@ mod tests {
 		assert_eq!(
 			results_block_1[0],
 			Some(Arc::new(LocalSharedValue {
-				last_modification_block: block_1,
+				last_modification_block: 0, // <- Comes from cache, not hot key, so set to 0
 				value: value1_block_1.to_vec()
 			}))
 		);
 		assert_eq!(
 			results_block_1[1],
 			Some(Arc::new(LocalSharedValue {
-				last_modification_block: block_1,
+				last_modification_block: 0,
 				value: value2_block_1.to_vec()
 			}))
 		);
@@ -1283,14 +1283,14 @@ mod tests {
 		assert_eq!(
 			results_block_2[0],
 			Some(Arc::new(LocalSharedValue {
-				last_modification_block: block_2,
+				last_modification_block: 0, // <- Comes from cache, not hot key, so set to 0
 				value: value1_block_2.to_vec()
 			}))
 		);
 		assert_eq!(
 			results_block_2[1],
 			Some(Arc::new(LocalSharedValue {
-				last_modification_block: block_2,
+				last_modification_block: 0,
 				value: value2_block_2.to_vec()
 			}))
 		);
@@ -1390,9 +1390,6 @@ mod tests {
 		let ctx = create_test_context().await;
 		let mut layer = create_layer(&ctx);
 
-		// Wait for some blocks to be finalized
-		std::thread::sleep(Duration::from_secs(30));
-
 		// Test multiple scenarios:
 		// 1. Latest block (from modifications)
 		// 2. Historical block (from cache/RPC)
@@ -1437,7 +1434,9 @@ mod tests {
 		assert_eq!(
 			*result_previous_block,
 			LocalSharedValue {
-				last_modification_block: latest_block_1,
+				last_modification_block: 0, /* <- This has been committed, so this comes from
+				                             * cache and hence we're not interested in this
+				                             * value, so it's set to 0 */
 				value: b"local_value".to_vec()
 			}
 		);
@@ -1942,7 +1941,6 @@ mod tests {
 		let ctx = create_test_context().await;
 		let mut layer = create_layer(&ctx);
 		let cache_clone = layer.parent.cache().clone();
-		let mut conn = cache_clone.get_conn().await.unwrap();
 
 		let key1 = b"key_block_n";
 		let key2 = b"key_block_n_plus_1";
@@ -1959,51 +1957,62 @@ mod tests {
 		layer.set(key2, Some(value2)).unwrap();
 		layer.commit().await.unwrap();
 
+		// Empty ddbb, so the first commited keys have the first indices
 		let key_1_id = 1;
 		let key_2_id = 2;
 
-		// Both keys have only one entry in the ddbb
-		let key_1_entries: Vec<(i64, Option<i64>)> = local_values::table
-			.filter(lvc::key_id.eq(key_1_id))
-			.select((lvc::valid_from, lvc::valid_until))
-			.load(&mut conn)
-			.await
-			.unwrap();
+		// The in_memory connection can only handle one connection per time. So as layer.commit()
+		// needs one connection, we need to get the connection to directly query the ddbb just once
+		// everything's committed, and drop it right after the queries for the next commit. That's
+		// why this is inside its own scope
+		{
+			let mut conn = cache_clone.get_conn().await.unwrap();
+			// Both keys have only one entry in the ddbb
+			let key_1_entries: Vec<(i64, Option<i64>, Vec<u8>)> = local_values::table
+				.filter(lvc::key_id.eq(key_1_id))
+				.select((lvc::valid_from, lvc::valid_until, lvc::value))
+				.load(&mut conn)
+				.await
+				.unwrap();
 
-		let key_2_entries: Vec<(i64, Option<i64>)> = local_values::table
-			.filter(lvc::key_id.eq(key_2_id))
-			.select((lvc::valid_from, lvc::valid_until))
-			.load(&mut conn)
-			.await
-			.unwrap();
+			let key_2_entries: Vec<(i64, Option<i64>, Vec<u8>)> = local_values::table
+				.filter(lvc::key_id.eq(key_2_id))
+				.select((lvc::valid_from, lvc::valid_until, lvc::value))
+				.load(&mut conn)
+				.await
+				.unwrap();
 
-		assert_eq!(key_1_entries.len(), 1);
-		assert_eq!(key_1_entries[0], (block_n, None));
-		assert_eq!(key_2_entries.len(), 1);
-		assert_eq!(key_2_entries[0], (block_n + 1, None));
+			assert_eq!(key_1_entries.len(), 1);
+			assert_eq!(key_1_entries[0], (block_n, None, value1.to_vec()));
+			assert_eq!(key_2_entries.len(), 1);
+			assert_eq!(key_2_entries[0], (block_n + 1, None, value2.to_vec()));
+		}
 
 		layer.set(key1, Some(value3)).unwrap();
 		layer.commit().await.unwrap();
 
-		let key_1_entries: Vec<(i64, Option<i64>)> = local_values::table
-			.filter(lvc::key_id.eq(key_1_id))
-			.select((lvc::valid_from, lvc::valid_until))
-			.load(&mut conn)
-			.await
-			.unwrap();
+		{
+			let mut conn = cache_clone.get_conn().await.unwrap();
+			let key_1_entries: Vec<(i64, Option<i64>, Vec<u8>)> = local_values::table
+				.filter(lvc::key_id.eq(key_1_id))
+				.select((lvc::valid_from, lvc::valid_until, lvc::value))
+				.load(&mut conn)
+				.await
+				.unwrap();
 
-		let key_2_entries: Vec<(i64, Option<i64>)> = local_values::table
-			.filter(lvc::key_id.eq(key_2_id))
-			.select((lvc::valid_from, lvc::valid_until))
-			.load(&mut conn)
-			.await
-			.unwrap();
+			let key_2_entries: Vec<(i64, Option<i64>, Vec<u8>)> = local_values::table
+				.filter(lvc::key_id.eq(key_2_id))
+				.select((lvc::valid_from, lvc::valid_until, lvc::value))
+				.load(&mut conn)
+				.await
+				.unwrap();
 
-		assert_eq!(key_1_entries.len(), 1);
-		assert_eq!(key_1_entries[0], (block_n, Some(block_n + 2)));
-		assert_eq!(key_1_entries[1], (block_n + 2, None));
-		assert_eq!(key_2_entries.len(), 1);
-		assert_eq!(key_2_entries[0], (block_n + 1, None));
+			assert_eq!(key_1_entries.len(), 2);
+			assert_eq!(key_1_entries[0], (block_n, Some(block_n + 2), value1.to_vec()));
+			assert_eq!(key_1_entries[1], (block_n + 2, None, value3.to_vec()));
+			assert_eq!(key_2_entries.len(), 1);
+			assert_eq!(key_2_entries[0], (block_n + 1, None, value2.to_vec()));
+		}
 	}
 
 	// Tests for next_key()
