@@ -178,13 +178,26 @@ impl LocalStorageLayer {
 		&self,
 		key: &[u8],
 		block_number: u32,
-	) -> Result<Option<SharedValue>, LocalStorageError> {
+	) -> Result<Option<Option<SharedValue>>, LocalStorageError> {
+		let latest_block_number = self.get_latest_block_number();
 		let modifications_lock =
 			self.modifications.read().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
+		let deleted_prefixes_lock = self
+			.deleted_prefixes
+			.read()
+			.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
+
 		match modifications_lock.get(key) {
 			local_modification @ Some(Some(shared_value))
-				if shared_value.last_modification_block < block_number =>
-				Ok(local_modification.expect("The match guard ensures this is Some; qed;").clone()), /* <- Cheap clone as it's Option<Arc<_>> */
+				if latest_block_number == block_number ||
+					shared_value.last_modification_block < block_number =>
+				Ok(local_modification.cloned()), /* <- Cheap clone as it's Option<Option<Arc<_>>> */
+			None if deleted_prefixes_lock
+				.iter()
+				.any(|prefix| key.starts_with(prefix.as_slice())) =>
+			{
+				Ok(Some(None))
+			},
 			_ => Ok(None),
 		}
 	}
@@ -213,28 +226,13 @@ impl LocalStorageLayer {
 	) -> Result<Option<SharedValue>, LocalStorageError> {
 		let latest_block_number = self.get_latest_block_number();
 
+		// First check if the key has a local modification
+		if let local_modification @ Ok(Some(_)) = self.get_local_modification(key, block_number) {
+			return local_modification.map(|local_modification| local_modification.flatten());
+		}
+
 		// Case 1: Query for latest block - check modifications, then remote at first_forked_block
 		if block_number == latest_block_number {
-			{
-				let modifications_lock = self
-					.modifications
-					.read()
-					.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
-				let deleted_prefixes_lock = self
-					.deleted_prefixes
-					.read()
-					.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
-				match modifications_lock.get(key) {
-					Some(value) => return Ok(value.clone()),
-					None if deleted_prefixes_lock
-						.iter()
-						.any(|prefix| key.starts_with(prefix.as_slice())) =>
-					{
-						return Ok(None);
-					},
-					_ => (),
-				}
-			}
 			// Not in modifications, query remote at first_forked_block
 			return Ok(self
 				.parent
@@ -249,13 +247,7 @@ impl LocalStorageLayer {
 		}
 
 		// Case 2: Historical block after fork such that the local modification is still valid -
-		// check the local modifications map
-		if let local_modification @ Ok(Some(_)) = self.get_local_modification(key, block_number) {
-			return local_modification;
-		}
-
-		// Case 3: Historical block after fork such that the key isn't valid - check local_values
-		// table using validity, otherwise query remote at first_forked_block
+		// check the local modifications map, otherwise fallback to cache and finally remote layer.
 		if block_number > self.first_forked_block_number && block_number < latest_block_number {
 			// Try to get value from local_values table using validity ranges
 			let value = if let Some(local_value) =
@@ -278,7 +270,7 @@ impl LocalStorageLayer {
 			})));
 		}
 
-		// Case 4: Block before or at fork point
+		// Case 3: Block before or at fork point
 		let block = self.get_block(block_number).await?;
 
 		if let Some(block_row) = block {
@@ -418,45 +410,28 @@ impl LocalStorageLayer {
 		}
 
 		let latest_block_number = self.get_latest_block_number();
+		let mut results: Vec<Option<SharedValue>> = Vec::with_capacity(keys.len());
+		let mut non_local_keys: Vec<&[u8]> = Vec::new();
+		let mut non_local_indices: Vec<usize> = Vec::new();
 
-		// Case 1: Query for latest block - check modifications, then remote at first_forked_block
-		if block_number == latest_block_number {
-			let mut results: Vec<Option<SharedValue>> = Vec::with_capacity(keys.len());
-			let mut parent_keys: Vec<&[u8]> = Vec::new();
-			let mut parent_indices: Vec<usize> = Vec::new();
-
-			{
-				let modifications_lock = self
-					.modifications
-					.read()
-					.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
-				let deleted_prefixes_lock = self
-					.deleted_prefixes
-					.read()
-					.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
-
-				for (i, key) in keys.iter().enumerate() {
-					if let Some(value) = modifications_lock.get(*key) {
-						results.push(value.clone());
-					} else if deleted_prefixes_lock
-						.iter()
-						.any(|prefix| key.starts_with(prefix.as_slice()))
-					{
-						results.push(None);
-					} else {
-						results.push(None); // Placeholder
-						parent_keys.push(*key);
-						parent_indices.push(i);
-					}
-				}
+		for (i, key) in keys.iter().enumerate() {
+			match self.get_local_modification(key, block_number)? {
+				Some(local_modification) => results.push(local_modification),
+				_ => {
+					results.push(None);
+					non_local_keys.push(*key);
+					non_local_indices.push(i)
+				},
 			}
+		}
 
-			// Fetch missing keys from remote at first_forked_block
-			if !parent_keys.is_empty() {
+		// Case 1: Query for latest block - Complete non local keys with the remote layer
+		if block_number == latest_block_number {
+			if !non_local_keys.is_empty() {
 				let parent_values =
-					self.parent.get_batch(self.first_forked_block_hash, &parent_keys).await?;
+					self.parent.get_batch(self.first_forked_block_hash, &non_local_keys).await?;
 				for (i, parent_value) in parent_values.into_iter().enumerate() {
-					let result_idx = parent_indices[i];
+					let result_idx = non_local_indices[i];
 					results[result_idx] = parent_value
 						.map(|value| LocalSharedValue {
 							last_modification_block: 0, /* <- We don't care about the validity
@@ -471,38 +446,19 @@ impl LocalStorageLayer {
 			return Ok(results);
 		}
 
-		// Case 2: Historical block after fork - check modifications HashMap for hot keys and
-		// local_values table (using validity) for the others. Remote query for non found keys
+		// Case 2: Historical block after fork -
+		// local_values table (using validity) for non local keys. Remote query for non found keys
 		if block_number > self.first_forked_block_number && block_number < latest_block_number {
-			let mut found_results: Vec<Option<SharedValue>> = Vec::with_capacity(keys.len());
-			let mut cache_keys: Vec<&[u8]> = Vec::new();
-			let mut cache_indices: Vec<usize> = Vec::new();
-
-			for (i, key) in keys.iter().enumerate() {
-				match self.get_local_modification(key, block_number) {
-					local_modification @ Ok(Some(_)) => found_results.push(
-						local_modification
-							.expect("The match guard ensures this is Ok; qed;")
-							.clone(),
-					),
-					_ => {
-						found_results.push(None); // Placeholder
-						cache_keys.push(*key);
-						cache_indices.push(i);
-					},
-				}
-			}
-
-			if !cache_keys.is_empty() {
+			if !non_local_keys.is_empty() {
 				// Use validity-based query to get values from local_values table
 				let cached_values = self
 					.parent
 					.cache()
-					.get_local_values_at_block_batch(&cache_keys, block_number)
+					.get_local_values_at_block_batch(&non_local_keys, block_number)
 					.await?;
 				for (i, cache_value) in cached_values.into_iter().enumerate() {
-					let result_idx = cache_indices[i];
-					found_results[result_idx] = cache_value
+					let result_idx = non_local_indices[i];
+					results[result_idx] = cache_value
 						.map(|value| LocalSharedValue {
 							last_modification_block: 0, /* <- We don't care about the validity
 							                             * block for this value as it came from
@@ -514,8 +470,8 @@ impl LocalStorageLayer {
 			}
 
 			// For non found values, we need to query the remote storage at the first forked block
-			let mut results = Vec::with_capacity(keys.len());
-			for (i, value) in found_results.into_iter().enumerate() {
+			let mut final_results = Vec::with_capacity(keys.len());
+			for (i, value) in results.into_iter().enumerate() {
 				let final_value = if value.is_some() {
 					value
 				} else {
@@ -530,9 +486,9 @@ impl LocalStorageLayer {
 						})
 						.map(Arc::new)
 				};
-				results.push(final_value);
+				final_results.push(final_value);
 			}
-			return Ok(results);
+			return Ok(final_results);
 		}
 
 		// Case 3: Block before or at fork point - fetch and cache block if needed
