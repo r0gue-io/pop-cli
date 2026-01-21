@@ -543,17 +543,16 @@ impl LocalStorageLayer {
 			let parent_values = self.parent.get_batch(block_hash, keys).await?;
 			Ok(parent_values
 				.into_iter()
-				.flatten()
 				.map(|value| {
-					LocalSharedValue {
-						last_modification_block: 0, /* <- We don't care about this value as
-						                             * it came
-						                             * from the remote layer, */
-						value,
-					}
+					value.map(|value| {
+						Arc::new(LocalSharedValue {
+							last_modification_block: 0, /* <- We don't care about this value as
+							                             * it came
+							                             * from the remote layer, */
+							value,
+						})
+					})
 				})
-				.map(Arc::new)
-				.map(Some)
 				.collect())
 		} else {
 			// Block not found - return None for all keys
