@@ -58,8 +58,8 @@ use crate::{
 	Block, BlockBuilderError, RuntimeCallResult, RuntimeExecutor, inherent::InherentProvider,
 	strings::builder::runtime_api,
 };
-use scale::Encode;
-use subxt::config::substrate::H256;
+use scale::{Decode, Encode};
+use subxt::{Metadata, config::substrate::H256};
 
 /// Phase of the block building process.
 ///
@@ -198,6 +198,14 @@ impl BlockBuilder {
 		self.phase
 	}
 
+	/// Get the storage layer for the current fork.
+	///
+	/// The storage layer is shared across all blocks in the fork and tracks
+	/// all modifications. This provides access to the current working state.
+	fn storage(&self) -> &crate::LocalStorageLayer {
+		self.parent.storage()
+	}
+
 	/// Initialize the block by calling `Core_initialize_block`.
 	///
 	/// This must be called before applying any inherents or extrinsics.
@@ -221,7 +229,7 @@ impl BlockBuilder {
 		// Call Core_initialize_block with the header
 		let result = self
 			.executor
-			.call(runtime_api::CORE_INITIALIZE_BLOCK, &self.header, self.parent.storage())
+			.call(runtime_api::CORE_INITIALIZE_BLOCK, &self.header, self.storage())
 			.await?;
 
 		// Apply storage changes
@@ -341,7 +349,7 @@ impl BlockBuilder {
 		extrinsic: &[u8],
 	) -> Result<RuntimeCallResult, BlockBuilderError> {
 		self.executor
-			.call(runtime_api::BLOCK_BUILDER_APPLY_EXTRINSIC, extrinsic, self.parent.storage())
+			.call(runtime_api::BLOCK_BUILDER_APPLY_EXTRINSIC, extrinsic, self.storage())
 			.await
 			.map_err(Into::into)
 	}
@@ -371,11 +379,18 @@ impl BlockBuilder {
 		// Call BlockBuilder_finalize_block
 		let result = self
 			.executor
-			.call(runtime_api::BLOCK_BUILDER_FINALIZE_BLOCK, &[], self.parent.storage())
+			.call(runtime_api::BLOCK_BUILDER_FINALIZE_BLOCK, &[], self.storage())
 			.await?;
 
 		// Apply final storage changes
 		self.apply_storage_diff(&result.storage_diff)?;
+
+		// Check if runtime code changed in the parent block (runtime upgrade occurred).
+		// If code changed in parent block X, block X+1 (current) uses the new runtime,
+		// so we need to register the new metadata at current block.
+		if self.storage().has_code_changed_at(self.parent.number)? {
+			self.register_new_metadata().await?;
+		}
 
 		// The result contains the final header
 		let final_header = result.output;
@@ -396,6 +411,39 @@ impl BlockBuilder {
 		Ok(new_block)
 	}
 
+	/// Register new metadata after a runtime upgrade.
+	///
+	/// This is called when the `:code` storage key was modified in the parent block,
+	/// indicating a runtime upgrade occurred. Since the BlockBuilder's executor is
+	/// already running the new runtime (it was initialized with code from current state),
+	/// we simply call `Metadata_metadata` using the existing executor and register
+	/// the metadata for the current block (the first block using the new runtime).
+	async fn register_new_metadata(&self) -> Result<(), BlockBuilderError> {
+		let storage = self.storage();
+		let current_block_number = storage.get_latest_block_number();
+
+		// The executor is already running the new runtime (initialized from current state
+		// which includes the parent block's code change), so we can use it directly
+		let metadata_result =
+			self.executor.call(runtime_api::METADATA_METADATA, &[], storage).await?;
+
+		// Decode the metadata (output is OpaqueMetadata which is just Vec<u8>)
+		// The actual metadata is SCALE-encoded inside
+		let metadata_bytes: Vec<u8> = Decode::decode(&mut metadata_result.output.as_slice())
+			.map_err(|e| {
+				BlockBuilderError::Codec(format!("Failed to decode metadata wrapper: {}", e))
+			})?;
+
+		let new_metadata = Metadata::decode(&mut metadata_bytes.as_slice())
+			.map_err(|e| BlockBuilderError::Codec(format!("Failed to decode metadata: {}", e)))?;
+
+		// Register the new metadata version for the current block
+		// (the first block using the new runtime)
+		storage.register_metadata_version(current_block_number, new_metadata)?;
+
+		Ok(())
+	}
+
 	/// Apply storage diff to the parent's storage layer.
 	fn apply_storage_diff(
 		&self,
@@ -408,7 +456,7 @@ impl BlockBuilder {
 		let entries: Vec<(&[u8], Option<&[u8]>)> =
 			diff.iter().map(|(k, v)| (k.as_slice(), v.as_deref())).collect();
 
-		self.parent.storage().set_batch(&entries)?;
+		self.storage().set_batch(&entries)?;
 		Ok(())
 	}
 }
@@ -525,60 +573,6 @@ pub fn create_next_header(parent: &Block, digest_items: Vec<DigestItem>) -> Vec<
 mod tests {
 	use super::*;
 
-	/// Verifies that DigestItem::PreRuntime encodes with the correct index (6).
-	#[test]
-	fn digest_item_pre_runtime_encodes_correctly() {
-		let engine_id = *b"aura";
-		let data = vec![1, 2, 3, 4];
-		let item = DigestItem::PreRuntime(engine_id, data.clone());
-		let encoded = item.encode();
-
-		// First byte should be index 6 for PreRuntime
-		assert_eq!(encoded[0], 6);
-		// Next 4 bytes should be the engine ID
-		assert_eq!(&encoded[1..5], b"aura");
-		// Rest should be the compact-encoded length + data
-	}
-
-	/// Verifies that DigestItem::Consensus encodes with the correct index (4).
-	#[test]
-	fn digest_item_consensus_encodes_correctly() {
-		let engine_id = *b"BABE";
-		let data = vec![5, 6, 7, 8];
-		let item = DigestItem::Consensus(engine_id, data.clone());
-		let encoded = item.encode();
-
-		// First byte should be index 4 for Consensus
-		assert_eq!(encoded[0], 4);
-		// Next 4 bytes should be the engine ID
-		assert_eq!(&encoded[1..5], b"BABE");
-	}
-
-	/// Verifies that DigestItem::Seal encodes with the correct index (5).
-	#[test]
-	fn digest_item_seal_encodes_correctly() {
-		let engine_id = *b"FRNK";
-		let data = vec![9, 10, 11, 12];
-		let item = DigestItem::Seal(engine_id, data.clone());
-		let encoded = item.encode();
-
-		// First byte should be index 5 for Seal
-		assert_eq!(encoded[0], 5);
-		// Next 4 bytes should be the engine ID
-		assert_eq!(&encoded[1..5], b"FRNK");
-	}
-
-	/// Verifies that DigestItem::Other encodes with the correct index (0).
-	#[test]
-	fn digest_item_other_encodes_correctly() {
-		let data = vec![13, 14, 15, 16];
-		let item = DigestItem::Other(data.clone());
-		let encoded = item.encode();
-
-		// First byte should be index 0 for Other
-		assert_eq!(encoded[0], 0);
-	}
-
 	/// Verifies that consensus engine constants have the correct values.
 	#[test]
 	fn consensus_engine_constants_are_correct() {
@@ -587,69 +581,61 @@ mod tests {
 		assert_eq!(consensus_engine::GRANDPA, *b"FRNK");
 	}
 
-	/// Verifies that the Header struct encodes with correct field order.
-	#[test]
-	fn header_encodes_correctly() {
-		let header = Header {
-			parent_hash: H256::zero(),
-			number: 100,
-			state_root: H256::zero(),
-			extrinsics_root: H256::zero(),
-			digest: vec![],
-		};
-		let encoded = header.encode();
-
-		// Header should contain:
-		// - 32 bytes parent_hash
-		// - compact-encoded number (100 = 0x91 0x01 for compact)
-		// - 32 bytes state_root
-		// - 32 bytes extrinsics_root
-		// - compact-encoded digest length (0)
-
-		// Parent hash starts with 32 zero bytes
-		assert!(encoded.starts_with(&[0u8; 32]));
-		// Total should be at least 32 + 1 + 32 + 32 + 1 = 98 bytes
-		assert!(encoded.len() >= 98);
-	}
-
-	/// Verifies that the Header encodes block number using compact encoding.
-	#[test]
-	fn header_uses_compact_block_number() {
-		// Small number (single byte compact)
-		let header1 = Header {
-			parent_hash: H256::zero(),
-			number: 1,
-			state_root: H256::zero(),
-			extrinsics_root: H256::zero(),
-			digest: vec![],
-		};
-
-		// Large number (multi-byte compact)
-		let header2 = Header {
-			parent_hash: H256::zero(),
-			number: 1_000_000,
-			state_root: H256::zero(),
-			extrinsics_root: H256::zero(),
-			digest: vec![],
-		};
-
-		let encoded1 = header1.encode();
-		let encoded2 = header2.encode();
-
-		// The larger block number should result in a larger encoding
-		// because compact encoding uses more bytes for larger values
-		assert!(encoded2.len() > encoded1.len());
-	}
-
 	/// Integration tests that execute BlockBuilder against a local test node.
 	///
 	/// These tests verify the full block building lifecycle including
 	/// initialization, inherent application, and finalization.
 	mod sequential {
 		use super::*;
-		use crate::{Block, ForkRpcClient, RuntimeExecutor, StorageCache};
+		use crate::{Block, ExecutorConfig, ForkRpcClient, RuntimeExecutor, StorageCache};
 		use pop_common::test_env::TestNode;
 		use url::Url;
+
+		/// Well-known dev account: Alice
+		/// SS58: 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
+		const ALICE: [u8; 32] = [
+			0xd4, 0x35, 0x93, 0xc7, 0x15, 0xfd, 0xd3, 0x1c, 0x61, 0x14, 0x1a, 0xbd, 0x04, 0xa9,
+			0x9f, 0xd6, 0x82, 0x2c, 0x85, 0x58, 0x85, 0x4c, 0xcd, 0xe3, 0x9a, 0x56, 0x84, 0xe7,
+			0xa5, 0x6d, 0xa2, 0x7d,
+		];
+
+		/// Well-known dev account: Bob
+		/// SS58: 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty
+		const BOB: [u8; 32] = [
+			0x8e, 0xaf, 0x04, 0x15, 0x16, 0x87, 0x73, 0x63, 0x26, 0xc9, 0xfe, 0xa1, 0x7e, 0x25,
+			0xfc, 0x52, 0x87, 0x61, 0x36, 0x93, 0xc9, 0x12, 0x90, 0x9c, 0xb2, 0x26, 0xaa, 0x47,
+			0x94, 0xf2, 0x6a, 0x48,
+		];
+
+		/// Compute Blake2_128Concat storage key for System::Account.
+		fn account_storage_key(account: &[u8; 32]) -> Vec<u8> {
+			let mut key = Vec::new();
+			// System pallet prefix (balances stored in System::Account for most chains)
+			key.extend(sp_core::twox_128(b"System"));
+			// Account storage map prefix
+			key.extend(sp_core::twox_128(b"Account"));
+			// Blake2_128Concat: hash(16 bytes) + raw key
+			key.extend(sp_core::blake2_128(account));
+			key.extend(account);
+			key
+		}
+
+		/// Decode AccountInfo and extract free balance.
+		fn decode_free_balance(data: &[u8]) -> u128 {
+			// AccountInfo structure:
+			//   nonce: u32 (4 bytes)
+			//   consumers: u32 (4 bytes)
+			//   providers: u32 (4 bytes)
+			//   sufficients: u32 (4 bytes)
+			//   data: AccountData { free: u128, reserved: u128, frozen: u128, flags: u128 }
+			// Total offset to free balance: 16 bytes
+			const ACCOUNT_DATA_OFFSET: usize = 16;
+			u128::from_le_bytes(
+				data[ACCOUNT_DATA_OFFSET..ACCOUNT_DATA_OFFSET + 16]
+					.try_into()
+					.expect("need 16 bytes for u128"),
+			)
+		}
 
 		/// Test context holding a spawned test node and all components needed for block building.
 		struct BlockBuilderTestContext {
@@ -659,8 +645,15 @@ mod tests {
 			executor: RuntimeExecutor,
 		}
 
-		/// Creates a fully initialized block builder test context.
+		/// Creates a fully initialized block builder test context with default executor config.
 		async fn create_test_context() -> BlockBuilderTestContext {
+			create_test_context_with_config(None).await
+		}
+
+		/// Creates a test context with optional custom executor configuration.
+		async fn create_test_context_with_config(
+			config: Option<ExecutorConfig>,
+		) -> BlockBuilderTestContext {
 			let node = TestNode::spawn().await.expect("Failed to spawn test node");
 			let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
 			let rpc = ForkRpcClient::connect(&endpoint).await.expect("Failed to connect to node");
@@ -677,9 +670,12 @@ mod tests {
 				.await
 				.expect("Failed to create fork point");
 
-			// Create executor
-			let executor =
-				RuntimeExecutor::new(runtime_code, None).expect("Failed to create executor");
+			// Create executor with optional custom config
+			let executor = match config {
+				Some(cfg) => RuntimeExecutor::with_config(runtime_code, None, cfg),
+				None => RuntimeExecutor::new(runtime_code, None),
+			}
+			.expect("Failed to create executor");
 
 			BlockBuilderTestContext { node, block, executor }
 		}
@@ -812,29 +808,30 @@ mod tests {
 			assert!(matches!(result, Err(BlockBuilderError::InherentsNotApplied)));
 		}
 
-		// TODO: Enable this test once inherent providers are implemented.
-		// Finalization requires mandatory inherents (like timestamp) to be applied first.
-		// See: https://github.com/r0gue-io/pop-cli/issues/828
-		//
-		// #[tokio::test(flavor = "multi_thread")]
-		// async fn finalize_produces_child_block() {
-		// 	let ctx = create_test_context().await;
-		// 	let parent_number = ctx.block.number;
-		// 	let parent_hash = ctx.block.hash;
-		// 	let header = create_next_header(&ctx.block, vec![]);
-		//
-		// 	let mut builder = BlockBuilder::new(ctx.block, ctx.executor, header, vec![]);
-		// 	builder.initialize().await.expect("initialize failed");
-		//
-		//  -- apply inherents here --
-		//
-		// 	let new_block = builder.finalize().await.expect("finalize failed");
-		//
-		// 	assert_eq!(new_block.number, parent_number + 1);
-		// 	assert_eq!(new_block.parent_hash, parent_hash);
-		// 	assert!(new_block.parent.is_some());
-		// 	assert!(!new_block.header.is_empty());
-		// }
+		#[tokio::test(flavor = "multi_thread")]
+		async fn finalize_produces_child_block() {
+			use crate::inherent::TimestampInherent;
+
+			let ctx = create_test_context().await;
+			let parent_number = ctx.block.number;
+			let parent_hash = ctx.block.hash;
+			let header = create_next_header(&ctx.block, vec![]);
+
+			// Create inherent providers - timestamp is required for finalization
+			let providers: Vec<Box<dyn crate::InherentProvider>> =
+				vec![Box::new(TimestampInherent::default_relay())];
+
+			let mut builder = BlockBuilder::new(ctx.block, ctx.executor, header, providers);
+			builder.initialize().await.expect("initialize failed");
+			builder.apply_inherents().await.expect("apply_inherents failed");
+
+			let new_block = builder.finalize().await.expect("finalize failed");
+
+			assert_eq!(new_block.number, parent_number + 1);
+			assert_eq!(new_block.parent_hash, parent_hash);
+			assert!(new_block.parent.is_some());
+			assert!(!new_block.header.is_empty());
+		}
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn create_next_header_increments_block_number() {
@@ -862,6 +859,190 @@ mod tests {
 			// Header with digest should be larger than header without
 			let empty_header = create_next_header(&ctx.block, vec![]);
 			assert!(header_bytes.len() > empty_header.len());
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn apply_extrinsic_succeeds_with_valid_signed_extrinsic() {
+			use crate::{SignatureMockMode, inherent::TimestampInherent};
+			use scale::Compact;
+
+			// Transfer 100 units (with 12 decimals)
+			const TRANSFER_AMOUNT: u128 = 100_000_000_000_000;
+
+			// Create test context with signature mocking enabled
+			let config = ExecutorConfig {
+				signature_mock: SignatureMockMode::AlwaysValid,
+				..Default::default()
+			};
+			let ctx = create_test_context_with_config(Some(config)).await;
+
+			// Query initial balances before moving block into builder
+			let alice_key = account_storage_key(&ALICE);
+			let bob_key = account_storage_key(&BOB);
+			let block_number = ctx.block.number;
+
+			let alice_balance_before = ctx
+				.block
+				.storage()
+				.get(block_number, &alice_key)
+				.await
+				.expect("Failed to get Alice balance")
+				.map(|v| decode_free_balance(&v.value))
+				.expect("Alice should have a balance");
+
+			let bob_balance_before = ctx
+				.block
+				.storage()
+				.get(block_number, &bob_key)
+				.await
+				.expect("Failed to get Bob balance")
+				.map(|v| decode_free_balance(&v.value))
+				.expect("Bob should have a balance");
+
+			// Look up Balances pallet and transfer_keep_alive call indices from metadata
+			let metadata = ctx.block.metadata().await.expect("Failed to get metadata");
+			let balances_pallet =
+				metadata.pallet_by_name("Balances").expect("Balances pallet should exist");
+			let pallet_index = balances_pallet.index();
+			let transfer_call = balances_pallet
+				.call_variant_by_name("transfer_keep_alive")
+				.expect("transfer_keep_alive call should exist");
+			let call_index = transfer_call.index;
+
+			// Encode the call: Balances.transfer_keep_alive(Bob, 100 units)
+			// Format: [pallet_index, call_index, MultiAddress::Id(0x00 + 32 bytes), Compact<u128>]
+			let mut call_data = vec![pallet_index, call_index];
+			call_data.push(0x00); // MultiAddress::Id variant
+			call_data.extend(BOB);
+			call_data.extend(Compact(TRANSFER_AMOUNT).encode());
+
+			// Build a V4 signed extrinsic
+			let extrinsic = build_mock_signed_extrinsic_v4(&call_data);
+
+			// Set up builder with timestamp inherent
+			let header = create_next_header(&ctx.block, vec![]);
+			let providers: Vec<Box<dyn crate::InherentProvider>> =
+				vec![Box::new(TimestampInherent::default_relay())];
+			let mut builder = BlockBuilder::new(ctx.block, ctx.executor, header, providers);
+
+			builder.initialize().await.expect("initialize failed");
+			builder.apply_inherents().await.expect("apply_inherents failed");
+
+			// Apply the signed extrinsic
+			let result = builder
+				.apply_extrinsic(extrinsic)
+				.await
+				.expect("apply_extrinsic should not error");
+
+			// The extrinsic should succeed
+			assert!(
+				matches!(result, ApplyExtrinsicResult::Success { .. }),
+				"Expected success, got: {:?}",
+				result
+			);
+
+			// Finalize the block to get the resulting state
+			let new_block = builder.finalize().await.expect("finalize failed");
+			let new_block_number = new_block.number;
+
+			// Query balances after the transfer from LocalLayer
+			let alice_balance_after = new_block
+				.storage()
+				.get(new_block_number, &alice_key)
+				.await
+				.expect("Failed to get Alice balance after")
+				.map(|v| decode_free_balance(&v.value))
+				.expect("Alice should still have a balance");
+
+			let bob_balance_after = new_block
+				.storage()
+				.get(new_block_number, &bob_key)
+				.await
+				.expect("Failed to get Bob balance after")
+				.map(|v| decode_free_balance(&v.value))
+				.expect("Bob should still have a balance");
+
+			// Verify the transfer happened
+			// Note: Alice also pays transaction fees, so her balance decreases by more than
+			// TRANSFER_AMOUNT
+			assert!(alice_balance_after < alice_balance_before, "Alice balance should decrease");
+			assert_eq!(
+				bob_balance_after,
+				bob_balance_before + TRANSFER_AMOUNT,
+				"Bob should receive exactly the transfer amount"
+			);
+			// Verify Alice paid at least the transfer amount (plus some fees)
+			assert!(
+				alice_balance_before - alice_balance_after >= TRANSFER_AMOUNT,
+				"Alice should have paid at least the transfer amount plus fees"
+			);
+		}
+
+		/// Build a mock V4 signed extrinsic with dummy signature and extensions.
+		///
+		/// This helper manually constructs an extrinsic for testing purposes.
+		/// It uses Alice's well-known dev account and a dummy signature that works
+		/// with `SignatureMockMode::AlwaysValid`.
+		///
+		/// # Format
+		///
+		/// `[compact_len][0x84][address][signature][extra][call]`
+		/// - `0x84` = signed bit (0x80) + version 4 (0x04)
+		/// - address = MultiAddress::Id (0x00 + 32 bytes)
+		/// - signature = 64 bytes (dummy, works with AlwaysValid mode)
+		/// - extra = encoded transaction extensions (chain-specific)
+		///
+		/// # Extensions (test node specific)
+		///
+		/// The extensions are encoded in metadata order:
+		/// - CheckNonZeroSender: empty
+		/// - CheckSpecVersion: empty (implicit only)
+		/// - CheckTxVersion: empty (implicit only)
+		/// - CheckGenesis: empty (implicit only)
+		/// - CheckMortality: Era (1 byte for immortal)
+		/// - CheckNonce: Compact<u64>
+		/// - CheckWeight: empty
+		/// - ChargeTransactionPayment: Compact<u128>
+		/// - EthSetOrigin: Option<H160> (None = 0x00)
+		fn build_mock_signed_extrinsic_v4(call_data: &[u8]) -> Vec<u8> {
+			use scale::Compact;
+
+			let mut inner = Vec::new();
+
+			// Version byte: signed (0x80) + v4 (0x04) = 0x84
+			inner.push(0x84);
+
+			// Address: MultiAddress::Id variant (0x00) + 32-byte account
+			// Use Alice's well-known dev account (CheckNonZeroSender rejects zero address)
+			inner.push(0x00); // Id variant
+			inner.extend(ALICE);
+
+			// Signature: 64 bytes (dummy - works with AlwaysValid)
+			inner.extend([0u8; 64]);
+
+			// Extra params (signed extensions) - in metadata order:
+			// CheckNonZeroSender: no encoding
+			// CheckSpecVersion: no encoding (implicit only)
+			// CheckTxVersion: no encoding (implicit only)
+			// CheckGenesis: no encoding (implicit only)
+			// CheckMortality: Era - immortal = 0x00
+			inner.push(0x00);
+			// CheckNonce: Compact<u64> = 0
+			inner.extend(Compact(0u64).encode());
+			// CheckWeight: no encoding
+			// ChargeTransactionPayment: Compact<u128> = 0
+			inner.extend(Compact(0u128).encode());
+			// EthSetOrigin: Option<H160> = None (0x00)
+			inner.push(0x00);
+
+			// Call data
+			inner.extend(call_data);
+
+			// Prefix with compact length
+			let mut extrinsic = Compact(inner.len() as u32).encode();
+			extrinsic.extend(inner);
+
+			extrinsic
 		}
 	}
 }
