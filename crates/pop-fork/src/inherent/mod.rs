@@ -102,8 +102,17 @@ pub trait InherentProvider: Send + Sync {
 ///
 /// # Arguments
 ///
-/// * `slot_duration_ms` - Slot duration in milliseconds (e.g., 6000 for relay, 12000 for para)
-/// * `is_parachain` - Whether the chain is a parachain (adds parachain inherent provider)
+/// * `is_parachain` - Whether the chain is a parachain (affects slot duration and adds parachain
+///   inherent provider)
+///
+/// # Slot Duration
+///
+/// The timestamp inherent provider uses default slot durations:
+/// - Relay chains: 6 seconds (6000ms)
+/// - Parachains: 12 seconds (12000ms)
+///
+/// The actual slot duration will be detected from the runtime at block-building time,
+/// with these values serving as fallbacks.
 ///
 /// # Returns
 ///
@@ -115,17 +124,19 @@ pub trait InherentProvider: Send + Sync {
 /// use pop_fork::inherent::default_providers;
 ///
 /// // For a relay chain
-/// let providers = default_providers(6000, false);
+/// let providers = default_providers(false);
 ///
 /// // For a parachain
-/// let providers = default_providers(12000, true);
+/// let providers = default_providers(true);
 /// ```
-pub fn default_providers(
-	slot_duration_ms: u64,
-	is_parachain: bool,
-) -> Vec<Box<dyn InherentProvider>> {
-	let mut providers: Vec<Box<dyn InherentProvider>> =
-		vec![Box::new(TimestampInherent::new(slot_duration_ms))];
+pub fn default_providers(is_parachain: bool) -> Vec<Box<dyn InherentProvider>> {
+	let timestamp = if is_parachain {
+		TimestampInherent::default_para()
+	} else {
+		TimestampInherent::default_relay()
+	};
+
+	let mut providers: Vec<Box<dyn InherentProvider>> = vec![Box::new(timestamp)];
 
 	if is_parachain {
 		providers.push(Box::new(ParachainInherent::new()));

@@ -258,6 +258,35 @@ impl Block {
 	pub async fn metadata(&self) -> Result<Arc<Metadata>, BlockError> {
 		Ok(self.storage.metadata_at(self.number).await?)
 	}
+
+	/// Get the runtime code (`:code`) for this block.
+	///
+	/// Retrieves the WASM runtime code from the storage layer, which handles
+	/// the layered lookup (local modifications → cache → remote).
+	///
+	/// # Returns
+	///
+	/// The runtime WASM code as bytes.
+	///
+	/// # Errors
+	///
+	/// Returns [`BlockError::RuntimeCodeNotFound`] if the `:code` key is not
+	/// found in storage.
+	///
+	/// # Example
+	///
+	/// ```ignore
+	/// let runtime_code = block.runtime_code().await?;
+	/// let executor = RuntimeExecutor::new(runtime_code)?;
+	/// ```
+	pub async fn runtime_code(&self) -> Result<Vec<u8>, BlockError> {
+		let code_key = sp_core::storage::well_known_keys::CODE;
+		self.storage()
+			.get(self.number, code_key)
+			.await?
+			.map(|v| v.value.clone())
+			.ok_or(BlockError::RuntimeCodeNotFound)
+	}
 }
 
 #[cfg(test)]

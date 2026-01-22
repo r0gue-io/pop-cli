@@ -26,4 +26,8 @@ pub enum BlockError {
 	/// Failed to decode metadata from remote chain.
 	#[error("Metadata decoding failed: {0}")]
 	MetadataDecodingFailed(String),
+
+	/// Runtime code not found in storage.
+	#[error("Runtime code not found in storage")]
+	RuntimeCodeNotFound,
 }
