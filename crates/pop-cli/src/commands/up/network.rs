@@ -15,7 +15,7 @@ use duct::cmd;
 pub(crate) use pop_chains::up::Relay;
 use pop_chains::{
 	Error, IndexSet, NetworkNode, RelayChain, clear_dmpq,
-	registry::{self, traits::Rollup},
+	registry::{self, traits::Chain as ChainT},
 	up::{NetworkConfiguration, Zombienet},
 };
 use pop_common::Status;
@@ -118,8 +118,8 @@ pub(crate) struct BuildCommand<const FILTER: u8> {
 	/// The parachain(s) to be included. An optional parachain identifier and/or port can be
 	/// affixed via #id and :port specifiers (e.g. `asset-hub#1000:9944`).
 	#[serde(skip_serializing)]
-	#[arg(short, long, value_delimiter = ',', value_parser = SupportedRollups::<FILTER>::new())]
-	parachain: Option<Vec<Box<dyn Rollup>>>,
+	#[arg(short, long, value_delimiter = ',', value_parser = SupportedChains::<FILTER>::new())]
+	parachain: Option<Vec<Box<dyn ChainT>>>,
 	/// The port to be used for the first relay chain validator.
 	#[clap(short = 'P', long)]
 	port: Option<u16>,
@@ -146,21 +146,21 @@ impl<const FILTER: u8> BuildCommand<FILTER> {
 	) -> anyhow::Result<()> {
 		cli.intro(format!("Launch a local {} network", relay.name()))?;
 
-		let mut rollups = self.parachain.take();
+		let mut chains = self.parachain.take();
 
 		// Check for any missing dependencies, auto-adding as required.
-		if let Some(ref mut rollups) = rollups {
-			let provided: Vec<_> = rollups.iter().map(|p| p.as_any().type_id()).collect();
+		if let Some(ref mut chains) = chains {
+			let provided: Vec<_> = chains.iter().map(|p| p.as_any().type_id()).collect();
 			let dependencies: HashMap<_, _> =
-				rollups.iter().filter_map(|p| p.requires()).flatten().collect();
+				chains.iter().filter_map(|p| p.requires()).flatten().collect();
 			let all: HashMap<_, _> =
-				registry::rollups(&relay).iter().map(|p| (p.as_any().type_id(), p)).collect();
+				registry::chains(&relay).iter().map(|p| (p.as_any().type_id(), p)).collect();
 
 			let missing: Vec<_> = dependencies
 				.keys()
 				.filter_map(|k| {
 					(!provided.contains(k)).then(|| all.get(k)).flatten().map(|p| {
-						rollups.push((*p).clone());
+						chains.push((*p).clone());
 						p.name()
 					})
 				})
@@ -173,7 +173,7 @@ impl<const FILTER: u8> BuildCommand<FILTER> {
 			}
 		}
 
-		let network_config = NetworkConfiguration::build(relay, self.port, rollups.as_deref())?;
+		let network_config = NetworkConfiguration::build(relay, self.port, chains.as_deref())?;
 
 		spawn(
 			network_config,
@@ -193,21 +193,21 @@ impl<const FILTER: u8> BuildCommand<FILTER> {
 }
 
 #[derive(Clone)]
-struct SupportedRollups<const FILTER: u8>(PossibleValuesParser);
+struct SupportedChains<const FILTER: u8>(PossibleValuesParser);
 
-impl<const FILTER: u8> SupportedRollups<FILTER> {
+impl<const FILTER: u8> SupportedChains<FILTER> {
 	fn new() -> Self {
 		let relay = Relay::from(FILTER).expect("expected valid relay variant index as filter");
 		Self(PossibleValuesParser::new(
-			registry::rollups(&relay)
+			registry::chains(&relay)
 				.iter()
 				.map(|p| PossibleValue::new(p.name().to_string())),
 		))
 	}
 }
 
-impl<const FILTER: u8> TypedValueParser for SupportedRollups<FILTER> {
-	type Value = Box<dyn Rollup>;
+impl<const FILTER: u8> TypedValueParser for SupportedChains<FILTER> {
+	type Value = Box<dyn ChainT>;
 
 	fn parse_ref(
 		&self,
@@ -215,10 +215,10 @@ impl<const FILTER: u8> TypedValueParser for SupportedRollups<FILTER> {
 		arg: Option<&Arg>,
 		value: &OsStr,
 	) -> Result<Self::Value, clap::Error> {
-		// Parse value as chain with optional rollup id and port specifiers
+		// Parse value as chain with optional chain id and port specifiers
 		let (chain, id, port) = match self.0.parse_ref(cmd, arg, value) {
 			Ok(value) => (value, None, None),
-			// Check if failure due to rollup id being specified
+			// Check if failure due to chain id being specified
 			Err(e) if e.kind() == ErrorKind::InvalidValue => {
 				let value = StringValueParser::new().parse_ref(cmd, arg, value)?;
 				// Attempt to parse name and optional id, port from the entered value
@@ -233,24 +233,24 @@ impl<const FILTER: u8> TypedValueParser for SupportedRollups<FILTER> {
 			Err(e) => return Err(e),
 		};
 
-		// Attempt to resolve from supported rollups
+		// Attempt to resolve from supported chains
 		let relay = Relay::from(FILTER).expect("expected valid relay variant index as filter");
-		registry::rollups(&relay)
+		registry::chains(&relay)
 			.iter()
 			.find(|p| {
 				let chain = chain.as_str();
 				p.name() == chain || p.chain() == chain
 			})
 			.map(|p| {
-				let mut rollup = p.clone();
+				let mut chain = p.clone();
 				// Override id and/or port if provided
 				if let Some(id) = id {
-					rollup.set_id(id);
+					chain.set_id(id);
 				}
 				if let Some(port) = port {
-					rollup.set_port(port);
+					chain.set_port(port);
 				}
-				rollup
+				chain
 			})
 			.ok_or(clap::Error::new(ErrorKind::InvalidValue).with_cmd(cmd))
 	}
@@ -367,18 +367,18 @@ pub(crate) async fn spawn(
 			for node in validators {
 				result.push_str(&output(node));
 			}
-			// Add rollup info
-			let mut rollups = network.parachains();
-			rollups.sort_by_key(|p| p.para_id());
-			for rollup in rollups {
+			// Add chain info
+			let mut chains = network.parachains();
+			chains.sort_by_key(|p| p.para_id());
+			for chain in chains {
 				result.push_str(&format!(
 					"\n{bar}  ⛓️ {}",
-					rollup.chain_id().map_or(format!("id: {}", rollup.para_id()), |chain| format!(
-						"{chain}: {}",
-						rollup.para_id()
+					chain.chain_id().map_or(format!("id: {}", chain.para_id()), |c| format!(
+						"{c}: {}",
+						chain.para_id()
 					))
 				));
-				let mut collators = rollup.collators();
+				let mut collators = chain.collators();
 				collators.sort_by_key(|n| n.name());
 				for node in collators {
 					result.push_str(&output(node));

@@ -65,7 +65,7 @@ pub(crate) async fn prompt_to_select_chain_rpc(
 	prompt = prompt.item(1, "Custom", "Type the chain URL manually");
 	let chains = extract_chain_endpoints().await.unwrap_or_default();
 	let prompt = chains.iter().enumerate().fold(prompt, |acc, (pos, node)| {
-		if filter_fn(node) { acc.item(pos + 1, &node.name, "") } else { acc }
+		if filter_fn(node) { acc.item(pos + 2, &node.name, "") } else { acc }
 	});
 
 	let selected = prompt.filter_mode().interact()?;

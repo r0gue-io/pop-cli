@@ -12,14 +12,14 @@ use serde::Serialize;
 use std::fmt::{Display, Formatter, Result};
 use std::path::PathBuf;
 
+#[cfg(feature = "chain")]
+mod chain;
 #[cfg(feature = "contract")]
 mod contract;
 /// Utilities for launching a frontend dev server.
 mod frontend;
 #[cfg(feature = "chain")]
 pub(super) mod network;
-#[cfg(feature = "chain")]
-mod rollup;
 
 #[cfg(feature = "chain")]
 const KUSAMA: u8 = Relay::Kusama as u8;
@@ -47,7 +47,7 @@ pub(crate) struct UpArgs {
 
 	#[command(flatten)]
 	#[cfg(feature = "chain")]
-	pub(crate) rollup: rollup::UpCommand,
+	pub(crate) chain: chain::UpCommand,
 
 	#[command(flatten)]
 	#[cfg(feature = "contract")]
@@ -118,13 +118,11 @@ impl Command {
 		}
 		#[cfg(feature = "chain")]
 		if pop_chains::is_supported(&project_path) {
-			args.rollup.path = project_path.clone();
-			args.rollup.execute(cli).await?;
+			args.chain.path = project_path.clone();
+			args.chain.execute(cli).await?;
 			return Ok(());
 		}
-		cli.warning(
-			"No contract or rollup detected. Ensure you are in a valid project directory.",
-		)?;
+		cli.warning("No contract or chain detected. Ensure you are in a valid project directory.")?;
 		Ok(())
 	}
 }
@@ -185,16 +183,16 @@ mod tests {
 				skip_build: true,
 			},
 			#[cfg(feature = "chain")]
-			rollup: rollup::UpCommand::default(),
+			chain: chain::UpCommand::default(),
 			command: None,
 		})
 	}
 
 	#[tokio::test]
 	#[cfg(feature = "chain")]
-	async fn detects_rollup_correctly() -> anyhow::Result<()> {
+	async fn detects_chain_correctly() -> anyhow::Result<()> {
 		let temp_dir = tempfile::tempdir()?;
-		let name = "rollup";
+		let name = "chain";
 		let project_path = temp_dir.path().join(name);
 		let config = Config {
 			symbol: "DOT".to_string(),
@@ -204,10 +202,10 @@ mod tests {
 		instantiate_template_dir(&ChainTemplate::Standard, &project_path, None, config)?;
 
 		let mut args = create_up_args(project_path)?;
-		args.rollup.id = Some(2000);
-		args.rollup.relay_chain_url = Some(Url::parse("ws://127.0.0.1:9944")?);
-		args.rollup.genesis_code = Some(PathBuf::from("path/to/genesis"));
-		args.rollup.genesis_state = Some(PathBuf::from("path/to/state"));
+		args.chain.id = Some(2000);
+		args.chain.relay_chain_url = Some(Url::parse("ws://127.0.0.1:9944")?);
+		args.chain.genesis_code = Some(PathBuf::from("path/to/genesis"));
+		args.chain.genesis_state = Some(PathBuf::from("path/to/state"));
 		let mut cli = MockCli::new().expect_select(
 			"Select your deployment method:",
 			Some(false),
@@ -218,7 +216,7 @@ mod tests {
 					.map(|action| (action.name().to_string(), format_url(action.base_url())))
 					.chain(std::iter::once((
 						"Register".to_string(),
-						"Register the rollup on the relay chain without deploying with a provider"
+						"Register the chain on the relay chain without deploying with a provider"
 							.to_string(),
 					)))
 					.collect::<Vec<_>>(),
@@ -240,7 +238,7 @@ mod tests {
 
 		cmd("cargo", ["new", name, "--bin"]).dir(path).run()?;
 		let mut cli = MockCli::new().expect_warning(
-			"No contract or rollup detected. Ensure you are in a valid project directory.",
+			"No contract or chain detected. Ensure you are in a valid project directory.",
 		);
 		Command::execute_project_deployment(&mut args, &mut cli).await?;
 		cli.verify()

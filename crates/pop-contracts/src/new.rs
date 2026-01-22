@@ -263,19 +263,19 @@ mod tests {
 	#[test]
 	fn test_rename_contract() -> Result<(), Error> {
 		let temp_dir = generate_contract_directory()?;
-		rename_contract("my_contract", temp_dir.path().to_owned(), &Contract::ERC20)?;
+		rename_contract("my-contract", temp_dir.path().to_owned(), &Contract::ERC20)?;
 		let generated_cargo =
 			fs::read_to_string(temp_dir.path().join("Cargo.toml")).expect("Could not read file");
-		assert!(generated_cargo.contains("name = \"my_contract\""));
+		assert!(generated_cargo.contains("name = \"my-contract\""));
 
 		let generated_code =
 			fs::read_to_string(temp_dir.path().join("lib.rs")).expect("Could not read file");
-		assert!(generated_code.contains("mod my_contract"));
+		assert!(generated_code.contains("mod my-contract"));
 		let generated_e2e_code =
 			fs::read_to_string(temp_dir.path().join("e2e_tests.rs")).expect("Could not read file");
 		assert!(
 			generated_e2e_code
-				.contains(".instantiate(\"my_contract\", &ink_e2e::alice(), &mut constructor)")
+				.contains(".instantiate(\"my-contract\", &ink_e2e::alice(), &mut constructor)")
 		);
 
 		Ok(())

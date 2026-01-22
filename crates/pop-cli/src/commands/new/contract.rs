@@ -77,10 +77,10 @@ impl NewContractCommand {
 
 		let path_project = self.name.as_ref().expect("name can not be none; qed");
 		let path = Path::new(path_project);
-		let name = get_project_name_from_path(path, "my_contract");
+		let name = get_project_name_from_path(path, "my-contract");
 
 		// Validate contract name.
-		if let Err(e) = is_valid_contract_name(name) {
+		if let Err(e) = is_valid_contract_name(&name) {
 			cli.outro_cancel(e)?;
 			return Ok(());
 		}
@@ -100,7 +100,7 @@ impl NewContractCommand {
 				};
 		}
 		let contract_path = generate_contract_from_template(
-			name,
+			&name,
 			path,
 			&template,
 			frontend_template,
@@ -138,8 +138,8 @@ async fn guide_user_to_generate_contract(
 	if command.name.is_none() {
 		let name: String = cli
 			.input("Where should your project be created?")
-			.placeholder("./my_contract")
-			.default_input("./my_contract")
+			.placeholder("./my-contract")
+			.default_input("./my-contract")
 			.interact()?;
 		command.name = Some(name);
 	}
@@ -298,7 +298,7 @@ mod tests {
 		.iter()
 		.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
 		.collect();
-		let mut cli = MockCli::new().expect_intro("Generating \"my_contract\" using Erc20!")
+		let mut cli = MockCli::new().expect_intro("Generating \"my-contract\" using Erc20!")
 		.expect_success("Generation complete")
 		.expect_warning(
 			format!("NOTE: the resulting contract is not guaranteed to be audited or reviewed for security vulnerabilities.{}",
@@ -309,7 +309,7 @@ mod tests {
 			style("https://learn.onpop.io").magenta().underlined()
 		));
 		generate_contract_from_template(
-			"my_contract",
+			"my-contract",
 			&contract_path,
 			&ContractTemplate::ERC20,
 			None,
