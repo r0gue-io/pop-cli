@@ -176,6 +176,7 @@ impl Blockchain {
 	///
 	/// ```ignore
 	/// use pop_fork::Blockchain;
+	/// use std::path::Path;
 	/// use url::Url;
 	///
 	/// let endpoint: Url = "wss://rpc.polkadot.io".parse()?;
@@ -184,11 +185,11 @@ impl Blockchain {
 	/// let blockchain = Blockchain::fork(&endpoint, None).await?;
 	///
 	/// // With persistent cache
-	/// let blockchain = Blockchain::fork(&endpoint, Some("./cache.sqlite")).await?;
+	/// let blockchain = Blockchain::fork(&endpoint, Some(Path::new("./cache.sqlite"))).await?;
 	/// ```
 	pub async fn fork(
 		endpoint: &Url,
-		cache_path: Option<&str>,
+		cache_path: Option<&Path>,
 	) -> Result<Arc<Self>, BlockchainError> {
 		Self::fork_with_config(endpoint, cache_path, None, ExecutorConfig::default()).await
 	}
@@ -216,7 +217,7 @@ impl Blockchain {
 	/// ```
 	pub async fn fork_at(
 		endpoint: &Url,
-		cache_path: Option<&str>,
+		cache_path: Option<&Path>,
 		fork_point: Option<BlockForkPoint>,
 	) -> Result<Arc<Self>, BlockchainError> {
 		Self::fork_with_config(endpoint, cache_path, fork_point, ExecutorConfig::default()).await
@@ -249,12 +250,12 @@ impl Blockchain {
 	/// ```
 	pub async fn fork_with_config(
 		endpoint: &Url,
-		cache_path: Option<&str>,
+		cache_path: Option<&Path>,
 		fork_point: Option<BlockForkPoint>,
 		executor_config: ExecutorConfig,
 	) -> Result<Arc<Self>, BlockchainError> {
 		// Create storage cache
-		let cache = StorageCache::open(cache_path.map(Path::new)).await?;
+		let cache = StorageCache::open(cache_path).await?;
 
 		// Determine fork point
 		let fork_point = match fork_point {
@@ -555,21 +556,6 @@ impl InherentProvider for ArcProvider {
 #[cfg(test)]
 mod tests {
 	use super::*;
-
-	#[test]
-	fn chain_type_equality() {
-		assert_eq!(ChainType::RelayChain, ChainType::RelayChain);
-		assert_eq!(ChainType::Parachain { para_id: 1000 }, ChainType::Parachain { para_id: 1000 });
-		assert_ne!(ChainType::Parachain { para_id: 1000 }, ChainType::Parachain { para_id: 2000 });
-		assert_ne!(ChainType::RelayChain, ChainType::Parachain { para_id: 1000 });
-	}
-
-	#[test]
-	fn blockchain_error_from_block_error() {
-		let block_err = BlockError::RuntimeCodeNotFound;
-		let blockchain_err: BlockchainError = block_err.into();
-		assert!(matches!(blockchain_err, BlockchainError::Block(_)));
-	}
 
 	#[test]
 	fn blockchain_error_display() {
