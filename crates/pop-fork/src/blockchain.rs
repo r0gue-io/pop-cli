@@ -425,32 +425,6 @@ impl Blockchain {
 		self.call_at_block(&head, method, args).await
 	}
 
-	/// Execute a runtime call at a specific block number.
-	///
-	/// # Arguments
-	///
-	/// * `block_number` - Block number to execute at
-	/// * `method` - Runtime API method name
-	/// * `args` - SCALE-encoded arguments
-	///
-	/// # Returns
-	///
-	/// The SCALE-encoded result from the runtime.
-	pub async fn call_at(
-		&self,
-		block_number: u32,
-		method: &str,
-		args: &[u8],
-	) -> Result<Vec<u8>, BlockchainError> {
-		let head = self.head.read().await;
-
-		// Find the block at the given number by traversing parent chain
-		let block = Self::find_block_at_number(&head, block_number)
-			.ok_or_else(|| BlockError::BlockNumberNotFound(block_number))?;
-
-		self.call_at_block(&block, method, args).await
-	}
-
 	/// Get storage value at the current head.
 	///
 	/// # Arguments
@@ -461,8 +435,8 @@ impl Blockchain {
 	///
 	/// The storage value, or `None` if the key doesn't exist.
 	pub async fn storage(&self, key: &[u8]) -> Result<Option<Vec<u8>>, BlockchainError> {
-		let head = self.head.read().await;
-		self.storage_at_block(&head, key).await
+		let block_number = self.head.read().await.number;
+		self.get_storage_value(block_number, key).await
 	}
 
 	/// Get storage value at a specific block number.
@@ -480,13 +454,22 @@ impl Blockchain {
 		block_number: u32,
 		key: &[u8],
 	) -> Result<Option<Vec<u8>>, BlockchainError> {
+		self.get_storage_value(block_number, key).await
+	}
+
+	/// Internal helper to query storage at a specific block number.
+	///
+	/// Accesses the shared `LocalStorageLayer` via the head block.
+	/// All blocks share the same storage layer, so we use head as the accessor and let
+	/// `LocalStorageLayer` handle the request.
+	async fn get_storage_value(
+		&self,
+		block_number: u32,
+		key: &[u8],
+	) -> Result<Option<Vec<u8>>, BlockchainError> {
 		let head = self.head.read().await;
-
-		// Find the block at the given number by traversing parent chain
-		let block = Self::find_block_at_number(&head, block_number)
-			.ok_or_else(|| BlockError::BlockNumberNotFound(block_number))?;
-
-		self.storage_at_block(&block, key).await
+		let value = head.storage().get(block_number, key).await.map_err(BlockError::from)?;
+		Ok(value.map(|v| v.value.clone()))
 	}
 
 	/// Detect chain type by checking for ParachainSystem pallet and extracting para_id.
@@ -532,28 +515,6 @@ impl Blockchain {
 		Ok(version.spec_name)
 	}
 
-	/// Find a block at a specific number by traversing the parent chain.
-	fn find_block_at_number(head: &Block, target_number: u32) -> Option<Block> {
-		let mut current = head.clone();
-
-		loop {
-			if current.number == target_number {
-				return Some(current);
-			}
-
-			if current.number < target_number {
-				// Target is ahead of our chain
-				return None;
-			}
-
-			// Move to parent
-			match &current.parent {
-				Some(parent) => current = (**parent).clone(),
-				None => return None,
-			}
-		}
-	}
-
 	/// Execute a runtime call at a specific block.
 	async fn call_at_block(
 		&self,
@@ -567,17 +528,6 @@ impl Blockchain {
 
 		let result = executor.call(method, args, block.storage()).await?;
 		Ok(result.output)
-	}
-
-	/// Get storage value at a specific block.
-	async fn storage_at_block(
-		&self,
-		block: &Block,
-		key: &[u8],
-	) -> Result<Option<Vec<u8>>, BlockchainError> {
-		let value = block.storage().get(block.number, key).await.map_err(BlockError::from)?;
-
-		Ok(value.map(|v| v.value.clone()))
 	}
 }
 
@@ -843,42 +793,6 @@ mod tests {
 
 			// Result should not be empty (contains version info)
 			assert!(!result.is_empty());
-		}
-
-		#[tokio::test(flavor = "multi_thread")]
-		async fn call_at_executes_at_specific_block() {
-			let ctx = create_test_context().await;
-
-			let blockchain =
-				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
-
-			let fork_number = blockchain.fork_point_number();
-
-			// Build a block
-			blockchain.build_empty_block().await.expect("Failed to build block");
-
-			// Call at fork point
-			let result = blockchain
-				.call_at(fork_number, "Core_version", &[])
-				.await
-				.expect("Failed to call at specific block");
-
-			assert!(!result.is_empty());
-		}
-
-		#[tokio::test(flavor = "multi_thread")]
-		async fn call_at_nonexistent_block_fails() {
-			let ctx = create_test_context().await;
-
-			let blockchain =
-				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
-
-			// Try to call at a block that doesn't exist in our chain
-			let future_block = blockchain.head_number().await + 100;
-
-			let result = blockchain.call_at(future_block, "Core_version", &[]).await;
-
-			assert!(result.is_err());
 		}
 
 		#[tokio::test(flavor = "multi_thread")]
