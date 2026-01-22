@@ -69,6 +69,7 @@ tower-http = { workspace = true, features = ["fs", "cors"], optional = true }
 mockito.workspace = true
 subxt-signer = { workspace = true}
 subxt = { workspace = true }
+temp-env.workspace = true
 
 [features]
 default = ["chain", "telemetry", "contract"]
