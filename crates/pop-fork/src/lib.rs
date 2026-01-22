@@ -47,6 +47,10 @@
 //!
 //! - [`RuntimeExecutor`] - Executes Polkadot SDK runtime calls against forked state
 //! - [`ForkRpcClient`] - RPC client for connecting to live chains
+//!
+//! ## Transaction Pool
+//!
+//! - [`TxPool`] - Minimal FIFO queue for pending extrinsics
 
 mod block;
 mod builder;
@@ -60,6 +64,7 @@ mod remote;
 mod rpc;
 mod schema;
 mod strings;
+mod txpool;
 
 pub use block::{Block, BlockForkPoint};
 pub use builder::{
@@ -69,7 +74,7 @@ pub use builder::{
 pub use cache::{PrefixScanProgress, StorageCache};
 pub use error::{
 	BlockBuilderError, BlockError, CacheError, ExecutorError, LocalStorageError,
-	RemoteStorageError, RpcClientError,
+	RemoteStorageError, RpcClientError, TxPoolError,
 };
 pub use executor::{
 	ExecutorConfig, RuntimeCallResult, RuntimeExecutor, RuntimeLog, RuntimeVersion,
@@ -80,3 +85,4 @@ pub use local::LocalStorageLayer;
 pub use models::BlockRow;
 pub use remote::RemoteStorageLayer;
 pub use rpc::ForkRpcClient;
+pub use txpool::TxPool;
