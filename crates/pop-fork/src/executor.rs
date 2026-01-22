@@ -619,7 +619,7 @@ mod tests {
 		use crate::{ForkRpcClient, LocalStorageLayer, RemoteStorageLayer, StorageCache};
 		use pop_common::test_env::TestNode;
 		use scale::Encode;
-		use subxt::config::substrate::H256;
+		use subxt::{Metadata, config::substrate::H256};
 		use url::Url;
 
 		use super::*;
@@ -653,6 +653,8 @@ mod tests {
 		async fn create_executor_context_with_config(
 			config: ExecutorConfig,
 		) -> ExecutorTestContext {
+			use scale::Decode as _;
+
 			let node = TestNode::spawn().await.expect("Failed to spawn test node");
 			let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
 			let rpc = ForkRpcClient::connect(&endpoint).await.expect("Failed to connect to node");
@@ -666,6 +668,11 @@ mod tests {
 			let runtime_code =
 				rpc.runtime_code(block_hash).await.expect("Failed to fetch runtime code");
 
+			// Fetch and decode metadata
+			let metadata_bytes = rpc.metadata(block_hash).await.expect("Failed to fetch metadata");
+			let metadata = Metadata::decode(&mut metadata_bytes.as_slice())
+				.expect("Failed to decode metadata");
+
 			// Set up storage layers
 			let cache = StorageCache::in_memory().await.expect("Failed to create cache");
 			cache
@@ -674,7 +681,7 @@ mod tests {
 				.expect("Failed to cache block");
 
 			let remote = RemoteStorageLayer::new(rpc, cache);
-			let storage = LocalStorageLayer::new(remote, block_number, block_hash);
+			let storage = LocalStorageLayer::new(remote, block_number, block_hash, metadata);
 
 			// Create executor with custom config
 			let executor = RuntimeExecutor::with_config(runtime_code, None, config)

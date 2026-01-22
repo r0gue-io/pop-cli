@@ -39,6 +39,9 @@ pub enum BlockBuilderError {
 	/// Inherents have already been applied.
 	#[error("Inherents already applied - apply_inherents() can only be called once")]
 	InherentsAlreadyApplied,
+	/// Block has already been finalized.
+	#[error("Block already finalized")]
+	AlreadyFinalized,
 
 	/// Inherent provider failed.
 	#[error("Inherent provider `{provider}` failed: {message}")]

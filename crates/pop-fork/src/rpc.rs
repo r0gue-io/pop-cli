@@ -141,6 +141,24 @@ impl ForkRpcClient {
 			.ok_or_else(|| RpcClientError::InvalidResponse(format!("No header found for {hash:?}")))
 	}
 
+	/// Get a block hash by its number.
+	///
+	/// # Arguments
+	/// * `block_number` - The block number to query
+	///
+	/// # Returns
+	/// * `Ok(Some(hash))` - Block exists with this hash
+	/// * `Ok(None)` - Block number doesn't exist yet
+	/// * `Err(_)` - RPC error
+	pub async fn block_hash_at(&self, block_number: u32) -> Result<Option<H256>, RpcClientError> {
+		self.legacy.chain_get_block_hash(Some(block_number.into())).await.map_err(|e| {
+			RpcClientError::RequestFailed {
+				method: methods::CHAIN_GET_BLOCK_HASH,
+				message: e.to_string(),
+			}
+		})
+	}
+
 	/// Get full block data by block number.
 	///
 	/// This method first fetches the block hash for the given block number using
@@ -158,13 +176,7 @@ impl ForkRpcClient {
 		block_number: u32,
 	) -> Result<Option<(H256, Block<SubstrateConfig>)>, RpcClientError> {
 		// Get block hash from block number
-		let block_hash =
-			self.legacy.chain_get_block_hash(Some(block_number.into())).await.map_err(|e| {
-				RpcClientError::RequestFailed {
-					method: methods::CHAIN_GET_BLOCK_HASH,
-					message: e.to_string(),
-				}
-			})?;
+		let block_hash = self.block_hash_at(block_number).await?;
 
 		let block_hash = match block_hash {
 			Some(hash) => hash,

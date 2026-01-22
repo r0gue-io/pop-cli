@@ -44,7 +44,9 @@
 //! ```
 
 use crate::{BlockError, ForkRpcClient, LocalStorageLayer, RemoteStorageLayer, StorageCache};
-use subxt::{config::substrate::H256, ext::codec::Encode};
+use scale::Decode;
+use std::sync::Arc;
+use subxt::{Metadata, config::substrate::H256, ext::codec::Encode};
 use url::Url;
 
 /// A block in a forked blockchain.
@@ -78,6 +80,9 @@ pub struct Block {
 	/// The extrinsics (transactions) in this block.
 	pub extrinsics: Vec<Vec<u8>>,
 	/// The storage layer for this block.
+	///
+	/// Also manages runtime metadata versions, enabling dynamic lookup of
+	/// pallet and call indices for inherent providers.
 	storage: LocalStorageLayer,
 	/// The parent block. Keeping blocks in memory is cheap as the `LocalStorageLayer` is shared
 	/// between all fork-produced blocks.
@@ -146,9 +151,14 @@ impl Block {
 		let block_number = header.number;
 		let parent_hash = header.parent_hash;
 
-		// Create storage layers
+		// Fetch and decode runtime metadata
+		let metadata_bytes = rpc.metadata(block_hash).await?;
+		let metadata = Metadata::decode(&mut metadata_bytes.as_slice())
+			.map_err(|e| BlockError::MetadataDecodingFailed(e.to_string()))?;
+
+		// Create storage layers (metadata is stored in LocalStorageLayer)
 		let remote = RemoteStorageLayer::new(rpc, cache);
-		let storage = LocalStorageLayer::new(remote, block_number, block_hash);
+		let storage = LocalStorageLayer::new(remote, block_number, block_hash, metadata);
 
 		// Encode header for storage
 		let header_encoded = header.encode();
@@ -164,16 +174,22 @@ impl Block {
 		})
 	}
 
-	/// Create a new child block with the given metadata and storage.
+	/// Create a new child block with the given hash, header, and extrinsics.
 	///
-	/// This is a lower-level constructor for creating blocks with explicit
-	/// parameters.
+	/// This commits the parent's storage modifications and creates a new block
+	/// that shares the same storage layer (including metadata versions).
 	///
 	/// # Arguments
 	///
 	/// * `hash` - The block hash
 	/// * `header` - The encoded block header
 	/// * `extrinsics` - The extrinsics (transactions) in this block
+	///
+	/// # Note
+	///
+	/// The child block shares the same storage layer as the parent, including
+	/// metadata versions. If a runtime upgrade occurred (`:code` storage changed),
+	/// the new metadata should be registered via `storage.register_metadata_version()`.
 	pub async fn child(
 		&mut self,
 		hash: H256,
@@ -218,6 +234,29 @@ impl Block {
 	/// ```
 	pub fn storage_mut(&mut self) -> &mut LocalStorageLayer {
 		&mut self.storage
+	}
+
+	/// Get the runtime metadata for this block.
+	///
+	/// This provides access to pallet and call indices for dynamic extrinsic
+	/// encoding. Use this in inherent providers to look up pallet indices
+	/// instead of relying on hardcoded values.
+	///
+	/// Returns an `Arc<Metadata>` which can be used like a reference (via `Deref`).
+	/// The metadata is shared across all blocks that use the same runtime version,
+	/// avoiding unnecessary cloning.
+	///
+	/// # Example
+	///
+	/// ```ignore
+	/// let metadata = block.metadata().await?;
+	/// let pallet = metadata.pallet_by_name("Timestamp")?;
+	/// let pallet_index = pallet.index();
+	/// let call_variant = pallet.call_variant_by_name("set")?;
+	/// let call_index = call_variant.index;
+	/// ```
+	pub async fn metadata(&self) -> Result<Arc<Metadata>, BlockError> {
+		Ok(self.storage.metadata_at(self.number).await?)
 	}
 }
 

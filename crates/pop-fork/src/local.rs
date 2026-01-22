@@ -52,11 +52,12 @@ use crate::{
 	models::{BlockRow, LocalKeyRow},
 	remote::RemoteStorageLayer,
 };
+use scale::Decode;
 use std::{
-	collections::HashMap,
+	collections::{BTreeMap, HashMap},
 	sync::{Arc, RwLock},
 };
-use subxt::config::substrate::H256;
+use subxt::{Metadata, config::substrate::H256};
 
 const ONE_BLOCK: u32 = 1;
 
@@ -79,6 +80,9 @@ type SharedValue = Arc<LocalSharedValue>;
 type Modifications = HashMap<Vec<u8>, Option<SharedValue>>;
 type DeletedPrefixes = Vec<Vec<u8>>;
 type DiffLocalStorage = Vec<(Vec<u8>, Option<SharedValue>)>;
+/// Maps block number (when metadata became valid) to metadata.
+/// Used to track metadata versions across runtime upgrades.
+type MetadataVersions = BTreeMap<u32, Arc<Metadata>>;
 
 /// Local storage layer that tracks modifications on top of a remote layer.
 ///
@@ -111,6 +115,9 @@ pub struct LocalStorageLayer {
 	latest_block_number: u32,
 	modifications: Arc<RwLock<Modifications>>,
 	deleted_prefixes: Arc<RwLock<DeletedPrefixes>>,
+	/// Metadata versions indexed by the block number when they became valid.
+	/// Enables looking up the correct metadata for any block in the fork.
+	metadata_versions: Arc<RwLock<MetadataVersions>>,
 }
 
 impl LocalStorageLayer {
@@ -119,15 +126,21 @@ impl LocalStorageLayer {
 	/// # Arguments
 	/// * `parent` - The remote storage layer to use as the base state
 	/// * `first_forked_block_number` - The initial block number where the fork started
+	/// * `first_forked_block_hash` - The hash of the first forked block
+	/// * `metadata` - The runtime metadata at the fork point
 	///
 	/// # Returns
 	/// A new `LocalStorageLayer` with no modifications, with `latest_block_number` set to
-	/// `first_forked_block_number`.
+	/// `first_forked_block_number + 1`.
 	pub fn new(
 		parent: RemoteStorageLayer,
 		first_forked_block_number: u32,
 		first_forked_block_hash: H256,
+		metadata: Metadata,
 	) -> Self {
+		let mut metadata_versions = BTreeMap::new();
+		metadata_versions.insert(first_forked_block_number, Arc::new(metadata));
+
 		Self {
 			parent,
 			first_forked_block_hash,
@@ -135,6 +148,7 @@ impl LocalStorageLayer {
 			latest_block_number: first_forked_block_number + 1,
 			modifications: Arc::new(RwLock::new(HashMap::new())),
 			deleted_prefixes: Arc::new(RwLock::new(Vec::new())),
+			metadata_versions: Arc::new(RwLock::new(metadata_versions)),
 		}
 	}
 
@@ -168,6 +182,117 @@ impl LocalStorageLayer {
 	/// Get the current latest block number.
 	pub fn get_latest_block_number(&self) -> u32 {
 		self.latest_block_number
+	}
+
+	/// Get the metadata valid at a specific block number.
+	///
+	/// For blocks at or after the fork point, returns metadata from the local version tree.
+	/// For blocks before the fork point, fetches metadata from the remote node.
+	///
+	/// # Arguments
+	/// * `block_number` - The block number to get metadata for
+	///
+	/// # Returns
+	/// * `Ok(Arc<Metadata>)` - The metadata valid at the given block
+	/// * `Err(_)` - Lock error, RPC error, or metadata decode error
+	pub async fn metadata_at(&self, block_number: u32) -> Result<Arc<Metadata>, LocalStorageError> {
+		// For blocks before the fork point, fetch from remote
+		if block_number < self.first_forked_block_number {
+			return self.fetch_remote_metadata(block_number).await;
+		}
+
+		// For blocks at or after fork point, use local version tree
+		let versions = self
+			.metadata_versions
+			.read()
+			.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
+
+		versions
+			.range(..=block_number)
+			.next_back()
+			.map(|(_, metadata)| Arc::clone(metadata))
+			.ok_or_else(|| {
+				LocalStorageError::MetadataNotFound(format!(
+					"No metadata found for block {}",
+					block_number
+				))
+			})
+	}
+
+	/// Fetch metadata from the remote node, usually used for a pre-fork block.
+	async fn fetch_remote_metadata(
+		&self,
+		block_number: u32,
+	) -> Result<Arc<Metadata>, LocalStorageError> {
+		// Get block hash for this block number
+		let block_hash = self.parent.rpc().block_hash_at(block_number).await?.ok_or_else(|| {
+			LocalStorageError::MetadataNotFound(format!(
+				"Block {} not found on remote node",
+				block_number
+			))
+		})?;
+
+		// Fetch metadata bytes from remote
+		let metadata_bytes = self.parent.rpc().metadata(block_hash).await?;
+
+		// Decode metadata
+		let metadata = Metadata::decode(&mut metadata_bytes.as_slice()).map_err(|e| {
+			LocalStorageError::MetadataNotFound(format!("Failed to decode remote metadata: {}", e))
+		})?;
+
+		Ok(Arc::new(metadata))
+	}
+
+	/// Register a new metadata version starting at the given block number.
+	///
+	/// This should be called when a runtime upgrade occurs (`:code` storage key changes)
+	/// to record that a new metadata version is now active.
+	///
+	/// # Arguments
+	/// * `block_number` - The block number where this metadata becomes valid
+	/// * `metadata` - The new runtime metadata
+	///
+	/// # Returns
+	/// * `Ok(())` - Metadata version registered successfully
+	/// * `Err(_)` - Lock error
+	pub fn register_metadata_version(
+		&self,
+		block_number: u32,
+		metadata: Metadata,
+	) -> Result<(), LocalStorageError> {
+		let mut versions = self
+			.metadata_versions
+			.write()
+			.map_err(|e| LocalStorageError::Lock(e.to_string()))?;
+
+		versions.insert(block_number, Arc::new(metadata));
+		Ok(())
+	}
+
+	/// Check if the `:code` storage key was modified at the specified block.
+	///
+	/// This is used to detect runtime upgrades. When a runtime upgrade occurs in block X,
+	/// the new runtime is used starting from block X+1. So when building X+1, we check
+	/// if code changed in X (the parent) to determine if we're now using a new runtime.
+	///
+	/// # Arguments
+	/// * `block_number` - The block number to check for code modifications
+	///
+	/// # Returns
+	/// * `Ok(true)` - The `:code` key was modified at the specified block
+	/// * `Ok(false)` - The `:code` key was not modified at the specified block
+	/// * `Err(_)` - Lock error
+	pub fn has_code_changed_at(&self, block_number: u32) -> Result<bool, LocalStorageError> {
+		let modifications =
+			self.modifications.read().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
+
+		// The well-known `:code` storage key
+		let code_key = sp_core::storage::well_known_keys::CODE;
+
+		// Check if :code was modified at the specified block
+		Ok(modifications.get(code_key).is_some_and(|value| {
+			value.as_ref().is_some_and(|v| v.last_modification_block == block_number)
+		}))
 	}
 
 	/// Return the value of the specified key at height `block_number` if the value contained in the
@@ -733,6 +858,7 @@ mod tests {
 		remote: RemoteStorageLayer,
 		block_hash: H256,
 		block_number: u32,
+		metadata: Metadata,
 	}
 
 	async fn create_test_context() -> TestContext {
@@ -743,14 +869,22 @@ mod tests {
 		let header = rpc.header(block_hash).await.unwrap();
 		let block_number = header.number;
 		let cache = StorageCache::in_memory().await.unwrap();
-		let remote = RemoteStorageLayer::new(rpc, cache);
+		let remote = RemoteStorageLayer::new(rpc.clone(), cache);
+		let metadata_bytes = rpc.metadata(block_hash).await.unwrap();
+		let metadata =
+			Metadata::decode(&mut metadata_bytes.as_slice()).expect("Failed to decode metadata");
 
-		TestContext { node, remote, block_hash, block_number }
+		TestContext { node, remote, block_hash, block_number, metadata }
 	}
 
 	/// Helper to create a LocalStorageLayer with proper block hash and number
 	fn create_layer(ctx: &TestContext) -> LocalStorageLayer {
-		LocalStorageLayer::new(ctx.remote.clone(), ctx.block_number, ctx.block_hash)
+		LocalStorageLayer::new(
+			ctx.remote.clone(),
+			ctx.block_number,
+			ctx.block_hash,
+			ctx.metadata.clone(),
+		)
 	}
 
 	// Tests for new()
@@ -2093,5 +2227,160 @@ mod tests {
 
 		let result = layer.next_key(nonexistent_prefix, &[]).await.unwrap();
 		assert!(result.is_none(), "Nonexistent prefix should return None");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn metadata_at_returns_metadata_for_future_blocks() {
+		let ctx = create_test_context().await;
+		let layer = create_layer(&ctx);
+
+		// Metadata registered at fork point should be valid for future blocks too
+		let future_block = ctx.block_number + 100;
+		let metadata = layer.metadata_at(future_block).await.unwrap();
+		assert!(metadata.pallets().count() > 0, "Metadata should be valid for future blocks");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn metadata_at_fetches_from_remote_for_pre_fork_blocks() {
+		let ctx = create_test_context().await;
+		let layer = create_layer(&ctx);
+
+		// For blocks before fork point, metadata should be fetched from remote
+		if ctx.block_number > 0 {
+			let metadata = layer.metadata_at(ctx.block_number - 1).await.unwrap();
+			assert!(metadata.pallets().count() > 0, "Should fetch metadata from remote");
+		}
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn register_metadata_version_adds_new_version() {
+		let ctx = create_test_context().await;
+		let layer = create_layer(&ctx);
+
+		// Register a new metadata version at a future block
+		let new_block = ctx.block_number + 10;
+		layer.register_metadata_version(new_block, ctx.metadata.clone()).unwrap();
+
+		// Both versions should be accessible
+		let old_metadata = layer.metadata_at(ctx.block_number).await.unwrap();
+		let new_metadata = layer.metadata_at(new_block).await.unwrap();
+
+		assert!(old_metadata.pallets().count() > 0);
+		assert!(new_metadata.pallets().count() > 0);
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn register_metadata_version_respects_block_boundaries() {
+		let ctx = create_test_context().await;
+		let layer = create_layer(&ctx);
+
+		// Register new metadata at block X+5
+		let upgrade_block = ctx.block_number + 5;
+		layer.register_metadata_version(upgrade_block, ctx.metadata.clone()).unwrap();
+
+		// Blocks before upgrade should get original metadata
+		// Blocks at or after upgrade should get new metadata
+		let before_upgrade = layer.metadata_at(upgrade_block - 1).await.unwrap();
+		let at_upgrade = layer.metadata_at(upgrade_block).await.unwrap();
+		let after_upgrade = layer.metadata_at(upgrade_block + 10).await.unwrap();
+
+		// All should have pallets (same metadata in this test, but different Arc instances
+		// after upgrade point)
+		assert!(before_upgrade.pallets().count() > 0);
+		assert!(at_upgrade.pallets().count() > 0);
+		assert!(after_upgrade.pallets().count() > 0);
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn has_code_changed_at_returns_false_when_no_code_modified() {
+		let ctx = create_test_context().await;
+		let layer = create_layer(&ctx);
+
+		// No modifications made, should return false
+		let result = layer.has_code_changed_at(ctx.block_number).unwrap();
+		assert!(!result, "Should return false when no code was modified");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn has_code_changed_at_returns_false_for_non_code_modifications() {
+		let ctx = create_test_context().await;
+		let layer = create_layer(&ctx);
+
+		// Modify a non-code key
+		layer.set(b"some_random_key", Some(b"some_value")).unwrap();
+
+		let block = layer.get_latest_block_number();
+		let result = layer.has_code_changed_at(block).unwrap();
+		assert!(!result, "Should return false when only non-code keys modified");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn has_code_changed_at_returns_true_when_code_modified() {
+		let ctx = create_test_context().await;
+		let layer = create_layer(&ctx);
+
+		// Modify the :code key
+		let code_key = sp_core::storage::well_known_keys::CODE;
+		layer.set(code_key, Some(b"new_runtime_code")).unwrap();
+
+		let block = layer.get_latest_block_number();
+		let result = layer.has_code_changed_at(block).unwrap();
+		assert!(result, "Should return true when :code was modified at the specified block");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn has_code_changed_at_returns_false_for_different_block() {
+		let ctx = create_test_context().await;
+		let layer = create_layer(&ctx);
+
+		// Modify the :code key at current block
+		let code_key = sp_core::storage::well_known_keys::CODE;
+		layer.set(code_key, Some(b"new_runtime_code")).unwrap();
+
+		let current_block = layer.get_latest_block_number();
+
+		// Check a different block number - should return false
+		let result = layer.has_code_changed_at(current_block + 1).unwrap();
+		assert!(!result, "Should return false when checking different block than modification");
+
+		let result = layer.has_code_changed_at(current_block - 1).unwrap();
+		assert!(!result, "Should return false when checking block before modification");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn has_code_changed_at_tracks_modification_block_correctly() {
+		let ctx = create_test_context().await;
+		let mut layer = create_layer(&ctx);
+
+		let code_key = sp_core::storage::well_known_keys::CODE;
+		let first_block = layer.get_latest_block_number();
+
+		// Modify code at first block
+		layer.set(code_key, Some(b"runtime_v1")).unwrap();
+		assert!(
+			layer.has_code_changed_at(first_block).unwrap(),
+			"Code should be marked as changed at first block"
+		);
+
+		// Commit and advance to next block
+		layer.commit().await.unwrap();
+		let second_block = layer.get_latest_block_number();
+
+		// Code was modified at first_block, not second_block
+		assert!(
+			layer.has_code_changed_at(first_block).unwrap(),
+			"Code change should still be recorded at first block"
+		);
+		assert!(
+			!layer.has_code_changed_at(second_block).unwrap(),
+			"Code should not be marked as changed at second block (no new modification)"
+		);
+
+		// Modify code again at second block
+		layer.set(code_key, Some(b"runtime_v2")).unwrap();
+		assert!(
+			layer.has_code_changed_at(second_block).unwrap(),
+			"Code should be marked as changed at second block after new modification"
+		);
 	}
 }

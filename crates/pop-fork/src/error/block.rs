@@ -22,4 +22,8 @@ pub enum BlockError {
 	/// Block not found at the specified height.
 	#[error("Block not found: {0:?}")]
 	BlockNumberNotFound(u32),
+
+	/// Failed to decode metadata from remote chain.
+	#[error("Metadata decoding failed: {0}")]
+	MetadataDecodingFailed(String),
 }

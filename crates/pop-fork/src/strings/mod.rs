@@ -8,4 +8,5 @@
 pub mod builder;
 pub mod cache;
 pub mod executor;
+pub mod inherent;
 pub mod rpc;
