@@ -2,7 +2,7 @@
 
 //! Local storage layer error types.
 
-use crate::error::{CacheError, RemoteStorageError};
+use crate::error::{CacheError, RemoteStorageError, RpcClientError};
 use thiserror::Error;
 
 /// Errors that can occur when accessing the local storage layer.
@@ -17,7 +17,13 @@ pub enum LocalStorageError {
 	/// Remote storage error
 	#[error(transparent)]
 	RemoteStorage(#[from] RemoteStorageError),
+	/// RPC client error when fetching metadata from remote
+	#[error("RPC error: {0}")]
+	Rpc(#[from] RpcClientError),
 	/// Lock acquire error
 	#[error("Local storage acquire error: {0}")]
 	Lock(String),
+	/// Metadata not found for the requested block
+	#[error("Metadata not found: {0}")]
+	MetadataNotFound(String),
 }

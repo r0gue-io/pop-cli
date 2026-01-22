@@ -96,7 +96,7 @@ impl InherentProvider for ParachainInherent {
 	) -> Result<Vec<Vec<u8>>, BlockBuilderError> {
 		// Check if ParachainSystem pallet exists in metadata.
 		// If not, this is a relay chain or standalone chain - gracefully skip.
-		let metadata = parent.metadata();
+		let metadata = parent.metadata().await?;
 
 		if metadata.pallet_by_name(strings::metadata::PALLET_NAME).is_none() {
 			// No ParachainSystem pallet - this is not a parachain runtime

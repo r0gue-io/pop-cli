@@ -192,7 +192,7 @@ impl InherentProvider for TimestampInherent {
 		executor: &RuntimeExecutor,
 	) -> Result<Vec<Vec<u8>>, BlockBuilderError> {
 		// Look up pallet and call indices from metadata
-		let metadata = parent.metadata();
+		let metadata = parent.metadata().await?;
 
 		let pallet = metadata.pallet_by_name(strings::metadata::PALLET_NAME).ok_or_else(|| {
 			BlockBuilderError::InherentProvider {
@@ -225,7 +225,7 @@ impl InherentProvider for TimestampInherent {
 		let slot_duration = Self::get_slot_duration_from_runtime(
 			executor,
 			storage,
-			metadata,
+			&metadata,
 			self.slot_duration_ms,
 		)
 		.await;
@@ -406,7 +406,8 @@ mod tests {
 			let metadata = Metadata::decode(&mut metadata_bytes.as_slice()).ok()?;
 			let cache = StorageCache::in_memory().await.ok()?;
 			let remote = RemoteStorageLayer::new(rpc, cache);
-			let storage = LocalStorageLayer::new(remote, block_number, block_hash);
+			let storage =
+				LocalStorageLayer::new(remote, block_number, block_hash, metadata.clone());
 			let executor = RuntimeExecutor::new(runtime_code, None).ok()?;
 
 			Some(RemoteTestContext { executor, storage, metadata })

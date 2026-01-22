@@ -58,8 +58,8 @@ use crate::{
 	Block, BlockBuilderError, RuntimeCallResult, RuntimeExecutor, inherent::InherentProvider,
 	strings::builder::runtime_api,
 };
-use scale::Encode;
-use subxt::config::substrate::H256;
+use scale::{Decode, Encode};
+use subxt::{Metadata, config::substrate::H256};
 
 /// Phase of the block building process.
 ///
@@ -198,6 +198,14 @@ impl BlockBuilder {
 		self.phase
 	}
 
+	/// Get the storage layer for the current fork.
+	///
+	/// The storage layer is shared across all blocks in the fork and tracks
+	/// all modifications. This provides access to the current working state.
+	fn storage(&self) -> &crate::LocalStorageLayer {
+		self.parent.storage()
+	}
+
 	/// Initialize the block by calling `Core_initialize_block`.
 	///
 	/// This must be called before applying any inherents or extrinsics.
@@ -221,7 +229,7 @@ impl BlockBuilder {
 		// Call Core_initialize_block with the header
 		let result = self
 			.executor
-			.call(runtime_api::CORE_INITIALIZE_BLOCK, &self.header, self.parent.storage())
+			.call(runtime_api::CORE_INITIALIZE_BLOCK, &self.header, self.storage())
 			.await?;
 
 		// Apply storage changes
@@ -341,7 +349,7 @@ impl BlockBuilder {
 		extrinsic: &[u8],
 	) -> Result<RuntimeCallResult, BlockBuilderError> {
 		self.executor
-			.call(runtime_api::BLOCK_BUILDER_APPLY_EXTRINSIC, extrinsic, self.parent.storage())
+			.call(runtime_api::BLOCK_BUILDER_APPLY_EXTRINSIC, extrinsic, self.storage())
 			.await
 			.map_err(Into::into)
 	}
@@ -371,11 +379,18 @@ impl BlockBuilder {
 		// Call BlockBuilder_finalize_block
 		let result = self
 			.executor
-			.call(runtime_api::BLOCK_BUILDER_FINALIZE_BLOCK, &[], self.parent.storage())
+			.call(runtime_api::BLOCK_BUILDER_FINALIZE_BLOCK, &[], self.storage())
 			.await?;
 
 		// Apply final storage changes
 		self.apply_storage_diff(&result.storage_diff)?;
+
+		// Check if runtime code changed in the parent block (runtime upgrade occurred).
+		// If code changed in parent block X, block X+1 (current) uses the new runtime,
+		// so we need to register the new metadata at current block.
+		if self.storage().has_code_changed_at(self.parent.number)? {
+			self.register_new_metadata().await?;
+		}
 
 		// The result contains the final header
 		let final_header = result.output;
@@ -396,6 +411,39 @@ impl BlockBuilder {
 		Ok(new_block)
 	}
 
+	/// Register new metadata after a runtime upgrade.
+	///
+	/// This is called when the `:code` storage key was modified in the parent block,
+	/// indicating a runtime upgrade occurred. Since the BlockBuilder's executor is
+	/// already running the new runtime (it was initialized with code from current state),
+	/// we simply call `Metadata_metadata` using the existing executor and register
+	/// the metadata for the current block (the first block using the new runtime).
+	async fn register_new_metadata(&self) -> Result<(), BlockBuilderError> {
+		let storage = self.storage();
+		let current_block_number = storage.get_latest_block_number();
+
+		// The executor is already running the new runtime (initialized from current state
+		// which includes the parent block's code change), so we can use it directly
+		let metadata_result =
+			self.executor.call(runtime_api::METADATA_METADATA, &[], storage).await?;
+
+		// Decode the metadata (output is OpaqueMetadata which is just Vec<u8>)
+		// The actual metadata is SCALE-encoded inside
+		let metadata_bytes: Vec<u8> = Decode::decode(&mut metadata_result.output.as_slice())
+			.map_err(|e| {
+				BlockBuilderError::Codec(format!("Failed to decode metadata wrapper: {}", e))
+			})?;
+
+		let new_metadata = Metadata::decode(&mut metadata_bytes.as_slice())
+			.map_err(|e| BlockBuilderError::Codec(format!("Failed to decode metadata: {}", e)))?;
+
+		// Register the new metadata version for the current block
+		// (the first block using the new runtime)
+		storage.register_metadata_version(current_block_number, new_metadata)?;
+
+		Ok(())
+	}
+
 	/// Apply storage diff to the parent's storage layer.
 	fn apply_storage_diff(
 		&self,
@@ -408,7 +456,7 @@ impl BlockBuilder {
 		let entries: Vec<(&[u8], Option<&[u8]>)> =
 			diff.iter().map(|(k, v)| (k.as_slice(), v.as_deref())).collect();
 
-		self.parent.storage().set_batch(&entries)?;
+		self.storage().set_batch(&entries)?;
 		Ok(())
 	}
 }
@@ -852,7 +900,7 @@ mod tests {
 				.expect("Bob should have a balance");
 
 			// Look up Balances pallet and transfer_keep_alive call indices from metadata
-			let metadata = ctx.block.metadata();
+			let metadata = ctx.block.metadata().await.expect("Failed to get metadata");
 			let balances_pallet =
 				metadata.pallet_by_name("Balances").expect("Balances pallet should exist");
 			let pallet_index = balances_pallet.index();
