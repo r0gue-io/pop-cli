@@ -20,6 +20,7 @@ pub mod executor;
 pub mod local;
 pub mod remote;
 pub mod rpc;
+pub mod txpool;
 
 pub use block::BlockError;
 pub use builder::BlockBuilderError;
@@ -28,3 +29,4 @@ pub use executor::ExecutorError;
 pub use local::LocalStorageError;
 pub use remote::RemoteStorageError;
 pub use rpc::RpcClientError;
+pub use txpool::TxPoolError;
