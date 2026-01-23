@@ -58,17 +58,36 @@ pub enum StorageResultValue {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "result", rename_all = "camelCase")]
 pub enum ArchiveStorageResult {
-	/// Storage operation started.
+	/// Storage operation started (async).
 	Ok {
 		/// Operation ID for tracking.
 		#[serde(skip_serializing_if = "Option::is_none")]
 		operation_id: Option<String>,
+	},
+	/// Storage results returned immediately.
+	OkWithItems {
+		/// Storage result items.
+		items: Vec<ArchiveStorageItem>,
 	},
 	/// Error occurred.
 	Err {
 		/// Error message.
 		error: String,
 	},
+}
+
+/// A single storage item result for archive_v1_storage.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArchiveStorageItem {
+	/// Storage key (hex-encoded).
+	pub key: String,
+	/// Storage value (hex-encoded), if present.
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub value: Option<String>,
+	/// Storage hash, if requested.
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub hash: Option<String>,
 }
 
 /// archive_v1_call result.

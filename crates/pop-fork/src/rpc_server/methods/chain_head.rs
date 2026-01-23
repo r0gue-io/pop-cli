@@ -6,7 +6,7 @@
 //! Note: Subscriptions are stubbed for now - full implementation in follow-up PR.
 
 use crate::rpc_server::types::{MethodResponse, OperationResult, StorageQueryItem};
-use crate::rpc_server::MockBlockchain;
+use crate::Blockchain;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use std::sync::Arc;
@@ -70,12 +70,12 @@ pub trait ChainHeadApi {
 /// Implementation of chainHead RPC methods.
 pub struct ChainHeadApi {
 	#[allow(dead_code)]
-	blockchain: Arc<MockBlockchain>,
+	blockchain: Arc<Blockchain>,
 }
 
 impl ChainHeadApi {
 	/// Create a new ChainHeadApi instance.
-	pub fn new(blockchain: Arc<MockBlockchain>) -> Self {
+	pub fn new(blockchain: Arc<Blockchain>) -> Self {
 		Self { blockchain }
 	}
 }

@@ -4,8 +4,8 @@
 //!
 //! These methods follow the new Substrate JSON-RPC specification for archive nodes.
 
-use crate::rpc_server::types::{ArchiveCallResult, ArchiveStorageResult, HashByHeightResult, StorageQueryItem};
-use crate::rpc_server::MockBlockchain;
+use crate::rpc_server::types::{ArchiveCallResult, ArchiveStorageItem, ArchiveStorageResult, HashByHeightResult, StorageQueryItem};
+use crate::Blockchain;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use std::sync::Arc;
@@ -64,12 +64,12 @@ pub trait ArchiveApi {
 
 /// Implementation of archive RPC methods.
 pub struct ArchiveApi {
-	blockchain: Arc<MockBlockchain>,
+	blockchain: Arc<Blockchain>,
 }
 
 impl ArchiveApi {
 	/// Create a new ArchiveApi instance.
-	pub fn new(blockchain: Arc<MockBlockchain>) -> Self {
+	pub fn new(blockchain: Arc<Blockchain>) -> Self {
 		Self { blockchain }
 	}
 }
@@ -80,27 +80,70 @@ impl ArchiveApiServer for ArchiveApi {
 		Ok(self.blockchain.head_number().await as u64)
 	}
 
-	async fn hash_by_height(&self, _height: u64) -> RpcResult<HashByHeightResult> {
-		// Mock: return the fork point hash for height 0, empty for others
-		if _height == 0 {
+	async fn hash_by_height(&self, height: u64) -> RpcResult<HashByHeightResult> {
+		let fork_point_number = self.blockchain.fork_point_number() as u64;
+		let head_number = self.blockchain.head_number().await as u64;
+
+		if height == fork_point_number {
 			let hash = self.blockchain.fork_point();
 			Ok(HashByHeightResult::Hashes(vec![format!(
 				"0x{}",
 				hex::encode(hash.as_bytes())
 			)]))
+		} else if height == head_number {
+			let hash = self.blockchain.head_hash().await;
+			Ok(HashByHeightResult::Hashes(vec![format!(
+				"0x{}",
+				hex::encode(hash.as_bytes())
+			)]))
 		} else {
+			// Historical block hashes not available yet
 			Ok(HashByHeightResult::Hashes(vec![]))
 		}
 	}
 
-	async fn header(&self, _hash: String) -> RpcResult<Option<String>> {
-		// Mock: return None (no blocks available)
-		Ok(None)
+	async fn header(&self, hash: String) -> RpcResult<Option<String>> {
+		// Parse the hash
+		let hash_bytes = hex::decode(hash.trim_start_matches("0x")).map_err(|e| {
+			jsonrpsee::types::ErrorObjectOwned::owned(
+				-32602,
+				format!("Invalid hex hash: {e}"),
+				None::<()>,
+			)
+		})?;
+
+		let head = self.blockchain.head().await;
+		let head_hash_bytes = head.hash.as_bytes();
+
+		// Only return header if it matches the current head
+		if hash_bytes == head_hash_bytes {
+			Ok(Some(format!("0x{}", hex::encode(&head.header))))
+		} else {
+			Ok(None)
+		}
 	}
 
-	async fn body(&self, _hash: String) -> RpcResult<Option<Vec<String>>> {
-		// Mock: return None (no blocks available)
-		Ok(None)
+	async fn body(&self, hash: String) -> RpcResult<Option<Vec<String>>> {
+		// Parse the hash
+		let hash_bytes = hex::decode(hash.trim_start_matches("0x")).map_err(|e| {
+			jsonrpsee::types::ErrorObjectOwned::owned(
+				-32602,
+				format!("Invalid hex hash: {e}"),
+				None::<()>,
+			)
+		})?;
+
+		let head = self.blockchain.head().await;
+		let head_hash_bytes = head.hash.as_bytes();
+
+		// Only return body if it matches the current head
+		if hash_bytes == head_hash_bytes {
+			let extrinsics: Vec<String> =
+				head.extrinsics.iter().map(|ext| format!("0x{}", hex::encode(ext))).collect();
+			Ok(Some(extrinsics))
+		} else {
+			Ok(None)
+		}
 	}
 
 	async fn call(
@@ -123,24 +166,52 @@ impl ArchiveApiServer for ArchiveApi {
 			Ok(result) => Ok(ArchiveCallResult::Ok {
 				output: format!("0x{}", hex::encode(result)),
 			}),
-			Err(e) => Ok(ArchiveCallResult::Err {
-				error: e.to_string(),
-			}),
+			Err(e) => Ok(ArchiveCallResult::Err { error: e.to_string() }),
 		}
 	}
 
 	async fn storage(
 		&self,
 		_hash: String,
-		_items: Vec<StorageQueryItem>,
+		items: Vec<StorageQueryItem>,
 		_child_trie: Option<String>,
 	) -> RpcResult<ArchiveStorageResult> {
-		// Mock: Return OK with no operation (immediate completion)
-		Ok(ArchiveStorageResult::Ok { operation_id: None })
+		// Query storage for each item
+		let mut results = Vec::new();
+		for item in items {
+			let key_bytes = hex::decode(item.key.trim_start_matches("0x")).map_err(|e| {
+				jsonrpsee::types::ErrorObjectOwned::owned(
+					-32602,
+					format!("Invalid hex key: {e}"),
+					None::<()>,
+				)
+			})?;
+
+			match self.blockchain.storage(&key_bytes).await {
+				Ok(Some(value)) => {
+					results.push(ArchiveStorageItem {
+						key: item.key,
+						value: Some(format!("0x{}", hex::encode(value))),
+						hash: None,
+					});
+				},
+				Ok(None) => {
+					results.push(ArchiveStorageItem { key: item.key, value: None, hash: None });
+				},
+				Err(e) => {
+					return Err(jsonrpsee::types::ErrorObjectOwned::owned(
+						-32603,
+						format!("Storage error: {e}"),
+						None::<()>,
+					));
+				},
+			}
+		}
+		Ok(ArchiveStorageResult::OkWithItems { items: results })
 	}
 
 	async fn stop_storage(&self, _operation_id: String) -> RpcResult<()> {
-		// Mock: No-op
+		// No-op
 		Ok(())
 	}
 
