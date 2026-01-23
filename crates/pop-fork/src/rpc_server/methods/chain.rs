@@ -5,7 +5,7 @@
 //! These methods provide block-related operations for polkadot.js compatibility.
 
 use crate::rpc_server::types::{Header, SignedBlock};
-use crate::rpc_server::MockBlockchain;
+use crate::Blockchain;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use std::sync::Arc;
@@ -39,31 +39,40 @@ pub trait ChainApi {
 
 /// Implementation of legacy chain RPC methods.
 pub struct ChainApi {
-	blockchain: Arc<MockBlockchain>,
+	blockchain: Arc<Blockchain>,
 }
 
 impl ChainApi {
 	/// Create a new ChainApi instance.
-	pub fn new(blockchain: Arc<MockBlockchain>) -> Self {
+	pub fn new(blockchain: Arc<Blockchain>) -> Self {
 		Self { blockchain }
 	}
 }
 
 #[async_trait::async_trait]
 impl ChainApiServer for ChainApi {
-	async fn get_block_hash(&self, _block_number: Option<u32>) -> RpcResult<Option<String>> {
-		// Mock: return the head hash (or None if no specific block)
-		let hash = self.blockchain.head_hash().await;
+	async fn get_block_hash(&self, block_number: Option<u32>) -> RpcResult<Option<String>> {
+		let hash = match block_number {
+			Some(n) if n == self.blockchain.fork_point_number() => self.blockchain.fork_point(),
+			Some(n) if n == self.blockchain.head_number().await => self.blockchain.head_hash().await,
+			Some(_) => {
+				// Historical block hashes not available yet
+				return Ok(None);
+			},
+			None => self.blockchain.head_hash().await,
+		};
 		Ok(Some(format!("0x{}", hex::encode(hash.as_bytes()))))
 	}
 
 	async fn get_header(&self, _hash: Option<String>) -> RpcResult<Option<Header>> {
-		// Mock: return empty header
+		// Header decoding from SCALE is complex - would need full header decoder
+		// Return None for now (polkadot.js can work without this)
 		Ok(None)
 	}
 
 	async fn get_block(&self, _hash: Option<String>) -> RpcResult<Option<SignedBlock>> {
-		// Mock: return None (no blocks available)
+		// Block decoding from SCALE is complex - would need full header decoder
+		// Return None for now (polkadot.js can work without this)
 		Ok(None)
 	}
 

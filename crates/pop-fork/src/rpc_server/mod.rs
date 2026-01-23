@@ -19,32 +19,43 @@
 //! - `transaction_v1_*` - Transaction broadcasting
 
 mod error;
-mod mock_blockchain;
 pub mod methods;
 pub mod types;
 
 pub use error::{RpcServerError, error_codes};
-pub use mock_blockchain::MockBlockchain;
+
+use crate::{Blockchain, TxPool};
 
 use jsonrpsee::server::{ServerBuilder, ServerHandle};
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+/// Default starting port for the RPC server.
+pub const DEFAULT_RPC_PORT: u16 = 8000;
+
+/// Maximum port to try when auto-finding an available port.
+const MAX_PORT_ATTEMPTS: u16 = 100;
+
 /// Configuration for the RPC server.
 #[derive(Debug, Clone)]
 pub struct RpcServerConfig {
-	/// Address to bind the server to.
-	pub addr: SocketAddr,
+	/// Port to bind the server to. If `None`, starts at 8000 and auto-increments
+	/// until finding an available port.
+	pub port: Option<u16>,
 	/// Maximum number of connections.
 	pub max_connections: u32,
 }
 
 impl Default for RpcServerConfig {
 	fn default() -> Self {
-		Self {
-			addr: ([127, 0, 0, 1], 8000).into(),
-			max_connections: 100,
-		}
+		Self { port: None, max_connections: 100 }
+	}
+}
+
+impl RpcServerConfig {
+	/// Create a config with a specific port.
+	pub fn with_port(port: u16) -> Self {
+		Self { port: Some(port), max_connections: 100 }
 	}
 }
 
@@ -57,21 +68,65 @@ pub struct ForkRpcServer {
 }
 
 impl ForkRpcServer {
-	/// Start a new RPC server with the given blockchain and configuration.
+	/// Start a new RPC server with the given blockchain, transaction pool, and configuration.
+	///
+	/// If `config.port` is `Some(port)`, attempts to bind to that specific port.
+	/// If `config.port` is `None`, starts at port 8000 and auto-increments until
+	/// finding an available port (useful when forking multiple chains).
 	pub async fn start(
-		blockchain: Arc<MockBlockchain>,
+		blockchain: Arc<Blockchain>,
+		txpool: Arc<TxPool>,
 		config: RpcServerConfig,
 	) -> Result<Self, RpcServerError> {
-		let server = ServerBuilder::default()
-			.max_connections(config.max_connections)
-			.build(config.addr)
-			.await
-			.map_err(|e| RpcServerError::ServerStart(e.to_string()))?;
+		// Create RPC module first (doesn't need the server)
+		let rpc_module = methods::create_rpc_module(blockchain, txpool)?;
 
-		let addr = server.local_addr().map_err(|e| RpcServerError::ServerStart(e.to_string()))?;
+		let (server, addr) = if let Some(port) = config.port {
+			// User specified a port - try only that one
+			let addr: SocketAddr = ([127, 0, 0, 1], port).into();
+			let server = ServerBuilder::default()
+				.max_connections(config.max_connections)
+				.build(addr)
+				.await
+				.map_err(|e| RpcServerError::ServerStart(e.to_string()))?;
+			let addr =
+				server.local_addr().map_err(|e| RpcServerError::ServerStart(e.to_string()))?;
+			(server, addr)
+		} else {
+			// Auto-find an available port starting from DEFAULT_RPC_PORT
+			let mut last_error = None;
+			let mut found = None;
 
-		// Merge all RPC methods into a single module
-		let rpc_module = methods::create_rpc_module(blockchain)?;
+			for port in DEFAULT_RPC_PORT..DEFAULT_RPC_PORT.saturating_add(MAX_PORT_ATTEMPTS) {
+				let addr: SocketAddr = ([127, 0, 0, 1], port).into();
+				match ServerBuilder::default()
+					.max_connections(config.max_connections)
+					.build(addr)
+					.await
+				{
+					Ok(server) => {
+						let bound_addr = server
+							.local_addr()
+							.map_err(|e| RpcServerError::ServerStart(e.to_string()))?;
+						found = Some((server, bound_addr));
+						break;
+					},
+					Err(e) => {
+						last_error = Some(e);
+						continue;
+					},
+				}
+			}
+
+			found.ok_or_else(|| {
+				RpcServerError::ServerStart(format!(
+					"Could not find available port in range {}-{}: {}",
+					DEFAULT_RPC_PORT,
+					DEFAULT_RPC_PORT.saturating_add(MAX_PORT_ATTEMPTS),
+					last_error.map(|e| e.to_string()).unwrap_or_default()
+				))
+			})?
+		};
 
 		let handle = server.start(rpc_module);
 

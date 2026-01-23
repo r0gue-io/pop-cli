@@ -4,7 +4,7 @@
 //!
 //! These methods follow the new Substrate JSON-RPC specification for transaction handling.
 
-use crate::rpc_server::MockBlockchain;
+use crate::{Blockchain, TxPool};
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use std::sync::Arc;
@@ -26,13 +26,14 @@ pub trait TransactionApi {
 /// Implementation of transaction RPC methods.
 pub struct TransactionApi {
 	#[allow(dead_code)]
-	blockchain: Arc<MockBlockchain>,
+	blockchain: Arc<Blockchain>,
+	txpool: Arc<TxPool>,
 }
 
 impl TransactionApi {
 	/// Create a new TransactionApi instance.
-	pub fn new(blockchain: Arc<MockBlockchain>) -> Self {
-		Self { blockchain }
+	pub fn new(blockchain: Arc<Blockchain>, txpool: Arc<TxPool>) -> Self {
+		Self { blockchain, txpool }
 	}
 }
 
@@ -40,7 +41,7 @@ impl TransactionApi {
 impl TransactionApiServer for TransactionApi {
 	async fn broadcast(&self, transaction: String) -> RpcResult<Option<String>> {
 		// Decode the hex transaction
-		let _tx_bytes = hex::decode(transaction.trim_start_matches("0x")).map_err(|e| {
+		let tx_bytes = hex::decode(transaction.trim_start_matches("0x")).map_err(|e| {
 			jsonrpsee::types::ErrorObjectOwned::owned(
 				-32602,
 				format!("Invalid hex transaction: {e}"),
@@ -48,13 +49,19 @@ impl TransactionApiServer for TransactionApi {
 			)
 		})?;
 
-		// Mock: Would submit to TxPool and return operation ID
-		// For now, return a mock operation ID
-		Ok(Some("mock-broadcast-1".to_string()))
+		// Submit to TxPool and return hash as operation ID
+		let hash = self.txpool.submit(tx_bytes).map_err(|e| {
+			jsonrpsee::types::ErrorObjectOwned::owned(
+				-32603,
+				format!("Failed to broadcast transaction: {e}"),
+				None::<()>,
+			)
+		})?;
+		Ok(Some(format!("0x{}", hex::encode(hash.as_bytes()))))
 	}
 
 	async fn stop(&self, _operation_id: String) -> RpcResult<()> {
-		// Mock: no-op
+		// TxPool doesn't support cancellation, so this is a no-op
 		Ok(())
 	}
 }

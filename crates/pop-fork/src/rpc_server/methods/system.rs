@@ -5,7 +5,7 @@
 //! These methods provide system information for polkadot.js compatibility.
 
 use crate::rpc_server::types::{ChainProperties, SystemHealth};
-use crate::rpc_server::MockBlockchain;
+use crate::Blockchain;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use std::sync::Arc;
@@ -36,12 +36,12 @@ pub trait SystemApi {
 
 /// Implementation of legacy system RPC methods.
 pub struct SystemApi {
-	blockchain: Arc<MockBlockchain>,
+	blockchain: Arc<Blockchain>,
 }
 
 impl SystemApi {
 	/// Create a new SystemApi instance.
-	pub fn new(blockchain: Arc<MockBlockchain>) -> Self {
+	pub fn new(blockchain: Arc<Blockchain>) -> Self {
 		Self { blockchain }
 	}
 }

@@ -10,41 +10,47 @@
 //! - `archive` - New archive_v1_* methods
 //! - `chain_head` - New chainHead_v1_* methods
 //! - `transaction` - New transaction_v1_* methods
+//! - `dev` - Development methods for manual chain control
 
 mod archive;
 mod author;
 mod chain;
 mod chain_head;
+mod dev;
 mod state;
 mod system;
 mod transaction;
 
-use crate::rpc_server::{MockBlockchain, RpcServerError};
+use crate::{Blockchain, TxPool};
+use crate::rpc_server::RpcServerError;
 use jsonrpsee::RpcModule;
 use std::sync::Arc;
 
-pub use archive::ArchiveApiServer;
-pub use author::AuthorApiServer;
-pub use chain::ChainApiServer;
-pub use chain_head::ChainHeadApiServer;
-pub use state::StateApiServer;
-pub use system::SystemApiServer;
-pub use transaction::TransactionApiServer;
+pub use archive::{ArchiveApi, ArchiveApiServer};
+pub use author::{AuthorApi, AuthorApiServer};
+pub use chain::{ChainApi, ChainApiServer};
+pub use chain_head::{ChainHeadApi, ChainHeadApiServer};
+pub use dev::{DevApi, DevApiServer};
+pub use state::{StateApi, StateApiServer};
+pub use system::{SystemApi, SystemApiServer};
+pub use transaction::{TransactionApi, TransactionApiServer};
 
 /// Create the merged RPC module with all methods.
 pub fn create_rpc_module(
-	blockchain: Arc<MockBlockchain>,
+	blockchain: Arc<Blockchain>,
+	txpool: Arc<TxPool>,
 ) -> Result<RpcModule<()>, RpcServerError> {
 	let mut module = RpcModule::new(());
 
 	// Create implementations
-	let chain_impl = chain::ChainApi::new(blockchain.clone());
-	let state_impl = state::StateApi::new(blockchain.clone());
-	let system_impl = system::SystemApi::new(blockchain.clone());
-	let author_impl = author::AuthorApi::new(blockchain.clone());
-	let archive_impl = archive::ArchiveApi::new(blockchain.clone());
-	let chain_head_impl = chain_head::ChainHeadApi::new(blockchain.clone());
-	let transaction_impl = transaction::TransactionApi::new(blockchain);
+	let chain_impl = ChainApi::new(blockchain.clone());
+	let state_impl = StateApi::new(blockchain.clone());
+	let system_impl = SystemApi::new(blockchain.clone());
+	let author_impl = AuthorApi::new(blockchain.clone(), txpool.clone());
+	let archive_impl = ArchiveApi::new(blockchain.clone());
+	let chain_head_impl = ChainHeadApi::new(blockchain.clone());
+	let transaction_impl = TransactionApi::new(blockchain.clone(), txpool.clone());
+	let dev_impl = DevApi::new(blockchain, txpool);
 
 	// Merge all methods into the module
 	module
@@ -73,6 +79,10 @@ pub fn create_rpc_module(
 
 	module
 		.merge(TransactionApiServer::into_rpc(transaction_impl))
+		.map_err(|e| RpcServerError::Internal(e.to_string()))?;
+
+	module
+		.merge(DevApiServer::into_rpc(dev_impl))
 		.map_err(|e| RpcServerError::Internal(e.to_string()))?;
 
 	Ok(module)
