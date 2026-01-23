@@ -28,6 +28,12 @@ url.workspace = true
 # Executor
 smoldot.workspace = true
 
+# RPC Server
+futures.workspace = true
+jsonrpsee.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
 # Pop
 pop-common = { path = "../pop-common", version = "0.12.1" }
 

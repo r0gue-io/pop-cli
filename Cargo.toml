@@ -23,6 +23,7 @@ version = "0.12.1"
 [workspace.dependencies]
 anyhow = { version = "1.0", default-features = false }
 assert_cmd = { version = "2.0.14", default-features = false }
+async-trait = "0.1"
 bytes = { version = "1.10.1", default-features = false }
 cargo_toml = { version = "0.20.3", default-features = false }
 derivative = { version = "2.2.0", default-features = false }
@@ -30,13 +31,16 @@ dirs = { version = "5.0", default-features = false }
 duct = { version = "0.13", default-features = false }
 env_logger = { version = "0.11.7", default-features = false }
 flate2 = "1.0.30"
+futures = { version = "1.1.8", default-features = false }
 git2 = { version = "0.18", default-features = true, features = ["vendored-openssl"] }
 glob = { version = "0.3.1", default-features = false }
 hex = { version = "0.4", default-features = false, features = ["std"] }
+jsonrpsee = { version = "0.24", default-features = false, features = ["server", "macros"] }
 log = { version = "0.4.20", default-features = false }
 mockito = { version = "1.4.0", default-features = false }
 psvm = { version = "0.3.1", default-features = false }
 rustilities = "3.0.1"
+smoldot = { version = "0.21.0", default-features = false, features = ["std"] }
 tar = { version = "0.4.40", default-features = false }
 temp-env = "0.3.6"
 tempfile = { version = "3.10", default-features = false }
@@ -109,6 +113,3 @@ diesel = { version = "2.3.4", default-features = false, features = ["sqlite"] }
 diesel-async = { version = "0.7.4", default-features = false, features = ["sqlite", "tokio", "bb8", "migrations"] }
 diesel_migrations = { version = "2.3.1", default-features = false }
 
-# executor
-async-trait = "0.1"
-smoldot = { version = "0.21.0", default-features = false, features = ["std"] }
