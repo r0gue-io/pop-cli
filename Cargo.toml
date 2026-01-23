@@ -115,6 +115,3 @@ diesel = { version = "2.3.4", default-features = false, features = ["sqlite"] }
 diesel-async = { version = "0.7.4", default-features = false, features = ["sqlite", "tokio", "bb8", "migrations"] }
 diesel_migrations = { version = "2.3.1", default-features = false }
 
-# executor
-async-trait = "0.1"
-smoldot = { version = "0.21.0", default-features = false, features = ["std"] }
