@@ -31,6 +31,11 @@
 //!
 //! # Main Types
 //!
+//! ## Blockchain Manager
+//!
+//! - [`Blockchain`] - Main entry point for creating and managing forked chains
+//! - [`ChainType`] - Identifies whether the chain is a relay chain or parachain
+//!
 //! ## Block and Block Building
 //!
 //! - [`Block`] - Represents a block in the forked chain with its storage state
@@ -53,6 +58,7 @@
 //! - [`TxPool`] - Minimal FIFO queue for pending extrinsics
 
 mod block;
+mod blockchain;
 mod builder;
 mod cache;
 pub mod error;
@@ -67,6 +73,7 @@ mod strings;
 mod txpool;
 
 pub use block::{Block, BlockForkPoint};
+pub use blockchain::{Blockchain, BlockchainError, ChainType};
 pub use builder::{
 	ApplyExtrinsicResult, BlockBuilder, ConsensusEngineId, DigestItem, consensus_engine,
 	create_next_header,

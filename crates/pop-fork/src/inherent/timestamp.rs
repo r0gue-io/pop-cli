@@ -41,8 +41,8 @@ use subxt::Metadata;
 /// Default slot duration for relay chains (6 seconds).
 const DEFAULT_RELAY_SLOT_DURATION_MS: u64 = 6_000;
 
-/// Default slot duration for parachains (6 seconds).
-const DEFAULT_PARA_SLOT_DURATION_MS: u64 = 6_000;
+/// Default slot duration for parachains (12 seconds).
+const DEFAULT_PARA_SLOT_DURATION_MS: u64 = 12_000;
 
 /// Extrinsic format version for unsigned/bare extrinsics.
 /// Version 5 is current; version 4 is legacy.
@@ -87,7 +87,7 @@ impl TimestampInherent {
 		Self::new(DEFAULT_RELAY_SLOT_DURATION_MS)
 	}
 
-	/// Create with default settings for parachains (6-second slots).
+	/// Create with default settings for parachains (12-second slots).
 	pub fn default_para() -> Self {
 		Self::new(DEFAULT_PARA_SLOT_DURATION_MS)
 	}
@@ -469,7 +469,7 @@ mod tests {
 		/// Multiple endpoints are tried for redundancy in CI environments.
 		#[tokio::test(flavor = "multi_thread")]
 		async fn get_slot_duration_from_live_aura_chain() {
-			const EXPECTED_SLOT_DURATION_MS: u64 = 12_000;
+			const EXPECTED_SLOT_DURATION_MS: u64 = DEFAULT_PARA_SLOT_DURATION_MS;
 
 			let ctx = match create_context_with_fallbacks(ASSET_HUB_PASEO_ENDPOINTS).await {
 				Some(ctx) => ctx,
@@ -508,7 +508,7 @@ mod tests {
 		/// Multiple endpoints are tried for redundancy in CI environments.
 		#[tokio::test(flavor = "multi_thread")]
 		async fn get_slot_duration_from_live_babe_chain() {
-			const EXPECTED_SLOT_DURATION_MS: u64 = 6_000;
+			const EXPECTED_SLOT_DURATION_MS: u64 = DEFAULT_RELAY_SLOT_DURATION_MS;
 
 			let ctx = match create_context_with_fallbacks(PASEO_RELAY_ENDPOINTS).await {
 				Some(ctx) => ctx,
