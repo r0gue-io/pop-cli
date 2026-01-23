@@ -901,24 +901,25 @@ mod tests {
 			let alice_key = account_storage_key(&ALICE);
 			let bob_key = account_storage_key(&BOB);
 
-			// Query initial balances
+			// Get head block for metadata and capture block number before building
+			let head = blockchain.head().await;
+			let head_number_before = head.number;
+			let metadata = head.metadata().await.expect("Failed to get metadata");
+
+			// Query initial balances at the current head block
 			let alice_balance_before = blockchain
-				.storage(&alice_key)
+				.storage_at(head_number_before, &alice_key)
 				.await
 				.expect("Failed to get Alice balance")
 				.map(|v| decode_free_balance(&v))
 				.expect("Alice should have a balance");
 
 			let bob_balance_before = blockchain
-				.storage(&bob_key)
+				.storage_at(head_number_before, &bob_key)
 				.await
 				.expect("Failed to get Bob balance")
 				.map(|v| decode_free_balance(&v))
 				.expect("Bob should have a balance");
-
-			// Get metadata to look up pallet/call indices
-			let head = blockchain.head().await;
-			let metadata = head.metadata().await.expect("Failed to get metadata");
 			let balances_pallet =
 				metadata.pallet_by_name("Balances").expect("Balances pallet should exist");
 			let pallet_index = balances_pallet.index();
@@ -943,18 +944,18 @@ mod tests {
 				.expect("Failed to build block with transfer");
 
 			// Verify block was created
-			assert_eq!(new_block.number, head.number + 1);
+			assert_eq!(new_block.number, head_number_before + 1);
 
-			// Query balances after the transfer
+			// Query balances after the transfer at the new block
 			let alice_balance_after = blockchain
-				.storage(&alice_key)
+				.storage_at(new_block.number, &alice_key)
 				.await
 				.expect("Failed to get Alice balance after")
 				.map(|v| decode_free_balance(&v))
 				.expect("Alice should still have a balance");
 
 			let bob_balance_after = blockchain
-				.storage(&bob_key)
+				.storage_at(new_block.number, &bob_key)
 				.await
 				.expect("Failed to get Bob balance after")
 				.map(|v| decode_free_balance(&v))
