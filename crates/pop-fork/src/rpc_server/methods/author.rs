@@ -5,8 +5,7 @@
 //! These methods provide transaction submission for polkadot.js compatibility.
 
 use crate::{Blockchain, TxPool};
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::proc_macros::rpc;
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use std::sync::Arc;
 
 /// Legacy author RPC methods.

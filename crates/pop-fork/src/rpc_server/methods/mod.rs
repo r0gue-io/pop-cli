@@ -21,8 +21,7 @@ mod state;
 mod system;
 mod transaction;
 
-use crate::{Blockchain, TxPool};
-use crate::rpc_server::RpcServerError;
+use crate::{Blockchain, TxPool, rpc_server::RpcServerError};
 use jsonrpsee::RpcModule;
 use std::sync::Arc;
 

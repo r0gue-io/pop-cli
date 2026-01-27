@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Runtime version information.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct RuntimeVersion {
 	/// Spec name (e.g., "polkadot").
@@ -28,23 +28,8 @@ pub struct RuntimeVersion {
 	pub apis: Vec<(String, u32)>,
 }
 
-impl Default for RuntimeVersion {
-	fn default() -> Self {
-		Self {
-			spec_name: String::new(),
-			impl_name: String::new(),
-			authoring_version: 0,
-			spec_version: 0,
-			impl_version: 0,
-			transaction_version: 0,
-			state_version: 0,
-			apis: Vec::new(),
-		}
-	}
-}
-
 /// System health status.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemHealth {
 	/// Number of connected peers.
@@ -53,16 +38,6 @@ pub struct SystemHealth {
 	pub is_syncing: bool,
 	/// Should this node have any peers?
 	pub should_have_peers: bool,
-}
-
-impl Default for SystemHealth {
-	fn default() -> Self {
-		Self {
-			peers: 0,
-			is_syncing: false,
-			should_have_peers: false, // Fork doesn't need peers
-		}
-	}
 }
 
 /// Chain properties.

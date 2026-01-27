@@ -4,39 +4,44 @@
 //!
 //! These methods follow the new Substrate JSON-RPC specification for archive nodes.
 
-use crate::rpc_server::types::{ArchiveCallResult, ArchiveStorageItem, ArchiveStorageResult, HashByHeightResult, StorageQueryItem};
-use crate::Blockchain;
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::proc_macros::rpc;
+use crate::{
+	Blockchain,
+	rpc_server::types::{
+		ArchiveCallResult, ArchiveStorageItem, ArchiveStorageResult, HashByHeightResult,
+		StorageQueryItem,
+	},
+};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use std::sync::Arc;
+use subxt::config::substrate::H256;
 
 /// New archive RPC methods (v1 spec).
 #[rpc(server, namespace = "archive")]
 pub trait ArchiveApi {
 	/// Get the current finalized block height.
-	#[method(name = "unstable_finalizedHeight")]
-	async fn finalized_height(&self) -> RpcResult<u64>;
+	#[method(name = "v1_finalizedHeight")]
+	async fn finalized_height(&self) -> RpcResult<u32>;
 
 	/// Get block hash by height.
 	///
 	/// Returns an array of hashes (may be multiple due to forks).
-	#[method(name = "unstable_hashByHeight")]
+	#[method(name = "v1_hashByHeight")]
 	async fn hash_by_height(&self, height: u64) -> RpcResult<HashByHeightResult>;
 
 	/// Get block header by hash.
 	///
 	/// Returns hex-encoded SCALE-encoded header.
-	#[method(name = "unstable_header")]
+	#[method(name = "v1_header")]
 	async fn header(&self, hash: String) -> RpcResult<Option<String>>;
 
 	/// Get block body by hash.
 	///
 	/// Returns array of hex-encoded extrinsics.
-	#[method(name = "unstable_body")]
+	#[method(name = "v1_body")]
 	async fn body(&self, hash: String) -> RpcResult<Option<Vec<String>>>;
 
 	/// Execute a runtime call at a block.
-	#[method(name = "unstable_call")]
+	#[method(name = "v1_call")]
 	async fn call(
 		&self,
 		hash: String,
@@ -45,7 +50,7 @@ pub trait ArchiveApi {
 	) -> RpcResult<ArchiveCallResult>;
 
 	/// Query storage at a finalized block.
-	#[method(name = "unstable_storage")]
+	#[method(name = "v1_storage")]
 	async fn storage(
 		&self,
 		hash: String,
@@ -54,11 +59,11 @@ pub trait ArchiveApi {
 	) -> RpcResult<ArchiveStorageResult>;
 
 	/// Stop a storage query operation.
-	#[method(name = "unstable_stopStorage")]
+	#[method(name = "v1_stopStorage")]
 	async fn stop_storage(&self, operation_id: String) -> RpcResult<()>;
 
 	/// Get the genesis hash.
-	#[method(name = "unstable_genesisHash")]
+	#[method(name = "v1_genesisHash")]
 	async fn genesis_hash(&self) -> RpcResult<String>;
 }
 
@@ -76,8 +81,8 @@ impl ArchiveApi {
 
 #[async_trait::async_trait]
 impl ArchiveApiServer for ArchiveApi {
-	async fn finalized_height(&self) -> RpcResult<u64> {
-		Ok(self.blockchain.head_number().await as u64)
+	async fn finalized_height(&self) -> RpcResult<u32> {
+		Ok(self.blockchain.head_number().await)
 	}
 
 	async fn hash_by_height(&self, height: u64) -> RpcResult<HashByHeightResult> {
@@ -86,16 +91,10 @@ impl ArchiveApiServer for ArchiveApi {
 
 		if height == fork_point_number {
 			let hash = self.blockchain.fork_point();
-			Ok(HashByHeightResult::Hashes(vec![format!(
-				"0x{}",
-				hex::encode(hash.as_bytes())
-			)]))
+			Ok(HashByHeightResult::Hashes(vec![format!("0x{}", hex::encode(hash.as_bytes()))]))
 		} else if height == head_number {
 			let hash = self.blockchain.head_hash().await;
-			Ok(HashByHeightResult::Hashes(vec![format!(
-				"0x{}",
-				hex::encode(hash.as_bytes())
-			)]))
+			Ok(HashByHeightResult::Hashes(vec![format!("0x{}", hex::encode(hash.as_bytes()))]))
 		} else {
 			// Historical block hashes not available yet
 			Ok(HashByHeightResult::Hashes(vec![]))
@@ -133,16 +132,22 @@ impl ArchiveApiServer for ArchiveApi {
 			)
 		})?;
 
-		let head = self.blockchain.head().await;
-		let head_hash_bytes = head.hash.as_bytes();
+		// Convert to H256
+		let block_hash = H256::from_slice(&hash_bytes);
 
-		// Only return body if it matches the current head
-		if hash_bytes == head_hash_bytes {
-			let extrinsics: Vec<String> =
-				head.extrinsics.iter().map(|ext| format!("0x{}", hex::encode(ext))).collect();
-			Ok(Some(extrinsics))
-		} else {
-			Ok(None)
+		// Fetch block body (checks local blocks first, then remote)
+		match self.blockchain.block_body(block_hash).await {
+			Ok(Some(extrinsics)) => {
+				let hex_extrinsics: Vec<String> =
+					extrinsics.iter().map(|ext| format!("0x{}", hex::encode(ext))).collect();
+				Ok(Some(hex_extrinsics))
+			},
+			Ok(None) => Ok(None),
+			Err(e) => Err(jsonrpsee::types::ErrorObjectOwned::owned(
+				-32603,
+				format!("Failed to fetch block body: {e}"),
+				None::<()>,
+			)),
 		}
 	}
 
@@ -163,9 +168,8 @@ impl ArchiveApiServer for ArchiveApi {
 
 		// Execute the call
 		match self.blockchain.call(&function, &params).await {
-			Ok(result) => Ok(ArchiveCallResult::Ok {
-				output: format!("0x{}", hex::encode(result)),
-			}),
+			Ok(result) =>
+				Ok(ArchiveCallResult::Ok { output: format!("0x{}", hex::encode(result)) }),
 			Err(e) => Ok(ArchiveCallResult::Err { error: e.to_string() }),
 		}
 	}
@@ -219,5 +223,402 @@ impl ArchiveApiServer for ArchiveApi {
 		// Return fork point as "genesis" for the forked chain
 		let hash = self.blockchain.fork_point();
 		Ok(format!("0x{}", hex::encode(hash.as_bytes())))
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::{
+		TxPool,
+		rpc_server::{ForkRpcServer, RpcServerConfig, types::ArchiveStorageResult},
+	};
+	use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
+	use pop_common::test_env::TestNode;
+	use url::Url;
+
+	/// Test context holding spawned node and RPC server.
+	struct RpcTestContext {
+		#[allow(dead_code)]
+		node: TestNode,
+		#[allow(dead_code)]
+		server: ForkRpcServer,
+		ws_url: String,
+		blockchain: Arc<Blockchain>,
+	}
+
+	/// Creates a test context with spawned node and RPC server.
+	async fn setup_rpc_test() -> RpcTestContext {
+		let node = TestNode::spawn().await.expect("Failed to spawn test node");
+		let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
+
+		let blockchain =
+			Blockchain::fork(&endpoint, None).await.expect("Failed to fork blockchain");
+		let txpool = Arc::new(TxPool::new());
+
+		let server = ForkRpcServer::start(blockchain.clone(), txpool, RpcServerConfig::default())
+			.await
+			.expect("Failed to start RPC server");
+
+		let ws_url = server.ws_url();
+		RpcTestContext { node, server, ws_url, blockchain }
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_finalized_height_returns_correct_value() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		let expected_block_height = ctx.blockchain.head_number().await;
+
+		let height: u32 = client
+			.request("archive_v1_finalizedHeight", rpc_params![])
+			.await
+			.expect("RPC call failed");
+
+		// Height should match the blockchain head number
+		assert_eq!(height, expected_block_height);
+
+		// Create a new block
+		ctx.blockchain.build_empty_block().await.unwrap();
+
+		let height: u32 = client
+			.request("archive_v1_finalizedHeight", rpc_params![])
+			.await
+			.expect("RPC call failed");
+
+		assert_eq!(height, expected_block_height + 1);
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_genesis_hash_returns_valid_hash() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		let hash: String = client
+			.request("archive_unstable_genesisHash", rpc_params![])
+			.await
+			.expect("RPC call failed");
+
+		// Hash should be properly formatted
+		assert!(hash.starts_with("0x"), "Hash should start with 0x");
+		assert_eq!(hash.len(), 66, "Hash should be 0x + 64 hex chars");
+
+		// Hash should match fork point
+		let expected = format!("0x{}", hex::encode(ctx.blockchain.fork_point().as_bytes()));
+		assert_eq!(hash, expected);
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_hash_by_height_returns_hash_at_fork_point() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		let fork_height = ctx.blockchain.fork_point_number() as u64;
+
+		// Get hash at fork point height
+		let result: Vec<String> = client
+			.request("archive_unstable_hashByHeight", rpc_params![fork_height])
+			.await
+			.expect("RPC call failed");
+
+		assert_eq!(result.len(), 1, "Should return exactly one hash");
+		assert!(result[0].starts_with("0x"), "Hash should start with 0x");
+
+		// Hash should match fork point
+		let expected = format!("0x{}", hex::encode(ctx.blockchain.fork_point().as_bytes()));
+		assert_eq!(result[0], expected);
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_hash_by_height_returns_empty_for_unknown_height() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		// Query a height that doesn't exist (very high number)
+		let result: Vec<String> = client
+			.request("archive_unstable_hashByHeight", rpc_params![999999999u64])
+			.await
+			.expect("RPC call failed");
+
+		assert!(result.is_empty(), "Should return empty array for unknown height");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_header_returns_header_for_head_hash() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		let head_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
+
+		let header: Option<String> = client
+			.request("archive_unstable_header", rpc_params![head_hash])
+			.await
+			.expect("RPC call failed");
+
+		assert!(header.is_some(), "Should return header for head hash");
+		let header_hex = header.unwrap();
+		assert!(header_hex.starts_with("0x"), "Header should be hex-encoded");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_header_returns_none_for_unknown_hash() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		// Use a made-up hash
+		let unknown_hash = "0x0000000000000000000000000000000000000000000000000000000000000001";
+
+		let header: Option<String> = client
+			.request("archive_unstable_header", rpc_params![unknown_hash])
+			.await
+			.expect("RPC call failed");
+
+		assert!(header.is_none(), "Should return None for unknown hash");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_body_returns_extrinsics_for_valid_hashes() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		let fork_point_hash = format!("0x{}", hex::encode(ctx.blockchain.fork_point().0));
+
+		let fork_point_body: Option<Vec<String>> = client
+			.request("archive_v1_body", rpc_params![fork_point_hash])
+			.await
+			.expect("RPC call failed");
+
+		// Build a few blocks
+		ctx.blockchain.build_empty_block().await.unwrap();
+		ctx.blockchain.build_empty_block().await.unwrap();
+		ctx.blockchain.build_empty_block().await.unwrap();
+
+		let head_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
+
+		let body: Option<Vec<String>> = client
+			.request("archive_v1_body", rpc_params![head_hash])
+			.await
+			.expect("RPC call failed");
+
+		// The latest body is just the mocked timestamp, so should be different from the fork point
+		// body
+		assert_ne!(fork_point_body.unwrap(), body.unwrap());
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_body_is_idempotent_over_finalized_blocks() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		// Build a few blocks
+		ctx.blockchain.build_empty_block().await.unwrap();
+		ctx.blockchain.build_empty_block().await.unwrap();
+		ctx.blockchain.build_empty_block().await.unwrap();
+
+		let height: u32 = client
+			.request("archive_v1_finalizedHeight", rpc_params![])
+			.await
+			.expect("RPC call failed");
+
+		let hash: HashByHeightResult = client
+			.request("archive_v1_hashByHeight", rpc_params![height])
+			.await
+			.expect("RPC call failed");
+
+		let hash = match hash {
+			HashByHeightResult::Hashes(mut hashes) if hashes.len() == 1 => hashes.pop(),
+			_ => panic!("Incorrect hash returned by RPC"),
+		};
+
+		let body_1: Option<Vec<String>> = client
+			.request("archive_v1_body", rpc_params![hash.clone()])
+			.await
+			.expect("RPC call failed");
+
+		let body_2: Option<Vec<String>> = client
+			.request("archive_v1_body", rpc_params![hash])
+			.await
+			.expect("RPC call failed");
+
+		assert_eq!(body_1, body_2);
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_body_returns_none_for_unknown_hash() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		let unknown_hash = "0x0000000000000000000000000000000000000000000000000000000000000001";
+
+		let body: Option<Vec<String>> = client
+			.request("archive_v1_body", rpc_params![unknown_hash])
+			.await
+			.expect("RPC call failed");
+
+		assert!(body.is_none(), "Should return None for unknown hash");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_call_executes_runtime_api() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		let head_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
+
+		// Call Core_version with empty parameters
+		let result: serde_json::Value = client
+			.request("archive_unstable_call", rpc_params![head_hash, "Core_version", "0x"])
+			.await
+			.expect("RPC call failed");
+
+		// Result should have "result": "ok" with output
+		assert_eq!(result.get("result").and_then(|v| v.as_str()), Some("ok"));
+		let output = result.get("output").and_then(|v| v.as_str());
+		assert!(output.is_some(), "Should have output field");
+		assert!(output.unwrap().starts_with("0x"), "Output should be hex-encoded");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_call_returns_error_for_invalid_function() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		let head_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
+
+		// Call a non-existent function
+		let result: serde_json::Value = client
+			.request("archive_unstable_call", rpc_params![head_hash, "NonExistent_function", "0x"])
+			.await
+			.expect("RPC call failed");
+
+		// Result should have "result": "err" with error message
+		assert_eq!(result.get("result").and_then(|v| v.as_str()), Some("err"));
+		assert!(result.get("error").is_some(), "Should have error field");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_storage_returns_value_for_existing_key() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		let head_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
+
+		// Query System::Number storage key
+		let mut key = Vec::new();
+		key.extend(sp_core::twox_128(b"System"));
+		key.extend(sp_core::twox_128(b"Number"));
+		let key_hex = format!("0x{}", hex::encode(&key));
+
+		let items = vec![serde_json::json!({
+			"key": key_hex,
+			"type": "value"
+		})];
+
+		let result: ArchiveStorageResult = client
+			.request(
+				"archive_unstable_storage",
+				rpc_params![head_hash, items, Option::<String>::None],
+			)
+			.await
+			.expect("RPC call failed");
+
+		match result {
+			ArchiveStorageResult::OkWithItems { items } => {
+				assert_eq!(items.len(), 1, "Should return one item");
+				assert!(items[0].value.is_some(), "Value should be present");
+			},
+			_ => panic!("Expected OkWithItems result"),
+		}
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_storage_returns_none_for_nonexistent_key() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		let head_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
+
+		// Query a non-existent key
+		let key_hex = format!("0x{}", hex::encode(b"nonexistent_key_12345"));
+
+		let items = vec![serde_json::json!({
+			"key": key_hex,
+			"type": "value"
+		})];
+
+		let result: ArchiveStorageResult = client
+			.request(
+				"archive_unstable_storage",
+				rpc_params![head_hash, items, Option::<String>::None],
+			)
+			.await
+			.expect("RPC call failed");
+
+		match result {
+			ArchiveStorageResult::OkWithItems { items } => {
+				assert_eq!(items.len(), 1, "Should return one item");
+				assert!(items[0].value.is_none(), "Value should be None for non-existent key");
+			},
+			_ => panic!("Expected OkWithItems result"),
+		}
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_stop_storage_succeeds() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		// stop_storage is a no-op but should succeed
+		let result: () = client
+			.request("archive_unstable_stopStorage", rpc_params!["some_operation_id"])
+			.await
+			.expect("RPC call failed");
+
+		// Just verify it doesn't error
+		assert_eq!(result, ());
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_header_rejects_invalid_hex() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		// Pass invalid hex
+		let result: Result<Option<String>, _> =
+			client.request("archive_unstable_header", rpc_params!["not_valid_hex"]).await;
+
+		assert!(result.is_err(), "Should reject invalid hex");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_call_rejects_invalid_hex_parameters() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		let head_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
+
+		// Pass invalid hex for call_parameters
+		let result: Result<serde_json::Value, _> = client
+			.request("archive_unstable_call", rpc_params![head_hash, "Core_version", "not_hex"])
+			.await;
+
+		assert!(result.is_err(), "Should reject invalid hex parameters");
 	}
 }

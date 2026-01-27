@@ -5,10 +5,11 @@
 //! These methods follow the new Substrate JSON-RPC specification for chain head tracking.
 //! Note: Subscriptions are stubbed for now - full implementation in follow-up PR.
 
-use crate::rpc_server::types::{MethodResponse, OperationResult, StorageQueryItem};
-use crate::Blockchain;
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::proc_macros::rpc;
+use crate::{
+	Blockchain,
+	rpc_server::types::{MethodResponse, OperationResult, StorageQueryItem},
+};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use std::sync::Arc;
 
 /// New chainHead RPC methods (v1 spec).
@@ -44,11 +45,8 @@ pub trait ChainHeadApi {
 
 	/// Continue a paused operation.
 	#[method(name = "v1_continue")]
-	async fn continue_op(
-		&self,
-		follow_subscription: String,
-		operation_id: String,
-	) -> RpcResult<()>;
+	async fn continue_op(&self, follow_subscription: String, operation_id: String)
+	-> RpcResult<()>;
 
 	/// Stop an operation.
 	#[method(name = "v1_stopOperation")]
@@ -100,9 +98,7 @@ impl ChainHeadApiServer for ChainHeadApi {
 	) -> RpcResult<MethodResponse> {
 		// Mock: return a started operation
 		Ok(MethodResponse {
-			result: OperationResult::Started {
-				operation_id: "mock-operation-1".to_string(),
-			},
+			result: OperationResult::Started { operation_id: "mock-operation-1".to_string() },
 		})
 	}
 
@@ -115,22 +111,14 @@ impl ChainHeadApiServer for ChainHeadApi {
 	) -> RpcResult<MethodResponse> {
 		// Mock: return a started operation
 		Ok(MethodResponse {
-			result: OperationResult::Started {
-				operation_id: "mock-operation-2".to_string(),
-			},
+			result: OperationResult::Started { operation_id: "mock-operation-2".to_string() },
 		})
 	}
 
-	async fn body(
-		&self,
-		_follow_subscription: String,
-		_hash: String,
-	) -> RpcResult<MethodResponse> {
+	async fn body(&self, _follow_subscription: String, _hash: String) -> RpcResult<MethodResponse> {
 		// Mock: return a started operation
 		Ok(MethodResponse {
-			result: OperationResult::Started {
-				operation_id: "mock-operation-3".to_string(),
-			},
+			result: OperationResult::Started { operation_id: "mock-operation-3".to_string() },
 		})
 	}
 

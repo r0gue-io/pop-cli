@@ -96,9 +96,8 @@ pub enum RpcServerError {
 impl From<RpcServerError> for ErrorObjectOwned {
 	fn from(err: RpcServerError) -> Self {
 		match err {
-			RpcServerError::ServerStart(msg) => {
-				ErrorObjectOwned::owned(error_codes::INTERNAL_ERROR, msg, None::<()>)
-			},
+			RpcServerError::ServerStart(msg) =>
+				ErrorObjectOwned::owned(error_codes::INTERNAL_ERROR, msg, None::<()>),
 			RpcServerError::TooManySubscriptions { limit } => ErrorObjectOwned::owned(
 				error_codes::TOO_MANY_SUBSCRIPTIONS,
 				format!("Too many subscriptions (limit: {limit})"),
@@ -119,21 +118,16 @@ impl From<RpcServerError> for ErrorObjectOwned {
 				format!("Operation {id} not found"),
 				None::<()>,
 			),
-			RpcServerError::Storage(msg) => {
-				ErrorObjectOwned::owned(error_codes::INTERNAL_ERROR, msg, None::<()>)
-			},
-			RpcServerError::RuntimeCall(msg) => {
-				ErrorObjectOwned::owned(error_codes::INTERNAL_ERROR, msg, None::<()>)
-			},
-			RpcServerError::InvalidParam(msg) => {
-				ErrorObjectOwned::owned(error_codes::INVALID_PARAMS, msg, None::<()>)
-			},
-			RpcServerError::Internal(msg) => {
-				ErrorObjectOwned::owned(error_codes::INTERNAL_ERROR, msg, None::<()>)
-			},
-			RpcServerError::BlockNotFound(msg) => {
-				ErrorObjectOwned::owned(error_codes::INVALID_BLOCK, msg, None::<()>)
-			},
+			RpcServerError::Storage(msg) =>
+				ErrorObjectOwned::owned(error_codes::INTERNAL_ERROR, msg, None::<()>),
+			RpcServerError::RuntimeCall(msg) =>
+				ErrorObjectOwned::owned(error_codes::INTERNAL_ERROR, msg, None::<()>),
+			RpcServerError::InvalidParam(msg) =>
+				ErrorObjectOwned::owned(error_codes::INVALID_PARAMS, msg, None::<()>),
+			RpcServerError::Internal(msg) =>
+				ErrorObjectOwned::owned(error_codes::INTERNAL_ERROR, msg, None::<()>),
+			RpcServerError::BlockNotFound(msg) =>
+				ErrorObjectOwned::owned(error_codes::INVALID_BLOCK, msg, None::<()>),
 		}
 	}
 }

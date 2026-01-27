@@ -4,10 +4,11 @@
 //!
 //! These methods provide block-related operations for polkadot.js compatibility.
 
-use crate::rpc_server::types::{Header, SignedBlock};
-use crate::Blockchain;
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::proc_macros::rpc;
+use crate::{
+	Blockchain,
+	rpc_server::types::{Header, SignedBlock},
+};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use std::sync::Arc;
 
 /// Legacy chain RPC methods.
@@ -54,7 +55,8 @@ impl ChainApiServer for ChainApi {
 	async fn get_block_hash(&self, block_number: Option<u32>) -> RpcResult<Option<String>> {
 		let hash = match block_number {
 			Some(n) if n == self.blockchain.fork_point_number() => self.blockchain.fork_point(),
-			Some(n) if n == self.blockchain.head_number().await => self.blockchain.head_hash().await,
+			Some(n) if n == self.blockchain.head_number().await =>
+				self.blockchain.head_hash().await,
 			Some(_) => {
 				// Historical block hashes not available yet
 				return Ok(None);
