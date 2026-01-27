@@ -71,6 +71,8 @@ mod rpc;
 pub mod rpc_server;
 mod schema;
 mod strings;
+#[cfg(test)]
+pub mod testing;
 mod txpool;
 
 pub use block::{Block, BlockForkPoint};

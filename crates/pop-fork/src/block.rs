@@ -334,29 +334,11 @@ mod tests {
 	/// concurrent node downloads causing race conditions.
 	mod sequential {
 		use super::*;
-		use crate::StorageCache;
-		use pop_common::test_env::TestNode;
+		use crate::testing::TestContext;
 
-		/// Helper struct to hold the test node and context together.
-		struct TestContext {
-			#[allow(dead_code)]
-			node: TestNode,
-			endpoint: Url,
-			cache: StorageCache,
-			block_hash: H256,
-			block_number: u32,
-			rpc: ForkRpcClient,
-		}
-
+		/// Creates a test context with a spawned local node.
 		async fn create_test_context() -> TestContext {
-			let node = TestNode::spawn().await.expect("Failed to spawn test node");
-			let endpoint: Url = node.ws_url().parse().unwrap();
-			let rpc = ForkRpcClient::connect(&endpoint).await.unwrap();
-			let block_hash = rpc.finalized_head().await.unwrap();
-			let header = rpc.header(block_hash).await.unwrap();
-			let block_number = header.number;
-			let cache = StorageCache::in_memory().await.unwrap();
-			TestContext { node, endpoint, cache, block_hash, block_number, rpc }
+			TestContext::new().await
 		}
 
 		#[tokio::test(flavor = "multi_thread")]

@@ -353,8 +353,8 @@ mod tests {
 		use super::*;
 		use crate::{
 			ForkRpcClient, LocalStorageLayer, RemoteStorageLayer, RuntimeExecutor, StorageCache,
+			testing::TestContext,
 		};
-		use pop_common::test_env::TestNode;
 		use url::Url;
 
 		/// Asset Hub Paseo endpoints (Aura-based parachain).
@@ -375,14 +375,14 @@ mod tests {
 
 		/// Test context for slot duration tests with a local test node.
 		struct LocalTestContext {
-			#[allow(dead_code)]
-			node: TestNode,
+			/// Base test context (kept alive for the test node).
+			base: TestContext,
 			executor: RuntimeExecutor,
 			storage: LocalStorageLayer,
-			metadata: Metadata,
 		}
 
 		/// Test context for slot duration tests with a remote endpoint.
+		/// Used for testing against live networks like Paseo.
 		struct RemoteTestContext {
 			executor: RuntimeExecutor,
 			storage: LocalStorageLayer,
@@ -391,12 +391,10 @@ mod tests {
 
 		/// Creates a test context from a local test node.
 		async fn create_local_context() -> LocalTestContext {
-			let node = TestNode::spawn().await.expect("Failed to spawn test node");
-			let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
-			let RemoteTestContext { executor, storage, metadata } =
-				try_create_remote_context(&endpoint).await.expect("Failed to create context");
-
-			LocalTestContext { node, executor, storage, metadata }
+			let base = TestContext::new().await;
+			let executor = base.create_executor();
+			let storage = base.create_local_layer();
+			LocalTestContext { base, executor, storage }
 		}
 
 		/// Attempts to create a test context from a remote endpoint URL.
@@ -452,7 +450,7 @@ mod tests {
 			let slot_duration = TimestampInherent::get_slot_duration_from_runtime(
 				&ctx.executor,
 				&ctx.storage,
-				&ctx.metadata,
+				&ctx.base.metadata,
 				DEFAULT_RELAY_SLOT_DURATION_MS,
 			)
 			.await;

@@ -624,78 +624,34 @@ mod tests {
 	/// methods against real chain state. They spawn a local test node and fetch
 	/// actual runtime code to ensure end-to-end functionality.
 	mod sequential {
-		use crate::{ForkRpcClient, LocalStorageLayer, RemoteStorageLayer, StorageCache};
-		use pop_common::test_env::TestNode;
+		use crate::{LocalStorageLayer, testing::TestContext};
 		use scale::Encode;
-		use subxt::{Metadata, config::substrate::H256};
-		use url::Url;
+		use sp_core::H256;
 
 		use super::*;
 
-		/// Test context holding a spawned test node and all layers needed for execution.
-		///
-		/// The node is kept alive for the duration of the test via the `_node` field.
+		/// Test context holding all components needed for executor tests.
 		struct ExecutorTestContext {
+			/// Base test context (kept alive for the test node).
 			#[allow(dead_code)]
-			node: TestNode,
+			base: TestContext,
 			executor: RuntimeExecutor,
 			storage: LocalStorageLayer,
-			#[allow(dead_code)]
-			block_hash: H256,
-			#[allow(dead_code)]
-			block_number: u32,
 		}
 
 		/// Creates a fully initialized executor test context.
-		///
-		/// This spawns a local test node, connects to it, fetches the runtime code,
-		/// and sets up all storage layers needed for runtime execution.
 		async fn create_executor_context() -> ExecutorTestContext {
 			create_executor_context_with_config(ExecutorConfig::default()).await
 		}
 
 		/// Creates an executor test context with a custom configuration.
-		///
-		/// This allows tests to customize executor behavior such as signature
-		/// mock modes and log levels.
 		async fn create_executor_context_with_config(
 			config: ExecutorConfig,
 		) -> ExecutorTestContext {
-			use scale::Decode as _;
-
-			let node = TestNode::spawn().await.expect("Failed to spawn test node");
-			let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
-			let rpc = ForkRpcClient::connect(&endpoint).await.expect("Failed to connect to node");
-
-			let block_hash: H256 =
-				rpc.finalized_head().await.expect("Failed to get finalized head");
-			let header = rpc.header(block_hash).await.expect("Failed to get block header");
-			let block_number = header.number;
-
-			// Fetch runtime code from the chain
-			let runtime_code =
-				rpc.runtime_code(block_hash).await.expect("Failed to fetch runtime code");
-
-			// Fetch and decode metadata
-			let metadata_bytes = rpc.metadata(block_hash).await.expect("Failed to fetch metadata");
-			let metadata = Metadata::decode(&mut metadata_bytes.as_slice())
-				.expect("Failed to decode metadata");
-
-			// Set up storage layers
-			let cache = StorageCache::in_memory().await.expect("Failed to create cache");
-			cache
-				.cache_block(block_hash, block_number, header.parent_hash, &header.encode())
-				.await
-				.expect("Failed to cache block");
-
-			let remote = RemoteStorageLayer::new(rpc, cache);
-			let storage = LocalStorageLayer::new(remote, block_number, block_hash, metadata);
-
-			// Create executor with custom config
-			let executor = RuntimeExecutor::with_config(runtime_code, None, config)
-				.expect("Failed to create executor");
-
-			ExecutorTestContext { node, executor, storage, block_hash, block_number }
+			let base = TestContext::new().await;
+			let storage = base.create_local_layer();
+			let executor = base.create_executor_with_config(config);
+			ExecutorTestContext { base, executor, storage }
 		}
 
 		/// Executes `Core_version` against a live test node and verifies the result.
@@ -838,7 +794,7 @@ mod tests {
 
 			// Create a header for the next block
 			// The header format follows the Substrate Header structure
-			let next_block_number = ctx.block_number + 1;
+			let next_block_number = ctx.base.block_number + 1;
 
 			// Construct a minimal header for initialization
 			// Header = (parent_hash, number, state_root, extrinsics_root, digest)
@@ -859,7 +815,7 @@ mod tests {
 			}
 
 			let header = Header {
-				parent_hash: ctx.block_hash,
+				parent_hash: ctx.base.block_hash,
 				number: next_block_number,
 				state_root: H256::zero(),      // Will be computed by runtime
 				extrinsics_root: H256::zero(), // Will be computed by runtime
@@ -931,8 +887,8 @@ mod tests {
 			}
 
 			let header = Header {
-				parent_hash: ctx.block_hash,
-				number: ctx.block_number + 1,
+				parent_hash: ctx.base.block_hash,
+				number: ctx.base.block_number + 1,
 				state_root: H256::zero(),
 				extrinsics_root: H256::zero(),
 				digest: vec![DigestItem::PreRuntime(*b"aura", 0u64.encode())],
@@ -976,8 +932,8 @@ mod tests {
 			}
 
 			let header = Header {
-				parent_hash: ctx.block_hash,
-				number: ctx.block_number + 1,
+				parent_hash: ctx.base.block_hash,
+				number: ctx.base.block_number + 1,
 				state_root: H256::zero(),
 				extrinsics_root: H256::zero(),
 				digest: vec![DigestItem::PreRuntime(*b"aura", 0u64.encode())],

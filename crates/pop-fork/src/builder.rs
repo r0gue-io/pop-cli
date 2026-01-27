@@ -587,14 +587,13 @@ mod tests {
 	/// initialization, inherent application, and finalization.
 	mod sequential {
 		use super::*;
-		use crate::{Block, ExecutorConfig, ForkRpcClient, RuntimeExecutor, StorageCache};
-		use pop_common::test_env::TestNode;
-		use url::Url;
+		use crate::{Block, ExecutorConfig, RuntimeExecutor, testing::TestContext};
 
-		/// Test context holding a spawned test node and all components needed for block building.
+		/// Test context holding all components needed for block building.
 		struct BlockBuilderTestContext {
+			/// Base test context (kept alive for the test node).
 			#[allow(dead_code)]
-			node: TestNode,
+			base: TestContext,
 			block: Block,
 			executor: RuntimeExecutor,
 		}
@@ -608,30 +607,13 @@ mod tests {
 		async fn create_test_context_with_config(
 			config: Option<ExecutorConfig>,
 		) -> BlockBuilderTestContext {
-			let node = TestNode::spawn().await.expect("Failed to spawn test node");
-			let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
-			let rpc = ForkRpcClient::connect(&endpoint).await.expect("Failed to connect to node");
-
-			let block_hash = rpc.finalized_head().await.expect("Failed to get finalized head");
-
-			// Fetch runtime code for the executor
-			let runtime_code =
-				rpc.runtime_code(block_hash).await.expect("Failed to fetch runtime code");
-
-			// Create fork point block
-			let cache = StorageCache::in_memory().await.expect("Failed to create cache");
-			let block = Block::fork_point(&endpoint, cache, block_hash.into())
-				.await
-				.expect("Failed to create fork point");
-
-			// Create executor with optional custom config
+			let base = TestContext::new().await;
+			let block = base.create_block().await;
 			let executor = match config {
-				Some(cfg) => RuntimeExecutor::with_config(runtime_code, None, cfg),
-				None => RuntimeExecutor::new(runtime_code, None),
-			}
-			.expect("Failed to create executor");
-
-			BlockBuilderTestContext { node, block, executor }
+				Some(cfg) => base.create_executor_with_config(cfg),
+				None => base.create_executor(),
+			};
+			BlockBuilderTestContext { base, block, executor }
 		}
 
 		#[tokio::test(flavor = "multi_thread")]

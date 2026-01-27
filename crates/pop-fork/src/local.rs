@@ -844,11 +844,8 @@ impl LocalStorageLayer {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{ForkRpcClient, RemoteStorageLayer, StorageCache};
-	use pop_common::test_env::TestNode;
+	use crate::testing::TestContext;
 	use std::time::Duration;
-	use subxt::ext::codec::Decode;
-	use url::Url;
 
 	/// System::Number storage key: twox128("System") ++ twox128("Number")
 	const SYSTEM_NUMBER_KEY: &str =
@@ -861,40 +858,14 @@ mod tests {
 	/// System pallet prefix: twox128("System")
 	const SYSTEM_PALLET_PREFIX: &str = "26aa394eea5630e07c48ae0c9558cef7";
 
-	/// Helper struct to hold the test node and layers together.
-	struct TestContext {
-		#[allow(dead_code)]
-		node: TestNode,
-		remote: RemoteStorageLayer,
-		block_hash: H256,
-		block_number: u32,
-		metadata: Metadata,
-	}
-
+	/// Creates a test context with a spawned local node.
 	async fn create_test_context() -> TestContext {
-		let node = TestNode::spawn().await.expect("Failed to spawn test node");
-		let endpoint: Url = node.ws_url().parse().unwrap();
-		let rpc = ForkRpcClient::connect(&endpoint).await.unwrap();
-		let block_hash = rpc.finalized_head().await.unwrap();
-		let header = rpc.header(block_hash).await.unwrap();
-		let block_number = header.number;
-		let cache = StorageCache::in_memory().await.unwrap();
-		let remote = RemoteStorageLayer::new(rpc.clone(), cache);
-		let metadata_bytes = rpc.metadata(block_hash).await.unwrap();
-		let metadata =
-			Metadata::decode(&mut metadata_bytes.as_slice()).expect("Failed to decode metadata");
-
-		TestContext { node, remote, block_hash, block_number, metadata }
+		TestContext::new().await
 	}
 
-	/// Helper to create a LocalStorageLayer with proper block hash and number
+	/// Helper to create a LocalStorageLayer from a test context.
 	fn create_layer(ctx: &TestContext) -> LocalStorageLayer {
-		LocalStorageLayer::new(
-			ctx.remote.clone(),
-			ctx.block_number,
-			ctx.block_hash,
-			ctx.metadata.clone(),
-		)
+		ctx.create_local_layer()
 	}
 
 	// Tests for new()
