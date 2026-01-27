@@ -384,6 +384,47 @@ impl Blockchain {
 		}
 	}
 
+	/// Get block hash by block number.
+	///
+	/// This method searches for the block in three places:
+	/// 1. Locally-built blocks (traversing the parent chain from head)
+	/// 2. The fork point block
+	/// 3. The remote chain (for blocks before the fork point)
+	///
+	/// # Arguments
+	///
+	/// * `block_number` - The block number to query
+	///
+	/// # Returns
+	///
+	/// The block hash, or `None` if the block number doesn't exist.
+	pub async fn block_hash_at(&self, block_number: u32) -> Result<Option<H256>, BlockchainError> {
+		// Check if block number is within our local chain range
+		let head = self.head.read().await;
+
+		if head.number < block_number {
+			return Ok(None);
+		}
+
+		// Traverse the parent chain to find the block by number
+		let mut current: Option<&Block> = Some(&head);
+		while let Some(block) = current {
+			if block.number == block_number {
+				return Ok(Some(block.hash));
+			}
+
+			if block.parent.is_none() {
+				break;
+			}
+
+			current = block.parent.as_deref();
+		}
+
+		// Block number is before our fork point or not found - fetch from remote RPC
+		let rpc = ForkRpcClient::connect(&self.endpoint).await.map_err(BlockError::from)?;
+		Ok(rpc.block_hash_at(block_number).await.map_err(BlockError::from)?)
+	}
+
 	/// Build a new block with the given extrinsics.
 	///
 	/// This creates a new block on top of the current head, applying:
@@ -1101,6 +1142,101 @@ mod tests {
 				blockchain.block_body(unknown_hash).await.expect("Failed to query block body");
 
 			assert!(body.is_none(), "Should return None for unknown hash");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_hash_at_returns_hash_for_head() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			// Build a block
+			let block = blockchain.build_empty_block().await.expect("Failed to build block");
+
+			// Query hash for head block number
+			let hash =
+				blockchain.block_hash_at(block.number).await.expect("Failed to get block hash");
+
+			assert!(hash.is_some(), "Should return hash for head block number");
+			assert_eq!(hash.unwrap(), block.hash, "Hash should match head block hash");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_hash_at_returns_hash_for_parent_block() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			// Build two blocks
+			let block1 = blockchain.build_empty_block().await.expect("Failed to build block 1");
+			let _block2 = blockchain.build_empty_block().await.expect("Failed to build block 2");
+
+			// Query hash for the first built block
+			let hash =
+				blockchain.block_hash_at(block1.number).await.expect("Failed to get block hash");
+
+			assert!(hash.is_some(), "Should return hash for parent block number");
+			assert_eq!(hash.unwrap(), block1.hash, "Hash should match first block hash");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_hash_at_returns_hash_for_fork_point() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			let fork_point_number = blockchain.fork_point_number();
+			let fork_point_hash = blockchain.fork_point();
+
+			// Query hash for fork point
+			let hash = blockchain
+				.block_hash_at(fork_point_number)
+				.await
+				.expect("Failed to get block hash");
+
+			assert!(hash.is_some(), "Should return hash for fork point");
+			assert_eq!(hash.unwrap(), fork_point_hash, "Hash should match fork point hash");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_hash_at_returns_hash_for_block_before_fork_point() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			let fork_point_number = blockchain.fork_point_number();
+
+			// Only test if fork point is > 0 (has blocks before it)
+			if fork_point_number > 0 {
+				let hash = blockchain
+					.block_hash_at(fork_point_number - 1)
+					.await
+					.expect("Failed to get block hash");
+
+				assert!(hash.is_some(), "Should return hash for block before fork point");
+			}
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_hash_at_returns_none_for_future_block() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			let head_number = blockchain.head_number().await;
+
+			// Query a block number that doesn't exist yet
+			let hash = blockchain
+				.block_hash_at(head_number + 100)
+				.await
+				.expect("Failed to query block hash");
+
+			assert!(hash.is_none(), "Should return None for future block number");
 		}
 	}
 }
