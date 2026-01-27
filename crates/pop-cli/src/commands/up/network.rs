@@ -90,7 +90,42 @@ impl ConfigFileCommand {
 			self.command.as_deref(),
 			cli,
 		)
-		.await
+		.await?;
+		cli.info(self.display())?;
+		Ok(())
+	}
+
+	fn display(&self) -> String {
+		let mut full_message = "pop up network".to_string();
+		full_message.push_str(&format!(" --path {}", self.path.display()));
+		if let Some(rc) = &self.relay_chain {
+			full_message.push_str(&format!(" --relay-chain {}", rc));
+		}
+		if let Some(rcr) = &self.relay_chain_runtime {
+			full_message.push_str(&format!(" --relay-chain-runtime {}", rcr));
+		}
+		if let Some(sp) = &self.system_parachain {
+			full_message.push_str(&format!(" --system-parachain {}", sp));
+		}
+		if let Some(spr) = &self.system_parachain_runtime {
+			full_message.push_str(&format!(" --system-parachain-runtime {}", spr));
+		}
+		if let Some(p) = &self.parachain {
+			full_message.push_str(&format!(" --parachain {}", p.join(",")));
+		}
+		if let Some(cmd) = &self.command {
+			full_message.push_str(&format!(" --cmd \"{}\"", cmd));
+		}
+		if self.verbose {
+			full_message.push_str(" --verbose");
+		}
+		if self.skip_confirm {
+			full_message.push_str(" --skip-confirm");
+		}
+		if self.auto_remove {
+			full_message.push_str(" --rm");
+		}
+		full_message
 	}
 }
 
@@ -173,7 +208,11 @@ impl<const FILTER: u8> BuildCommand<FILTER> {
 			}
 		}
 
-		let network_config = NetworkConfiguration::build(relay, self.port, chains.as_deref())?;
+		let network_config =
+			NetworkConfiguration::build(relay.clone(), self.port, chains.as_deref())?;
+
+		let parachain_names: Option<Vec<_>> =
+			chains.as_ref().map(|p| p.iter().map(|r| r.name().to_string()).collect());
 
 		spawn(
 			network_config,
@@ -181,14 +220,52 @@ impl<const FILTER: u8> BuildCommand<FILTER> {
 			self.relay_chain_runtime.as_deref(),
 			self.system_parachain.as_deref(),
 			self.system_parachain_runtime.as_deref(),
-			None,
+			parachain_names.as_ref(),
 			self.verbose,
 			self.skip_confirm,
 			self.auto_remove,
 			self.command.as_deref(),
 			cli,
 		)
-		.await
+		.await?;
+		cli.info(self.display(relay))?;
+		Ok(())
+	}
+
+	fn display(&self, relay: Relay) -> String {
+		let mut full_message = format!("pop up {}", relay.name().to_lowercase());
+		if let Some(rc) = &self.relay_chain {
+			full_message.push_str(&format!(" --relay-chain {}", rc));
+		}
+		if let Some(rcr) = &self.relay_chain_runtime {
+			full_message.push_str(&format!(" --relay-chain-runtime {}", rcr));
+		}
+		if let Some(sp) = &self.system_parachain {
+			full_message.push_str(&format!(" --system-parachain {}", sp));
+		}
+		if let Some(spr) = &self.system_parachain_runtime {
+			full_message.push_str(&format!(" --system-parachain-runtime {}", spr));
+		}
+		if let Some(p) = &self.parachain {
+			let names: Vec<_> = p.iter().map(|r| r.name()).collect();
+			full_message.push_str(&format!(" --parachain {}", names.join(",")));
+		}
+		if let Some(port) = self.port {
+			full_message.push_str(&format!(" --port {}", port));
+		}
+		if let Some(cmd) = &self.command {
+			full_message.push_str(&format!(" --cmd \"{}\"", cmd));
+		}
+		if self.verbose {
+			full_message.push_str(" --verbose");
+		}
+		if self.skip_confirm {
+			full_message.push_str(" --skip-confirm");
+		}
+		if self.auto_remove {
+			full_message.push_str(" --rm");
+		}
+		full_message
 	}
 }
 
@@ -680,6 +757,46 @@ mod tests {
 	use super::*;
 
 	use std::{env, fs};
+
+	#[test]
+	fn test_config_file_command_display() {
+		let cmd = ConfigFileCommand {
+			path: PathBuf::from("config.toml"),
+			relay_chain: Some("stable2503".to_string()),
+			relay_chain_runtime: Some("v1.4.1".to_string()),
+			system_parachain: Some("stable2503".to_string()),
+			system_parachain_runtime: Some("v1.4.1".to_string()),
+			parachain: Some(vec!["p1".to_string(), "p2".to_string()]),
+			command: Some("ls -la".to_string()),
+			verbose: true,
+			skip_confirm: true,
+			auto_remove: true,
+		};
+		assert_eq!(
+			cmd.display(),
+			"pop up network --path config.toml --relay-chain stable2503 --relay-chain-runtime v1.4.1 --system-parachain stable2503 --system-parachain-runtime v1.4.1 --parachain p1,p2 --cmd \"ls -la\" --verbose --skip-confirm --rm"
+		);
+	}
+
+	#[test]
+	fn test_build_command_display() {
+		let cmd = BuildCommand::<0> {
+			relay_chain: Some("stable2503".to_string()),
+			relay_chain_runtime: Some("v1.4.1".to_string()),
+			system_parachain: Some("stable2503".to_string()),
+			system_parachain_runtime: Some("v1.5.1".to_string()),
+			parachain: None,
+			port: Some(9944),
+			command: Some("ls".to_string()),
+			verbose: true,
+			skip_confirm: true,
+			auto_remove: true,
+		};
+		assert_eq!(
+			cmd.display(Relay::Paseo),
+			"pop up paseo --relay-chain stable2503 --relay-chain-runtime v1.4.1 --system-parachain stable2503 --system-parachain-runtime v1.5.1 --port 9944 --cmd \"ls\" --verbose --skip-confirm --rm"
+		);
+	}
 
 	#[tokio::test]
 	async fn test_run_custom_command() -> Result<(), anyhow::Error> {
