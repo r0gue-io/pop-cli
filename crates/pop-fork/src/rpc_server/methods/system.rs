@@ -4,10 +4,11 @@
 //!
 //! These methods provide system information for polkadot.js compatibility.
 
-use crate::rpc_server::types::{ChainProperties, SystemHealth};
-use crate::Blockchain;
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::proc_macros::rpc;
+use crate::{
+	Blockchain,
+	rpc_server::types::{ChainProperties, SystemHealth},
+};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use std::sync::Arc;
 
 /// Legacy system RPC methods.

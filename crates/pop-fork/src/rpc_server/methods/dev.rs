@@ -6,8 +6,7 @@
 //! development and testing purposes.
 
 use crate::{Blockchain, TxPool};
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::proc_macros::rpc;
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use std::sync::Arc;
 
 /// Development RPC methods for manual chain control.

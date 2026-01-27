@@ -4,10 +4,8 @@
 //!
 //! These methods provide state-related operations for polkadot.js compatibility.
 
-use crate::rpc_server::types::RuntimeVersion;
-use crate::Blockchain;
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::proc_macros::rpc;
+use crate::{Blockchain, rpc_server::types::RuntimeVersion};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use std::sync::Arc;
 
 /// Legacy state RPC methods.
@@ -99,14 +97,13 @@ impl StateApiServer for StateApi {
 					state_version: u8,
 				}
 
-				let version =
-					ScaleRuntimeVersion::decode(&mut result.as_slice()).map_err(|e| {
-						jsonrpsee::types::ErrorObjectOwned::owned(
-							-32603,
-							format!("Failed to decode runtime version: {e}"),
-							None::<()>,
-						)
-					})?;
+				let version = ScaleRuntimeVersion::decode(&mut result.as_slice()).map_err(|e| {
+					jsonrpsee::types::ErrorObjectOwned::owned(
+						-32603,
+						format!("Failed to decode runtime version: {e}"),
+						None::<()>,
+					)
+				})?;
 
 				Ok(RuntimeVersion {
 					spec_name: version.spec_name,

@@ -194,6 +194,29 @@ impl ForkRpcClient {
 		Ok(block.map(|block| (block_hash, block.block)))
 	}
 
+	/// Get full block data by block hash.
+	///
+	/// # Arguments
+	/// * `block_hash` - The block hash to query
+	///
+	/// # Returns
+	/// * `Ok(Some(block))` - Block exists
+	/// * `Ok(None)` - Block hash not found
+	/// * `Err(_)` - RPC error
+	pub async fn block_by_hash(
+		&self,
+		block_hash: H256,
+	) -> Result<Option<Block<SubstrateConfig>>, RpcClientError> {
+		let block = self.legacy.chain_get_block(Some(block_hash)).await.map_err(|e| {
+			RpcClientError::RequestFailed {
+				method: methods::CHAIN_GET_BLOCK,
+				message: e.to_string(),
+			}
+		})?;
+
+		Ok(block.map(|b| b.block))
+	}
+
 	/// Get a single storage value at a specific block.
 	///
 	/// # Arguments

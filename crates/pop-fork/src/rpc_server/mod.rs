@@ -27,8 +27,7 @@ pub use error::{RpcServerError, error_codes};
 use crate::{Blockchain, TxPool};
 
 use jsonrpsee::server::{ServerBuilder, ServerHandle};
-use std::net::SocketAddr;
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
 
 /// Default starting port for the RPC server.
 pub const DEFAULT_RPC_PORT: u16 = 8000;

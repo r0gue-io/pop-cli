@@ -50,8 +50,8 @@
 
 use crate::{
 	Block, BlockBuilder, BlockBuilderError, BlockError, BlockForkPoint, CacheError, ExecutorConfig,
-	ExecutorError, InherentProvider, RuntimeExecutor, StorageCache, create_next_header,
-	default_providers,
+	ExecutorError, ForkRpcClient, InherentProvider, RuntimeExecutor, StorageCache,
+	create_next_header, default_providers,
 };
 use std::{path::Path, sync::Arc};
 use subxt::config::substrate::H256;
@@ -154,6 +154,9 @@ pub struct Blockchain {
 
 	/// Executor configuration for runtime calls.
 	executor_config: ExecutorConfig,
+
+	/// RPC endpoint URL for fetching remote data.
+	endpoint: Url,
 }
 
 impl Blockchain {
@@ -295,6 +298,7 @@ impl Blockchain {
 			fork_point_hash,
 			fork_point_number,
 			executor_config,
+			endpoint: endpoint.clone(),
 		}))
 	}
 
@@ -331,6 +335,53 @@ impl Blockchain {
 	/// Get the current head block hash.
 	pub async fn head_hash(&self) -> H256 {
 		self.head.read().await.hash
+	}
+
+	/// Get block body (extrinsics) by hash.
+	///
+	/// This method searches for the block in three places:
+	/// 1. The current head block
+	/// 2. Locally-built blocks (traversing the parent chain)
+	/// 3. The remote chain (for blocks at or before the fork point)
+	///
+	/// # Arguments
+	///
+	/// * `hash` - The block hash to query
+	///
+	/// # Returns
+	///
+	/// The block's extrinsics as raw bytes, or `None` if the block is not found.
+	pub async fn block_body(&self, hash: H256) -> Result<Option<Vec<Vec<u8>>>, BlockchainError> {
+		// First, check if it matches any locally-built block (but not the fork point,
+		// which has empty extrinsics since we don't fetch them during fork)
+		let head = self.head.read().await;
+
+		// Traverse the parent chain to find the block
+		let mut current: Option<&Block> = Some(&head);
+		while let Some(block) = current {
+			if block.hash == hash {
+				// If this is the fork point (no parent), we need to fetch from remote
+				// because fork point's extrinsics are not stored locally
+				if block.parent.is_none() {
+					break; // Fall through to remote fetch
+				}
+				return Ok(Some(block.extrinsics.clone()));
+			}
+			current = block.parent.as_deref();
+		}
+
+		// Not found locally or is fork point - fetch from remote RPC
+		let rpc = ForkRpcClient::connect(&self.endpoint).await.map_err(BlockError::from)?;
+
+		match rpc.block_by_hash(hash).await.map_err(BlockError::from)? {
+			Some(block) => {
+				// Convert extrinsics to raw bytes
+				let extrinsics: Vec<Vec<u8>> =
+					block.extrinsics.into_iter().map(|ext| ext.0.to_vec()).collect();
+				Ok(Some(extrinsics))
+			},
+			None => Ok(None),
+		}
 	}
 
 	/// Build a new block with the given extrinsics.
@@ -978,6 +1029,78 @@ mod tests {
 				alice_balance_before - alice_balance_after >= TRANSFER_AMOUNT,
 				"Alice should have paid at least the transfer amount plus fees"
 			);
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_body_returns_extrinsics_for_head() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			// Build a block so we have extrinsics (inherents)
+			let block = blockchain.build_empty_block().await.expect("Failed to build block");
+
+			// Query body for head hash
+			let body = blockchain.block_body(block.hash).await.expect("Failed to get block body");
+
+			assert!(body.is_some(), "Should return body for head hash");
+			// Should have inherent extrinsics
+			let extrinsics = body.unwrap();
+			assert!(!extrinsics.is_empty(), "Built block should have inherent extrinsics");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_body_returns_extrinsics_for_parent_block() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			// Build two blocks
+			let block1 = blockchain.build_empty_block().await.expect("Failed to build block 1");
+			let _block2 = blockchain.build_empty_block().await.expect("Failed to build block 2");
+
+			// Query body for the first built block (parent of head)
+			let body = blockchain.block_body(block1.hash).await.expect("Failed to get block body");
+
+			assert!(body.is_some(), "Should return body for parent block");
+			let extrinsics = body.unwrap();
+			assert!(!extrinsics.is_empty(), "Parent block should have inherent extrinsics");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_body_returns_extrinsics_for_fork_point_from_remote() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			let fork_point_hash = blockchain.fork_point();
+
+			// Query body for fork point (should fetch from remote)
+			let body =
+				blockchain.block_body(fork_point_hash).await.expect("Failed to get block body");
+
+			// Fork point exists on remote chain, so body should be Some
+			assert!(body.is_some(), "Should return body for fork point from remote");
+			assert!(!body.unwrap().is_empty(), "Should contain body");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_body_returns_none_for_unknown_hash() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			// Use a fabricated hash that doesn't exist
+			let unknown_hash = H256::from([0xde; 32]);
+
+			let body =
+				blockchain.block_body(unknown_hash).await.expect("Failed to query block body");
+
+			assert!(body.is_none(), "Should return None for unknown hash");
 		}
 	}
 }

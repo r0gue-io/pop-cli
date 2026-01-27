@@ -5,8 +5,7 @@
 //! These methods follow the new Substrate JSON-RPC specification for transaction handling.
 
 use crate::{Blockchain, TxPool};
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::proc_macros::rpc;
+use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use std::sync::Arc;
 
 /// New transaction RPC methods (v1 spec).
