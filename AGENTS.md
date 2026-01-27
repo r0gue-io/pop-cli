@@ -1,37 +1,33 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `crates/` houses workspace members such as `pop-cli`, `pop-chains`, `pop-contracts`, `pop-common`, and `pop-telemetry`.
-- `crates/pop-cli/src/` is the main CLI implementation; `crates/*/tests/` hold crate-level tests.
-- `tests/` contains repo-level fixtures and integration assets (`networks/`, `runtimes/`, `snapshots/`).
-- `pallets/` and `debian/` contain chain-specific components and packaging assets.
-- Root files like `Cargo.toml`, `rust-toolchain.toml`, `flake.nix`, and `deny.toml` define workspace, toolchain, Nix, and security policy.
+- `crates/` contains workspace crates: `pop-cli` (binary), plus supporting libs like `pop-chains`, `pop-contracts`, `pop-common`, and `pop-telemetry`.
+- `pallets/` holds runtime pallet templates used by chain scaffolding.
+- `tests/` stores integration-test fixtures and snapshots (`tests/networks`, `tests/runtimes`, `tests/snapshots`).
+- Packaging and release assets live in `debian/`, `Dockerfile*`, and `flake.nix`/`flake.lock` for Nix builds.
 
 ## Build, Test, and Development Commands
-- `cargo build` builds the workspace with default features.
-- `cargo build --no-default-features --features chain` builds chain-focused functionality only.
-- `cargo build --no-default-features --features contract` builds contract-focused functionality only.
-- `cargo nextest run --lib --bins` runs unit tests (recommended).
+- `cargo build --no-default-features --features chain` builds only parachain features.
+- `cargo build --no-default-features --features contract` builds only smart-contract features.
+- `cargo nextest run --lib --bins` runs unit tests (preferred); `cargo test --lib --bins` is the fallback.
 - `cargo nextest run --no-default-features --features contract --test contract` runs contract integration tests.
-- `cargo nextest run --no-default-features --features chain --test chain` runs chain integration tests.
-- `cargo nextest run` runs all tests.
-- `cargo deny check` runs advisory and license checks.
+- `cargo nextest run --no-default-features --features chain --test chain` and `--test metadata` run chain integration tests.
+- `cargo deny check` runs security and license checks (see `deny.toml`).
 
 ## Coding Style & Naming Conventions
-- Rust formatting is enforced by `.rustfmt.toml` (hard tabs, max width 100, edition 2024).
-- Prefer `cargo fmt` before submitting changes; keep imports grouped by crate.
-- Use clear, CLI-oriented names for commands and flags; match existing module naming in `crates/`.
+- Rust 2024 edition; toolchain is pinned in `rust-toolchain.toml` (Rust 1.91.1).
+- Formatting uses `rustfmt` with tabs (`hard_tabs = true`) and `max_width = 100` from `.rustfmt.toml`.
+- Clippy is enabled in `crates/pop-cli/Cargo.toml` with select allowances (e.g., `type_complexity`, `too_many_arguments`).
+- Prefer idiomatic Rust module naming (`snake_case` files/modules, `CamelCase` types).
 
 ## Testing Guidelines
-- Primary framework is Rust’s built-in test harness plus `cargo nextest` for orchestration.
-- Name integration tests by feature (`contract`, `chain`, `metadata`) to match existing patterns.
-- Keep tests deterministic; avoid network dependencies unless explicitly mocked or documented.
+- Unit tests live alongside code (e.g., `*_test.rs` or `mod tests` in crates) and are run via `cargo nextest`.
+- Integration tests are split by feature flags as noted above; expect external API rate limits and use `GITHUB_TOKEN` when needed.
 
 ## Commit & Pull Request Guidelines
-- Commit messages follow Conventional Commits: `feat: ...`, `fix: ...`, `refactor: ...`, `ci: ...`.
-- Keep subjects short and imperative; include PR numbers when available (e.g., `feat: add X (#123)`).
-- PRs should include a brief summary, test results, and linked issues; add screenshots or CLI output snippets when UX changes.
+- Commit messages follow a Conventional Commits style (e.g., `feat: ...`, `fix: ...`, `refactor: ...`).
+- Include a clear PR description, reference issues/PR numbers when applicable, and note test commands run.
 
 ## Security & Configuration Tips
-- Use `GITHUB_TOKEN` when running tests that hit GitHub APIs to avoid rate limits.
-- Respect `deny.toml` policy and keep dependencies aligned with the workspace versions.
+- Use the pinned toolchain and `wasm32-unknown-unknown` target when building wasm-related artifacts.
+- Run `cargo deny check advisories` before release-sensitive changes.
