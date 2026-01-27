@@ -7,8 +7,7 @@
 use crate::{
 	Blockchain,
 	rpc_server::types::{
-		ArchiveCallResult, ArchiveStorageItem, ArchiveStorageResult, HashByHeightResult,
-		StorageQueryItem,
+		ArchiveCallResult, ArchiveStorageItem, ArchiveStorageResult, StorageQueryItem,
 	},
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
@@ -24,9 +23,10 @@ pub trait ArchiveApi {
 
 	/// Get block hash by height.
 	///
-	/// Returns an array of hashes (may be multiple due to forks).
+	/// Returns an array of hashes (returns an Option<Vec> to comply with the spec but, in practice,
+	/// this Vec always contains a single element, as blocks are produced on-demand one by one).
 	#[method(name = "v1_hashByHeight")]
-	async fn hash_by_height(&self, height: u64) -> RpcResult<HashByHeightResult>;
+	async fn hash_by_height(&self, height: u32) -> RpcResult<Option<Vec<String>>>;
 
 	/// Get block header by hash.
 	///
@@ -85,19 +85,16 @@ impl ArchiveApiServer for ArchiveApi {
 		Ok(self.blockchain.head_number().await)
 	}
 
-	async fn hash_by_height(&self, height: u64) -> RpcResult<HashByHeightResult> {
-		let fork_point_number = self.blockchain.fork_point_number() as u64;
-		let head_number = self.blockchain.head_number().await as u64;
-
-		if height == fork_point_number {
-			let hash = self.blockchain.fork_point();
-			Ok(HashByHeightResult::Hashes(vec![format!("0x{}", hex::encode(hash.as_bytes()))]))
-		} else if height == head_number {
-			let hash = self.blockchain.head_hash().await;
-			Ok(HashByHeightResult::Hashes(vec![format!("0x{}", hex::encode(hash.as_bytes()))]))
-		} else {
-			// Historical block hashes not available yet
-			Ok(HashByHeightResult::Hashes(vec![]))
+	async fn hash_by_height(&self, height: u32) -> RpcResult<Option<Vec<String>>> {
+		// Fetch block hash (checks local blocks first, then remote)
+		match self.blockchain.block_hash_at(height).await {
+			Ok(Some(hash)) => Ok(Some(vec![format!("0x{}", hex::encode(hash.as_bytes()))])),
+			Ok(None) => Ok(None),
+			Err(e) => Err(jsonrpsee::types::ErrorObjectOwned::owned(
+				-32603,
+				format!("Failed to fetch block hash: {e}"),
+				None::<()>,
+			)),
 		}
 	}
 
@@ -312,40 +309,83 @@ mod tests {
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
-	async fn archive_hash_by_height_returns_hash_at_fork_point() {
+	async fn archive_hash_by_height_returns_hash_at_different_heights() {
 		let ctx = setup_rpc_test().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
-		let fork_height = ctx.blockchain.fork_point_number() as u64;
+		let block_1 = ctx.blockchain.build_empty_block().await.unwrap();
+		let block_2 = ctx.blockchain.build_empty_block().await.unwrap();
+
+		let fork_height = ctx.blockchain.fork_point_number();
 
 		// Get hash at fork point height
-		let result: Vec<String> = client
-			.request("archive_unstable_hashByHeight", rpc_params![fork_height])
+		let result: Option<Vec<String>> = client
+			.request("archive_v1_hashByHeight", rpc_params![fork_height])
 			.await
 			.expect("RPC call failed");
 
+		let result = result.unwrap();
 		assert_eq!(result.len(), 1, "Should return exactly one hash");
 		assert!(result[0].starts_with("0x"), "Hash should start with 0x");
 
 		// Hash should match fork point
 		let expected = format!("0x{}", hex::encode(ctx.blockchain.fork_point().as_bytes()));
 		assert_eq!(result[0], expected);
+
+		// Get hash at further heights
+		let result: Option<Vec<String>> = client
+			.request("archive_v1_hashByHeight", rpc_params![block_1.number])
+			.await
+			.expect("RPC call failed");
+
+		let result = result.unwrap();
+		assert_eq!(result.len(), 1, "Should return exactly one hash");
+		assert!(result[0].starts_with("0x"), "Hash should start with 0x");
+
+		// Hash should match fork point
+		let expected = format!("0x{}", hex::encode(block_1.hash.as_bytes()));
+		assert_eq!(result[0], expected);
+
+		let result: Option<Vec<String>> = client
+			.request("archive_v1_hashByHeight", rpc_params![block_2.number])
+			.await
+			.expect("RPC call failed");
+
+		let result = result.unwrap();
+		assert_eq!(result.len(), 1, "Should return exactly one hash");
+		assert!(result[0].starts_with("0x"), "Hash should start with 0x");
+
+		// Hash should match fork point
+		let expected = format!("0x{}", hex::encode(block_2.hash.as_bytes()));
+		assert_eq!(result[0], expected);
+
+		// Get historical hash (if fork_point isn't 0)
+		if fork_height > 0 {
+			let result: Option<Vec<String>> = client
+				.request("archive_v1_hashByHeight", rpc_params![fork_height - 1])
+				.await
+				.expect("RPC call failed");
+
+			let result = result.unwrap();
+			assert_eq!(result.len(), 1, "Should return exactly one hash");
+			assert!(result[0].starts_with("0x"), "Hash should start with 0x");
+		}
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
-	async fn archive_hash_by_height_returns_empty_for_unknown_height() {
+	async fn archive_hash_by_height_returns_none_for_unknown_height() {
 		let ctx = setup_rpc_test().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
 		// Query a height that doesn't exist (very high number)
-		let result: Vec<String> = client
-			.request("archive_unstable_hashByHeight", rpc_params![999999999u64])
+		let result: Option<Vec<String>> = client
+			.request("archive_v1_hashByHeight", rpc_params![999999999u64])
 			.await
 			.expect("RPC call failed");
 
-		assert!(result.is_empty(), "Should return empty array for unknown height");
+		assert!(result.is_none(), "Should return none array for unknown height");
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -356,14 +396,14 @@ mod tests {
 
 		let head_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
 
-		let header: Option<String> = client
+		let header: Option<Vec<String>> = client
 			.request("archive_unstable_header", rpc_params![head_hash])
 			.await
 			.expect("RPC call failed");
 
 		assert!(header.is_some(), "Should return header for head hash");
 		let header_hex = header.unwrap();
-		assert!(header_hex.starts_with("0x"), "Header should be hex-encoded");
+		assert!(header_hex.starts_with(&["0x".to_owned()]), "Header should be hex-encoded");
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -429,15 +469,12 @@ mod tests {
 			.await
 			.expect("RPC call failed");
 
-		let hash: HashByHeightResult = client
+		let hash: Option<Vec<String>> = client
 			.request("archive_v1_hashByHeight", rpc_params![height])
 			.await
 			.expect("RPC call failed");
 
-		let hash = match hash {
-			HashByHeightResult::Hashes(mut hashes) if hashes.len() == 1 => hashes.pop(),
-			_ => panic!("Incorrect hash returned by RPC"),
-		};
+		let hash = hash.unwrap().pop();
 
 		let body_1: Option<Vec<String>> = client
 			.request("archive_v1_body", rpc_params![hash.clone()])

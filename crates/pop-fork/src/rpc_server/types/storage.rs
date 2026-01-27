@@ -106,16 +106,6 @@ pub enum ArchiveCallResult {
 	},
 }
 
-/// archive_v1_hashByHeight result.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum HashByHeightResult {
-	/// Block hashes at the height.
-	Hashes(Vec<String>),
-	/// No blocks at this height.
-	None,
-}
-
 /// Hash or array of hashes for chainHead_v1_unpin.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
