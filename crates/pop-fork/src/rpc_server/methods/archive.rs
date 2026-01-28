@@ -110,14 +110,18 @@ impl ArchiveApiServer for ArchiveApi {
 			)
 		})?;
 
-		let head = self.blockchain.head().await;
-		let head_hash_bytes = head.hash.as_bytes();
+		// Convert to H256
+		let block_hash = H256::from_slice(&hash_bytes);
 
-		// Only return header if it matches the current head
-		if hash_bytes == head_hash_bytes {
-			Ok(Some(format!("0x{}", hex::encode(&head.header))))
-		} else {
-			Ok(None)
+		// Fetch block header (checks local blocks first, then remote)
+		match self.blockchain.block_header(block_hash).await {
+			Ok(Some(header)) => Ok(Some(format!("0x{}", hex::encode(&header)))),
+			Ok(None) => Ok(None),
+			Err(e) => Err(jsonrpsee::types::ErrorObjectOwned::owned(
+				-32603,
+				format!("Failed to fetch block header: {e}"),
+				None::<()>,
+			)),
 		}
 	}
 
@@ -485,16 +489,19 @@ mod tests {
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
+		// Build a block so we have a locally-built header
+		ctx.blockchain.build_empty_block().await.unwrap();
+
 		let head_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
 
-		let header: Option<Vec<String>> = client
-			.request("archive_unstable_header", rpc_params![head_hash])
+		let header: Option<String> = client
+			.request("archive_v1_header", rpc_params![head_hash])
 			.await
 			.expect("RPC call failed");
 
 		assert!(header.is_some(), "Should return header for head hash");
 		let header_hex = header.unwrap();
-		assert!(header_hex.starts_with(&["0x".to_owned()]), "Header should be hex-encoded");
+		assert!(header_hex.starts_with("0x"), "Header should be hex-encoded");
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -507,11 +514,87 @@ mod tests {
 		let unknown_hash = "0x0000000000000000000000000000000000000000000000000000000000000001";
 
 		let header: Option<String> = client
-			.request("archive_unstable_header", rpc_params![unknown_hash])
+			.request("archive_v1_header", rpc_params![unknown_hash])
 			.await
 			.expect("RPC call failed");
 
 		assert!(header.is_none(), "Should return None for unknown hash");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_header_returns_header_for_fork_point() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		let fork_point_hash = format!("0x{}", hex::encode(ctx.blockchain.fork_point().0));
+
+		let header: Option<String> = client
+			.request("archive_v1_header", rpc_params![fork_point_hash])
+			.await
+			.expect("RPC call failed");
+
+		assert!(header.is_some(), "Should return header for fork point");
+		let header_hex = header.unwrap();
+		assert!(header_hex.starts_with("0x"), "Header should be hex-encoded");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_header_returns_header_for_parent_block() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		// Build two blocks
+		let block1 = ctx.blockchain.build_empty_block().await.unwrap();
+		let _block2 = ctx.blockchain.build_empty_block().await.unwrap();
+
+		let block1_hash = format!("0x{}", hex::encode(block1.hash.as_bytes()));
+
+		let header: Option<String> = client
+			.request("archive_v1_header", rpc_params![block1_hash])
+			.await
+			.expect("RPC call failed");
+
+		assert!(header.is_some(), "Should return header for parent block");
+		let header_hex = header.unwrap();
+		assert!(header_hex.starts_with("0x"), "Header should be hex-encoded");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_header_is_idempotent_over_finalized_blocks() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		// Build a few blocks
+		ctx.blockchain.build_empty_block().await.unwrap();
+		ctx.blockchain.build_empty_block().await.unwrap();
+		ctx.blockchain.build_empty_block().await.unwrap();
+
+		let height: u32 = client
+			.request("archive_v1_finalizedHeight", rpc_params![])
+			.await
+			.expect("RPC call failed");
+
+		let hash: Option<Vec<String>> = client
+			.request("archive_v1_hashByHeight", rpc_params![height])
+			.await
+			.expect("RPC call failed");
+
+		let hash = hash.unwrap().pop();
+
+		let header_1: Option<String> = client
+			.request("archive_v1_header", rpc_params![hash.clone()])
+			.await
+			.expect("RPC call failed");
+
+		let header_2: Option<String> = client
+			.request("archive_v1_header", rpc_params![hash])
+			.await
+			.expect("RPC call failed");
+
+		assert_eq!(header_1, header_2, "Header should be idempotent");
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -803,7 +886,7 @@ mod tests {
 
 		// Pass invalid hex
 		let result: Result<Option<String>, _> =
-			client.request("archive_unstable_header", rpc_params!["not_valid_hex"]).await;
+			client.request("archive_v1_header", rpc_params!["not_valid_hex"]).await;
 
 		assert!(result.is_err(), "Should reject invalid hex");
 	}
