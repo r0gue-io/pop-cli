@@ -230,9 +230,20 @@ impl ArchiveApiServer for ArchiveApi {
 	}
 
 	async fn genesis_hash(&self) -> RpcResult<String> {
-		// Return fork point as "genesis" for the forked chain
-		let hash = self.blockchain.fork_point();
-		Ok(format!("0x{}", hex::encode(hash.as_bytes())))
+		// Return the actual genesis hash (block 0) from the remote chain
+		match self.blockchain.block_hash_at(0).await {
+			Ok(Some(hash)) => Ok(format!("0x{}", hex::encode(hash.as_bytes()))),
+			Ok(None) => Err(jsonrpsee::types::ErrorObjectOwned::owned(
+				-32603,
+				"Genesis block not found",
+				None::<()>,
+			)),
+			Err(e) => Err(jsonrpsee::types::ErrorObjectOwned::owned(
+				-32603,
+				format!("Failed to fetch genesis hash: {e}"),
+				None::<()>,
+			)),
+		}
 	}
 }
 
@@ -369,7 +380,7 @@ mod tests {
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
 		let hash: String = client
-			.request("archive_unstable_genesisHash", rpc_params![])
+			.request("archive_v1_genesisHash", rpc_params![])
 			.await
 			.expect("RPC call failed");
 
@@ -377,8 +388,14 @@ mod tests {
 		assert!(hash.starts_with("0x"), "Hash should start with 0x");
 		assert_eq!(hash.len(), 66, "Hash should be 0x + 64 hex chars");
 
-		// Hash should match fork point
-		let expected = format!("0x{}", hex::encode(ctx.blockchain.fork_point().as_bytes()));
+		// Hash should match the actual genesis hash (block 0)
+		let expected_hash = ctx
+			.blockchain
+			.block_hash_at(0)
+			.await
+			.expect("Failed to get genesis hash")
+			.expect("Genesis block should exist");
+		let expected = format!("0x{}", hex::encode(expected_hash.as_bytes()));
 		assert_eq!(hash, expected);
 	}
 
