@@ -464,6 +464,38 @@ impl Blockchain {
 		Ok(rpc.block_hash_at(block_number).await.map_err(BlockError::from)?)
 	}
 
+	/// Get block number by block hash.
+	///
+	/// This method searches for the block in two places:
+	/// 1. Locally-built blocks (traversing the parent chain from head)
+	/// 2. The remote chain (for blocks at or before the fork point)
+	///
+	/// # Arguments
+	///
+	/// * `hash` - The block hash to query
+	///
+	/// # Returns
+	///
+	/// The block number, or `None` if the block hash doesn't exist.
+	pub async fn block_number_by_hash(&self, hash: H256) -> Result<Option<u32>, BlockchainError> {
+		// Traverse local chain to find block by hash
+		let head = self.head.read().await;
+		let mut current: Option<&Block> = Some(&head);
+		while let Some(block) = current {
+			if block.hash == hash {
+				return Ok(Some(block.number));
+			}
+			current = block.parent.as_deref();
+		}
+
+		// Not found locally - check if it exists on remote chain
+		let rpc = ForkRpcClient::connect(&self.endpoint).await.map_err(BlockError::from)?;
+		match rpc.block_by_hash(hash).await.map_err(BlockError::from)? {
+			Some(block) => Ok(Some(block.header.number)),
+			None => Ok(None),
+		}
+	}
+
 	/// Build a new block with the given extrinsics.
 	///
 	/// This creates a new block on top of the current head, applying:
@@ -1434,6 +1466,104 @@ mod tests {
 				.expect("Failed to query block hash");
 
 			assert!(hash.is_none(), "Should return None for future block number");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_number_by_hash_returns_number_for_head() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			// Build a block
+			let block = blockchain.build_empty_block().await.unwrap();
+
+			// Query number by hash
+			let number = blockchain
+				.block_number_by_hash(block.hash)
+				.await
+				.expect("Failed to query block number");
+
+			assert_eq!(number, Some(block.number));
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_number_by_hash_returns_number_for_parent() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			// Build two blocks
+			let block1 = blockchain.build_empty_block().await.unwrap();
+			let _block2 = blockchain.build_empty_block().await.unwrap();
+
+			// Query number for first block
+			let number = blockchain
+				.block_number_by_hash(block1.hash)
+				.await
+				.expect("Failed to query block number");
+
+			assert_eq!(number, Some(block1.number));
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_number_by_hash_returns_number_for_fork_point() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			let fork_hash = blockchain.fork_point();
+			let fork_number = blockchain.fork_point_number();
+
+			let number = blockchain
+				.block_number_by_hash(fork_hash)
+				.await
+				.expect("Failed to query block number");
+
+			assert_eq!(number, Some(fork_number));
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_number_by_hash_returns_none_for_unknown() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			let unknown_hash = H256::from_slice(&[0u8; 32]);
+			let number = blockchain
+				.block_number_by_hash(unknown_hash)
+				.await
+				.expect("Failed to query block number");
+
+			assert!(number.is_none());
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_number_by_hash_returns_number_for_historical_block() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			// Get a block before the fork point (if available)
+			let fork_number = blockchain.fork_point_number();
+			if fork_number > 0 {
+				let historical_hash = blockchain
+					.block_hash_at(fork_number - 1)
+					.await
+					.expect("Failed to query block hash")
+					.expect("Block should exist");
+
+				let number = blockchain
+					.block_number_by_hash(historical_hash)
+					.await
+					.expect("Failed to query block number");
+
+				assert_eq!(number, Some(fork_number - 1));
+			}
 		}
 
 		#[tokio::test(flavor = "multi_thread")]
