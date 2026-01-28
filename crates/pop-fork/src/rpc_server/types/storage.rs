@@ -23,49 +23,14 @@ pub enum StorageQueryType {
 	Value,
 	/// Get hash of value.
 	Hash,
-	/// Get closest descendant merkle value.
-	ClosestDescendantMerkleValue,
-	/// Get descendants' values.
-	DescendantsValues,
-	/// Get descendants' hashes.
-	DescendantsHashes,
-}
-
-/// Storage result item.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct StorageResultItem {
-	/// Storage key (hex-encoded).
-	pub key: String,
-	/// Result based on query type.
-	#[serde(flatten)]
-	pub result: StorageResultValue,
-}
-
-/// Storage result value variants.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum StorageResultValue {
-	/// Value result.
-	Value(String),
-	/// Hash result.
-	Hash(String),
-	/// Closest descendant merkle value.
-	ClosestDescendantMerkleValue(String),
 }
 
 /// archive_v1_storage result.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "result", rename_all = "camelCase")]
 pub enum ArchiveStorageResult {
-	/// Storage operation started (async).
+	/// Storage results returned.
 	Ok {
-		/// Operation ID for tracking.
-		#[serde(skip_serializing_if = "Option::is_none")]
-		operation_id: Option<String>,
-	},
-	/// Storage results returned immediately.
-	OkWithItems {
 		/// Storage result items.
 		items: Vec<ArchiveStorageItem>,
 	},

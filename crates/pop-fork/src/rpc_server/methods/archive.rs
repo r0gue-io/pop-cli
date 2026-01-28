@@ -8,6 +8,7 @@ use crate::{
 	Blockchain,
 	rpc_server::types::{
 		ArchiveCallResult, ArchiveStorageItem, ArchiveStorageResult, StorageQueryItem,
+		StorageQueryType,
 	},
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
@@ -190,11 +191,36 @@ impl ArchiveApiServer for ArchiveApi {
 
 	async fn storage(
 		&self,
-		_hash: String,
+		hash: String,
 		items: Vec<StorageQueryItem>,
 		_child_trie: Option<String>,
 	) -> RpcResult<ArchiveStorageResult> {
-		// Query storage for each item
+		// Parse and validate hash
+		let hash_bytes = hex::decode(hash.trim_start_matches("0x")).map_err(|e| {
+			jsonrpsee::types::ErrorObjectOwned::owned(
+				-32602,
+				format!("Invalid hex hash: {e}"),
+				None::<()>,
+			)
+		})?;
+		let block_hash = H256::from_slice(&hash_bytes);
+
+		// Get block number from hash
+		let block_number = match self.blockchain.block_number_by_hash(block_hash).await {
+			Ok(Some(num)) => num,
+			Ok(None) => {
+				return Ok(ArchiveStorageResult::Err { error: "Block not found".to_string() })
+			},
+			Err(e) => {
+				return Err(jsonrpsee::types::ErrorObjectOwned::owned(
+					-32603,
+					format!("Failed to resolve block: {e}"),
+					None::<()>,
+				))
+			},
+		};
+
+		// Query storage for each item at the specific block
 		let mut results = Vec::new();
 		for item in items {
 			let key_bytes = hex::decode(item.key.trim_start_matches("0x")).map_err(|e| {
@@ -205,15 +231,26 @@ impl ArchiveApiServer for ArchiveApi {
 				)
 			})?;
 
-			match self.blockchain.storage(&key_bytes).await {
-				Ok(Some(value)) => {
-					results.push(ArchiveStorageItem {
-						key: item.key,
-						value: Some(format!("0x{}", hex::encode(value))),
-						hash: None,
-					});
+			match self.blockchain.storage_at(block_number, &key_bytes).await {
+				Ok(Some(value)) => match item.query_type {
+					StorageQueryType::Value => {
+						results.push(ArchiveStorageItem {
+							key: item.key,
+							value: Some(format!("0x{}", hex::encode(&value))),
+							hash: None,
+						});
+					},
+					StorageQueryType::Hash => {
+						let hash = sp_core::blake2_256(&value);
+						results.push(ArchiveStorageItem {
+							key: item.key,
+							value: None,
+							hash: Some(format!("0x{}", hex::encode(hash))),
+						});
+					},
 				},
 				Ok(None) => {
+					// Key doesn't exist - include in results with null value
 					results.push(ArchiveStorageItem { key: item.key, value: None, hash: None });
 				},
 				Err(e) => {
@@ -225,7 +262,7 @@ impl ArchiveApiServer for ArchiveApi {
 				},
 			}
 		}
-		Ok(ArchiveStorageResult::OkWithItems { items: results })
+		Ok(ArchiveStorageResult::Ok { items: results })
 	}
 
 	async fn stop_storage(&self, _operation_id: String) -> RpcResult<()> {
@@ -814,18 +851,18 @@ mod tests {
 
 		let result: ArchiveStorageResult = client
 			.request(
-				"archive_unstable_storage",
+				"archive_v1_storage",
 				rpc_params![head_hash, items, Option::<String>::None],
 			)
 			.await
 			.expect("RPC call failed");
 
 		match result {
-			ArchiveStorageResult::OkWithItems { items } => {
+			ArchiveStorageResult::Ok { items } => {
 				assert_eq!(items.len(), 1, "Should return one item");
 				assert!(items[0].value.is_some(), "Value should be present");
 			},
-			_ => panic!("Expected OkWithItems result"),
+			_ => panic!("Expected Ok result"),
 		}
 	}
 
@@ -847,18 +884,18 @@ mod tests {
 
 		let result: ArchiveStorageResult = client
 			.request(
-				"archive_unstable_storage",
+				"archive_v1_storage",
 				rpc_params![head_hash, items, Option::<String>::None],
 			)
 			.await
 			.expect("RPC call failed");
 
 		match result {
-			ArchiveStorageResult::OkWithItems { items } => {
+			ArchiveStorageResult::Ok { items } => {
 				assert_eq!(items.len(), 1, "Should return one item");
 				assert!(items[0].value.is_none(), "Value should be None for non-existent key");
 			},
-			_ => panic!("Expected OkWithItems result"),
+			_ => panic!("Expected Ok result"),
 		}
 	}
 
@@ -870,7 +907,7 @@ mod tests {
 
 		// stop_storage is a no-op but should succeed
 		let result: () = client
-			.request("archive_unstable_stopStorage", rpc_params!["some_operation_id"])
+			.request("archive_v1_stopStorage", rpc_params!["some_operation_id"])
 			.await
 			.expect("RPC call failed");
 
@@ -983,5 +1020,112 @@ mod tests {
 			alice_balance_before, alice_balance_after,
 			"Storage should NOT be modified by archive_v1_call even when calling BlockBuilder methods"
 		);
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_storage_returns_hash_when_requested() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		let head_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
+
+		// Query System::Number storage key with hash type
+		let mut key = Vec::new();
+		key.extend(sp_core::twox_128(b"System"));
+		key.extend(sp_core::twox_128(b"Number"));
+		let key_hex = format!("0x{}", hex::encode(&key));
+
+		let items = vec![serde_json::json!({
+			"key": key_hex,
+			"type": "hash"
+		})];
+
+		let result: ArchiveStorageResult = client
+			.request("archive_v1_storage", rpc_params![head_hash, items, Option::<String>::None])
+			.await
+			.expect("RPC call failed");
+
+		match result {
+			ArchiveStorageResult::Ok { items } => {
+				assert_eq!(items.len(), 1, "Should return one item");
+				assert!(items[0].hash.is_some(), "Hash should be present");
+				assert!(items[0].value.is_none(), "Value should not be present");
+				let hash = items[0].hash.as_ref().unwrap();
+				assert!(hash.starts_with("0x"), "Hash should be hex-encoded");
+				assert_eq!(hash.len(), 66, "Hash should be 32 bytes (0x + 64 hex chars)");
+			},
+			_ => panic!("Expected Ok result"),
+		}
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_storage_queries_at_specific_block() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		// Build a block to change state
+		ctx.blockchain.build_empty_block().await.unwrap();
+		let block1_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
+
+		// Build another block
+		ctx.blockchain.build_empty_block().await.unwrap();
+		let block2_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
+
+		// Query System::Number at both blocks
+		let mut key = Vec::new();
+		key.extend(sp_core::twox_128(b"System"));
+		key.extend(sp_core::twox_128(b"Number"));
+		let key_hex = format!("0x{}", hex::encode(&key));
+
+		let items = vec![serde_json::json!({ "key": key_hex, "type": "value" })];
+
+		let result1: ArchiveStorageResult = client
+			.request(
+				"archive_v1_storage",
+				rpc_params![block1_hash, items.clone(), Option::<String>::None],
+			)
+			.await
+			.expect("RPC call failed");
+
+		let result2: ArchiveStorageResult = client
+			.request("archive_v1_storage", rpc_params![block2_hash, items, Option::<String>::None])
+			.await
+			.expect("RPC call failed");
+
+		// The block numbers should be different
+		match (result1, result2) {
+			(ArchiveStorageResult::Ok { items: items1 }, ArchiveStorageResult::Ok { items: items2 }) =>
+			{
+				assert_ne!(items1[0].value, items2[0].value, "Block numbers should differ");
+			},
+			_ => panic!("Expected Ok results"),
+		}
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_storage_returns_error_for_unknown_block() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		let unknown_hash = "0x0000000000000000000000000000000000000000000000000000000000000001";
+		let items = vec![serde_json::json!({ "key": "0x1234", "type": "value" })];
+
+		let result: ArchiveStorageResult = client
+			.request("archive_v1_storage", rpc_params![unknown_hash, items, Option::<String>::None])
+			.await
+			.expect("RPC call failed");
+
+		match result {
+			ArchiveStorageResult::Err { error } => {
+				assert!(
+					error.contains("not found") || error.contains("Block"),
+					"Should indicate block not found"
+				);
+			},
+			_ => panic!("Expected Err result for unknown block"),
+		}
 	}
 }
