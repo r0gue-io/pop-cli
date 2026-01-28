@@ -208,6 +208,28 @@ impl Block {
 		})
 	}
 
+	/// Create a mocked Block for executing runtime calls on historical blocks.
+	///
+	/// This block uses the real block hash (for identification) but placeholder
+	/// values for other fields since the executor only needs storage access.
+	/// The storage layer delegates to remote for historical data.
+	///
+	/// # Arguments
+	///
+	/// * `hash` - The real block hash being queried
+	/// * `storage` - Storage layer that delegates to remote for historical data
+	pub fn mocked_for_call(hash: H256, storage: LocalStorageLayer) -> Self {
+		Self {
+			number: 0,
+			hash,
+			parent_hash: H256::zero(),
+			header: vec![],
+			extrinsics: vec![],
+			storage,
+			parent: None,
+		}
+	}
+
 	/// Get a reference to the storage layer.
 	///
 	/// Use this to read storage values at this block's height.

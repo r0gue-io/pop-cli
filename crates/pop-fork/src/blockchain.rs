@@ -514,8 +514,10 @@ impl Blockchain {
 	///
 	/// The SCALE-encoded result from the runtime.
 	pub async fn call(&self, method: &str, args: &[u8]) -> Result<Vec<u8>, BlockchainError> {
-		let head = self.head.read().await;
-		self.call_at_block(&head, method, args).await
+		let head_hash = self.head_hash().await;
+		self.call_at_block(head_hash, method, args)
+			.await
+			.map(|result| result.expect("head_hash always exists; qed;"))
 	}
 
 	/// Get storage value at the current head.
@@ -608,19 +610,74 @@ impl Blockchain {
 		Ok(version.spec_name)
 	}
 
-	/// Execute a runtime call at a specific block.
-	async fn call_at_block(
+	/// Execute a runtime call at a specific block hash.
+	///
+	/// # Arguments
+	///
+	/// * `hash` - The block hash to execute at
+	/// * `method` - Runtime API method name (e.g., "Core_version")
+	/// * `args` - SCALE-encoded arguments
+	///
+	/// # Returns
+	///
+	/// * `Ok(Some(result))` - Call succeeded at the specified block
+	/// * `Ok(None)` - Block hash not found
+	/// * `Err(_)` - Call failed (runtime error, storage error, etc.)
+	pub async fn call_at_block(
 		&self,
-		block: &Block,
+		hash: H256,
 		method: &str,
 		args: &[u8],
-	) -> Result<Vec<u8>, BlockchainError> {
+	) -> Result<Option<Vec<u8>>, BlockchainError> {
+		// Find block: search fork history or create mocked block for historical
+		let block = self.find_or_create_block_for_call(hash).await?;
+
+		let Some(block) = block else {
+			return Ok(None); // Block not found
+		};
+
+		// Execute call on the found/created block
 		let runtime_code = block.runtime_code().await?;
 		let executor =
 			RuntimeExecutor::with_config(runtime_code, None, self.executor_config.clone())?;
-
 		let result = executor.call(method, args, block.storage()).await?;
-		Ok(result.output)
+		Ok(Some(result.output))
+	}
+
+	/// Find a block by hash in fork history, or create a mocked block for historical execution.
+	///
+	/// Returns:
+	/// - `Some(block)` if found in fork history or exists on remote chain
+	/// - `None` if block doesn't exist anywhere
+	async fn find_or_create_block_for_call(
+		&self,
+		hash: H256,
+	) -> Result<Option<Block>, BlockchainError> {
+		let head = self.head.read().await;
+
+		// Search fork history
+		let mut current: Option<&Block> = Some(&head);
+		while let Some(block) = current {
+			if block.hash == hash {
+				return Ok(Some(block.clone()));
+			}
+			// Stop at fork point - anything before this is on remote chain
+			if block.parent.is_none() {
+				break;
+			}
+			current = block.parent.as_deref();
+		}
+
+		// Not in fork history - check if block exists on remote chain
+		let rpc = ForkRpcClient::connect(&self.endpoint).await.map_err(BlockError::from)?;
+
+		if rpc.block_by_hash(hash).await.map_err(BlockError::from)?.is_none() {
+			return Ok(None); // Block doesn't exist anywhere
+		}
+
+		// Block exists on remote - create mocked block with real hash
+		// Storage layer delegates to remote for historical data
+		Ok(Some(Block::mocked_for_call(hash, head.storage().clone())))
 	}
 }
 
@@ -675,6 +732,61 @@ mod tests {
 			let node = TestNode::spawn().await.expect("Failed to spawn test node");
 			let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
 			BlockchainTestContext { node, endpoint }
+		}
+
+		/// Transfer amount: 100 units (with 12 decimals)
+		const TRANSFER_AMOUNT: u128 = 100_000_000_000_000;
+
+		/// Well-known dev account: Alice
+		const ALICE: [u8; 32] = [
+			0xd4, 0x35, 0x93, 0xc7, 0x15, 0xfd, 0xd3, 0x1c, 0x61, 0x14, 0x1a, 0xbd, 0x04, 0xa9,
+			0x9f, 0xd6, 0x82, 0x2c, 0x85, 0x58, 0x85, 0x4c, 0xcd, 0xe3, 0x9a, 0x56, 0x84, 0xe7,
+			0xa5, 0x6d, 0xa2, 0x7d,
+		];
+
+		/// Well-known dev account: Bob
+		const BOB: [u8; 32] = [
+			0x8e, 0xaf, 0x04, 0x15, 0x16, 0x87, 0x73, 0x63, 0x26, 0xc9, 0xfe, 0xa1, 0x7e, 0x25,
+			0xfc, 0x52, 0x87, 0x61, 0x36, 0x93, 0xc9, 0x12, 0x90, 0x9c, 0xb2, 0x26, 0xaa, 0x47,
+			0x94, 0xf2, 0x6a, 0x48,
+		];
+
+		/// Compute Blake2_128Concat storage key for System::Account.
+		fn account_storage_key(account: &[u8; 32]) -> Vec<u8> {
+			let mut key = Vec::new();
+			key.extend(sp_core::twox_128(b"System"));
+			key.extend(sp_core::twox_128(b"Account"));
+			key.extend(sp_core::blake2_128(account));
+			key.extend(account);
+			key
+		}
+
+		/// Decode AccountInfo and extract free balance.
+		fn decode_free_balance(data: &[u8]) -> u128 {
+			const ACCOUNT_DATA_OFFSET: usize = 16;
+			u128::from_le_bytes(
+				data[ACCOUNT_DATA_OFFSET..ACCOUNT_DATA_OFFSET + 16]
+					.try_into()
+					.expect("need 16 bytes for u128"),
+			)
+		}
+
+		/// Build a mock V4 signed extrinsic with dummy signature (from Alice).
+		fn build_mock_signed_extrinsic_v4(call_data: &[u8]) -> Vec<u8> {
+			use scale::{Compact, Encode};
+			let mut inner = Vec::new();
+			inner.push(0x84); // Version: signed (0x80) + v4 (0x04)
+			inner.push(0x00); // MultiAddress::Id variant
+			inner.extend(ALICE);
+			inner.extend([0u8; 64]); // Dummy signature (works with AlwaysValid)
+			inner.push(0x00); // CheckMortality: immortal
+			inner.extend(Compact(0u64).encode()); // CheckNonce
+			inner.extend(Compact(0u128).encode()); // ChargeTransactionPayment
+			inner.push(0x00); // EthSetOrigin: None
+			inner.extend(call_data);
+			let mut extrinsic = Compact(inner.len() as u32).encode();
+			extrinsic.extend(inner);
+			extrinsic
 		}
 
 		#[tokio::test(flavor = "multi_thread")]
@@ -919,64 +1031,6 @@ mod tests {
 		async fn build_block_with_signed_transfer_updates_balances() {
 			use crate::{ExecutorConfig, SignatureMockMode};
 			use scale::{Compact, Encode};
-
-			// Transfer 100 units (with 12 decimals)
-			const TRANSFER_AMOUNT: u128 = 100_000_000_000_000;
-
-			// Well-known dev accounts
-			const ALICE: [u8; 32] = [
-				0xd4, 0x35, 0x93, 0xc7, 0x15, 0xfd, 0xd3, 0x1c, 0x61, 0x14, 0x1a, 0xbd, 0x04, 0xa9,
-				0x9f, 0xd6, 0x82, 0x2c, 0x85, 0x58, 0x85, 0x4c, 0xcd, 0xe3, 0x9a, 0x56, 0x84, 0xe7,
-				0xa5, 0x6d, 0xa2, 0x7d,
-			];
-			const BOB: [u8; 32] = [
-				0x8e, 0xaf, 0x04, 0x15, 0x16, 0x87, 0x73, 0x63, 0x26, 0xc9, 0xfe, 0xa1, 0x7e, 0x25,
-				0xfc, 0x52, 0x87, 0x61, 0x36, 0x93, 0xc9, 0x12, 0x90, 0x9c, 0xb2, 0x26, 0xaa, 0x47,
-				0x94, 0xf2, 0x6a, 0x48,
-			];
-
-			/// Compute Blake2_128Concat storage key for System::Account.
-			fn account_storage_key(account: &[u8; 32]) -> Vec<u8> {
-				let mut key = Vec::new();
-				key.extend(sp_core::twox_128(b"System"));
-				key.extend(sp_core::twox_128(b"Account"));
-				key.extend(sp_core::blake2_128(account));
-				key.extend(account);
-				key
-			}
-
-			/// Decode AccountInfo and extract free balance.
-			fn decode_free_balance(data: &[u8]) -> u128 {
-				const ACCOUNT_DATA_OFFSET: usize = 16;
-				u128::from_le_bytes(
-					data[ACCOUNT_DATA_OFFSET..ACCOUNT_DATA_OFFSET + 16]
-						.try_into()
-						.expect("need 16 bytes for u128"),
-				)
-			}
-
-			/// Build a mock V4 signed extrinsic with dummy signature.
-			fn build_mock_signed_extrinsic_v4(call_data: &[u8]) -> Vec<u8> {
-				let mut inner = Vec::new();
-				// Version byte: signed (0x80) + v4 (0x04) = 0x84
-				inner.push(0x84);
-				// Address: MultiAddress::Id variant (0x00) + 32-byte account
-				inner.push(0x00);
-				inner.extend(ALICE);
-				// Signature: 64 bytes (dummy - works with AlwaysValid)
-				inner.extend([0u8; 64]);
-				// Extra params (signed extensions):
-				inner.push(0x00); // CheckMortality: immortal
-				inner.extend(Compact(0u64).encode()); // CheckNonce
-				inner.extend(Compact(0u128).encode()); // ChargeTransactionPayment
-				inner.push(0x00); // EthSetOrigin: None
-				// Call data
-				inner.extend(call_data);
-				// Prefix with compact length
-				let mut extrinsic = Compact(inner.len() as u32).encode();
-				extrinsic.extend(inner);
-				extrinsic
-			}
 
 			let ctx = create_test_context().await;
 
@@ -1237,6 +1291,201 @@ mod tests {
 				.expect("Failed to query block hash");
 
 			assert!(hash.is_none(), "Should return None for future block number");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn call_at_block_executes_at_head() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			blockchain.build_empty_block().await.unwrap();
+			blockchain.build_empty_block().await.unwrap();
+			blockchain.build_empty_block().await.unwrap();
+
+			let head_hash = blockchain.head_hash().await;
+
+			// Call Core_version at head hash
+			let result = blockchain
+				.call_at_block(head_hash, "Core_version", &[])
+				.await
+				.expect("Failed to call runtime API");
+
+			assert!(result.is_some(), "Should return result for head hash");
+			assert!(!result.unwrap().is_empty(), "Result should not be empty");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn call_at_block_executes_at_fork_point() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			blockchain.build_empty_block().await.unwrap();
+			blockchain.build_empty_block().await.unwrap();
+			blockchain.build_empty_block().await.unwrap();
+
+			let fork_hash = blockchain.fork_point();
+
+			// Call Core_version at fork point
+			let result = blockchain
+				.call_at_block(fork_hash, "Core_version", &[])
+				.await
+				.expect("Failed to call runtime API");
+
+			assert!(result.is_some(), "Should return result for fork point hash");
+			assert!(!result.unwrap().is_empty(), "Result should not be empty");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn call_at_block_executes_at_parent_block() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			// Build two blocks
+			let block1 = blockchain.build_empty_block().await.expect("Failed to build block 1");
+			let _block2 = blockchain.build_empty_block().await.expect("Failed to build block 2");
+
+			// Call at the first built block (parent of head)
+			let result = blockchain
+				.call_at_block(block1.hash, "Core_version", &[])
+				.await
+				.expect("Failed to call runtime API");
+
+			assert!(result.is_some(), "Should return result for parent block hash");
+			assert!(!result.unwrap().is_empty(), "Result should not be empty");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn call_at_block_returns_none_for_unknown_hash() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			// Use a fabricated hash that doesn't exist
+			let unknown_hash = H256::from([0xde; 32]);
+
+			let result = blockchain
+				.call_at_block(unknown_hash, "Core_version", &[])
+				.await
+				.expect("Failed to query");
+
+			assert!(result.is_none(), "Should return None for unknown hash");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn call_at_block_executes_at_historical_block() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			let fork_number = blockchain.fork_point_number();
+
+			// Only test if fork point is > 0 (has blocks before it)
+			if fork_number > 0 {
+				// Get the hash of a block before the fork point
+				let historical_hash = blockchain
+					.block_hash_at(fork_number - 1)
+					.await
+					.expect("Failed to get historical hash")
+					.expect("Historical block should exist");
+
+				// Call at historical block (before fork point, on remote chain)
+				let result = blockchain
+					.call_at_block(historical_hash, "Core_version", &[])
+					.await
+					.expect("Failed to call runtime API");
+
+				assert!(result.is_some(), "Should return result for historical block");
+				assert!(!result.unwrap().is_empty(), "Result should not be empty");
+			}
+		}
+
+		/// Verifies that calling `BlockBuilder_apply_extrinsic` and `BlockBuilder_finalize_block`
+		/// via `call_at_block` does NOT persist storage changes.
+		///
+		/// This is critical: BlockBuilder methods are designed to modify state during block
+		/// production, but when invoked via `call_at_block`, side effects must be discarded.
+		#[tokio::test(flavor = "multi_thread")]
+		async fn call_at_block_does_not_persist_storage() {
+			use crate::{ExecutorConfig, SignatureMockMode};
+			use scale::{Compact, Encode};
+
+			let ctx = create_test_context().await;
+
+			// Fork with signature mocking enabled
+			let config = ExecutorConfig {
+				signature_mock: SignatureMockMode::AlwaysValid,
+				..Default::default()
+			};
+			let blockchain = Blockchain::fork_with_config(&ctx.endpoint, None, None, config)
+				.await
+				.expect("Failed to fork blockchain");
+
+			// Get storage key for Alice
+			let alice_key = account_storage_key(&ALICE);
+
+			// Get head block for metadata
+			let head = blockchain.head().await;
+			let head_hash = head.hash;
+			let metadata = head.metadata().await.expect("Failed to get metadata");
+
+			// Query Alice's balance BEFORE
+			let alice_balance_before = blockchain
+				.storage(&alice_key)
+				.await
+				.expect("Failed to get Alice balance")
+				.map(|v| decode_free_balance(&v))
+				.expect("Alice should have a balance");
+
+			// Build transfer call data: Balances.transfer_keep_alive(Bob, TRANSFER_AMOUNT)
+			let balances_pallet =
+				metadata.pallet_by_name("Balances").expect("Balances pallet should exist");
+			let pallet_index = balances_pallet.index();
+			let transfer_call = balances_pallet
+				.call_variant_by_name("transfer_keep_alive")
+				.expect("transfer_keep_alive call should exist");
+			let call_index = transfer_call.index;
+
+			let mut call_data = vec![pallet_index, call_index];
+			call_data.push(0x00); // MultiAddress::Id variant
+			call_data.extend(BOB);
+			call_data.extend(Compact(TRANSFER_AMOUNT).encode());
+
+			// Build the signed extrinsic
+			let extrinsic = build_mock_signed_extrinsic_v4(&call_data);
+
+			// Call BlockBuilder_apply_extrinsic - this WOULD modify Alice's balance
+			// if storage changes were persisted
+			let _result = blockchain
+				.call_at_block(head_hash, "BlockBuilder_apply_extrinsic", &extrinsic)
+				.await
+				.expect("BlockBuilder_apply_extrinsic call failed");
+
+			// Call BlockBuilder_finalize_block - this would finalize the block
+			let _result = blockchain
+				.call_at_block(head_hash, "BlockBuilder_finalize_block", &[])
+				.await
+				.expect("BlockBuilder_finalize_block call failed");
+
+			// Query Alice's balance AFTER - should be UNCHANGED
+			let alice_balance_after = blockchain
+				.storage(&alice_key)
+				.await
+				.expect("Failed to get Alice balance after")
+				.map(|v| decode_free_balance(&v))
+				.expect("Alice should still have a balance");
+
+			assert_eq!(
+				alice_balance_before, alice_balance_after,
+				"Storage should NOT be modified by call_at_block even when calling BlockBuilder methods"
+			);
 		}
 	}
 }
