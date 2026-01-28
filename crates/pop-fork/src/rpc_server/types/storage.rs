@@ -91,19 +91,32 @@ pub struct ArchiveStorageItem {
 }
 
 /// archive_v1_call result.
+///
+/// Per the JSON-RPC spec:
+/// - Success: `{ "success": true, "value": "0x..." }`
+/// - Error: `{ "success": false, "error": "..." }`
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "result", rename_all = "camelCase")]
-pub enum ArchiveCallResult {
-	/// Call succeeded.
-	Ok {
-		/// Hex-encoded result.
-		output: String,
-	},
-	/// Call failed.
-	Err {
-		/// Error message.
-		error: String,
-	},
+pub struct ArchiveCallResult {
+	/// Whether the call succeeded.
+	pub success: bool,
+	/// Hex-encoded SCALE-encoded result (present on success).
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub value: Option<String>,
+	/// Error message (present on failure).
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub error: Option<String>,
+}
+
+impl ArchiveCallResult {
+	/// Create a successful result.
+	pub fn ok(value: String) -> Self {
+		Self { success: true, value: Some(value), error: None }
+	}
+
+	/// Create an error result.
+	pub fn err(message: String) -> Self {
+		Self { success: false, value: None, error: Some(message) }
+	}
 }
 
 /// Hash or array of hashes for chainHead_v1_unpin.
