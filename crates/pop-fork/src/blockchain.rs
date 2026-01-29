@@ -323,6 +323,11 @@ impl Blockchain {
 		self.fork_point_number
 	}
 
+	/// Get the RPC endpoint URL.
+	pub fn endpoint(&self) -> &Url {
+		&self.endpoint
+	}
+
 	/// Get the current head block.
 	pub async fn head(&self) -> Block {
 		self.head.read().await.clone()
