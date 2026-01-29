@@ -444,8 +444,10 @@ impl UpContractCommand {
 						},
 					};
 
-				let weight_limit = if self.gas_limit.is_some() & self.proof_size.is_some() {
-					Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
+				let weight_limit = if let (Some(gas_limit), Some(proof_size)) =
+					(self.gas_limit, self.proof_size)
+				{
+					Weight::from_parts(gas_limit, proof_size)
 				} else {
 					calculated_weight
 				};
@@ -582,13 +584,14 @@ impl UpContractCommand {
 		} else {
 			let instantiate_exec = set_up_deployment(self.clone().into()).await?;
 
-			let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
-				Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
-			} else {
-				dry_run_gas_estimate_instantiate(&instantiate_exec)
-					.await
-					.unwrap_or_else(|_| Weight::zero())
-			};
+			let weight_limit =
+				if let (Some(gas_limit), Some(proof_size)) = (self.gas_limit, self.proof_size) {
+					Weight::from_parts(gas_limit, proof_size)
+				} else {
+					dry_run_gas_estimate_instantiate(&instantiate_exec)
+						.await
+						.unwrap_or_else(|_| Weight::zero())
+				};
 			// Skip storage deposit estimation when using wallet (UI will handle it)
 			let storage_deposit_limit = if self.use_wallet { Some(0) } else { None };
 			let call_data =
