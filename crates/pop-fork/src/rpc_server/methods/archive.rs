@@ -4,6 +4,7 @@
 //!
 //! These methods follow the new Substrate JSON-RPC specification for archive nodes.
 
+use super::chain_spec::GENESIS_HASH;
 use crate::{
 	Blockchain,
 	rpc_server::types::{
@@ -286,9 +287,17 @@ impl ArchiveApiServer for ArchiveApi {
 	}
 
 	async fn genesis_hash(&self) -> RpcResult<String> {
-		// Return the actual genesis hash (block 0) from the remote chain
+		// Return cached value if available (shared with chainSpec)
+		if let Some(hash) = GENESIS_HASH.get() {
+			return Ok(hash.clone());
+		}
+
+		// Fetch genesis hash (block 0) and cache it
 		match self.blockchain.block_hash_at(0).await {
-			Ok(Some(hash)) => Ok(format!("0x{}", hex::encode(hash.as_bytes()))),
+			Ok(Some(hash)) => {
+				let formatted = format!("0x{}", hex::encode(hash.as_bytes()));
+				Ok(GENESIS_HASH.get_or_init(|| formatted).clone())
+			},
 			Ok(None) => Err(jsonrpsee::types::ErrorObjectOwned::owned(
 				-32603,
 				"Genesis block not found",
