@@ -58,7 +58,7 @@ use once_cell::sync::Lazy;
 use semver::Version;
 use std::path::PathBuf;
 
-const FALLBACK_CARGO_CONTRACT_VERSION: &str = "6.0.0-beta.1";
+const FALLBACK_CARGO_CONTRACT_VERSION: &str = "6.0.0-beta.2";
 
 /// The version of `cargo-contract` used by pop-cli.
 ///
