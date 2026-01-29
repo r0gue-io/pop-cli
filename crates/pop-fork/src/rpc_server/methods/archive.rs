@@ -7,8 +7,8 @@
 use crate::{
 	Blockchain,
 	rpc_server::types::{
-		ArchiveCallResult, ArchiveStorageItem, ArchiveStorageResult, StorageQueryItem,
-		StorageQueryType,
+		ArchiveCallResult, ArchiveStorageDiffResult, ArchiveStorageItem, ArchiveStorageResult,
+		StorageDiffItem, StorageDiffQueryItem, StorageDiffType, StorageQueryItem, StorageQueryType,
 	},
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
@@ -68,6 +68,23 @@ pub trait ArchiveApi {
 	/// Get the genesis hash.
 	#[method(name = "v1_genesisHash")]
 	async fn genesis_hash(&self) -> RpcResult<String>;
+
+	/// Query storage differences between two blocks for specific keys.
+	///
+	/// This is a simplified implementation for fork nodes that does NOT support:
+	/// - Iterating all keys (items parameter is required)
+	/// - Child trie queries
+	///
+	/// Only keys that have changed between the two blocks are returned.
+	///
+	/// If `previous_hash` is not provided, compares against the parent block.
+	#[method(name = "v1_storageDiff")]
+	async fn storage_diff(
+		&self,
+		hash: String,
+		items: Vec<StorageDiffQueryItem>,
+		previous_hash: Option<String>,
+	) -> RpcResult<ArchiveStorageDiffResult>;
 }
 
 /// Implementation of archive RPC methods.
@@ -208,16 +225,14 @@ impl ArchiveApiServer for ArchiveApi {
 		// Get block number from hash
 		let block_number = match self.blockchain.block_number_by_hash(block_hash).await {
 			Ok(Some(num)) => num,
-			Ok(None) => {
-				return Ok(ArchiveStorageResult::Err { error: "Block not found".to_string() })
-			},
-			Err(e) => {
+			Ok(None) =>
+				return Ok(ArchiveStorageResult::Err { error: "Block not found".to_string() }),
+			Err(e) =>
 				return Err(jsonrpsee::types::ErrorObjectOwned::owned(
 					-32603,
 					format!("Failed to resolve block: {e}"),
 					None::<()>,
-				))
-			},
+				)),
 		};
 
 		// Query storage for each item at the specific block
@@ -285,6 +300,177 @@ impl ArchiveApiServer for ArchiveApi {
 				None::<()>,
 			)),
 		}
+	}
+
+	async fn storage_diff(
+		&self,
+		hash: String,
+		items: Vec<StorageDiffQueryItem>,
+		previous_hash: Option<String>,
+	) -> RpcResult<ArchiveStorageDiffResult> {
+		// Parse and validate hash
+		let hash_bytes = hex::decode(hash.trim_start_matches("0x")).map_err(|e| {
+			jsonrpsee::types::ErrorObjectOwned::owned(
+				-32602,
+				format!("Invalid hex hash: {e}"),
+				None::<()>,
+			)
+		})?;
+		let block_hash = H256::from_slice(&hash_bytes);
+
+		// Get block number for the target block
+		let block_number = match self.blockchain.block_number_by_hash(block_hash).await {
+			Ok(Some(num)) => num,
+			Ok(None) =>
+				return Ok(ArchiveStorageDiffResult::Err { error: "Block not found".to_string() }),
+			Err(e) =>
+				return Err(jsonrpsee::types::ErrorObjectOwned::owned(
+					-32603,
+					format!("Failed to resolve block: {e}"),
+					None::<()>,
+				)),
+		};
+
+		// Determine the previous block hash
+		let prev_block_hash = match previous_hash {
+			Some(prev_hash_str) => {
+				// Parse provided previous hash
+				let prev_hash_bytes =
+					hex::decode(prev_hash_str.trim_start_matches("0x")).map_err(|e| {
+						jsonrpsee::types::ErrorObjectOwned::owned(
+							-32602,
+							format!("Invalid hex previousHash: {e}"),
+							None::<()>,
+						)
+					})?;
+				H256::from_slice(&prev_hash_bytes)
+			},
+			None => {
+				// Get parent hash from the block
+				match self.blockchain.block_parent_hash(block_hash).await {
+					Ok(Some(parent_hash)) => parent_hash,
+					Ok(None) =>
+						return Ok(ArchiveStorageDiffResult::Err {
+							error: "Block not found".to_string(),
+						}),
+					Err(e) =>
+						return Err(jsonrpsee::types::ErrorObjectOwned::owned(
+							-32603,
+							format!("Failed to get parent hash: {e}"),
+							None::<()>,
+						)),
+				}
+			},
+		};
+
+		// Get block number for the previous block
+		let prev_block_number = match self.blockchain.block_number_by_hash(prev_block_hash).await {
+			Ok(Some(num)) => num,
+			Ok(None) =>
+				return Ok(ArchiveStorageDiffResult::Err {
+					error: "Previous block not found".to_string(),
+				}),
+			Err(e) =>
+				return Err(jsonrpsee::types::ErrorObjectOwned::owned(
+					-32603,
+					format!("Failed to resolve previous block: {e}"),
+					None::<()>,
+				)),
+		};
+
+		// Query storage for each item at both blocks and compute differences
+		let mut results = Vec::new();
+		for item in items {
+			let key_bytes = hex::decode(item.key.trim_start_matches("0x")).map_err(|e| {
+				jsonrpsee::types::ErrorObjectOwned::owned(
+					-32602,
+					format!("Invalid hex key: {e}"),
+					None::<()>,
+				)
+			})?;
+
+			// Get value at current block
+			let current_value = match self.blockchain.storage_at(block_number, &key_bytes).await {
+				Ok(v) => v,
+				Err(e) => {
+					return Err(jsonrpsee::types::ErrorObjectOwned::owned(
+						-32603,
+						format!("Storage error: {e}"),
+						None::<()>,
+					));
+				},
+			};
+
+			// Get value at previous block
+			let previous_value =
+				match self.blockchain.storage_at(prev_block_number, &key_bytes).await {
+					Ok(v) => v,
+					Err(e) => {
+						return Err(jsonrpsee::types::ErrorObjectOwned::owned(
+							-32603,
+							format!("Storage error: {e}"),
+							None::<()>,
+						));
+					},
+				};
+
+			// Determine diff type and build result
+			let diff_item = match (&current_value, &previous_value) {
+				// Both None - no change, skip
+				(None, None) => continue,
+
+				// Added: exists in current but not in previous
+				(Some(value), None) => {
+					let (value_field, hash_field) = match item.return_type {
+						StorageQueryType::Value =>
+							(Some(format!("0x{}", hex::encode(value))), None),
+						StorageQueryType::Hash =>
+							(None, Some(format!("0x{}", hex::encode(sp_core::blake2_256(value))))),
+					};
+					StorageDiffItem {
+						key: item.key,
+						value: value_field,
+						hash: hash_field,
+						diff_type: StorageDiffType::Added,
+					}
+				},
+
+				// Deleted: exists in previous but not in current
+				(None, Some(_)) => {
+					// For deleted items, we don't return value/hash (the key no longer exists)
+					StorageDiffItem {
+						key: item.key,
+						value: None,
+						hash: None,
+						diff_type: StorageDiffType::Deleted,
+					}
+				},
+
+				// Both exist - check if modified
+				(Some(curr), Some(prev)) => {
+					if curr == prev {
+						// No change, skip
+						continue;
+					}
+					// Modified
+					let (value_field, hash_field) = match item.return_type {
+						StorageQueryType::Value => (Some(format!("0x{}", hex::encode(curr))), None),
+						StorageQueryType::Hash =>
+							(None, Some(format!("0x{}", hex::encode(sp_core::blake2_256(curr))))),
+					};
+					StorageDiffItem {
+						key: item.key,
+						value: value_field,
+						hash: hash_field,
+						diff_type: StorageDiffType::Modified,
+					}
+				},
+			};
+
+			results.push(diff_item);
+		}
+
+		Ok(ArchiveStorageDiffResult::Ok { items: results })
 	}
 }
 
@@ -850,10 +1036,7 @@ mod tests {
 		})];
 
 		let result: ArchiveStorageResult = client
-			.request(
-				"archive_v1_storage",
-				rpc_params![head_hash, items, Option::<String>::None],
-			)
+			.request("archive_v1_storage", rpc_params![head_hash, items, Option::<String>::None])
 			.await
 			.expect("RPC call failed");
 
@@ -883,10 +1066,7 @@ mod tests {
 		})];
 
 		let result: ArchiveStorageResult = client
-			.request(
-				"archive_v1_storage",
-				rpc_params![head_hash, items, Option::<String>::None],
-			)
+			.request("archive_v1_storage", rpc_params![head_hash, items, Option::<String>::None])
 			.await
 			.expect("RPC call failed");
 
@@ -1096,8 +1276,10 @@ mod tests {
 
 		// The block numbers should be different
 		match (result1, result2) {
-			(ArchiveStorageResult::Ok { items: items1 }, ArchiveStorageResult::Ok { items: items2 }) =>
-			{
+			(
+				ArchiveStorageResult::Ok { items: items1 },
+				ArchiveStorageResult::Ok { items: items2 },
+			) => {
 				assert_ne!(items1[0].value, items2[0].value, "Block numbers should differ");
 			},
 			_ => panic!("Expected Ok results"),
@@ -1126,6 +1308,394 @@ mod tests {
 				);
 			},
 			_ => panic!("Expected Err result for unknown block"),
+		}
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_storage_diff_detects_modified_value() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		// Create a test key
+		let test_key = b"test_storage_diff_key";
+		let test_key_hex = format!("0x{}", hex::encode(test_key));
+
+		// Set initial value and build first block
+		ctx.blockchain.set_storage_for_testing(test_key, Some(b"value1")).await;
+		let block1 = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		let block1_hash = format!("0x{}", hex::encode(block1.hash.as_bytes()));
+
+		// Set modified value and build second block
+		ctx.blockchain.set_storage_for_testing(test_key, Some(b"value2")).await;
+		let block2 = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		let block2_hash = format!("0x{}", hex::encode(block2.hash.as_bytes()));
+
+		// Query storage diff
+		let items = vec![serde_json::json!({
+			"key": test_key_hex,
+			"returnType": "value"
+		})];
+
+		let result: ArchiveStorageDiffResult = client
+			.request("archive_v1_storageDiff", rpc_params![block2_hash, items, block1_hash])
+			.await
+			.expect("RPC call failed");
+
+		match result {
+			ArchiveStorageDiffResult::Ok { items } => {
+				assert_eq!(items.len(), 1, "Should return one modified item");
+				assert_eq!(items[0].key, test_key_hex);
+				assert_eq!(items[0].diff_type, StorageDiffType::Modified);
+				assert!(items[0].value.is_some(), "Value should be present");
+				assert_eq!(
+					items[0].value.as_ref().unwrap(),
+					&format!("0x{}", hex::encode(b"value2"))
+				);
+			},
+			ArchiveStorageDiffResult::Err { error } =>
+				panic!("Expected Ok result, got error: {error}"),
+		}
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_storage_diff_returns_empty_for_unchanged_keys() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		// Create a test key with value that won't change
+		let test_key = b"test_unchanged_key";
+		let test_key_hex = format!("0x{}", hex::encode(test_key));
+
+		// Set value and build first block
+		ctx.blockchain.set_storage_for_testing(test_key, Some(b"constant_value")).await;
+		let block1 = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		let block1_hash = format!("0x{}", hex::encode(block1.hash.as_bytes()));
+
+		// Build second block without changing the value
+		let block2 = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		let block2_hash = format!("0x{}", hex::encode(block2.hash.as_bytes()));
+
+		// Query storage diff
+		let items = vec![serde_json::json!({
+			"key": test_key_hex,
+			"returnType": "value"
+		})];
+
+		let result: ArchiveStorageDiffResult = client
+			.request("archive_v1_storageDiff", rpc_params![block2_hash, items, block1_hash])
+			.await
+			.expect("RPC call failed");
+
+		match result {
+			ArchiveStorageDiffResult::Ok { items } => {
+				assert!(items.is_empty(), "Should return empty for unchanged keys");
+			},
+			ArchiveStorageDiffResult::Err { error } =>
+				panic!("Expected Ok result, got error: {error}"),
+		}
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_storage_diff_returns_added_for_new_key() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		// Build first block without the key
+		let block1 = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		let block1_hash = format!("0x{}", hex::encode(block1.hash.as_bytes()));
+
+		// Add a new key and build second block
+		let test_key = b"test_added_key";
+		let test_key_hex = format!("0x{}", hex::encode(test_key));
+		ctx.blockchain.set_storage_for_testing(test_key, Some(b"new_value")).await;
+		let block2 = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		let block2_hash = format!("0x{}", hex::encode(block2.hash.as_bytes()));
+
+		// Query storage diff
+		let items = vec![serde_json::json!({
+			"key": test_key_hex,
+			"returnType": "value"
+		})];
+
+		let result: ArchiveStorageDiffResult = client
+			.request("archive_v1_storageDiff", rpc_params![block2_hash, items, block1_hash])
+			.await
+			.expect("RPC call failed");
+
+		match result {
+			ArchiveStorageDiffResult::Ok { items } => {
+				assert_eq!(items.len(), 1, "Should return one added item");
+				assert_eq!(items[0].key, test_key_hex);
+				assert_eq!(items[0].diff_type, StorageDiffType::Added);
+				assert!(items[0].value.is_some(), "Value should be present");
+				assert_eq!(
+					items[0].value.as_ref().unwrap(),
+					&format!("0x{}", hex::encode(b"new_value"))
+				);
+			},
+			ArchiveStorageDiffResult::Err { error } =>
+				panic!("Expected Ok result, got error: {error}"),
+		}
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_storage_diff_returns_deleted_for_removed_key() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		// Add a key and build first block
+		let test_key = b"test_deleted_key";
+		let test_key_hex = format!("0x{}", hex::encode(test_key));
+		ctx.blockchain.set_storage_for_testing(test_key, Some(b"will_be_deleted")).await;
+		let block1 = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		let block1_hash = format!("0x{}", hex::encode(block1.hash.as_bytes()));
+
+		// Delete the key and build second block
+		ctx.blockchain.set_storage_for_testing(test_key, None).await;
+		let block2 = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		let block2_hash = format!("0x{}", hex::encode(block2.hash.as_bytes()));
+
+		// Query storage diff
+		let items = vec![serde_json::json!({
+			"key": test_key_hex,
+			"returnType": "value"
+		})];
+
+		let result: ArchiveStorageDiffResult = client
+			.request("archive_v1_storageDiff", rpc_params![block2_hash, items, block1_hash])
+			.await
+			.expect("RPC call failed");
+
+		match result {
+			ArchiveStorageDiffResult::Ok { items } => {
+				assert_eq!(items.len(), 1, "Should return one deleted item");
+				assert_eq!(items[0].key, test_key_hex);
+				assert_eq!(items[0].diff_type, StorageDiffType::Deleted);
+				assert!(items[0].value.is_none(), "Value should be None for deleted key");
+				assert!(items[0].hash.is_none(), "Hash should be None for deleted key");
+			},
+			ArchiveStorageDiffResult::Err { error } =>
+				panic!("Expected Ok result, got error: {error}"),
+		}
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_storage_diff_returns_hash_when_requested() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		// Create a test key
+		let test_key = b"test_hash_key";
+		let test_key_hex = format!("0x{}", hex::encode(test_key));
+
+		// Set initial value and build first block
+		ctx.blockchain.set_storage_for_testing(test_key, Some(b"value1")).await;
+		let block1 = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		let block1_hash = format!("0x{}", hex::encode(block1.hash.as_bytes()));
+
+		// Set modified value and build second block
+		let new_value = b"value2";
+		ctx.blockchain.set_storage_for_testing(test_key, Some(new_value)).await;
+		let block2 = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		let block2_hash = format!("0x{}", hex::encode(block2.hash.as_bytes()));
+
+		// Query storage diff with hash returnType
+		let items = vec![serde_json::json!({
+			"key": test_key_hex,
+			"returnType": "hash"
+		})];
+
+		let result: ArchiveStorageDiffResult = client
+			.request("archive_v1_storageDiff", rpc_params![block2_hash, items, block1_hash])
+			.await
+			.expect("RPC call failed");
+
+		match result {
+			ArchiveStorageDiffResult::Ok { items } => {
+				assert_eq!(items.len(), 1, "Should return one modified item");
+				assert_eq!(items[0].diff_type, StorageDiffType::Modified);
+				assert!(items[0].value.is_none(), "Value should not be present");
+				assert!(items[0].hash.is_some(), "Hash should be present");
+				let expected_hash = format!("0x{}", hex::encode(sp_core::blake2_256(new_value)));
+				assert_eq!(items[0].hash.as_ref().unwrap(), &expected_hash);
+			},
+			ArchiveStorageDiffResult::Err { error } =>
+				panic!("Expected Ok result, got error: {error}"),
+		}
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_storage_diff_returns_error_for_unknown_hash() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		let unknown_hash = "0x0000000000000000000000000000000000000000000000000000000000000001";
+		let valid_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
+		let items = vec![serde_json::json!({ "key": "0x1234", "returnType": "value" })];
+
+		let result: ArchiveStorageDiffResult = client
+			.request("archive_v1_storageDiff", rpc_params![unknown_hash, items, valid_hash])
+			.await
+			.expect("RPC call failed");
+
+		match result {
+			ArchiveStorageDiffResult::Err { error } => {
+				assert!(
+					error.contains("not found") || error.contains("Block"),
+					"Should indicate block not found"
+				);
+			},
+			_ => panic!("Expected Err result for unknown block"),
+		}
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_storage_diff_returns_error_for_unknown_previous_hash() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		let valid_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
+		let unknown_hash = "0x0000000000000000000000000000000000000000000000000000000000000001";
+		let items = vec![serde_json::json!({ "key": "0x1234", "returnType": "value" })];
+
+		let result: ArchiveStorageDiffResult = client
+			.request("archive_v1_storageDiff", rpc_params![valid_hash, items, unknown_hash])
+			.await
+			.expect("RPC call failed");
+
+		match result {
+			ArchiveStorageDiffResult::Err { error } => {
+				assert!(
+					error.contains("not found") || error.contains("Previous block"),
+					"Should indicate previous block not found"
+				);
+			},
+			_ => panic!("Expected Err result for unknown previous block"),
+		}
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_storage_diff_uses_parent_when_previous_hash_omitted() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		// Create a test key
+		let test_key = b"test_parent_key";
+		let test_key_hex = format!("0x{}", hex::encode(test_key));
+
+		// Set initial value and build first block (parent)
+		ctx.blockchain.set_storage_for_testing(test_key, Some(b"parent_value")).await;
+		ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+
+		// Set modified value and build second block (child)
+		ctx.blockchain.set_storage_for_testing(test_key, Some(b"child_value")).await;
+
+		let child_block = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		let child_hash = format!("0x{}", hex::encode(child_block.hash.as_bytes()));
+
+		// Query storage diff without previous_hash (should use parent)
+		let items = vec![serde_json::json!({
+			"key": test_key_hex,
+			"returnType": "value"
+		})];
+
+		let result: ArchiveStorageDiffResult = client
+			.request(
+				"archive_v1_storageDiff",
+				rpc_params![child_hash, items, Option::<String>::None],
+			)
+			.await
+			.expect("RPC call failed");
+
+		match result {
+			ArchiveStorageDiffResult::Ok { items } => {
+				assert_eq!(items.len(), 1, "Should return one modified item");
+				assert_eq!(items[0].diff_type, StorageDiffType::Modified);
+				assert_eq!(
+					items[0].value.as_ref().unwrap(),
+					&format!("0x{}", hex::encode(b"child_value"))
+				);
+			},
+			ArchiveStorageDiffResult::Err { error } =>
+				panic!("Expected Ok result, got error: {error}"),
+		}
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn archive_storage_diff_handles_multiple_items() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		// Create test keys
+		let added_key = b"test_multi_added";
+		let modified_key = b"test_multi_modified";
+		let deleted_key = b"test_multi_deleted";
+		let unchanged_key = b"test_multi_unchanged";
+
+		// Set up initial state for block 1
+		ctx.blockchain.set_storage_for_testing(modified_key, Some(b"old_value")).await;
+		ctx.blockchain.set_storage_for_testing(deleted_key, Some(b"to_delete")).await;
+		ctx.blockchain.set_storage_for_testing(unchanged_key, Some(b"constant")).await;
+		let block1 = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		let block1_hash = format!("0x{}", hex::encode(block1.hash.as_bytes()));
+
+		// Modify state for block 2
+		ctx.blockchain.set_storage_for_testing(added_key, Some(b"new_key")).await;
+		ctx.blockchain.set_storage_for_testing(modified_key, Some(b"new_value")).await;
+		ctx.blockchain.set_storage_for_testing(deleted_key, None).await;
+		// unchanged_key stays the same
+		let block2 = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		let block2_hash = format!("0x{}", hex::encode(block2.hash.as_bytes()));
+
+		// Query storage diff for all keys
+		let items = vec![
+			serde_json::json!({ "key": format!("0x{}", hex::encode(added_key)), "returnType": "value" }),
+			serde_json::json!({ "key": format!("0x{}", hex::encode(modified_key)), "returnType": "value" }),
+			serde_json::json!({ "key": format!("0x{}", hex::encode(deleted_key)), "returnType": "value" }),
+			serde_json::json!({ "key": format!("0x{}", hex::encode(unchanged_key)), "returnType": "value" }),
+		];
+
+		let result: ArchiveStorageDiffResult = client
+			.request("archive_v1_storageDiff", rpc_params![block2_hash, items, block1_hash])
+			.await
+			.expect("RPC call failed");
+
+		match result {
+			ArchiveStorageDiffResult::Ok { items } => {
+				// Should have 3 items (added, modified, deleted) but NOT unchanged
+				assert_eq!(items.len(), 3, "Should return 3 changed items (not unchanged)");
+
+				// Find each item by key
+				let added = items.iter().find(|i| i.key == format!("0x{}", hex::encode(added_key)));
+				let modified =
+					items.iter().find(|i| i.key == format!("0x{}", hex::encode(modified_key)));
+				let deleted =
+					items.iter().find(|i| i.key == format!("0x{}", hex::encode(deleted_key)));
+				let unchanged =
+					items.iter().find(|i| i.key == format!("0x{}", hex::encode(unchanged_key)));
+
+				assert!(added.is_some(), "Added key should be in results");
+				assert_eq!(added.unwrap().diff_type, StorageDiffType::Added);
+
+				assert!(modified.is_some(), "Modified key should be in results");
+				assert_eq!(modified.unwrap().diff_type, StorageDiffType::Modified);
+
+				assert!(deleted.is_some(), "Deleted key should be in results");
+				assert_eq!(deleted.unwrap().diff_type, StorageDiffType::Deleted);
+
+				assert!(unchanged.is_none(), "Unchanged key should NOT be in results");
+			},
+			ArchiveStorageDiffResult::Err { error } =>
+				panic!("Expected Ok result, got error: {error}"),
 		}
 	}
 }

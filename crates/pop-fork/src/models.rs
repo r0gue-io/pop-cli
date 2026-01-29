@@ -30,7 +30,7 @@ pub struct LocalKeyRow {
 #[diesel(table_name = local_values)]
 pub(crate) struct NewLocalValueRow {
 	pub key_id: i32,
-	pub value: Vec<u8>,
+	pub value: Option<Vec<u8>>,
 	pub valid_from: i64,
 	pub valid_until: Option<i64>,
 }

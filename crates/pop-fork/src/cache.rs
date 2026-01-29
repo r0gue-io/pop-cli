@@ -490,13 +490,14 @@ impl StorageCache {
 	/// valid_from <= block_number AND (valid_until IS NULL OR valid_until > block_number)
 	///
 	/// # Returns
-	/// * `Ok(Some(value))` - Value found
-	/// * `Ok(None)` - No value valid at this block
+	/// * `Ok(Some(Some(value)))` - Value found with data
+	/// * `Ok(Some(None))` - Value found but explicitly deleted (NULL in DB)
+	/// * `Ok(None)` - No value valid at this block (no row found)
 	pub async fn get_local_value_at_block(
 		&self,
 		key: &[u8],
 		block_number: u32,
-	) -> Result<Option<Vec<u8>>, CacheError> {
+	) -> Result<Option<Option<Vec<u8>>>, CacheError> {
 		use crate::schema::{local_keys::columns as lkc, local_values::columns as lvc};
 
 		let mut conn = self.get_conn().await?;
@@ -514,8 +515,8 @@ impl StorageCache {
 			_ => return Ok(None),
 		};
 
-		// Query for value valid at block_number (value column is NOT NULL)
-		let value: Option<Vec<u8>> = local_values::table
+		// Query for value valid at block_number (value can be NULL for deletions)
+		let value: Option<Option<Vec<u8>>> = local_values::table
 			.filter(lvc::key_id.eq(key_id))
 			.filter(lvc::valid_from.le(block_num))
 			.filter(lvc::valid_until.is_null().or(lvc::valid_until.gt(block_num)))
@@ -530,11 +531,14 @@ impl StorageCache {
 	/// Get multiple local storage values valid at a specific block number.
 	///
 	/// Returns results in the same order as the input keys.
+	/// * `Some(Some(value))` - Value found with data
+	/// * `Some(None)` - Value found but explicitly deleted (NULL in DB)
+	/// * `None` - No value valid at this block (no row found)
 	pub async fn get_local_values_at_block_batch(
 		&self,
 		keys: &[&[u8]],
 		block_number: u32,
-	) -> Result<Vec<Option<Vec<u8>>>, CacheError> {
+	) -> Result<Vec<Option<Option<Vec<u8>>>>, CacheError> {
 		if keys.is_empty() {
 			return Ok(vec![]);
 		}
@@ -567,8 +571,8 @@ impl StorageCache {
 			return Ok(vec![None; keys.len()]);
 		}
 
-		// Query for values valid at block_number for all key_ids (value column is NOT NULL)
-		let value_rows: Vec<(i32, Vec<u8>)> = local_values::table
+		// Query for values valid at block_number for all key_ids (value can be NULL for deletions)
+		let value_rows: Vec<(i32, Option<Vec<u8>>)> = local_values::table
 			.filter(lvc::key_id.eq_any(&key_ids))
 			.filter(lvc::valid_from.le(block_num))
 			.filter(lvc::valid_until.is_null().or(lvc::valid_until.gt(block_num)))
@@ -576,13 +580,16 @@ impl StorageCache {
 			.load(&mut conn)
 			.await?;
 
-		// Build a map from key_id to value
-		let mut id_to_value: HashMap<i32, Vec<u8>> = HashMap::new();
+		// Build a map from key_id to value (Option<Vec<u8>> to track deletions)
+		let mut id_to_value: HashMap<i32, Option<Vec<u8>>> = HashMap::new();
 		for (key_id, value) in value_rows {
 			id_to_value.insert(key_id, value);
 		}
 
 		// Build result in same order as input keys
+		// None = key not found in local storage
+		// Some(None) = key was deleted
+		// Some(Some(value)) = key has a value
 		Ok(keys
 			.iter()
 			.map(|key| key_to_id.get(*key).and_then(|key_id| id_to_value.remove(key_id)))
@@ -593,12 +600,12 @@ impl StorageCache {
 	///
 	/// # Arguments
 	/// * `key_id` - The key ID from local_keys table
-	/// * `value` - The value bytes
+	/// * `value` - The value bytes, or None to record a deletion
 	/// * `valid_from` - Block number when this value becomes valid
 	pub async fn insert_local_value(
 		&self,
 		key_id: i32,
-		value: &[u8],
+		value: Option<&[u8]>,
 		valid_from: u32,
 	) -> Result<(), CacheError> {
 		let mut attempts = 0;
@@ -607,7 +614,7 @@ impl StorageCache {
 
 			let row = NewLocalValueRow {
 				key_id,
-				value: value.to_vec(),
+				value: value.map(|v| v.to_vec()),
 				valid_from: valid_from as i64,
 				valid_until: None,
 			};
@@ -1521,15 +1528,15 @@ mod tests {
 
 		// Insert key and value
 		let key_id = cache.insert_local_key(key).await.unwrap();
-		cache.insert_local_value(key_id, value, 100).await.unwrap();
+		cache.insert_local_value(key_id, Some(value), 100).await.unwrap();
 
 		// Query at block 100 - should find it (valid_from = 100, valid_until = NULL)
 		let result = cache.get_local_value_at_block(key, 100).await.unwrap();
-		assert_eq!(result, Some(value.to_vec()));
+		assert_eq!(result, Some(Some(value.to_vec())));
 
 		// Query at block 150 - should still find it (valid_until = NULL means still valid)
 		let result = cache.get_local_value_at_block(key, 150).await.unwrap();
-		assert_eq!(result, Some(value.to_vec()));
+		assert_eq!(result, Some(Some(value.to_vec())));
 
 		// Query at block 99 - should not find it (before valid_from)
 		let result = cache.get_local_value_at_block(key, 99).await.unwrap();
@@ -1553,23 +1560,23 @@ mod tests {
 
 		// Insert key and first value at block 100
 		let key_id = cache.insert_local_key(key).await.unwrap();
-		cache.insert_local_value(key_id, value1, 100).await.unwrap();
+		cache.insert_local_value(key_id, Some(value1), 100).await.unwrap();
 
 		// Close at block 150 and insert new value
 		cache.close_local_value(key_id, 150).await.unwrap();
-		cache.insert_local_value(key_id, value2, 150).await.unwrap();
+		cache.insert_local_value(key_id, Some(value2), 150).await.unwrap();
 
 		// Query at block 120 - should get value1
 		let result = cache.get_local_value_at_block(key, 120).await.unwrap();
-		assert_eq!(result, Some(value1.to_vec()));
+		assert_eq!(result, Some(Some(value1.to_vec())));
 
 		// Query at block 150 - should get value2
 		let result = cache.get_local_value_at_block(key, 150).await.unwrap();
-		assert_eq!(result, Some(value2.to_vec()));
+		assert_eq!(result, Some(Some(value2.to_vec())));
 
 		// Query at block 200 - should get value2 (still valid)
 		let result = cache.get_local_value_at_block(key, 200).await.unwrap();
-		assert_eq!(result, Some(value2.to_vec()));
+		assert_eq!(result, Some(Some(value2.to_vec())));
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -1585,16 +1592,16 @@ mod tests {
 		// Insert keys and values
 		let key_id1 = cache.insert_local_key(key1).await.unwrap();
 		let key_id2 = cache.insert_local_key(key2).await.unwrap();
-		cache.insert_local_value(key_id1, value1, 100).await.unwrap();
-		cache.insert_local_value(key_id2, value2, 100).await.unwrap();
+		cache.insert_local_value(key_id1, Some(value1), 100).await.unwrap();
+		cache.insert_local_value(key_id2, Some(value2), 100).await.unwrap();
 
 		// Batch query
 		let keys: Vec<&[u8]> = vec![key1, key2, key3];
 		let results = cache.get_local_values_at_block_batch(&keys, 100).await.unwrap();
 
 		assert_eq!(results.len(), 3);
-		assert_eq!(results[0], Some(value1.to_vec()));
-		assert_eq!(results[1], Some(value2.to_vec()));
+		assert_eq!(results[0], Some(Some(value1.to_vec())));
+		assert_eq!(results[1], Some(Some(value2.to_vec())));
 		assert!(results[2].is_none()); // key3 doesn't exist
 	}
 
@@ -1608,18 +1615,18 @@ mod tests {
 
 		// Insert key and values with validity ranges
 		let key_id = cache.insert_local_key(key).await.unwrap();
-		cache.insert_local_value(key_id, value1, 100).await.unwrap();
+		cache.insert_local_value(key_id, Some(value1), 100).await.unwrap();
 		cache.close_local_value(key_id, 200).await.unwrap();
-		cache.insert_local_value(key_id, value2, 200).await.unwrap();
+		cache.insert_local_value(key_id, Some(value2), 200).await.unwrap();
 
 		// Query at different blocks
 		let keys: Vec<&[u8]> = vec![key];
 
 		let results = cache.get_local_values_at_block_batch(&keys, 150).await.unwrap();
-		assert_eq!(results[0], Some(value1.to_vec()));
+		assert_eq!(results[0], Some(Some(value1.to_vec())));
 
 		let results = cache.get_local_values_at_block_batch(&keys, 200).await.unwrap();
-		assert_eq!(results[0], Some(value2.to_vec()));
+		assert_eq!(results[0], Some(Some(value2.to_vec())));
 
 		let results = cache.get_local_values_at_block_batch(&keys, 99).await.unwrap();
 		assert!(results[0].is_none());
@@ -1647,8 +1654,8 @@ mod tests {
 		// Insert some data
 		let key_id1 = cache.insert_local_key(key1).await.unwrap();
 		let key_id2 = cache.insert_local_key(key2).await.unwrap();
-		cache.insert_local_value(key_id1, value, 100).await.unwrap();
-		cache.insert_local_value(key_id2, value, 100).await.unwrap();
+		cache.insert_local_value(key_id1, Some(value), 100).await.unwrap();
+		cache.insert_local_value(key_id2, Some(value), 100).await.unwrap();
 
 		// Verify data exists
 		assert!(cache.get_local_key(key1).await.unwrap().is_some());
