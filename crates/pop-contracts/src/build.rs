@@ -1,11 +1,22 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{errors::Error, utils::get_manifest_path};
-use contract_build::{BuildMode, BuildResult, ExecuteArgs, ManifestPath, execute};
+use contract_build::{
+	BuildMode, BuildResult, ComposeBuildArgs, ExecuteArgs, ManifestPath, execute,
+};
 pub use contract_build::{MetadataSpec, Verbosity};
 use pop_common::manifest::Manifest;
 use std::{fs, path::Path};
 use toml::Value;
+
+/// POST processing build arguments.
+struct NoPostProcessing;
+
+impl ComposeBuildArgs for NoPostProcessing {
+	fn compose_build_args() -> anyhow::Result<Vec<String>> {
+		Ok(vec![])
+	}
+}
 
 /// Build the smart contract located at the specified `path` in `build_release` mode.
 ///
@@ -61,7 +72,7 @@ pub fn build_smart_contract(
 				..Default::default()
 			};
 			// Execute the build and log the output of the build
-			execute(args)
+			execute::<NoPostProcessing>(args)
 		})
 		.collect()
 }
