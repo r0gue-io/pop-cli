@@ -294,7 +294,7 @@ async fn contract_lifecycle() -> Result<()> {
 
 #[tokio::test]
 async fn verifiable_contract_lifecycle() -> Result<()> {
-	let endpoint_port = find_free_port(None);
+	let endpoint_port = resolve_port(None);
 	let default_endpoint: &str = &format!("ws://127.0.0.1:{}", endpoint_port);
 
 	let temp = tempfile::tempdir()?;
