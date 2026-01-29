@@ -133,7 +133,7 @@ mod tests {
 
 		// Contract
 		let name = "flipper";
-		new_contract_project(name, Some(&path), None)?;
+		new_contract_project(name, Some(path.join(name)), None)?;
 		assert!(is_supported(&path.join(name))?);
 		Ok(())
 	}
