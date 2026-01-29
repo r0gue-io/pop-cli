@@ -6,7 +6,6 @@ use contract_build::{BuildResult, ExecuteArgs, execute};
 use regex::Regex;
 use std::{fs, path::Path};
 use toml::Value;
-pub use contract_build::{BuildMode, ImageVariant, MetadataSpec, Verbosity};
 
 pub(crate) struct PopComposeBuildArgs;
 impl ComposeBuildArgs for PopComposeBuildArgs {
@@ -67,7 +66,7 @@ pub fn build_smart_contract(
 	build_mode: BuildMode,
 	verbosity: Verbosity,
 	metadata_spec: Option<MetadataSpec>,
-    image: Option<ImageVariant>
+	image: Option<ImageVariant>,
 ) -> anyhow::Result<Vec<BuildResult>> {
 	let manifest_path = get_manifest_path(path)?;
 
@@ -101,20 +100,25 @@ pub fn build_smart_contract(
 	manifest_paths
 		.into_iter()
 		.map(|manifest_path| {
-            	let mut args =
-		ExecuteArgs { manifest_path, build_mode, verbosity, metadata_spec, ..Default::default() };
+			let mut args = ExecuteArgs {
+				manifest_path,
+				build_mode,
+				verbosity,
+				metadata_spec,
+				..Default::default()
+			};
 
-	if let Some(image) = image {
-		args.image = image;
-	}
+			if let Some(image) = image {
+				args.image = image;
+			}
 
-	// Execute the build and log the output of the build
-	match build_mode {
-		// For verifiable contracts, execute calls docker_build (https://github.com/use-ink/cargo-contract/blob/master/crates/build/src/lib.rs#L595) which launches a blocking tokio runtime to handle the async operations (https://github.com/use-ink/cargo-contract/blob/master/crates/build/src/docker.rs#L135). The issue is that pop is itself a tokio runtime, launching another blocking one isn't allowed by tokio. So for verifiable contracts we need to first block the main pop tokio runtime before calling execute
-		BuildMode::Verifiable =>
-			tokio::task::block_in_place(|| execute::<PopComposeBuildArgs>(args)),
-		_ => execute::<PopComposeBuildArgs>(args),
-	}
+			// Execute the build and log the output of the build
+			match build_mode {
+				// For verifiable contracts, execute calls docker_build (https://github.com/use-ink/cargo-contract/blob/master/crates/build/src/lib.rs#L595) which launches a blocking tokio runtime to handle the async operations (https://github.com/use-ink/cargo-contract/blob/master/crates/build/src/docker.rs#L135). The issue is that pop is itself a tokio runtime, launching another blocking one isn't allowed by tokio. So for verifiable contracts we need to first block the main pop tokio runtime before calling execute
+				BuildMode::Verifiable =>
+					tokio::task::block_in_place(|| execute::<PopComposeBuildArgs>(args)),
+				_ => execute::<PopComposeBuildArgs>(args),
+			}
 		})
 		.collect()
 }
