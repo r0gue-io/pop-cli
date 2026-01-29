@@ -5,6 +5,9 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+/// Subxt's built-in header type for decoding SCALE-encoded headers.
+pub type Header = <subxt::SubstrateConfig as subxt::Config>::Header;
+
 /// Runtime version information.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -59,29 +62,6 @@ pub struct ChainProperties {
 	/// Additional properties.
 	#[serde(flatten)]
 	pub additional: HashMap<String, serde_json::Value>,
-}
-
-/// Block header.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Header {
-	/// Parent block hash.
-	pub parent_hash: String,
-	/// Block number.
-	pub number: String,
-	/// State root.
-	pub state_root: String,
-	/// Extrinsics root.
-	pub extrinsics_root: String,
-	/// Digest.
-	pub digest: Digest,
-}
-
-/// Block digest.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct Digest {
-	/// Digest logs.
-	pub logs: Vec<String>,
 }
 
 /// Signed block (header + extrinsics).

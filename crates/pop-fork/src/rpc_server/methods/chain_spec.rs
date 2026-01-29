@@ -123,7 +123,6 @@ mod tests {
 		#[allow(dead_code)]
 		server: ForkRpcServer,
 		ws_url: String,
-		blockchain: Arc<Blockchain>,
 	}
 
 	/// Creates a test context with spawned node and RPC server.
@@ -140,7 +139,7 @@ mod tests {
 			.expect("Failed to start RPC server");
 
 		let ws_url = server.ws_url();
-		RpcTestContext { node, server, ws_url, blockchain }
+		RpcTestContext { node, server, ws_url }
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -158,9 +157,7 @@ mod tests {
 		assert!(!name.is_empty(), "Chain name should not be empty");
 
 		// Should match blockchain's chain_name
-		assert_eq!(name, ctx.blockchain.chain_name());
-
-		println!("{}", name);
+		assert_eq!(name, "ink-node");
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -214,8 +211,6 @@ mod tests {
 			.request("chainSpec_v1_properties", rpc_params![])
 			.await
 			.expect("RPC call failed");
-
-		println!("{:?}", properties);
 
 		// Properties can be Some or None, both are valid
 		// If present, should be an object
