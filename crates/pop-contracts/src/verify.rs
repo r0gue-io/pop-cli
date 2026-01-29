@@ -70,7 +70,7 @@ impl VerifyContract {
 				// running so we can run the image. Otherwise check that the local toolchain is
 				// the same one used to compile the reference contract.
 				if let BuildMode::Verifiable = &build_info_parsed.build_mode {
-					Docker::ensure_running()?;
+					Docker::ensure_running().await?;
 				} else {
 					helpers::compare_local_toolchain(&build_info_parsed.build_info)?;
 				}
@@ -89,13 +89,13 @@ impl VerifyContract {
 				.await?;
 
 				// All verifications against live contracts use Docker images
-				Docker::ensure_running()?;
+				Docker::ensure_running().await?;
 
 				(BuildMode::Verifiable, Some(deployed_contract.build_image), reference_code_hash)
 			},
 		};
 
-		let build_result = crate::build_smart_contract(
+		let mut build_results = crate::build_smart_contract(
 			&self.verifying_path,
 			build_mode,
 			Verbosity::default(),
@@ -103,7 +103,18 @@ impl VerifyContract {
 			image,
 		)?;
 
-		helpers::verify_polkavm_code_hash_against_build_result(reference_code_hash, build_result)?;
+		if build_results.len() == 1 {
+			helpers::verify_polkavm_code_hash_against_build_result(
+				reference_code_hash,
+				build_results.pop().expect("There's one build result; qed;"),
+			)?;
+		} else {
+			return Err(Error::Verification(format!(
+				"Only can run verification against 1 contract, found {} in the worsskpace",
+				build_results.len()
+			)))
+		}
+
 		Ok(())
 	}
 }

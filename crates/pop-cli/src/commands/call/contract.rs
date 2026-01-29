@@ -212,7 +212,7 @@ impl CallContractCommand {
 		cli.warning("NOTE: contract has not yet been built.")?;
 		let spinner = spinner();
 		spinner.start("Building contract in RELEASE mode...");
-		let result = match build_smart_contract(
+		let results = match build_smart_contract(
 			&project_path,
 			BuildMode::Release,
 			Verbosity::Quiet,

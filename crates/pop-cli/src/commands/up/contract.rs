@@ -226,7 +226,7 @@ impl UpContractCommand {
 			}
 			let spinner = spinner();
 			spinner.start("Building contract in RELEASE mode...");
-			let result = match build_smart_contract(
+			let results = match build_smart_contract(
 				&self.path,
 				BuildMode::Release,
 				Verbosity::Quiet,

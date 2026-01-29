@@ -185,7 +185,7 @@ impl Command {
 		if pop_contracts::is_supported(&project_path)? {
 			let build_mode = contract::resolve_build_mode(args);
 			if let BuildMode::Verifiable = build_mode {
-				Docker::ensure_running()?;
+				Docker::ensure_running().await?;
 			}
 			let image = contract::resolve_image(args)?;
 			BuildContract { path: project_path, build_mode, metadata: args.metadata, image }
@@ -350,6 +350,10 @@ mod tests {
 			only_runtime: true,
 			#[cfg(feature = "contract")]
 			metadata: Some(MetadataSpec::Solidity),
+			#[cfg(feature = "contract")]
+			verifiable: false,
+			#[cfg(feature = "contract")]
+			image: None,
 		};
 		let expected =
 			"pop build --path my-path --package my-package --release --features feature1,feature2";
@@ -384,6 +388,10 @@ mod tests {
 			only_runtime: false,
 			#[cfg(feature = "contract")]
 			metadata: None,
+			#[cfg(feature = "contract")]
+			verifiable: false,
+			#[cfg(feature = "contract")]
+			image: None,
 		};
 		assert_eq!(args.display(), "pop build my-path-pos --profile debug");
 	}

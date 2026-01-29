@@ -2156,18 +2156,9 @@ dependencies = [
 
 [[package]]
 name = "contract-extrinsics"
-<<<<<<< HEAD
 version = "6.0.0-beta.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ee3cb66b8c72b9eea8fea50a0ff80a842a39beba79732a71eab78bd83cf48d3"
-=======
-version = "6.0.0-beta.1"
-<<<<<<< HEAD
-source = "git+https://github.com/use-ink/cargo-contract?rev=ceb7b89#ceb7b89f807b0e446dce68c007511d5dbc171277"
->>>>>>> d37ca383 (feat: Build verifiable contracts (#800))
-=======
-source = "git+https://github.com/use-ink/cargo-contract?rev=79c4d3d#79c4d3d97e88f0bf3ca21a618e5d6bc7bcd055b8"
->>>>>>> c8f567a1 (feat: `pop verify` (#812))
 dependencies = [
  "anyhow",
  "colored",
@@ -2196,18 +2187,9 @@ dependencies = [
 
 [[package]]
 name = "contract-metadata"
-<<<<<<< HEAD
 version = "6.0.0-beta.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b78d13c6145694e728812aae3d511a8c19daa50fbcf420d8df8aeb1f2f02a2f"
-=======
-version = "6.0.0-beta.1"
-<<<<<<< HEAD
-source = "git+https://github.com/use-ink/cargo-contract?rev=ceb7b89#ceb7b89f807b0e446dce68c007511d5dbc171277"
->>>>>>> d37ca383 (feat: Build verifiable contracts (#800))
-=======
-source = "git+https://github.com/use-ink/cargo-contract?rev=79c4d3d#79c4d3d97e88f0bf3ca21a618e5d6bc7bcd055b8"
->>>>>>> c8f567a1 (feat: `pop verify` (#812))
 dependencies = [
  "anyhow",
  "impl-serde",
@@ -2219,18 +2201,9 @@ dependencies = [
 
 [[package]]
 name = "contract-transcode"
-<<<<<<< HEAD
 version = "6.0.0-beta.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "24a7f4e4c1ea1efa1bcd2a9bc15a96e0cf6f7466015a89c2d7fcdedd495e0ce3"
-=======
-version = "6.0.0-beta.1"
-<<<<<<< HEAD
-source = "git+https://github.com/use-ink/cargo-contract?rev=ceb7b89#ceb7b89f807b0e446dce68c007511d5dbc171277"
->>>>>>> d37ca383 (feat: Build verifiable contracts (#800))
-=======
-source = "git+https://github.com/use-ink/cargo-contract?rev=79c4d3d#79c4d3d97e88f0bf3ca21a618e5d6bc7bcd055b8"
->>>>>>> c8f567a1 (feat: `pop verify` (#812))
 dependencies = [
  "anyhow",
  "base58",
@@ -4639,11 +4612,7 @@ dependencies = [
  "fnv",
  "futures-core",
  "futures-sink",
-<<<<<<< HEAD
  "http 1.4.0",
-=======
- "http 1.3.1",
->>>>>>> c8f567a1 (feat: `pop verify` (#812))
  "indexmap 2.12.1",
  "slab",
  "tokio",
@@ -8478,16 +8447,11 @@ version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4c5cc86750666a3ed20bdaf5ca2a0344f9c67674cae0515bec2da16fbaa47db"
 dependencies = [
-<<<<<<< HEAD
  "fixedbitset 0.4.2",
-=======
- "fixedbitset",
->>>>>>> c8f567a1 (feat: `pop verify` (#812))
  "indexmap 2.12.1",
 ]
 
 [[package]]
-<<<<<<< HEAD
 name = "petgraph"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8502,12 +8466,6 @@ name = "picosimd"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f8cf1ae70818c6476eb2da0ac8f3f55ecdea41a7aa16824ea6efc4a31cccf41"
-=======
-name = "picosimd"
-version = "0.9.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af35c838647fef3d6d052e27006ef88ea162336eee33063c50a63f163c18cdeb"
->>>>>>> c8f567a1 (feat: `pop verify` (#812))
 
 [[package]]
 name = "pin-project"
@@ -14845,11 +14803,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "84c8b9f757e028cee9fa244aea147aab2a9ec09d5325a9b01e0a49730c2b5269"
 dependencies = [
  "indexmap 2.12.1",
-<<<<<<< HEAD
  "toml_datetime 0.7.5+spec-1.1.0",
-=======
- "toml_datetime 0.7.3",
->>>>>>> c8f567a1 (feat: `pop verify` (#812))
  "toml_parser",
  "toml_writer",
  "winnow",

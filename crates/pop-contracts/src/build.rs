@@ -2,7 +2,8 @@
 
 use crate::{errors::Error, utils::get_manifest_path};
 pub use contract_build::{BuildMode, ComposeBuildArgs, ImageVariant, MetadataSpec, Verbosity};
-use contract_build::{BuildResult, ExecuteArgs, execute};
+use contract_build::{BuildResult, ExecuteArgs, ManifestPath, execute};
+use pop_common::manifest::Manifest;
 use regex::Regex;
 use std::{fs, path::Path};
 use toml::Value;
@@ -70,11 +71,6 @@ pub fn build_smart_contract(
 ) -> anyhow::Result<Vec<BuildResult>> {
 	let manifest_path = get_manifest_path(path)?;
 
-	let target_dir = manifest_path
-		.absolute_directory()
-		.ok()
-		.map(|project_dir| project_dir.join("target"));
-
 	let metadata_spec = match metadata_spec {
 		s @ Some(_) => s,
 		None => resolve_metadata_spec(manifest_path.as_ref())?,
@@ -108,8 +104,8 @@ pub fn build_smart_contract(
 				..Default::default()
 			};
 
-			if let Some(image) = image {
-				args.image = image;
+			if let Some(image) = &image {
+				args.image = image.clone();
 			}
 
 			// Execute the build and log the output of the build
