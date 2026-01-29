@@ -14,7 +14,7 @@ use std::sync::{Arc, OnceLock};
 pub static GENESIS_HASH: OnceLock<String> = OnceLock::new();
 
 /// Static cache for chain properties.
-static CHAIN_PROPERTIES: OnceLock<Option<serde_json::Value>> = OnceLock::new();
+pub static CHAIN_PROPERTIES: OnceLock<Option<serde_json::Value>> = OnceLock::new();
 
 /// chainSpec RPC methods (v1 spec).
 ///
