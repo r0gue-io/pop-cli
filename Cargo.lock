@@ -2112,9 +2112,9 @@ checksum = "7c74b8349d32d297c9134b8c88677813a227df8f779daa29bfc29c183fe3dca6"
 
 [[package]]
 name = "contract-build"
-version = "6.0.0-beta.1"
+version = "6.0.0-beta.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66ae0d8673738134e7e63d672685287486dc2054a570081f9291b8b26fbd989d"
+checksum = "95bddf672c5f2860594f5ed55674ac76707cd6b7ffe5a6b8e401130a42352edb"
 dependencies = [
  "alloy-json-abi",
  "anyhow",
@@ -2133,7 +2133,7 @@ dependencies = [
  "ink_metadata",
  "itertools 0.14.0",
  "parity-scale-codec",
- "polkavm-linker 0.29.0",
+ "polkavm-linker 0.30.0",
  "regex",
  "rustc_version 0.4.1",
  "rustversion",
@@ -2156,9 +2156,9 @@ dependencies = [
 
 [[package]]
 name = "contract-extrinsics"
-version = "6.0.0-beta.1"
+version = "6.0.0-beta.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c19e4b6d9f2effa08a76ddfe317ac1370298bb25e2b938aa15122eabb9dd26c5"
+checksum = "8ee3cb66b8c72b9eea8fea50a0ff80a842a39beba79732a71eab78bd83cf48d3"
 dependencies = [
  "anyhow",
  "colored",
@@ -2187,9 +2187,9 @@ dependencies = [
 
 [[package]]
 name = "contract-metadata"
-version = "6.0.0-beta.1"
+version = "6.0.0-beta.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8401a04d171e2867eaf270755b4dbd852a260541dbeb0f5085b4b63ec63be88"
+checksum = "7b78d13c6145694e728812aae3d511a8c19daa50fbcf420d8df8aeb1f2f02a2f"
 dependencies = [
  "anyhow",
  "impl-serde",
@@ -2201,9 +2201,9 @@ dependencies = [
 
 [[package]]
 name = "contract-transcode"
-version = "6.0.0-beta.1"
+version = "6.0.0-beta.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4ddd5e0f972d2358bea1db6469de2d5c5a70143b1a98d433c207e86981a0417"
+checksum = "24a7f4e4c1ea1efa1bcd2a9bc15a96e0cf6f7466015a89c2d7fcdedd495e0ce3"
 dependencies = [
  "anyhow",
  "base58",
@@ -8462,6 +8462,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "picosimd"
+version = "0.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f8cf1ae70818c6476eb2da0ac8f3f55ecdea41a7aa16824ea6efc4a31cccf41"
+
+[[package]]
 name = "pin-project"
 version = "1.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8862,6 +8868,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f634b46a6a47a5de381f56d1d8cced9f8640d063b2b1a44b0da6dbef91bbd400"
 
 [[package]]
+name = "polkavm-common"
+version = "0.30.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ed1b408db93d4f49f5c651a7844682b9d7a561827b4dc6202c10356076c055c9"
+dependencies = [
+ "picosimd",
+]
+
+[[package]]
 name = "polkavm-derive"
 version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8972,16 +8987,16 @@ dependencies = [
 
 [[package]]
 name = "polkavm-linker"
-version = "0.29.0"
+version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43e01613e9e3e4ebd624aa3a11f1775a5c90b881200c50e054fe13c3ba451f98"
+checksum = "6739125c4f8f44b4282b6531d765d599f20514e9b608737c6c3544594d08f995"
 dependencies = [
  "dirs",
  "gimli 0.31.1",
  "hashbrown 0.14.5",
  "log",
  "object 0.36.7",
- "polkavm-common 0.29.0",
+ "polkavm-common 0.30.0",
  "regalloc2 0.9.3",
  "rustc-demangle",
 ]
@@ -11932,16 +11947,16 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.145"
+version = "1.0.149"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "402a6f66d8c709116cf22f558eab210f5a50187f702eb4d7e5ef38d9a7f1c79c"
+checksum = "83fc039473c5595ace860d8c4fafa220ff474b3fc6bfdb4293327f1a37e94d86"
 dependencies = [
  "indexmap 2.12.1",
  "itoa",
  "memchr",
- "ryu",
  "serde",
  "serde_core",
+ "zmij",
 ]
 
 [[package]]
@@ -16778,6 +16793,12 @@ dependencies = [
  "indexmap 2.12.1",
  "memchr",
 ]
+
+[[package]]
+name = "zmij"
+version = "1.0.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02aae0f83f69aafc94776e879363e9771d7ecbffe2c7fbb6c14c5e00dfe88439"
 
 [[package]]
 name = "zombienet-configuration"
