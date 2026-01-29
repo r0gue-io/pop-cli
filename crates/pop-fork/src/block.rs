@@ -306,7 +306,7 @@ impl Block {
 		self.storage()
 			.get(self.number, code_key)
 			.await?
-			.map(|v| v.value.clone())
+			.and_then(|v| v.value.clone())
 			.ok_or(BlockError::RuntimeCodeNotFound)
 	}
 }
@@ -474,12 +474,23 @@ mod tests {
 					.unwrap()
 					.as_deref()
 					.unwrap()
-					.value,
+					.value
+					.as_ref()
+					.unwrap(),
 				value2
 			);
 			// child.number is the latest committed block
 			assert_eq!(
-				child.storage().get(child.number, key).await.unwrap().as_deref().unwrap().value,
+				child
+					.storage()
+					.get(child.number, key)
+					.await
+					.unwrap()
+					.as_deref()
+					.unwrap()
+					.value
+					.as_ref()
+					.unwrap(),
 				value
 			);
 		}
@@ -500,7 +511,16 @@ mod tests {
 
 			// Child should see the value at its block number
 			assert_eq!(
-				child.storage().get(child.number, key).await.unwrap().as_deref().unwrap().value,
+				child
+					.storage()
+					.get(child.number, key)
+					.await
+					.unwrap()
+					.as_deref()
+					.unwrap()
+					.value
+					.as_ref()
+					.unwrap(),
 				value
 			);
 		}

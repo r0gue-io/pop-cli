@@ -93,3 +93,59 @@ pub enum HashOrHashes {
 	/// Multiple hashes.
 	Multiple(Vec<String>),
 }
+
+/// Storage diff query item for archive_v1_storageDiff.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageDiffQueryItem {
+	/// Storage key (hex-encoded).
+	pub key: String,
+	/// Return type for the diff value.
+	#[serde(rename = "returnType")]
+	pub return_type: StorageQueryType,
+}
+
+/// Type of storage change in a diff.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StorageDiffType {
+	/// Key exists in `hash` but not in `previousHash`.
+	Added,
+	/// Key exists in both blocks but has different values.
+	Modified,
+	/// Key exists in `previousHash` but not in `hash`.
+	Deleted,
+}
+
+/// A single storage diff item result for archive_v1_storageDiff.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageDiffItem {
+	/// Storage key (hex-encoded).
+	pub key: String,
+	/// Storage value (hex-encoded), present for "added" or "modified" when returnType is "value".
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub value: Option<String>,
+	/// Storage hash (blake2-256), present for "added" or "modified" when returnType is "hash".
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub hash: Option<String>,
+	/// Type of change.
+	#[serde(rename = "type")]
+	pub diff_type: StorageDiffType,
+}
+
+/// archive_v1_storageDiff result.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "result", rename_all = "camelCase")]
+pub enum ArchiveStorageDiffResult {
+	/// Storage diff results returned.
+	Ok {
+		/// Storage diff result items.
+		items: Vec<StorageDiffItem>,
+	},
+	/// Error occurred.
+	Err {
+		/// Error message.
+		error: String,
+	},
+}

@@ -87,7 +87,7 @@ use smoldot::{
 	},
 	trie::{TrieEntryVersion, bytes_to_nibbles, nibbles_to_bytes_suffix_extend},
 };
-use std::{collections::BTreeMap, iter, sync::Arc};
+use std::{collections::BTreeMap, iter, iter::Once, sync::Arc};
 
 struct ArcLocalSharedValue(Arc<LocalSharedValue>);
 
@@ -371,11 +371,19 @@ impl RuntimeExecutor {
 								message: e.to_string(),
 							}
 						})?;
-						req.inject_value(
-							value.map(|v| {
-								(iter::once(ArcLocalSharedValue(v)), TrieEntryVersion::V1)
-							}),
-						)
+						let none_placeholder: Option<(Once<[u8; 0]>, TrieEntryVersion)> = None;
+						match value {
+							// A local shared value can be empty, just flagging that a key was
+							// manually
+							Some(value)
+								if !<LocalSharedValue as AsRef<[u8]>>::as_ref(&value)
+									.is_empty() =>
+								req.inject_value(Some((
+									iter::once(ArcLocalSharedValue(value)),
+									TrieEntryVersion::V1,
+								))),
+							_ => req.inject_value(none_placeholder),
+						}
 					}
 				},
 

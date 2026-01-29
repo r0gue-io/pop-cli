@@ -53,11 +53,11 @@ use crate::{
 	ExecutorError, ForkRpcClient, InherentProvider, RuntimeExecutor, StorageCache,
 	create_next_header, default_providers,
 };
+use scale::Encode;
 use std::{path::Path, sync::Arc};
 use subxt::config::substrate::H256;
 use tokio::sync::RwLock;
 use url::Url;
-use scale::Encode;
 
 /// Errors that can occur when working with the blockchain manager.
 #[derive(Debug, thiserror::Error)]
@@ -416,9 +416,7 @@ impl Blockchain {
 
 		// Use existing header() method - errors (block not found) are converted to None
 		match rpc.header(hash).await {
-			Ok(header) => {
-				Ok(Some(header.encode()))
-			},
+			Ok(header) => Ok(Some(header.encode())),
 			Err(_) => Ok(None), // Block not found on remote
 		}
 	}
@@ -492,6 +490,38 @@ impl Blockchain {
 		let rpc = ForkRpcClient::connect(&self.endpoint).await.map_err(BlockError::from)?;
 		match rpc.block_by_hash(hash).await.map_err(BlockError::from)? {
 			Some(block) => Ok(Some(block.header.number)),
+			None => Ok(None),
+		}
+	}
+
+	/// Get parent hash of a block by its hash.
+	///
+	/// This method searches for the block in two places:
+	/// 1. Locally-built blocks (traversing the parent chain from head)
+	/// 2. The remote chain (for blocks at or before the fork point)
+	///
+	/// # Arguments
+	///
+	/// * `hash` - The block hash to query
+	///
+	/// # Returns
+	///
+	/// The parent block hash, or `None` if the block hash doesn't exist.
+	pub async fn block_parent_hash(&self, hash: H256) -> Result<Option<H256>, BlockchainError> {
+		// Traverse local chain to find block by hash
+		let head = self.head.read().await;
+		let mut current: Option<&Block> = Some(&head);
+		while let Some(block) = current {
+			if block.hash == hash {
+				return Ok(Some(block.parent_hash));
+			}
+			current = block.parent.as_deref();
+		}
+
+		// Not found locally - check if it exists on remote chain
+		let rpc = ForkRpcClient::connect(&self.endpoint).await.map_err(BlockError::from)?;
+		match rpc.block_by_hash(hash).await.map_err(BlockError::from)? {
+			Some(block) => Ok(Some(block.header.parent_hash)),
 			None => Ok(None),
 		}
 	}
@@ -635,7 +665,7 @@ impl Blockchain {
 	) -> Result<Option<Vec<u8>>, BlockchainError> {
 		let head = self.head.read().await;
 		let value = head.storage().get(block_number, key).await.map_err(BlockError::from)?;
-		Ok(value.map(|v| v.value.clone()))
+		Ok(value.and_then(|v| v.value.clone()))
 	}
 
 	/// Detect chain type by checking for ParachainSystem pallet and extracting para_id.
@@ -666,8 +696,7 @@ impl Blockchain {
 		// Query storage
 		let value = block.storage().get(block.number, &key).await.ok().flatten()?;
 
-		// Decode as u32
-		u32::decode(&mut value.value.as_slice()).ok()
+		value.value.as_ref().map(|value| u32::decode(&mut value.as_slice()).ok())?
 	}
 
 	/// Get chain name from runtime version.
@@ -749,6 +778,25 @@ impl Blockchain {
 		// Block exists on remote - create mocked block with real hash
 		// Storage layer delegates to remote for historical data
 		Ok(Some(Block::mocked_for_call(hash, head.storage().clone())))
+	}
+
+	/// Set storage value at the current head (for testing purposes).
+	///
+	/// This method allows tests to manually set storage values to create
+	/// differences between blocks for testing storage diff functionality.
+	///
+	/// # Arguments
+	///
+	/// * `key` - Storage key
+	/// * `value` - Value to set, or `None` to delete
+	///
+	/// # Returns
+	///
+	/// `Ok(())` on success, or an error if storage modification fails.
+	#[cfg(test)]
+	pub async fn set_storage_for_testing(&self, key: &[u8], value: Option<&[u8]>) {
+		let mut head = self.head.write().await;
+		head.storage_mut().set(key, value).unwrap();
 	}
 }
 
@@ -1300,10 +1348,16 @@ mod tests {
 			let block1 = blockchain.build_empty_block().await.expect("Failed to build block 1");
 			let block2 = blockchain.build_empty_block().await.expect("Failed to build block 2");
 
-			let header_1 =
-				blockchain.block_header(block1.hash).await.expect("Failed to get block header").unwrap();
-            			let header_2 =
-				blockchain.block_header(block2.hash).await.expect("Failed to get block header").unwrap();
+			let header_1 = blockchain
+				.block_header(block1.hash)
+				.await
+				.expect("Failed to get block header")
+				.unwrap();
+			let header_2 = blockchain
+				.block_header(block2.hash)
+				.await
+				.expect("Failed to get block header")
+				.unwrap();
 
 			assert_ne!(header_1, header_2);
 		}
@@ -1338,8 +1392,10 @@ mod tests {
 			// Use a fabricated hash that doesn't exist
 			let unknown_hash = H256::from([0xde; 32]);
 
-			let header =
-				blockchain.block_header(unknown_hash).await.expect("Failed to query block header");
+			let header = blockchain
+				.block_header(unknown_hash)
+				.await
+				.expect("Failed to query block header");
 
 			assert!(header.is_none(), "Should return None for unknown hash");
 		}

@@ -20,7 +20,7 @@ diesel::table! {
 	local_values (id) {
 		id -> Integer,
 		key_id -> Integer,
-		value -> Binary,
+		value -> Nullable<Binary>,
 		valid_from -> BigInt,
 		valid_until -> Nullable<BigInt>,
 	}
