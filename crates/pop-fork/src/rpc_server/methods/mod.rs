@@ -8,14 +8,12 @@
 //! - `system` - Legacy system_* methods
 //! - `author` - Legacy author_* methods
 //! - `archive` - New archive_v1_* methods
-//! - `chain_head` - New chainHead_v1_* methods
 //! - `transaction` - New transaction_v1_* methods
 //! - `dev` - Development methods for manual chain control
 
 mod archive;
 mod author;
 mod chain;
-mod chain_head;
 mod dev;
 mod state;
 mod system;
@@ -28,7 +26,6 @@ use std::sync::Arc;
 pub use archive::{ArchiveApi, ArchiveApiServer};
 pub use author::{AuthorApi, AuthorApiServer};
 pub use chain::{ChainApi, ChainApiServer};
-pub use chain_head::{ChainHeadApi, ChainHeadApiServer};
 pub use dev::{DevApi, DevApiServer};
 pub use state::{StateApi, StateApiServer};
 pub use system::{SystemApi, SystemApiServer};
@@ -47,7 +44,6 @@ pub fn create_rpc_module(
 	let system_impl = SystemApi::new(blockchain.clone());
 	let author_impl = AuthorApi::new(blockchain.clone(), txpool.clone());
 	let archive_impl = ArchiveApi::new(blockchain.clone());
-	let chain_head_impl = ChainHeadApi::new(blockchain.clone());
 	let transaction_impl = TransactionApi::new(blockchain.clone(), txpool.clone());
 	let dev_impl = DevApi::new(blockchain, txpool);
 
@@ -70,10 +66,6 @@ pub fn create_rpc_module(
 
 	module
 		.merge(ArchiveApiServer::into_rpc(archive_impl))
-		.map_err(|e| RpcServerError::Internal(e.to_string()))?;
-
-	module
-		.merge(ChainHeadApiServer::into_rpc(chain_head_impl))
 		.map_err(|e| RpcServerError::Internal(e.to_string()))?;
 
 	module
