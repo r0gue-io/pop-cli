@@ -32,7 +32,7 @@ pub struct RuntimeVersion {
 }
 
 /// System health status.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SystemHealth {
 	/// Number of connected peers.
