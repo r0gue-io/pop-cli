@@ -25,7 +25,7 @@ pub trait ArchiveApi {
 
 	/// Get block hash by height.
 	///
-	/// Returns an array of hashes (returns an Option<Vec> to comply with the spec but, in practice,
+	/// Returns an array of hashes (returns an `Option<Vec>` to comply with the spec but, in practice,
 	/// this Vec always contains a single element, as blocks are produced on-demand one by one).
 	#[method(name = "v1_hashByHeight")]
 	async fn hash_by_height(&self, height: u32) -> RpcResult<Option<Vec<String>>>;
