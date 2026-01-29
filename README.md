@@ -16,27 +16,77 @@
 
 ## Installation
 
-You can install Pop CLI
-- from homebrew:
+### Quick Install (Recommended)
+
+**Using cargo-binstall** (cross-platform - downloads pre-built binaries when available):
+```shell
+# Install cargo-binstall if you don't have it
+curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+
+# Install pop-cli
+cargo binstall pop-cli --locked
+```
+
+### macOS
+
+**Using Homebrew:**
 ```shell
 brew install r0gue-io/pop-cli/pop
 ```
-- from [crates.io](https://crates.io/crates/pop-cli):
+
+### Linux
+
+**Using Ubuntu PPA:**
 ```shell
-cargo install --force --locked pop-cli
+sudo add-apt-repository ppa:r0gue-io/pop
+sudo apt-get update
+sudo apt-get install pop-cli
 ```
-- from Debian package (download from [releases](https://github.com/r0gue-io/pop-cli/releases)):
+> :information_source: If `add-apt-repository` is not found, install it with `sudo apt-get install software-properties-common`.
+
+**Using Homebrew:**
+```shell
+brew install r0gue-io/pop-cli/pop
+```
+
+**Debian/Ubuntu** (using `.deb` package from [releases](https://github.com/r0gue-io/pop-cli/releases)):
 ```shell
 sudo dpkg -i pop-cli_*.deb
 ```
 
-> :information_source: Pop CLI requires Rust 1.92 or later.
+**Nix/NixOS:**
+```shell
+# Run directly without installing
+nix run github:r0gue-io/pop-cli
 
-You can also install Pop CLI using the [Pop CLI GitHub repo](https://github.com/r0gue-io/pop-cli):
+# Or install to your profile
+nix profile install github:r0gue-io/pop-cli
+```
 
+For NixOS configuration:
+```nix
+{
+  inputs.pop-cli.url = "github:r0gue-io/pop-cli";
+  # ...
+  environment.systemPackages = [ inputs.pop-cli.packages.${system}.default ];
+}
+```
+
+### From Source
+
+**From crates.io** (compiles from source):
+```shell
+cargo install --locked pop-cli
+```
+
+**From GitHub** (latest development version):
 ```shell
 cargo install --locked --git https://github.com/r0gue-io/pop-cli
 ```
+
+### Requirements
+
+> :information_source: Pop CLI requires Rust 1.91.1 or later.
 
 > :information_source: For detailed instructions on how to install Pop CLI, please refer to our
 > documentation: <https://learn.onpop.io/v/cli/installing-pop-cli>

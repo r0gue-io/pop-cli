@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::{self, Cli};
+use crate::{cli, cli::traits::Cli as _};
 use clap::{Args, Subcommand};
 use duct::cmd;
 use pop_common::Profile;
@@ -91,6 +91,55 @@ pub(crate) struct BuildArgs {
 	pub(crate) metadata: Option<MetadataSpec>,
 }
 
+impl BuildArgs {
+	fn display(&self) -> String {
+		let mut full_message = "pop build".to_string();
+		if let Some(path) = &self.path {
+			full_message.push_str(&format!(" --path {}", path.display()));
+		}
+		if let Some(path_pos) = &self.path_pos {
+			full_message.push_str(&format!(" {}", path_pos.display()));
+		}
+		if let Some(package) = &self.package {
+			full_message.push_str(&format!(" --package {}", package));
+		}
+		if self.release {
+			full_message.push_str(" --release");
+		}
+		if let Some(profile) = self.profile {
+			full_message.push_str(&format!(" --profile {}", profile));
+		}
+		if let Some(features) = &self.features {
+			full_message.push_str(&format!(" --features {}", features));
+		}
+		#[cfg(feature = "chain")]
+		{
+			if self.benchmark {
+				full_message.push_str(" --benchmark");
+			}
+			if self.try_runtime {
+				full_message.push_str(" --try-runtime");
+			}
+			if self.deterministic {
+				full_message.push_str(" --deterministic");
+			}
+			if let Some(tag) = &self.tag {
+				full_message.push_str(&format!(" --tag {}", tag));
+			}
+			if self.only_runtime {
+				full_message.push_str(" --only-runtime");
+			}
+		}
+		#[cfg(feature = "contract")]
+		{
+			if let Some(metadata) = &self.metadata {
+				full_message.push_str(&format!(" --metadata {}", metadata));
+			}
+		}
+		full_message
+	}
+}
+
 /// Subcommand for building chain artifacts.
 #[derive(Subcommand, Serialize)]
 pub(crate) enum Command {
@@ -127,6 +176,7 @@ impl Command {
 				None => args.release,
 			};
 			BuildContract { path: project_path, release, metadata: args.metadata }.execute()?;
+			cli::Cli.info(args.display())?;
 			return Ok(());
 		}
 
@@ -137,7 +187,7 @@ impl Command {
 			pop_chains::runtime::is_supported(&project_path)
 		{
 			if args.deterministic {
-				Docker::ensure_running()?;
+				Docker::ensure_running().await?;
 			}
 			let profile = match &args.profile {
 				Some(profile) => *profile,
@@ -147,7 +197,8 @@ impl Command {
 			let mut feature_list = collect_features(&features, args.benchmark, args.try_runtime);
 			feature_list.sort();
 
-			let runtime_path = crate::common::builds::find_runtime_dir(&project_path, &mut Cli)?;
+			let runtime_path =
+				crate::common::builds::find_runtime_dir(&project_path, &mut cli::Cli)?;
 
 			BuildRuntime {
 				path: runtime_path,
@@ -160,6 +211,7 @@ impl Command {
 			}
 			.execute()
 			.await?;
+			cli::Cli.info(args.display())?;
 			return Ok(());
 		}
 
@@ -182,11 +234,14 @@ impl Command {
 				features: feature_list.into_iter().map(|f| f.to_string()).collect(),
 			}
 			.execute()?;
+			cli::Cli.info(args.display())?;
 			return Ok(());
 		}
 
 		// Otherwise build as a normal Rust project
-		Self::build(args, &project_path, &mut Cli)
+		Self::build(args, &project_path, &mut cli::Cli)?;
+		cli::Cli.info(args.display())?;
+		Ok(())
 	}
 
 	/// Builds a Rust project.
@@ -259,6 +314,66 @@ mod tests {
 	use pop_common::manifest::add_production_profile;
 	use std::path::Path;
 	use strum::VariantArray;
+
+	#[test]
+	fn test_build_args_display() {
+		let args = BuildArgs {
+			command: None,
+			path: Some(PathBuf::from("my-path")),
+			path_pos: None,
+			package: Some("my-package".to_string()),
+			release: true,
+			profile: None,
+			features: Some("feature1,feature2".to_string()),
+			#[cfg(feature = "chain")]
+			benchmark: true,
+			#[cfg(feature = "chain")]
+			try_runtime: true,
+			#[cfg(feature = "chain")]
+			deterministic: true,
+			#[cfg(feature = "chain")]
+			tag: Some("v1".to_string()),
+			#[cfg(feature = "chain")]
+			only_runtime: true,
+			#[cfg(feature = "contract")]
+			metadata: Some(MetadataSpec::Solidity),
+		};
+		let expected =
+			"pop build --path my-path --package my-package --release --features feature1,feature2";
+		let mut expected = expected.to_string();
+		#[cfg(feature = "chain")]
+		{
+			expected.push_str(" --benchmark --try-runtime --deterministic --tag v1 --only-runtime");
+		}
+		#[cfg(feature = "contract")]
+		{
+			expected.push_str(" --metadata solidity");
+		}
+		assert_eq!(args.display(), expected);
+
+		let args = BuildArgs {
+			command: None,
+			path: None,
+			path_pos: Some(PathBuf::from("my-path-pos")),
+			package: None,
+			release: false,
+			profile: Some(Profile::Debug),
+			features: None,
+			#[cfg(feature = "chain")]
+			benchmark: false,
+			#[cfg(feature = "chain")]
+			try_runtime: false,
+			#[cfg(feature = "chain")]
+			deterministic: false,
+			#[cfg(feature = "chain")]
+			tag: None,
+			#[cfg(feature = "chain")]
+			only_runtime: false,
+			#[cfg(feature = "contract")]
+			metadata: None,
+		};
+		assert_eq!(args.display(), "pop build my-path-pos --profile debug");
+	}
 
 	#[test]
 	fn build_works() -> anyhow::Result<()> {

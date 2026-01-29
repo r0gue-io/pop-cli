@@ -3,8 +3,9 @@ Section: devel
 Priority: optional
 Maintainer: R0GUE <go@r0gue.io>
 Build-Depends: debhelper-compat (= 13),
-               cargo (>= 1.92),
-               rustc (>= 1.92),
+               cargo (>= 1.88.0),
+               rustc (>= 1.88.0),
+               python3,
                libssl-dev,
                pkg-config,
                protobuf-compiler
@@ -14,7 +15,7 @@ Vcs-Git: https://github.com/r0gue-io/pop-cli.git
 Vcs-Browser: https://github.com/r0gue-io/pop-cli
 
 Package: pop-cli
-Architecture: any
+Architecture: amd64 amd64v3 arm64
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: An all-in-one tool for Polkadot development
  Pop CLI is a comprehensive command-line tool for developing on Polkadot.

@@ -1,5 +1,7 @@
 use clap::ValueEnum;
 use serde::Serialize;
+use std::{fmt, fmt::Formatter};
+use strum::EnumMessage as _;
 use strum_macros::{EnumIter, EnumMessage};
 
 /// This enum is used to register from the CLI which types that are kind of usual in config traits
@@ -26,6 +28,12 @@ pub enum TemplatePalletConfigCommonTypes {
 		detailed_message = "This type will allow your pallet to interact with the native currency of the blockchain."
 	)]
 	Currency,
+}
+
+impl fmt::Display for TemplatePalletConfigCommonTypes {
+	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+		write!(f, "{}", self.get_message().unwrap_or("Unknown"))
+	}
 }
 
 /// This enum is used to determine which storage shape has a storage item in the pallet
@@ -70,6 +78,12 @@ pub enum TemplatePalletStorageTypes {
 		detailed_message = "A wrapper around a StorageNMap and a StorageValue (with the value being u32) to keep track of how many items are in a map."
 	)]
 	CountedStorageNMap,
+}
+
+impl fmt::Display for TemplatePalletStorageTypes {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "{}", self.get_message().unwrap_or("Unknown"))
+	}
 }
 
 /// This enum is used to register from the CLI which options are selected by the user to be included

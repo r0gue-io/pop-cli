@@ -12,7 +12,7 @@ use pop_contracts::{create_smart_contract, Contract};
 use std::path::Path;
 
 let contract_path = Path::new("./");
-create_smart_contract("my_contract", &contract_path, &Contract::Standard);
+create_smart_contract("my-contract", &contract_path, &Contract::Standard);
 ```
 
 Build an existing Smart Contract:

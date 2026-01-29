@@ -619,9 +619,16 @@ pub fn parse_dispatchable_arguments(
 		.iter()
 		.zip(raw_params)
 		.map(|(param, raw_param)| {
-			// Convert sequence parameters to hex if is_sequence
 			let processed_param = if param.is_sequence && !raw_param.starts_with("0x") {
-				to_hex(&raw_param)
+				if param.type_name == "[u8]" {
+					// Convert byte sequence parameters to hex
+					to_hex(&raw_param)
+				} else {
+					// For other sequences (e.g., Vec<AccountId32>), convert bracket syntax
+					// [a, b, c] to parentheses (a, b, c) since scale_value uses parentheses
+					// for unnamed composites. This allows SS58 parsing inside arrays.
+					convert_brackets_to_parens(&raw_param)
+				}
 			} else {
 				raw_param
 			};
@@ -633,6 +640,17 @@ pub fn parse_dispatchable_arguments(
 				.map_err(|_| Error::ParamProcessingError)
 		})
 		.collect()
+}
+
+/// Converts bracket array syntax `[a, b, c]` to parentheses `(a, b, c)` for scale_value parsing.
+/// Only converts outermost brackets when the string starts with `[` and ends with `]`.
+fn convert_brackets_to_parens(input: &str) -> String {
+	let trimmed = input.trim();
+	if trimmed.starts_with('[') && trimmed.ends_with(']') {
+		format!("({})", &trimmed[1..trimmed.len() - 1])
+	} else {
+		input.to_string()
+	}
 }
 
 #[cfg(test)]
@@ -710,6 +728,96 @@ mod tests {
 			]
 		);
 		Ok(())
+	}
+
+	#[test]
+	fn parse_vec_account_id() -> Result<()> {
+		// Test case from issue #906: Vec<AccountId32> should parse SS58 addresses
+		let params = vec![Param {
+			name: "who".into(),
+			type_name: "[AccountId32 ([u8;32])]".into(),
+			is_sequence: true,
+			..Default::default()
+		}];
+		let args = vec!["[5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty]".into()];
+		let result = parse_dispatchable_arguments(&params, args);
+		assert!(result.is_ok(), "Failed to parse: {:?}", result);
+
+		// Verify the parsed value is a composite containing the decoded SS58 address
+		let values = result?;
+		assert_eq!(values.len(), 1);
+
+		// The expected AccountId bytes for 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty
+		let addr: Vec<_> =
+			from_hex("8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48")?
+				.into_iter()
+				.map(|b| Value::u128(b as u128))
+				.collect();
+
+		assert_eq!(values[0], Value::unnamed_composite(vec![Value::unnamed_composite(addr)]));
+		Ok(())
+	}
+
+	#[test]
+	fn parse_vec_multiple_account_ids() -> Result<()> {
+		// Test multiple AccountIds in a Vec
+		let params = vec![Param {
+			name: "who".into(),
+			type_name: "[AccountId32 ([u8;32])]".into(),
+			is_sequence: true,
+			..Default::default()
+		}];
+		let args = vec![
+			"[5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty, 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY]".into(),
+		];
+		let result = parse_dispatchable_arguments(&params, args);
+		assert!(result.is_ok());
+
+		let values = result?;
+		assert_eq!(values.len(), 1);
+
+		// Both addresses should be parsed
+		if let ValueDef::Composite(composite) = &values[0].value {
+			match composite {
+				Composite::Unnamed(items) => assert_eq!(items.len(), 2),
+				_ => panic!("Expected unnamed composite"),
+			}
+		} else {
+			panic!("Expected composite value");
+		}
+		Ok(())
+	}
+
+	#[test]
+	fn parse_byte_sequence_still_works() -> Result<()> {
+		// Ensure [u8] sequences still work (regression test)
+		let params = vec![Param {
+			name: "remark".into(),
+			type_name: "[u8]".into(),
+			is_sequence: true,
+			..Default::default()
+		}];
+		let args = vec!["hello".into()];
+		let result = parse_dispatchable_arguments(&params, args);
+		assert!(result.is_ok());
+		Ok(())
+	}
+
+	#[test]
+	fn convert_brackets_to_parens_works() {
+		// Standard array conversion
+		assert_eq!(convert_brackets_to_parens("[a, b, c]"), "(a, b, c)");
+		// Single element
+		assert_eq!(convert_brackets_to_parens("[x]"), "(x)");
+		// With whitespace
+		assert_eq!(convert_brackets_to_parens("  [a, b]  "), "(a, b)");
+		// Empty array
+		assert_eq!(convert_brackets_to_parens("[]"), "()");
+		// Non-array input unchanged
+		assert_eq!(convert_brackets_to_parens("hello"), "hello");
+		assert_eq!(convert_brackets_to_parens("(a, b)"), "(a, b)");
+		// Nested brackets preserved in content
+		assert_eq!(convert_brackets_to_parens("[[1, 2], [3, 4]]"), "([1, 2], [3, 4])");
 	}
 
 	#[test]

@@ -35,6 +35,9 @@ pub struct NewContractCommand {
 	/// The template to use.
 	#[arg(short, long, value_parser = enum_variants!(Contract))]
 	pub(crate) template: Option<Contract>,
+	/// List available templates.
+	#[arg(short, long)]
+	pub(crate) list: bool,
 	/// Also scaffold a frontend. Optionally specify template, if flag provided without value,
 	/// prompts for template selection.
 	#[arg(
@@ -57,6 +60,16 @@ impl NewContractCommand {
 	pub(crate) async fn execute(&mut self) -> Result<()> {
 		let mut cli = Cli;
 
+		if self.list {
+			cli.intro("Available templates")?;
+			for template in Contract::templates() {
+				if !template.is_deprecated() {
+					cli.info(format!("{}: {}", template.name(), template.description()))?;
+				}
+			}
+			return Ok(());
+		}
+
 		// Prompt for missing fields interactively
 		if self.name.is_none() || self.template.is_none() {
 			guide_user_to_generate_contract(&mut cli, self).await?;
@@ -64,10 +77,10 @@ impl NewContractCommand {
 
 		let path_project = self.name.as_ref().expect("name can not be none; qed");
 		let path = Path::new(path_project);
-		let name = get_project_name_from_path(path, "my_contract");
+		let name = get_project_name_from_path(path, "my-contract");
 
 		// Validate contract name.
-		if let Err(e) = is_valid_contract_name(name) {
+		if let Err(e) = is_valid_contract_name(&name) {
 			cli.outro_cancel(e)?;
 			return Ok(());
 		}
@@ -87,7 +100,7 @@ impl NewContractCommand {
 				};
 		}
 		let contract_path = generate_contract_from_template(
-			name,
+			&name,
 			path,
 			&template,
 			frontend_template,
@@ -106,7 +119,29 @@ impl NewContractCommand {
 			)?;
 		}
 
+		cli.info(self.display())?;
 		Ok(())
+	}
+
+	fn display(&self) -> String {
+		let mut full_message = "pop new contract".to_string();
+		if let Some(name) = &self.name {
+			full_message.push_str(&format!(" {}", name));
+		}
+		if let Some(template) = &self.template {
+			full_message.push_str(&format!(" --template {}", template.name()));
+		}
+		if let Some(frontend) = &self.with_frontend {
+			if frontend.is_empty() {
+				full_message.push_str(" --with-frontend");
+			} else {
+				full_message.push_str(&format!(" --with-frontend {}", frontend));
+			}
+		}
+		if let Some(pm) = &self.package_manager {
+			full_message.push_str(&format!(" --package-manager {}", pm.name()));
+		}
+		full_message
 	}
 }
 
@@ -125,8 +160,8 @@ async fn guide_user_to_generate_contract(
 	if command.name.is_none() {
 		let name: String = cli
 			.input("Where should your project be created?")
-			.placeholder("./my_contract")
-			.default_input("./my_contract")
+			.placeholder("./my-contract")
+			.default_input("./my-contract")
 			.interact()?;
 		command.name = Some(name);
 	}
@@ -228,13 +263,35 @@ mod tests {
 	use strum::VariantArray;
 	use tempfile::tempdir;
 
+	#[test]
+	fn test_new_contract_command_display() {
+		let cmd = NewContractCommand {
+			name: Some("my-contract".to_string()),
+			template: Some(ContractTemplate::Standard),
+			list: false,
+			with_frontend: Some("typink".to_string()),
+			package_manager: Some(PackageManager::Npm),
+		};
+		assert_eq!(
+			cmd.display(),
+			"pop new contract my-contract --template Standard --with-frontend typink --package-manager npm"
+		);
+
+		let cmd = NewContractCommand {
+			name: Some("my-contract".to_string()),
+			with_frontend: Some("".to_string()),
+			..Default::default()
+		};
+		assert_eq!(cmd.display(), "pop new contract my-contract --with-frontend");
+	}
+
 	#[tokio::test]
 	async fn test_new_contract_command_execute_with_defaults_executes() -> Result<()> {
 		let dir = tempdir()?;
 		let dir_path = format!("{}/test_contract", dir.path().display());
 		let cli = Cli::parse_from(["pop", "new", "contract", &dir_path, "--template", "standard"]);
 
-		let New(NewArgs { command: Some(Contract(mut command)) }) = cli.command else {
+		let New(NewArgs { command: Some(Contract(mut command)), .. }) = cli.command else {
 			panic!("unable to parse command")
 		};
 		// Execute
@@ -285,7 +342,7 @@ mod tests {
 		.iter()
 		.map(|s| style(format!("{} {s}", console::Emoji("●", ">"))).dim().to_string())
 		.collect();
-		let mut cli = MockCli::new().expect_intro("Generating \"my_contract\" using Erc20!")
+		let mut cli = MockCli::new().expect_intro("Generating \"my-contract\" using Erc20!")
 		.expect_success("Generation complete")
 		.expect_warning(
 			format!("NOTE: the resulting contract is not guaranteed to be audited or reviewed for security vulnerabilities.{}",
@@ -296,7 +353,7 @@ mod tests {
 			style("https://learn.onpop.io").magenta().underlined()
 		));
 		generate_contract_from_template(
-			"my_contract",
+			"my-contract",
 			&contract_path,
 			&ContractTemplate::ERC20,
 			None,
@@ -305,6 +362,16 @@ mod tests {
 		)
 		.await?;
 		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn test_new_contract_list_templates() -> Result<()> {
+		let mut command = NewContractCommand { list: true, ..Default::default() };
+		// Just ensure it can be executed without error.
+		// Since it uses the real Cli internally, we can't easily verify output in this unit test
+		// without refactoring execute to take a Cli trait object.
+		command.execute().await?;
+		Ok(())
 	}
 
 	#[tokio::test]
@@ -337,7 +404,7 @@ edition = "2024"
 			"--template",
 			"standard", // Just the name, not a path like "./flipper"
 		]);
-		let New(NewArgs { command: Some(Contract(mut command)) }) = cli.command else {
+		let New(NewArgs { command: Some(Contract(mut command)), .. }) = cli.command else {
 			panic!("unable to parse command")
 		};
 		let result = command.execute().await;

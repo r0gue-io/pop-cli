@@ -266,8 +266,8 @@ mod tests {
 		Ok(())
 	}
 
-	#[test]
-	fn sourced_from_archive_works() -> Result<()> {
+	#[tokio::test]
+	async fn sourced_from_archive_works() -> Result<()> {
 		let name = "polkadot";
 		let url = "https://github.com/r0gue-io/polkadot/releases/latest/download/polkadot-aarch64-apple-darwin.tar.gz".to_string();
 		let contents = vec![
@@ -279,7 +279,7 @@ mod tests {
 		let path = temp_dir.path().join(name);
 		File::create(&path)?;
 
-		let mut binary = Binary::Source {
+		let binary = Binary::Source {
 			name: name.to_string(),
 			source: Archive { url: url.to_string(), contents }.into(),
 			cache: temp_dir.path().to_path_buf(),
@@ -292,13 +292,11 @@ mod tests {
 		assert_eq!(binary.path(), path);
 		assert!(!binary.stale());
 		assert_eq!(binary.version(), None);
-		binary.use_latest();
-		assert_eq!(binary.version(), None);
 		Ok(())
 	}
 
-	#[test]
-	fn sourced_from_git_works() -> Result<()> {
+	#[tokio::test]
+	async fn sourced_from_git_works() -> Result<()> {
 		let package = "hello_world";
 		let url = Url::parse("https://github.com/hpaluch/rust-hello-world")?;
 		let temp_dir = tempdir()?;
@@ -337,8 +335,8 @@ mod tests {
 		Ok(())
 	}
 
-	#[test]
-	fn sourced_from_github_release_archive_works() -> Result<()> {
+	#[tokio::test]
+	async fn sourced_from_github_release_archive_works() -> Result<()> {
 		let owner = "r0gue-io";
 		let repository = "polkadot";
 		let tag_pattern = "polkadot-{version}";
@@ -392,8 +390,8 @@ mod tests {
 		Ok(())
 	}
 
-	#[test]
-	fn sourced_from_github_source_code_archive_works() -> Result<()> {
+	#[tokio::test]
+	async fn sourced_from_github_source_code_archive_works() -> Result<()> {
 		let owner = "paritytech";
 		let repository = "polkadot-sdk";
 		let package = "polkadot";
@@ -431,8 +429,8 @@ mod tests {
 		Ok(())
 	}
 
-	#[test]
-	fn sourced_from_url_works() -> Result<()> {
+	#[tokio::test]
+	async fn sourced_from_url_works() -> Result<()> {
 		let name = "polkadot";
 		let url =
 			"https://github.com/paritytech/polkadot-sdk/releases/latest/download/polkadot.asc";
@@ -472,17 +470,21 @@ mod tests {
 
 	#[tokio::test]
 	async fn sourcing_from_local_package_works() -> Result<()> {
-		let temp_dir = tempdir()?;
-		let name = "hello_world";
-		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
-		let path = temp_dir.path().join(name);
-		let manifest = Some(path.join("Cargo.toml"));
-		let path = path.join("target/release").join(name);
-		Binary::Local { name: name.to_string(), path: path.clone(), manifest }
-			.source(true, &Output, true)
-			.await?;
-		assert!(path.exists());
-		Ok(())
+		crate::command_mock::CommandMock::default()
+			.execute(async || {
+				let temp_dir = tempdir()?;
+				let name = "hello_world";
+				cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
+				let path = temp_dir.path().join(name);
+				let manifest = Some(path.join("Cargo.toml"));
+				let path = path.join("target/release").join(name);
+				Binary::Local { name: name.to_string(), path: path.clone(), manifest }
+					.source(true, &Output, true)
+					.await?;
+				assert!(path.exists());
+				Ok(())
+			})
+			.await
 	}
 
 	#[tokio::test]

@@ -10,9 +10,8 @@ use pop_chains::{
 	up::{Binary, Source::GitHub},
 };
 use pop_common::{
-	find_free_port,
 	polkadot_sdk::sort_by_latest_semantic_version,
-	pop,
+	pop, resolve_port,
 	sourcing::{ArchiveFileSpec, GitHub::ReleaseArchive},
 	templates::Template,
 };
@@ -68,14 +67,8 @@ async fn generate_all_the_templates() -> Result<()> {
 /// Test the parachain lifecycle: new, build, up, call.
 #[tokio::test]
 async fn parachain_lifecycle() -> Result<()> {
-	// For testing locally: set to `true`
-	const LOCAL_TESTING: bool = false;
-
 	let temp = tempfile::tempdir()?;
-	let temp_dir = match LOCAL_TESTING {
-		true => Path::new("./"),
-		false => temp.path(),
-	};
+	let temp_dir = temp.path();
 
 	// pop new chain test_parachain --verify (default)
 	let working_dir = temp_dir.join("test_parachain");
@@ -167,7 +160,7 @@ async fn parachain_lifecycle() -> Result<()> {
 	// Overwrite the config file to manually set the port to test pop call parachain.
 	let network_toml_path = working_dir.join("network.toml");
 	fs::create_dir_all(&working_dir)?;
-	let random_port = find_free_port(None);
+	let random_port = resolve_port(None);
 	let localhost_url = format!("ws://127.0.0.1:{}", random_port);
 	fs::write(
 		&network_toml_path,

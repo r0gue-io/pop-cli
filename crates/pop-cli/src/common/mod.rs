@@ -30,7 +30,6 @@ pub mod wallet;
 
 pub mod urls {
 	/// Local dev node (Substrate default port 9944).
-	#[cfg(any(feature = "chain", feature = "contract"))]
 	pub const LOCAL: &str = "ws://localhost:9944/";
 	/// Polkadot mainnet public RPC.
 	#[cfg(all(feature = "chain", test))]

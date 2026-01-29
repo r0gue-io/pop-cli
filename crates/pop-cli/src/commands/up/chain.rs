@@ -77,7 +77,7 @@ pub struct UpCommand {
 impl UpCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(&mut self, cli: &mut impl Cli) -> Result<()> {
-		cli.intro("Deploy a rollup")?;
+		cli.intro("Deploy a chain")?;
 		let mut deployment = self.prepare_for_deployment(cli)?;
 		let show_deployment_steps = self.should_show_deployment_steps(&deployment);
 		let config = match self
@@ -130,6 +130,7 @@ impl UpCommand {
 		}
 		// If no API is provided, there's no need to deploy.
 		if deployment.api.is_none() {
+			cli.info(self.display())?;
 			return Ok(());
 		}
 		match deployment.deploy(&config, show_deployment_steps, cli).await {
@@ -159,6 +160,7 @@ impl UpCommand {
 				))?;
 			},
 		}
+		cli.info(self.display())?;
 		Ok(())
 	}
 
@@ -305,6 +307,35 @@ impl UpCommand {
 			!self.skip_registration &&
 			self.chain_spec.is_none()
 	}
+
+	fn display(&self) -> String {
+		let mut full_message = "pop up rollup".to_string();
+		if let Some(id) = self.id {
+			full_message.push_str(&format!(" --id {}", id));
+		}
+		if self.skip_registration {
+			full_message.push_str(" --skip-registration");
+		}
+		if let Some(chain_spec) = &self.chain_spec {
+			full_message.push_str(&format!(" --chain-spec {}", chain_spec.display()));
+		}
+		if let Some(genesis_state) = &self.genesis_state {
+			full_message.push_str(&format!(" --genesis-state {}", genesis_state.display()));
+		}
+		if let Some(genesis_code) = &self.genesis_code {
+			full_message.push_str(&format!(" --genesis-code {}", genesis_code.display()));
+		}
+		if let Some(url) = &self.relay_chain_url {
+			full_message.push_str(&format!(" --relay-chain-url {}", url));
+		}
+		if let Some(proxy) = &self.proxied_address {
+			full_message.push_str(&format!(" --proxy {}", proxy));
+		}
+		if let Some(profile) = self.profile {
+			full_message.push_str(&format!(" --profile {}", profile));
+		}
+		full_message
+	}
 }
 
 // Represents the configuration for deployment.
@@ -346,7 +377,7 @@ impl Deployment {
 	}
 }
 
-// Represents the configuration for rollup registration.
+// Represents the configuration for chain registration.
 struct Registration {
 	id: u32,
 	genesis_artifacts: GenesisArtifacts,
@@ -511,7 +542,7 @@ fn prompt_provider(
 		predefined_action = predefined_action.item(
 			None,
 			"Register",
-			"Register the rollup on the relay chain without deploying with a provider",
+			"Register the chain on the relay chain without deploying with a provider",
 		);
 	}
 	Ok(predefined_action.interact()?)
@@ -543,7 +574,7 @@ fn prompt_api_key(
 
 // Prompts the user to choose which template was used.
 fn prompt_template_used(cli: &mut impl Cli) -> Result<&str> {
-	cli.warning("We could not automatically detect which template was used to build your rollup.")?;
+	cli.warning("We could not automatically detect which template was used to build your chain.")?;
 	let mut template = cli.select("Select the template used:");
 	for supported_template in ChainTemplate::VARIANTS.iter().filter_map(|variant| {
 		variant
@@ -587,6 +618,28 @@ mod tests {
 
 	const MOCK_PROXIED_ADDRESS: &str = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty";
 	const MOCK_PROXY_ADDRESS_ID: &str = "Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)";
+
+	#[test]
+	fn test_up_command_display() {
+		let cmd = UpCommand {
+			path: PathBuf::from("./my-rollup"),
+			id: Some(2000),
+			skip_registration: true,
+			chain_spec: Some(PathBuf::from("chain-spec.json")),
+			genesis_state: Some(StatePathBuf::from("genesis-state")),
+			genesis_code: Some(CodePathBuf::from("genesis-code")),
+			relay_chain_url: Some(Url::parse("ws://localhost:9944").unwrap()),
+			proxied_address: Some("5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty".to_string()),
+			profile: Some(Profile::Release),
+		};
+		assert_eq!(
+			cmd.display(),
+			"pop up rollup --id 2000 --skip-registration --chain-spec chain-spec.json --genesis-state genesis-state --genesis-code genesis-code --relay-chain-url ws://localhost:9944/ --proxy 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty --profile release"
+		);
+
+		let cmd = UpCommand { path: PathBuf::from("./"), ..Default::default() };
+		assert_eq!(cmd.display(), "pop up rollup");
+	}
 
 	#[tokio::test]
 	async fn prepare_for_deployment_works() -> Result<()> {
@@ -655,7 +708,7 @@ mod tests {
 					.map(|action| (action.name().to_string(), format_url(action.base_url())))
 					.chain(std::iter::once((
 						"Register".to_string(),
-						"Register the rollup on the relay chain without deploying with a provider"
+						"Register the chain on the relay chain without deploying with a provider"
 							.to_string(),
 					)))
 					.collect::<Vec<_>>(),
@@ -704,8 +757,11 @@ mod tests {
 				"Select a chain (type to filter)".to_string(),
 				Some(true),
 				true,
-				Some(vec![("Custom".to_string(), "Type the chain URL manually".to_string())]),
-				0,
+				Some(vec![
+					("Local".to_string(), "Deploy on a local node".to_string()),
+					("Custom".to_string(), "Type the chain URL manually".to_string()),
+				]),
+				1,
 				None,
 			)
 			.expect_input("Enter the relay chain node URL", node_url.into());
@@ -797,7 +853,7 @@ mod tests {
 		let node = TestNode::spawn().await?;
 		let node_url = node.ws_url();
 		let mut cli = MockCli::new()
-            .expect_intro("Deploy a rollup")
+            .expect_intro("Deploy a chain")
             .expect_select(
                 "Select your deployment method:",
                 Some(false),
@@ -808,7 +864,7 @@ mod tests {
                         .map(|action| (action.name().to_string(), format_url(action.base_url())))
                         .chain(std::iter::once((
                             "Register".to_string(),
-                            "Register the rollup on the relay chain without deploying with a provider".to_string(),
+                            "Register the chain on the relay chain without deploying with a provider".to_string(),
                         )))
                         .collect::<Vec<_>>(),
                 ),
@@ -888,7 +944,7 @@ mod tests {
 		let node = TestNode::spawn().await?;
 		let node_url = node.ws_url();
 		let mut cli = MockCli::new()
-            .expect_intro("Deploy a rollup")
+            .expect_intro("Deploy a chain")
             .expect_select(
                 "Select your deployment method:",
                 Some(false),
@@ -899,7 +955,7 @@ mod tests {
                         .map(|action| (action.name().to_string(), format_url(action.base_url())))
                         .chain(std::iter::once((
                             "Register".to_string(),
-                            "Register the rollup on the relay chain without deploying with a provider".to_string(),
+                            "Register the chain on the relay chain without deploying with a provider".to_string(),
                         )))
                         .collect::<Vec<_>>(),
                 ),
@@ -985,7 +1041,7 @@ mod tests {
 	async fn prompt_template_used_works() -> Result<()> {
 		let mut cli = MockCli::new()
 			.expect_warning(
-				"We could not automatically detect which template was used to build your rollup.",
+				"We could not automatically detect which template was used to build your chain.",
 			)
 			.expect_select(
 				"Select the template used:",

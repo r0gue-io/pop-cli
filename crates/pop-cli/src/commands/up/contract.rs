@@ -20,6 +20,7 @@ use crate::{
 use clap::Args;
 use cliclack::spinner;
 use console::Emoji;
+use pop_common::resolve_port;
 use pop_contracts::{
 	FunctionType, UpOpts, Verbosity, Weight, build_smart_contract,
 	dry_run_gas_estimate_instantiate, dry_run_upload, extract_function, get_contract_code,
@@ -38,6 +39,41 @@ const DEFAULT_PORT: u16 = 9944;
 const DEFAULT_ETH_RPC_PORT: u16 = 8545;
 const FAILED: &str = "🚫 Deployment failed.";
 const HELP_HEADER: &str = "Smart contract deployment options";
+
+/// Resolved ink node and Ethereum RPC ports.
+#[derive(Clone, Copy, Debug)]
+struct ResolvedPorts {
+	ink_node_port: u16,
+	eth_rpc_port: u16,
+}
+
+/// Resolves ports for ink node and Ethereum RPC, validating explicit user-specified ports.
+fn resolve_ink_node_ports(ink_node_port: u16, eth_rpc_port: u16) -> anyhow::Result<ResolvedPorts> {
+	let ink_explicit = ink_node_port != DEFAULT_PORT;
+	let eth_explicit = eth_rpc_port != DEFAULT_ETH_RPC_PORT;
+
+	// Fail fast if both same.
+	if ink_node_port == eth_rpc_port {
+		anyhow::bail!(
+			"ink! node port and Ethereum RPC port cannot be the same ({})",
+			ink_node_port
+		);
+	}
+
+	// Resolve ink node port.
+	let resolved_ink = resolve_port(Some(ink_node_port));
+	if ink_explicit && resolved_ink != ink_node_port {
+		anyhow::bail!("ink! node port {} is in use", ink_node_port);
+	}
+
+	// Resolve eth rpc port.
+	let resolved_eth = resolve_port(Some(eth_rpc_port));
+	if eth_explicit && resolved_eth != eth_rpc_port {
+		anyhow::bail!("Ethereum RPC port {} is in use", eth_rpc_port);
+	}
+
+	Ok(ResolvedPorts { ink_node_port: resolved_ink, eth_rpc_port: resolved_eth })
+}
 
 /// Launch a local ink! node.
 #[derive(Args, Clone, Serialize, Debug)]
@@ -59,9 +95,18 @@ pub(crate) struct InkNodeCommand {
 impl InkNodeCommand {
 	pub(crate) async fn execute(&self, cli: &mut Cli) -> anyhow::Result<()> {
 		cli.intro("Launch a local Ink! node")?;
-		let url = Url::parse(&format!("ws://localhost:{}", self.ink_node_port))?;
+		let ports = match resolve_ink_node_ports(self.ink_node_port, self.eth_rpc_port) {
+			Ok(ports) => ports,
+			Err(e) => {
+				cli.error(e.to_string())?;
+				cli.outro_cancel("🚫 Unable to start local ink! node.")?;
+				return Ok(());
+			},
+		};
+		let url = Url::parse(&format!("ws://localhost:{}", ports.ink_node_port))?;
 		let ((mut ink_node_process, ink_node_log), (mut eth_rpc_process, eth_rpc_log)) =
-			start_ink_node(&url, self.skip_confirm, self.ink_node_port, self.eth_rpc_port).await?;
+			start_ink_node(&url, self.skip_confirm, ports.ink_node_port, ports.eth_rpc_port)
+				.await?;
 
 		if !self.detach {
 			// Wait for the process to terminate
@@ -72,10 +117,12 @@ impl InkNodeCommand {
 			ink_node_process.wait()?;
 			eth_rpc_process.wait()?;
 			cli.plain("\n")?;
+			cli.info(self.display())?;
 			cli.outro("✅ Ink! node terminated")?;
 		} else {
 			ink_node_log.keep()?;
 			eth_rpc_log.keep()?;
+			cli.info(self.display())?;
 			cli.outro(format!(
 				"✅ Ink! node bootstrapped successfully. Run `kill -9 {} {}` to terminate it.",
 				ink_node_process.id(),
@@ -83,6 +130,23 @@ impl InkNodeCommand {
 			))?;
 		}
 		Ok(())
+	}
+
+	fn display(&self) -> String {
+		let mut full_message = "pop up contract ink-node".to_string();
+		if self.ink_node_port != 9944 {
+			full_message.push_str(&format!(" --ink-node-port {}", self.ink_node_port));
+		}
+		if self.eth_rpc_port != 8545 {
+			full_message.push_str(&format!(" --eth-rpc-port {}", self.eth_rpc_port));
+		}
+		if self.skip_confirm {
+			full_message.push_str(" --skip-confirm");
+		}
+		if self.detach {
+			full_message.push_str(" --detach");
+		}
+		full_message
 	}
 }
 
@@ -162,8 +226,8 @@ impl UpContractCommand {
 			}
 			let spinner = spinner();
 			spinner.start("Building contract in RELEASE mode...");
-			let result = match build_smart_contract(&self.path, true, Verbosity::Quiet, None) {
-				Ok(result) => result,
+			let results = match build_smart_contract(&self.path, true, Verbosity::Quiet, None) {
+				Ok(results) => results,
 				Err(e) => {
 					Cli.outro_cancel(format!("🚫 An error occurred building your contract: {e}\nUse `pop build` to retry with build output."))?;
 					return Ok(());
@@ -171,7 +235,11 @@ impl UpContractCommand {
 			};
 			spinner.stop(format!(
 				"Your contract artifacts are ready. You can find them in: {}",
-				result.target_directory.display()
+				results
+					.iter()
+					.map(|r| r.target_directory.display().to_string())
+					.collect::<Vec<_>>()
+					.join("\n")
 			));
 		}
 
@@ -185,7 +253,7 @@ impl UpContractCommand {
 			return Ok(());
 		}
 
-		let url = if let Some(url) = self.url.clone() {
+		let mut url = if let Some(url) = self.url.clone() {
 			url
 		} else if self.skip_confirm {
 			Url::parse(urls::LOCAL).expect("default url is valid")
@@ -199,8 +267,6 @@ impl UpContractCommand {
 			)
 			.await?
 		};
-		self.url = Some(url.clone());
-
 		// Check if specified chain is accessible
 		let processes = if !is_chain_alive(url.clone()).await? {
 			let local_url = Url::parse(urls::LOCAL).expect("default url is valid");
@@ -213,9 +279,16 @@ impl UpContractCommand {
 					.interact()?
 				{
 					Cli.info("Fetching and launching a local ink! node")?;
+					let ports = resolve_ink_node_ports(DEFAULT_PORT, DEFAULT_ETH_RPC_PORT)?;
+					url = Url::parse(&format!("ws://localhost:{}", ports.ink_node_port))?;
 					Some(
-						start_ink_node(&url, self.skip_confirm, DEFAULT_PORT, DEFAULT_ETH_RPC_PORT)
-							.await?,
+						start_ink_node(
+							&url,
+							self.skip_confirm,
+							ports.ink_node_port,
+							ports.eth_rpc_port,
+						)
+						.await?,
 					)
 				} else {
 					Cli.outro_cancel(
@@ -232,6 +305,7 @@ impl UpContractCommand {
 		} else {
 			None
 		};
+		self.url = Some(url.clone());
 
 		// Track the deployed contract address across both deployment flows.
 		let mut deployed_contract_address: Option<String> = None;
@@ -417,14 +491,17 @@ impl UpContractCommand {
 		if let Some(contract_address) = deployed_contract_address {
 			if !self.skip_confirm {
 				Cli.success(COMPLETE)?;
+				Cli.info(self.display())?;
 				self.keep_interacting_with_node(&mut Cli, contract_address).await?;
 				terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
 			} else {
 				terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
+				Cli.info(self.display())?;
 				Cli.outro(COMPLETE)?;
 			}
 		} else {
 			terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
+			Cli.info(self.display())?;
 			Cli.outro(COMPLETE)?;
 		}
 		Ok(())
@@ -519,6 +596,45 @@ impl UpContractCommand {
 					.await?;
 			Ok((call_data, hash))
 		}
+	}
+
+	fn display(&self) -> String {
+		let mut full_message = format!("pop up contract {}", self.path.display());
+
+		if self.constructor != "new" {
+			full_message.push_str(&format!(" --constructor {}", self.constructor));
+		}
+		if !self.args.is_empty() {
+			let args: Vec<_> = self.args.iter().map(|a| format!("\"{a}\"")).collect();
+			full_message.push_str(&format!(" --args {}", args.join(" ")));
+		}
+		if self.value != "0" {
+			full_message.push_str(&format!(" --value {}", self.value));
+		}
+		if let (Some(gas_limit), Some(proof_size)) = (self.gas_limit, self.proof_size) {
+			full_message.push_str(&format!(" --gas {} --proof-size {}", gas_limit, proof_size));
+		}
+		if let Some(url) = &self.url {
+			full_message.push_str(&format!(" --url {}", url));
+		}
+		if self.use_wallet {
+			full_message.push_str(" --use-wallet");
+		} else if let Some(suri) = &self.suri {
+			full_message.push_str(&format!(" --suri {}", suri));
+		}
+		if self.execute {
+			full_message.push_str(" --execute");
+		}
+		if self.upload_only {
+			full_message.push_str(" --upload-only");
+		}
+		if self.skip_confirm {
+			full_message.push_str(" --skip-confirm");
+		}
+		if self.skip_build {
+			full_message.push_str(" --skip-build");
+		}
+		full_message
 	}
 }
 
@@ -704,5 +820,98 @@ mod tests {
 		assert_eq!(cmd.ink_node_port, 12000);
 		assert_eq!(cmd.eth_rpc_port, 13000);
 		assert!(cmd.skip_confirm);
+	}
+
+	#[test]
+	fn test_ink_node_command_display() {
+		let cmd = InkNodeCommand {
+			ink_node_port: 9944,
+			eth_rpc_port: 8545,
+			skip_confirm: false,
+			detach: false,
+		};
+		assert_eq!(cmd.display(), "pop up contract ink-node");
+
+		let cmd = InkNodeCommand {
+			ink_node_port: 9000,
+			eth_rpc_port: 8000,
+			skip_confirm: true,
+			detach: true,
+		};
+		assert_eq!(
+			cmd.display(),
+			"pop up contract ink-node --ink-node-port 9000 --eth-rpc-port 8000 --skip-confirm --detach"
+		);
+	}
+
+	#[test]
+	fn test_up_contract_command_display() {
+		let cmd = UpContractCommand {
+			path: PathBuf::from("my-contract"),
+			constructor: "new".to_string(),
+			args: vec![],
+			value: "0".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: None,
+			suri: None,
+			use_wallet: false,
+			execute: false,
+			upload_only: false,
+			skip_confirm: false,
+			skip_build: false,
+		};
+		assert_eq!(cmd.display(), "pop up contract my-contract");
+
+		let cmd = UpContractCommand {
+			path: PathBuf::from("my-contract"),
+			constructor: "custom_new".to_string(),
+			args: vec!["arg1".to_string(), "arg2".to_string()],
+			value: "100".to_string(),
+			gas_limit: Some(1000),
+			proof_size: Some(2000),
+			url: Some(Url::parse("ws://localhost:9944").unwrap()),
+			suri: Some("//Alice".to_string()),
+			use_wallet: false,
+			execute: true,
+			upload_only: true,
+			skip_confirm: true,
+			skip_build: true,
+		};
+		assert_eq!(
+			cmd.display(),
+			"pop up contract my-contract --constructor custom_new --args \"arg1\" \"arg2\" --value 100 --gas 1000 --proof-size 2000 --url ws://localhost:9944/ --suri //Alice --execute --upload-only --skip-confirm --skip-build"
+		);
+
+		let cmd = UpContractCommand {
+			path: PathBuf::from("my-contract"),
+			use_wallet: true,
+			..Default::default()
+		};
+		assert_eq!(cmd.display(), "pop up contract my-contract --use-wallet --execute");
+	}
+
+	#[test]
+	fn resolve_ink_node_ports_errors_on_same_explicit_ports() {
+		let result = resolve_ink_node_ports(12000, 12000);
+		assert!(result.is_err());
+	}
+
+	#[test]
+	fn resolve_ink_node_ports_errors_on_busy_explicit_port() {
+		use std::net::TcpListener;
+		let _listener = TcpListener::bind("127.0.0.1:55000").unwrap();
+		let result = resolve_ink_node_ports(55000, DEFAULT_ETH_RPC_PORT);
+		assert!(result.is_err());
+		let result = resolve_ink_node_ports(DEFAULT_PORT, 55000);
+		assert!(result.is_err());
+	}
+
+	#[test]
+	fn resolve_ink_node_ports_resolves_defaults() {
+		let ports = resolve_ink_node_ports(DEFAULT_PORT, DEFAULT_ETH_RPC_PORT)
+			.expect("default ports should resolve");
+		assert_eq!(ports.ink_node_port, DEFAULT_PORT);
+		assert_eq!(ports.eth_rpc_port, DEFAULT_ETH_RPC_PORT);
 	}
 }

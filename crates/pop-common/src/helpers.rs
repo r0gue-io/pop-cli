@@ -37,8 +37,11 @@ pub fn replace_in_file(file_path: PathBuf, replacements: HashMap<&str, &str>) ->
 /// # Arguments
 /// * `path` - Location path of the project.
 /// * `default` - The default string to return if the path has no valid last component.
-pub fn get_project_name_from_path<'a>(path: &'a Path, default: &'a str) -> &'a str {
-	path.file_name().and_then(|name| name.to_str()).unwrap_or(default)
+pub fn get_project_name_from_path<'a>(path: &'a Path, default: &'a str) -> String {
+	path.file_name()
+		.and_then(|name| name.to_str())
+		.unwrap_or(default)
+		.replace("-", "_")
 }
 
 /// Returns the relative path from `base` to `full` if `full` is inside `base`.
@@ -129,14 +132,14 @@ mod tests {
 	#[test]
 	fn get_project_name_from_path_works() -> Result<(), Error> {
 		let path = Path::new("./path/to/project/my-parachain");
-		assert_eq!(get_project_name_from_path(path, "default_name"), "my-parachain");
+		assert_eq!(get_project_name_from_path(path, "default_name"), "my_parachain");
 		Ok(())
 	}
 
 	#[test]
 	fn get_project_name_from_path_default_value() -> Result<(), Error> {
 		let path = Path::new("./");
-		assert_eq!(get_project_name_from_path(path, "my-contract"), "my-contract");
+		assert_eq!(get_project_name_from_path(path, "my-contract"), "my_contract");
 		Ok(())
 	}
 
@@ -221,7 +224,7 @@ mod tests {
 				r#"#!/bin/sh
 echo 0"#,
 			)
-			.execute(|| {
+			.execute_sync(|| {
 				assert!(is_root());
 			});
 	}
@@ -234,7 +237,7 @@ echo 0"#,
 				r#"#!/bin/sh
 echo 1000"#,
 			)
-			.execute(|| {
+			.execute_sync(|| {
 				assert!(!is_root());
 			});
 	}

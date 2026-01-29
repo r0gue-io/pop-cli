@@ -56,7 +56,7 @@ impl TestContractCommand {
 			Ok(())
 		} else {
 			cli.intro("Starting unit tests")?;
-			test_project(&self.path, self.test.clone())?;
+			test_project(&self.path, self.test.clone()).await?;
 			cli.outro("Unit testing complete")?;
 			Ok(())
 		}

@@ -69,6 +69,9 @@ pub struct NewChainCommand {
 		help = "Verifies the commit SHA when fetching the latest license and release from GitHub."
 	)]
 	pub(crate) verify: bool,
+	/// List available templates.
+	#[arg(short, long)]
+	pub(crate) list: bool,
 	/// Also scaffold a frontend. Optionally specify template. If flag provided without value,
 	/// prompts for template selection.
 	#[arg(
@@ -89,6 +92,16 @@ pub struct NewChainCommand {
 impl NewChainCommand {
 	/// Executes the command.
 	pub(crate) async fn execute(&self) -> Result<()> {
+		if self.list {
+			let mut cli = cli::Cli;
+			cli.intro("Available templates")?;
+			for template in ChainTemplate::templates() {
+				if !template.is_deprecated() {
+					cli.info(format!("{}: {}", template.name(), template.description()))?;
+				}
+			}
+			return Ok(());
+		}
 		// If user doesn't select the name guide them to generate a parachain.
 		let parachain_config = if self.name.is_none() {
 			guide_user_to_generate_parachain(self.verify, self.with_frontend.clone(), &mut cli::Cli)
@@ -97,22 +110,23 @@ impl NewChainCommand {
 			self.clone()
 		};
 
-		let name = &parachain_config
-			.name
-			.clone()
-			.expect("name can not be none as fallback above is interactive input; qed");
-		let provider = &parachain_config.provider.clone().unwrap_or_default();
+		let default_provider = Provider::default();
+		let provider = parachain_config.provider.as_ref().unwrap_or(&default_provider);
 		let template = match &parachain_config.template {
 			Some(template) => template.clone(),
 			None => provider.default_template().expect("parachain templates have defaults; qed."), /* Each provider has a template by default */
 		};
 
 		is_template_supported(provider, &template, &mut cli::Cli)?;
+		let name = parachain_config.name.as_ref().expect("chain name must be set");
+		let provider_val = provider.clone();
+		let template_val = template.clone();
+
 		let config = get_customization_value(
-			&template,
-			parachain_config.symbol,
+			&template_val,
+			parachain_config.symbol.clone(),
 			parachain_config.decimals,
-			parachain_config.initial_endowment,
+			parachain_config.initial_endowment.clone(),
 			&mut cli::Cli,
 		)?;
 
@@ -133,8 +147,8 @@ impl NewChainCommand {
 		}
 		generate_parachain_from_template(
 			name,
-			provider,
-			&template,
+			&provider_val,
+			&template_val,
 			tag_version,
 			config,
 			parachain_config.verify,
@@ -143,7 +157,52 @@ impl NewChainCommand {
 			&mut cli::Cli,
 		)
 		.await?;
+		cli::Cli.info(parachain_config.display())?;
 		Ok(())
+	}
+
+	fn display(&self) -> String {
+		let mut full_message = "pop new chain".to_string();
+		if let Some(name) = &self.name {
+			full_message.push_str(&format!(" {}", name));
+		}
+		if let Some(provider) = &self.provider {
+			full_message.push_str(&format!(" --provider {}", provider));
+		}
+		if let Some(template) = &self.template {
+			full_message.push_str(&format!(" --template {}", template));
+		}
+		if let Some(symbol) = &self.symbol {
+			full_message.push_str(&format!(" --symbol {}", symbol));
+		}
+		if let Some(decimals) = &self.decimals {
+			full_message.push_str(&format!(" --decimals {}", decimals));
+		}
+		if let Some(endowment) = &self.initial_endowment {
+			full_message.push_str(&format!(" --initial-endowment {}", endowment));
+		}
+		if let Some(tag) = &self.release_tag {
+			full_message.push_str(&format!(" --release-tag {}", tag));
+		}
+		if self.verify {
+			full_message.push_str(" --verify");
+		}
+		if let Some(frontend) = &self.with_frontend {
+			if frontend.is_empty() {
+				full_message.push_str(" --with-frontend");
+			} else {
+				full_message.push_str(&format!(" --with-frontend {}", frontend));
+			}
+		}
+		if let Some(pm) = &self.package_manager {
+			match pm {
+				PackageManager::Npm => full_message.push_str(" --package-manager npm"),
+				PackageManager::Yarn => full_message.push_str(" --package-manager yarn"),
+				PackageManager::Pnpm => full_message.push_str(" --package-manager pnpm"),
+				PackageManager::Bun => full_message.push_str(" --package-manager bun"),
+			}
+		}
+		full_message
 	}
 }
 
@@ -217,6 +276,7 @@ async fn guide_user_to_generate_parachain(
 		decimals: Some(customizable_options.decimals),
 		initial_endowment: Some(customizable_options.initial_endowment),
 		verify,
+		list: false,
 		with_frontend,
 		package_manager: None,
 	})
@@ -492,6 +552,34 @@ mod tests {
 	use cli::MockCli;
 
 	#[test]
+	fn test_new_chain_command_display() {
+		let cmd = NewChainCommand {
+			name: Some("my-chain".to_string()),
+			provider: Some(Provider::Pop),
+			template: Some(ChainTemplate::Standard),
+			symbol: Some("DOT".to_string()),
+			decimals: Some(10),
+			initial_endowment: Some("1000000".to_string()),
+			release_tag: Some("v1.0.0".to_string()),
+			verify: true,
+			list: false,
+			with_frontend: Some("create-dot-app".to_string()),
+			package_manager: Some(PackageManager::Npm),
+		};
+		assert_eq!(
+			cmd.display(),
+			"pop new chain my-chain --provider pop --template r0gue-io/base-parachain --symbol DOT --decimals 10 --initial-endowment 1000000 --release-tag v1.0.0 --verify --with-frontend create-dot-app --package-manager npm"
+		);
+
+		let cmd = NewChainCommand {
+			name: Some("my-chain".to_string()),
+			with_frontend: Some("".to_string()),
+			..Default::default()
+		};
+		assert_eq!(cmd.display(), "pop new chain my-chain --with-frontend");
+	}
+
+	#[test]
 	fn display_select_options_works() -> anyhow::Result<()> {
 		let mut items_select_template: Vec<(String, String)> = Vec::new();
 		for template in Provider::Pop.templates() {
@@ -671,6 +759,13 @@ mod tests {
 		assert_eq!(latest.published_at, "2025-01-01T00:00:00Z");
 		assert!(latest.commit.is_none());
 		mock.assert_async().await;
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn test_new_chain_list_templates() -> Result<()> {
+		let command = NewChainCommand { list: true, ..Default::default() };
+		command.execute().await?;
 		Ok(())
 	}
 }

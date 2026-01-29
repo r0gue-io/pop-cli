@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{errors::Error, utils::get_manifest_path};
-use contract_build::{BuildMode, BuildResult, ExecuteArgs, execute};
+use contract_build::{BuildMode, BuildResult, ExecuteArgs, ManifestPath, execute};
 pub use contract_build::{MetadataSpec, Verbosity};
+use pop_common::manifest::Manifest;
 use std::{fs, path::Path};
 use toml::Value;
 
@@ -19,7 +20,7 @@ pub fn build_smart_contract(
 	release: bool,
 	verbosity: Verbosity,
 	metadata_spec: Option<MetadataSpec>,
-) -> anyhow::Result<BuildResult> {
+) -> anyhow::Result<Vec<BuildResult>> {
 	let manifest_path = get_manifest_path(path)?;
 
 	let metadata_spec = match metadata_spec {
@@ -32,10 +33,37 @@ pub fn build_smart_contract(
 		false => BuildMode::Debug,
 	};
 
-	let args =
-		ExecuteArgs { manifest_path, build_mode, verbosity, metadata_spec, ..Default::default() };
-	// Execute the build and log the output of the build
-	execute(args)
+	let mut manifest_paths = vec![];
+	let manifest = Manifest::from_path(manifest_path.as_ref())?;
+	if let Some(workspace) = manifest.workspace {
+		for member in &workspace.members {
+			let path = ManifestPath::new(path.join(member).join("Cargo.toml").as_path())?;
+			if matches!(is_supported(path.as_ref()), Ok(true)) {
+				manifest_paths.push(path);
+			}
+		}
+		if manifest_paths.is_empty() {
+			return Err(anyhow::anyhow!("Workspace must contain at least one ink! contract member"));
+		}
+	} else {
+		manifest_paths.push(manifest_path);
+	};
+
+	// Perform a build for every contract in the workspace, or a single one if not in a workspace.
+	manifest_paths
+		.into_iter()
+		.map(|manifest_path| {
+			let args = ExecuteArgs {
+				manifest_path,
+				build_mode,
+				verbosity,
+				metadata_spec,
+				..Default::default()
+			};
+			// Execute the build and log the output of the build
+			execute(args)
+		})
+		.collect()
 }
 
 /// Determine the metadata spec to use inferring from the
@@ -68,7 +96,11 @@ fn resolve_metadata_spec(manifest_path: &Path) -> anyhow::Result<Option<Metadata
 /// * `path` - The optional path to the manifest, defaulting to the current directory if not
 ///   specified.
 pub fn is_supported(path: &Path) -> Result<bool, Error> {
-	Ok(pop_common::manifest::from_path(path)?.dependencies.contains_key("ink"))
+	let manifest = pop_common::manifest::from_path(path)?;
+	match manifest.workspace {
+		Some(workspace) => Ok(workspace.dependencies.contains_key("ink")),
+		None => Ok(manifest.dependencies.contains_key("ink")),
+	}
 }
 
 #[cfg(test)]

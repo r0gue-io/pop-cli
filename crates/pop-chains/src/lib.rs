@@ -79,7 +79,7 @@ pub use subxt::{
 	tx::{DynamicPayload, Payload},
 };
 pub use templates::{ChainTemplate, Config, Provider};
-pub use utils::helpers::is_initial_endowment_valid;
+pub use utils::helpers::{get_preset_names, is_initial_endowment_valid};
 /// Information about the Node. External export from Zombienet-SDK.
 pub use zombienet_sdk::NetworkNode;
 
