@@ -50,7 +50,6 @@ pub(crate) struct BuildArgs {
 	#[cfg(feature = "chain")]
 	pub command: Option<Command>,
 	/// Directory path with flag for your project [default: current directory]
-	#[arg(long)]
 	#[serde(skip_serializing)]
 	#[arg(long)]
 	pub(crate) path: Option<PathBuf>,
