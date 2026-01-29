@@ -19,7 +19,6 @@ mod chain_spec;
 mod dev;
 mod state;
 mod system;
-mod transaction;
 
 use crate::{Blockchain, TxPool, rpc_server::RpcServerError};
 use jsonrpsee::RpcModule;
@@ -32,7 +31,6 @@ pub use chain_spec::{ChainSpecApi, ChainSpecApiServer};
 pub use dev::{DevApi, DevApiServer};
 pub use state::{StateApi, StateApiServer};
 pub use system::{SystemApi, SystemApiServer};
-pub use transaction::{TransactionApi, TransactionApiServer};
 
 /// Create the merged RPC module with all methods.
 pub fn create_rpc_module(
@@ -48,7 +46,6 @@ pub fn create_rpc_module(
 	let author_impl = AuthorApi::new(blockchain.clone(), txpool.clone());
 	let archive_impl = ArchiveApi::new(blockchain.clone());
 	let chain_spec_impl = ChainSpecApi::new(blockchain.clone());
-	let transaction_impl = TransactionApi::new(blockchain.clone(), txpool.clone());
 	let dev_impl = DevApi::new(blockchain, txpool);
 
 	// Merge all methods into the module
@@ -74,10 +71,6 @@ pub fn create_rpc_module(
 
 	module
 		.merge(ChainSpecApiServer::into_rpc(chain_spec_impl))
-		.map_err(|e| RpcServerError::Internal(e.to_string()))?;
-
-	module
-		.merge(TransactionApiServer::into_rpc(transaction_impl))
 		.map_err(|e| RpcServerError::Internal(e.to_string()))?;
 
 	module
