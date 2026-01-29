@@ -62,10 +62,6 @@ pub trait ArchiveApi {
 		child_trie: Option<String>,
 	) -> RpcResult<ArchiveStorageResult>;
 
-	/// Stop a storage query operation.
-	#[method(name = "v1_stopStorage")]
-	async fn stop_storage(&self, operation_id: String) -> RpcResult<()>;
-
 	/// Get the genesis hash.
 	#[method(name = "v1_genesisHash")]
 	async fn genesis_hash(&self) -> RpcResult<String>;
@@ -279,11 +275,6 @@ impl ArchiveApiServer for ArchiveApi {
 			}
 		}
 		Ok(ArchiveStorageResult::Ok { items: results })
-	}
-
-	async fn stop_storage(&self, _operation_id: String) -> RpcResult<()> {
-		// No-op
-		Ok(())
 	}
 
 	async fn genesis_hash(&self) -> RpcResult<String> {

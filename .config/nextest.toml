@@ -44,3 +44,7 @@ test-group = 'pop-fork-sequential'
 [[profile.default.overrides]]
 filter = 'package(pop-fork) and test(rpc_server::methods::author::tests::)'
 test-group = 'pop-fork-sequential'
+
+[[profile.default.overrides]]
+filter = 'package(pop-fork) and test(rpc_server::methods::state::tests::)'
+test-group = 'pop-fork-sequential'
