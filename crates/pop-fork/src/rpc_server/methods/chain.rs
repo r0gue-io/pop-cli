@@ -161,6 +161,32 @@ impl ChainApiServer for ChainApi {
 	async fn subscribe_all_heads(&self, pending: PendingSubscriptionSink) -> SubscriptionResult {
 		self.subscribe_new_heads(pending).await
 	}
+
+	async fn subscribe_new_heads(&self, pending: PendingSubscriptionSink) -> SubscriptionResult {
+		let sink = pending.accept().await?;
+
+		// Get current head header and send it immediately
+		let head_hash = self.blockchain.head_hash().await;
+		if let Ok(Some(header_bytes)) = self.blockchain.block_header(head_hash).await {
+			if let Ok(header) = Header::decode(&mut header_bytes.as_slice()) {
+				let _ = sink.send(jsonrpsee::SubscriptionMessage::from_json(&header)?);
+			}
+		}
+
+		// Keep subscription open (mock - doesn't send updates)
+		// In a real implementation, we'd listen for new blocks from dev_newBlock
+		sink.closed().await;
+		Ok(())
+	}
+
+	async fn subscribe_finalized_heads(&self, pending: PendingSubscriptionSink) -> SubscriptionResult {
+		// For a fork, finalized = head
+		self.subscribe_new_heads(pending).await
+	}
+
+	async fn subscribe_all_heads(&self, pending: PendingSubscriptionSink) -> SubscriptionResult {
+		self.subscribe_new_heads(pending).await
+	}
 }
 
 #[cfg(test)]

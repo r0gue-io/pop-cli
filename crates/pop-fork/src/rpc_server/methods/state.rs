@@ -93,8 +93,6 @@ impl StateApiServer for StateApi {
 	}
 
 	async fn get_metadata(&self, at: Option<String>) -> RpcResult<String> {
-		use scale::Decode;
-
 		let block_hash = match at {
 			Some(hash) => parse_block_hash(&hash)?,
 			None => self.blockchain.head().await.hash,
