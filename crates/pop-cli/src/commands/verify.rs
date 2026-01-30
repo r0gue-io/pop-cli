@@ -43,7 +43,7 @@ pub(crate) struct VerifyCommand {
 
 impl VerifyCommand {
 	pub(crate) async fn execute(&self, cli: &mut impl Cli) -> Result<()> {
-		cli.intro("Start verifying your contract, this may take a bit ⏳")?;
+		cli.intro("Contract verification started. This might take a bit⏳")?;
 
 		let project_path = ensure_project_path(self.path.clone(), self.path_pos.clone());
 

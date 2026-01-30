@@ -299,7 +299,7 @@ async fn verifiable_contract_lifecycle() -> Result<()> {
 
 	let temp = tempfile::tempdir()?;
 	let temp_dir = temp.path();
-	//let temp_dir = Path::new("./"); //For testing locally
+
 	// pop new contract test_contract (default)
 	let mut command = pop(temp_dir, ["new", "contract", "test_contract", "--template", "standard"]);
 	assert!(command.spawn()?.wait().await?.success());
