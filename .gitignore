@@ -18,4 +18,12 @@ debian/files
 debian/pop-cli.substvars
 debian/.debhelper
 
+arch/src/
+arch/pkg/
+arch/*.pkg.tar*
+arch/*.tar.gz
+arch/*.log
+arch/cargo-home/
+arch/.SRCINFO
+
 vendor/
