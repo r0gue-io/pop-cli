@@ -58,9 +58,9 @@ sp-weights = { version = "33.0.0", default-features = false }
 scale = { package = "parity-scale-codec", version = "3.7.5", features = ["derive"] }
 scale-info = { version = "2.11.6", default-features = false, features = ["derive"] }
 scale-value = { version = "0.18.0", default-features = false, features = ["from-string", "parser-ss58"] }
-contract-build = { version = "6.0.0-beta.1", default-features = false }
-contract-extrinsics = { version = "6.0.0-beta.1", default-features = false }
-contract-transcode = { version = "6.0.0-beta.1", default-features = false }
+contract-build = { version = "6.0.0-beta.2", default-features = false }
+contract-extrinsics = { version = "6.0.0-beta.2", default-features = false }
+contract-transcode = { version = "6.0.0-beta.2", default-features = false }
 heck = { version = "0.5.0", default-features = false }
 
 # parachains
