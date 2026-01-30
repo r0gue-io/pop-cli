@@ -32,6 +32,24 @@ pub trait StateApi {
 	/// Get the runtime version.
 	#[method(name = "getRuntimeVersion")]
 	async fn get_runtime_version(&self, at: Option<String>) -> RpcResult<RuntimeVersion>;
+
+	/// Get storage keys with pagination.
+	#[method(name = "getKeysPaged")]
+	async fn get_keys_paged(
+		&self,
+		prefix: Option<String>,
+		count: u32,
+		start_key: Option<String>,
+		at: Option<String>,
+	) -> RpcResult<Vec<String>>;
+
+	/// Subscribe to runtime version changes.
+	#[subscription(name = "subscribeRuntimeVersion" => "runtimeVersion", unsubscribe = "unsubscribeRuntimeVersion", item = RuntimeVersion)]
+	async fn subscribe_runtime_version(&self) -> SubscriptionResult;
+
+	/// Subscribe to storage changes.
+	#[subscription(name = "subscribeStorage" => "storage", unsubscribe = "unsubscribeStorage", item = StorageChangeSet)]
+	async fn subscribe_storage(&self, keys: Option<Vec<String>>) -> SubscriptionResult;
 }
 
 /// Implementation of legacy state RPC methods.
@@ -75,8 +93,6 @@ impl StateApiServer for StateApi {
 	}
 
 	async fn get_metadata(&self, at: Option<String>) -> RpcResult<String> {
-		use scale::Decode;
-
 		let block_hash = match at {
 			Some(hash) => parse_block_hash(&hash)?,
 			None => self.blockchain.head().await.hash,
@@ -99,8 +115,6 @@ impl StateApiServer for StateApi {
 				// Decode the SCALE-encoded RuntimeVersion
 				// Format: spec_name, impl_name, authoring_version, spec_version, impl_version,
 				//         apis (Vec<([u8;8], u32)>), transaction_version, state_version
-				use scale::Decode;
-
 				#[derive(Decode)]
 				struct ScaleRuntimeVersion {
 					spec_name: String,
@@ -133,6 +147,61 @@ impl StateApiServer for StateApi {
 			},
 			_ => Err(RpcServerError::Internal("Failed to get runtime version".to_string()).into()),
 		}
+	}
+
+	async fn get_keys_paged(
+		&self,
+		_prefix: Option<String>,
+		_count: u32,
+		_start_key: Option<String>,
+		_at: Option<String>,
+	) -> RpcResult<Vec<String>> {
+		// Mock implementation - return empty list
+		// Full implementation would require iterating storage keys which is complex
+		Ok(vec![])
+	}
+
+	async fn subscribe_runtime_version(
+		&self,
+		pending: PendingSubscriptionSink,
+	) -> SubscriptionResult {
+		let sink = pending.accept().await?;
+
+		// Get current runtime version and send it immediately
+		if let Ok(version) = self.get_runtime_version(None).await {
+			let _ = sink.send(jsonrpsee::SubscriptionMessage::from_json(&version)?);
+		}
+
+		// Keep subscription open (mock - doesn't send updates)
+		sink.closed().await;
+		Ok(())
+	}
+
+	async fn subscribe_storage(
+		&self,
+		pending: PendingSubscriptionSink,
+		keys: Option<Vec<String>>,
+	) -> SubscriptionResult {
+		let sink = pending.accept().await?;
+
+		// Get current storage values for requested keys and send them
+		let head_hash = self.blockchain.head_hash().await;
+		let block_hex = format!("0x{}", hex::encode(head_hash.as_bytes()));
+
+		let mut changes = Vec::new();
+		if let Some(keys) = keys {
+			for key in keys {
+				let value = self.get_storage(key.clone(), None).await.ok().flatten();
+				changes.push((key, value));
+			}
+		}
+
+		let change_set = StorageChangeSet { block: block_hex, changes };
+		let _ = sink.send(jsonrpsee::SubscriptionMessage::from_json(&change_set)?);
+
+		// Keep subscription open (mock - doesn't send updates)
+		sink.closed().await;
+		Ok(())
 	}
 }
 

@@ -229,3 +229,12 @@ pub enum OperationResult {
 	/// Limit reached.
 	LimitReached,
 }
+
+/// Storage change set for subscriptions.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StorageChangeSet {
+	/// Block hash where changes occurred.
+	pub block: String,
+	/// List of storage changes (key, value).
+	pub changes: Vec<(String, Option<String>)>,
+}

@@ -11,7 +11,11 @@ use crate::{
 		types::{BlockData, Header, HexString, SignedBlock},
 	},
 };
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+use jsonrpsee::{
+	core::{RpcResult, SubscriptionResult},
+	proc_macros::rpc,
+	PendingSubscriptionSink,
+};
 use scale::Decode;
 use std::sync::Arc;
 
@@ -40,6 +44,18 @@ pub trait ChainApi {
 	/// Get the hash of the last finalized block.
 	#[method(name = "getFinalizedHead")]
 	async fn get_finalized_head(&self) -> RpcResult<String>;
+
+	/// Subscribe to new block headers.
+	#[subscription(name = "subscribeNewHeads" => "newHead", unsubscribe = "unsubscribeNewHeads", item = Header)]
+	async fn subscribe_new_heads(&self) -> SubscriptionResult;
+
+	/// Subscribe to finalized block headers.
+	#[subscription(name = "subscribeFinalizedHeads" => "finalizedHead", unsubscribe = "unsubscribeFinalizedHeads", item = Header)]
+	async fn subscribe_finalized_heads(&self) -> SubscriptionResult;
+
+	/// Subscribe to all block headers (alias for subscribeNewHeads).
+	#[subscription(name = "subscribeAllHeads" => "allHead", unsubscribe = "unsubscribeAllHeads", item = Header)]
+	async fn subscribe_all_heads(&self) -> SubscriptionResult;
 }
 
 /// Implementation of legacy chain RPC methods.
@@ -118,6 +134,32 @@ impl ChainApiServer for ChainApi {
 	async fn get_finalized_head(&self) -> RpcResult<String> {
 		let hash = self.blockchain.head_hash().await;
 		Ok(HexString::from_bytes(hash.as_bytes()).into())
+	}
+
+	async fn subscribe_new_heads(&self, pending: PendingSubscriptionSink) -> SubscriptionResult {
+		let sink = pending.accept().await?;
+
+		// Get current head header and send it immediately
+		let head_hash = self.blockchain.head_hash().await;
+		if let Ok(Some(header_bytes)) = self.blockchain.block_header(head_hash).await {
+			if let Ok(header) = Header::decode(&mut header_bytes.as_slice()) {
+				let _ = sink.send(jsonrpsee::SubscriptionMessage::from_json(&header)?);
+			}
+		}
+
+		// Keep subscription open (mock - doesn't send updates)
+		// In a real implementation, we'd listen for new blocks from dev_newBlock
+		sink.closed().await;
+		Ok(())
+	}
+
+	async fn subscribe_finalized_heads(&self, pending: PendingSubscriptionSink) -> SubscriptionResult {
+		// For a fork, finalized = head
+		self.subscribe_new_heads(pending).await
+	}
+
+	async fn subscribe_all_heads(&self, pending: PendingSubscriptionSink) -> SubscriptionResult {
+		self.subscribe_new_heads(pending).await
 	}
 }
 
