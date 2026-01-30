@@ -1741,84 +1741,71 @@ mod tests {
 			}
 		}
 
-		/// Verifies that calling `BlockBuilder_apply_extrinsic` and `BlockBuilder_finalize_block`
-		/// via `call_at_block` does NOT persist storage changes.
+		/// Verifies that calling `Core_initialize_block` via `call_at_block` does NOT
+		/// persist storage changes.
 		///
-		/// This is critical: BlockBuilder methods are designed to modify state during block
-		/// production, but when invoked via `call_at_block`, side effects must be discarded.
+		/// `Core_initialize_block` writes to `System::Number` and other storage keys during
+		/// block initialization. This test verifies those changes are discarded after the call.
 		#[tokio::test(flavor = "multi_thread")]
 		async fn call_at_block_does_not_persist_storage() {
-			use crate::{ExecutorConfig, SignatureMockMode};
-			use scale::{Compact, Encode};
+			use crate::{DigestItem, consensus_engine, create_next_header};
 
 			let ctx = create_test_context().await;
 
-			// Fork with signature mocking enabled
-			let config = ExecutorConfig {
-				signature_mock: SignatureMockMode::AlwaysValid,
-				..Default::default()
-			};
-			let blockchain = Blockchain::fork_with_config(&ctx.endpoint, None, None, config)
-				.await
-				.expect("Failed to fork blockchain");
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
 
-			// Get storage key for Alice
-			let alice_key = account_storage_key(&ALICE);
-
-			// Get head block for metadata
+			// Get head block info
 			let head = blockchain.head().await;
 			let head_hash = head.hash;
-			let metadata = head.metadata().await.expect("Failed to get metadata");
+			let head_number = head.number;
 
-			// Query Alice's balance BEFORE
-			let alice_balance_before = blockchain
-				.storage(&alice_key)
+			// System::Number storage key = twox128("System") ++ twox128("Number")
+			let system_number_key: Vec<u8> =
+				[sp_core::twox_128(b"System").as_slice(), sp_core::twox_128(b"Number").as_slice()]
+					.concat();
+
+			// Query System::Number BEFORE
+			let number_before = blockchain
+				.storage(&system_number_key)
 				.await
-				.expect("Failed to get Alice balance")
-				.map(|v| decode_free_balance(&v))
-				.expect("Alice should have a balance");
+				.expect("Failed to get System::Number")
+				.map(|v| {
+					u32::from_le_bytes(v.try_into().expect("System::Number should be 4 bytes"))
+				})
+				.expect("System::Number should exist");
 
-			// Build transfer call data: Balances.transfer_keep_alive(Bob, TRANSFER_AMOUNT)
-			let balances_pallet =
-				metadata.pallet_by_name("Balances").expect("Balances pallet should exist");
-			let pallet_index = balances_pallet.index();
-			let transfer_call = balances_pallet
-				.call_variant_by_name("transfer_keep_alive")
-				.expect("transfer_keep_alive call should exist");
-			let call_index = transfer_call.index;
+			// Build header for the next block using the crate's helper
+			let header = create_next_header(
+				&head,
+				vec![DigestItem::PreRuntime(consensus_engine::AURA, 0u64.to_le_bytes().to_vec())],
+			);
 
-			let mut call_data = vec![pallet_index, call_index];
-			call_data.push(0x00); // MultiAddress::Id variant
-			call_data.extend(BOB);
-			call_data.extend(Compact(TRANSFER_AMOUNT).encode());
-
-			// Build the signed extrinsic
-			let extrinsic = build_mock_signed_extrinsic_v4(&call_data);
-
-			// Call BlockBuilder_apply_extrinsic - this WOULD modify Alice's balance
-			// if storage changes were persisted
-			let _result = blockchain
-				.call_at_block(head_hash, "BlockBuilder_apply_extrinsic", &extrinsic)
+			// Call Core_initialize_block - this WOULD write System::Number = head_number + 1
+			let result = blockchain
+				.call_at_block(head_hash, "Core_initialize_block", &header)
 				.await
-				.expect("BlockBuilder_apply_extrinsic call failed");
+				.expect("Core_initialize_block call failed");
+			assert!(result.is_some(), "Block should exist");
 
-			// Call BlockBuilder_finalize_block - this would finalize the block
-			let _result = blockchain
-				.call_at_block(head_hash, "BlockBuilder_finalize_block", &[])
+			// Query System::Number AFTER - should be UNCHANGED
+			let number_after = blockchain
+				.storage(&system_number_key)
 				.await
-				.expect("BlockBuilder_finalize_block call failed");
-
-			// Query Alice's balance AFTER - should be UNCHANGED
-			let alice_balance_after = blockchain
-				.storage(&alice_key)
-				.await
-				.expect("Failed to get Alice balance after")
-				.map(|v| decode_free_balance(&v))
-				.expect("Alice should still have a balance");
+				.expect("Failed to get System::Number after")
+				.map(|v| {
+					u32::from_le_bytes(v.try_into().expect("System::Number should be 4 bytes"))
+				})
+				.expect("System::Number should still exist");
 
 			assert_eq!(
-				alice_balance_before, alice_balance_after,
-				"Storage should NOT be modified by call_at_block even when calling BlockBuilder methods"
+				number_before,
+				number_after,
+				"System::Number should NOT be modified by call_at_block. \
+				 Before: {}, After: {} (would have been {} if persisted)",
+				number_before,
+				number_after,
+				head_number + 1
 			);
 		}
 	}
