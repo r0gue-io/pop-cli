@@ -52,6 +52,16 @@ pub struct CleanNetworkCommandArgs {
 	pub(crate) keep_state: bool,
 }
 
+#[cfg(feature = "chain")]
+async fn destroy_network(zombie_json: &Path) -> Result<()> {
+	pop_chains::up::destroy_network(zombie_json).await.map_err(Into::into)
+}
+
+#[cfg(not(feature = "chain"))]
+async fn destroy_network(_zombie_json: &Path) -> Result<()> {
+	anyhow::bail!("network cleanup requires the `chain` feature")
+}
+
 /// Removes cached artifacts.
 pub(crate) struct CleanCacheCommand<'a, CLI: Cli> {
 	/// The cli to be used.
@@ -220,7 +230,7 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 				.parent()
 				.ok_or_else(|| anyhow::anyhow!("invalid zombie.json path"))?
 				.to_path_buf();
-			if let Err(e) = pop_chains::up::destroy_network(zombie_json).await {
+			if let Err(e) = destroy_network(zombie_json).await {
 				failures += 1;
 				self.cli
 					.warning(format!("🚫 Failed to stop network at {}: {e}", base_dir.display()))?;
