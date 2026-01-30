@@ -4,6 +4,7 @@ use crate::{cli::traits::*, style::style};
 use anyhow::Result;
 use clap::{Args, Subcommand};
 use serde::Serialize;
+use serde_json::Value;
 use std::{
 	fs::{read_dir, remove_dir_all, remove_file},
 	path::{Path, PathBuf},
@@ -231,10 +232,32 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 				.ok_or_else(|| anyhow::anyhow!("invalid zombie.json path"))?
 				.to_path_buf();
 			if let Err(e) = destroy_network(zombie_json).await {
-				failures += 1;
-				self.cli
-					.warning(format!("🚫 Failed to stop network at {}: {e}", base_dir.display()))?;
-				continue;
+				let error_message = e.to_string();
+				if error_message.contains("Cannot abort a recreated/attached node") {
+					self.cli.warning(format!(
+						"⚠️ Falling back to process cleanup for attached network at {}",
+						base_dir.display()
+					))?;
+					let pids = read_pids_from_zombie_json(zombie_json)?;
+					if pids.is_empty() {
+						failures += 1;
+						self.cli.warning(format!(
+							"🚫 Failed to find process IDs in {}",
+							zombie_json.display()
+						))?;
+						continue;
+					}
+					for pid in pids {
+						kill_process(&pid)?;
+					}
+				} else {
+					failures += 1;
+					self.cli.warning(format!(
+						"🚫 Failed to stop network at {}: {e}",
+						base_dir.display()
+					))?;
+					continue;
+				}
 			}
 
 			if self.keep_state {
@@ -302,6 +325,37 @@ fn resolve_zombie_json_path(path: &Path) -> Result<PathBuf> {
 	}
 
 	anyhow::bail!("Invalid path: {}", path.display())
+}
+
+fn read_pids_from_zombie_json(path: &Path) -> Result<Vec<String>> {
+	let contents = std::fs::read_to_string(path)?;
+	let value: Value = serde_json::from_str(&contents)?;
+	let mut pids = Vec::new();
+	collect_pids(&value, &mut pids);
+	pids.sort();
+	pids.dedup();
+	Ok(pids)
+}
+
+fn collect_pids(value: &Value, pids: &mut Vec<String>) {
+	match value {
+		Value::Object(map) =>
+			for (key, value) in map {
+				if key == "pid" {
+					match value {
+						Value::Number(number) => pids.push(number.to_string()),
+						Value::String(pid) => pids.push(pid.to_string()),
+						_ => {},
+					}
+				}
+				collect_pids(value, pids);
+			},
+		Value::Array(items) =>
+			for item in items {
+				collect_pids(item, pids);
+			},
+		_ => {},
+	}
 }
 
 struct ZombieJsonCandidate {
@@ -750,6 +804,29 @@ mod tests {
 		let temp = tempfile::tempdir()?;
 		let result = resolve_zombie_json_path(temp.path());
 		assert!(result.is_err());
+		Ok(())
+	}
+
+	#[test]
+	fn read_pids_from_zombie_json_collects_pids() -> Result<()> {
+		let temp = tempfile::tempdir()?;
+		let zombie_json = temp.path().join("zombie.json");
+		std::fs::write(
+			&zombie_json,
+			r#"
+			{
+				"nodes": [
+					{ "name": "alice", "pid": 1234 },
+					{ "name": "bob", "pid": "5678" }
+				],
+				"other": { "nested": { "pid": 9999 } }
+			}
+			"#,
+		)?;
+
+		let mut pids = read_pids_from_zombie_json(&zombie_json)?;
+		pids.sort();
+		assert_eq!(pids, vec!["1234", "5678", "9999"]);
 		Ok(())
 	}
 
