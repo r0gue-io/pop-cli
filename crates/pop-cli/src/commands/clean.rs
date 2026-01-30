@@ -491,8 +491,8 @@ fn get_node_processes() -> Result<Vec<(String, String, String)>> {
 			for line in lsof_lines.lines().skip(1) {
 				if line.contains("127.0.0.1") {
 					let parts: Vec<&str> = line.split_whitespace().collect();
-					if let Some(addr) = parts.get(8)
-						&& let Some(port) = addr.split(':').next_back()
+					if let Some(addr) = parts.get(8) &&
+						let Some(port) = addr.split(':').next_back()
 					{
 						ports.push(port.to_string());
 					}

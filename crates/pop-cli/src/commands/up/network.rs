@@ -601,13 +601,12 @@ async fn source_binaries(
 		))
 		.dim()
 		.to_string();
-		if !skip_confirm
-			&& !cli
-				.confirm(format!(
-					"📦 Would you like to source them automatically now? It may take some time...\n   {list}"
-				))
-				.initial_value(true)
-				.interact()?
+		if !skip_confirm &&
+			!cli.confirm(format!(
+				"📦 Would you like to source them automatically now? It may take some time...\n   {list}"
+			))
+			.initial_value(true)
+			.interact()?
 		{
 			cli.outro_cancel(
 				"🚫 Cannot launch the specified network until all required binaries are available.",

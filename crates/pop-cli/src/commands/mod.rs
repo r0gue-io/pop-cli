@@ -251,15 +251,14 @@ impl Command {
 						kill_fn: None,
 					}
 					.execute(),
-					clean::Command::Network(cmd_args) => {
+					clean::Command::Network(cmd_args) =>
 						clean::CleanNetworkCommand {
 							cli: &mut Cli,
 							path: cmd_args.path.clone(),
 							keep_state: cmd_args.keep_state,
 						}
 						.execute()
-						.await
-					},
+						.await,
 				}
 			},
 			Command::Convert(args) => {
