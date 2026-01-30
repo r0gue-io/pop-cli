@@ -77,13 +77,13 @@ async fn contract_lifecycle() -> Result<()> {
 	let temp_dir = temp.path();
 	// Test that all templates are generated correctly
 	generate_all_the_templates(temp_dir).await?;
-	// pop new contract test_contract (default)
+	// pop new contract test_contract_lifecycle (default)
 	let mut command = pop(
 		temp_dir,
 		[
 			"new",
 			"contract",
-			"test_contract",
+			"test_contract_lifecycle",
 			"--template",
 			"standard",
 			"--with-frontend=typink",
@@ -92,19 +92,31 @@ async fn contract_lifecycle() -> Result<()> {
 		],
 	);
 	assert!(command.spawn()?.wait().await?.success());
-	assert!(temp_dir.join("test_contract").exists());
-	assert!(temp_dir.join("test_contract").join("frontend").exists());
+	assert!(temp_dir.join("test_contract_lifecycle").exists());
+	assert!(temp_dir.join("test_contract_lifecycle").join("frontend").exists());
 
-	// pop build --path ./test_contract --release
-	command = pop(temp_dir, ["build", "--path", "./test_contract", "--release"]);
+	// pop build --path ./test_contract_lifecycle --release
+	command = pop(temp_dir, ["build", "--path", "./test_contract_lifecycle", "--release"]);
 	assert!(command.spawn()?.wait().await?.success());
 
 	// Verify that the directory target has been created
-	assert!(temp_dir.join("test_contract/target").exists());
+	assert!(temp_dir.join("test_contract_lifecycle/target").exists());
 	// Verify that all the artifacts has been generated
-	assert!(temp_dir.join("test_contract/target/ink/test_contract.contract").exists());
-	assert!(temp_dir.join("test_contract/target/ink/test_contract.polkavm").exists());
-	assert!(temp_dir.join("test_contract/target/ink/test_contract.json").exists());
+	assert!(
+		temp_dir
+			.join("test_contract_lifecycle/target/ink/test_contract_lifecycle.contract")
+			.exists()
+	);
+	assert!(
+		temp_dir
+			.join("test_contract_lifecycle/target/ink/test_contract_lifecycle.polkavm")
+			.exists()
+	);
+	assert!(
+		temp_dir
+			.join("test_contract_lifecycle/target/ink/test_contract_lifecycle.json")
+			.exists()
+	);
 
 	let binary = ink_node_generator(temp_dir.to_path_buf().clone(), None).await?;
 	binary.source(false, &(), true).await?;
@@ -112,17 +124,17 @@ async fn contract_lifecycle() -> Result<()> {
 	let mut process = run_ink_node(&binary.path(), None, endpoint_port).await?;
 	sleep(Duration::from_secs(5)).await;
 
-	// pop test --path ./test_contract
-	command = pop(temp_dir, ["test", "--path", "./test_contract"]);
+	// pop test --path ./test_contract_lifecycle
+	command = pop(temp_dir, ["test", "--path", "./test_contract_lifecycle"]);
 	assert!(command.spawn()?.wait().await?.success());
 	// Only upload the contract
-	// pop up --path ./test_contract --upload-only --suri //Alice
+	// pop up --path ./test_contract_lifecycle --upload-only --suri //Alice
 	command = pop(
 		temp_dir,
 		[
 			"up",
 			"--path",
-			"./test_contract",
+			"./test_contract_lifecycle",
 			"--upload-only",
 			"--url",
 			default_endpoint,
@@ -133,7 +145,7 @@ async fn contract_lifecycle() -> Result<()> {
 	assert!(command.spawn()?.wait().await?.success());
 	// Instantiate contract, only dry-run
 	command = pop(
-		&temp_dir.join("test_contract"),
+		&temp_dir.join("test_contract_lifecycle"),
 		[
 			"up",
 			"--constructor",
@@ -152,7 +164,7 @@ async fn contract_lifecycle() -> Result<()> {
 	// Using methods from the pop_contracts crate to instantiate it to get the Contract Address for
 	// the call
 	let instantiate_exec = set_up_deployment(UpOpts {
-		path: temp_dir.join("test_contract"),
+		path: temp_dir.join("test_contract_lifecycle"),
 		constructor: "new".to_string(),
 		args: ["false".to_string()].to_vec(),
 		value: "0".to_string(),
@@ -167,7 +179,7 @@ async fn contract_lifecycle() -> Result<()> {
 
 	// Dry runs
 	let call_opts = CallOpts {
-		path: temp_dir.join("test_contract"),
+		path: temp_dir.join("test_contract_lifecycle"),
 		contract: contract_info.address.clone(),
 		message: "get".to_string(),
 		args: vec![],
@@ -186,7 +198,7 @@ async fn contract_lifecycle() -> Result<()> {
 	// Call contract (only query)
 	// pop call contract --contract $INSTANTIATED_CONTRACT_ADDRESS --message get --suri //Alice
 	command = pop(
-		&temp_dir.join("test_contract"),
+		&temp_dir.join("test_contract_lifecycle"),
 		[
 			"call",
 			"contract",
@@ -206,7 +218,7 @@ async fn contract_lifecycle() -> Result<()> {
 	// Call contract (execute extrinsic)
 	// pop call contract --contract $INSTANTIATED_CONTRACT_ADDRESS --message flip --suri //Alice -x
 	command = pop(
-		&temp_dir.join("test_contract"),
+		&temp_dir.join("test_contract_lifecycle"),
 		[
 			"call",
 			"contract",
@@ -230,7 +242,7 @@ async fn contract_lifecycle() -> Result<()> {
 	// pop up --upload-only --use-wallet
 	// Will run http server for wallet integration.
 	pop(
-		&temp_dir.join("test_contract"),
+		&temp_dir.join("test_contract_lifecycle"),
 		["up", "--upload-only", "--use-wallet", "--url", default_endpoint, "--skip-confirm"],
 	)
 	.spawn()?;
