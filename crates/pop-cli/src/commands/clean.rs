@@ -180,15 +180,15 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 							.filter_mode();
 						for candidate in &candidates {
 							let base_dir = candidate.path.parent().unwrap_or(&candidate.path);
-							let label = base_dir
-								.file_name()
-								.and_then(|f| f.to_str())
-								.unwrap_or("network");
+							let label =
+								base_dir.file_name().and_then(|f| f.to_str()).unwrap_or("network");
 							let hint = format!(
 								"modified: {}",
 								candidate
 									.modified
-									.map(|t| t.format(&Rfc3339).unwrap_or_else(|_| "unknown".into()))
+									.map(|t| t
+										.format(&Rfc3339)
+										.unwrap_or_else(|_| "unknown".into()))
 									.unwrap_or_else(|| "unknown".into())
 							);
 							prompt = prompt.item(candidate.path.clone(), label, hint);
@@ -222,18 +222,14 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 				.to_path_buf();
 			if let Err(e) = pop_chains::up::destroy_network(zombie_json).await {
 				failures += 1;
-				self.cli.warning(format!(
-					"🚫 Failed to stop network at {}: {e}",
-					base_dir.display()
-				))?;
+				self.cli
+					.warning(format!("🚫 Failed to stop network at {}: {e}", base_dir.display()))?;
 				continue;
 			}
 
 			if self.keep_state {
-				self.cli.info(format!(
-					"ℹ️ Network stopped. State kept at {}",
-					base_dir.display()
-				))?;
+				self.cli
+					.info(format!("ℹ️ Network stopped. State kept at {}", base_dir.display()))?;
 				continue;
 			}
 
@@ -495,8 +491,8 @@ fn get_node_processes() -> Result<Vec<(String, String, String)>> {
 			for line in lsof_lines.lines().skip(1) {
 				if line.contains("127.0.0.1") {
 					let parts: Vec<&str> = line.split_whitespace().collect();
-					if let Some(addr) = parts.get(8) &&
-						let Some(port) = addr.split(':').next_back()
+					if let Some(addr) = parts.get(8)
+						&& let Some(port) = addr.split(':').next_back()
 					{
 						ports.push(port.to_string());
 					}

@@ -197,8 +197,8 @@ impl Zombienet {
 			}
 
 			// Check if parachain binary source specified as an argument
-			if let Some(parachains) = parachains.as_ref() &&
-				let Some(repo) = parachains.iter().find(|r| command == r.package)
+			if let Some(parachains) = parachains.as_ref()
+				&& let Some(repo) = parachains.iter().find(|r| command == r.package)
 			{
 				paras.insert(id, Chain::from_repository(id, repo, chain, cache)?);
 				continue 'outer;
@@ -256,8 +256,8 @@ impl Zombienet {
 				relay::from(default_command, version, runtime_version, chain, cache).await?;
 			// Validate any node config is supported
 			for node in relay_chain.nodes() {
-				if let Some(command) = node.command().map(|c| c.as_str()) &&
-					command.to_lowercase() != relay.binary.name()
+				if let Some(command) = node.command().map(|c| c.as_str())
+					&& command.to_lowercase() != relay.binary.name()
 				{
 					return Err(Error::UnsupportedCommand(format!(
 						"the relay chain command is unsupported: {command}",
@@ -271,12 +271,13 @@ impl Zombienet {
 		for node in relay_chain.nodes() {
 			if let Some(command) = node.command().map(|c| c.as_str()) {
 				match &relay {
-					Some(relay) =>
+					Some(relay) => {
 						if command.to_lowercase() != relay.binary.name() {
 							return Err(Error::UnsupportedCommand(format!(
 								"the relay chain command is unsupported: {command}",
 							)));
-						},
+						}
+					},
 					None => {
 						relay = Some(
 							relay::from(command, version, runtime_version, chain, cache).await?,
@@ -836,8 +837,8 @@ fn resolve_manifest(package: &str, path: &Path) -> Result<Option<PathBuf>, Error
 			.get("package")
 			.and_then(|i| i.as_table())
 			.and_then(|t| t.get("name"))
-			.and_then(|i| i.as_str()) ==
-			Some(package)
+			.and_then(|i| i.as_str())
+			== Some(package)
 	};
 
 	let mut manifest = Some(path);
@@ -1995,8 +1996,8 @@ chain = "paseo-local"
 					println!("{} {}", relay_chain, chain.name());
 					assert_eq!(
 						parachain.genesis_overrides().is_some(),
-						chain.genesis_overrides().is_some() ||
-							chains.iter().any(|r| r
+						chain.genesis_overrides().is_some()
+							|| chains.iter().any(|r| r
 								.requires()
 								.map(|r| r.contains_key(&chain.as_any().type_id()))
 								.unwrap_or_default())
