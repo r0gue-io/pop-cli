@@ -152,44 +152,12 @@ impl ChainApiServer for ChainApi {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{
-		TxPool,
-		rpc_server::{ForkRpcServer, RpcServerConfig},
-	};
+	use crate::testing::RpcTestContext;
 	use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
-	use pop_common::test_env::TestNode;
-	use url::Url;
-
-	/// Test context holding spawned node and RPC server.
-	struct RpcTestContext {
-		#[allow(dead_code)]
-		node: TestNode,
-		#[allow(dead_code)]
-		server: ForkRpcServer,
-		ws_url: String,
-		blockchain: Arc<Blockchain>,
-	}
-
-	/// Creates a test context with spawned node and RPC server.
-	async fn setup_rpc_test() -> RpcTestContext {
-		let node = TestNode::spawn().await.expect("Failed to spawn test node");
-		let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
-
-		let blockchain =
-			Blockchain::fork(&endpoint, None).await.expect("Failed to fork blockchain");
-		let txpool = Arc::new(TxPool::new());
-
-		let server = ForkRpcServer::start(blockchain.clone(), txpool, RpcServerConfig::default())
-			.await
-			.expect("Failed to start RPC server");
-
-		let ws_url = server.ws_url();
-		RpcTestContext { node, server, ws_url, blockchain }
-	}
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_get_block_hash_returns_head_hash() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -213,7 +181,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_get_block_hash_returns_none_hash() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -231,7 +199,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_get_block_hash_returns_fork_point_hash() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -253,7 +221,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_get_block_hash_returns_historical_hash() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -281,7 +249,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_get_header_returns_valid_header() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -304,7 +272,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_get_header_returns_head_when_no_hash() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -321,7 +289,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_get_header_for_fork_point() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -339,7 +307,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_get_block_returns_full_block() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -372,7 +340,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_get_block_returns_head_when_no_hash() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -397,7 +365,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_get_finalized_head_returns_head_hash() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -414,7 +382,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_get_finalized_head_updates_after_block() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 

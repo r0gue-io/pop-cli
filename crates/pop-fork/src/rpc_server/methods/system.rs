@@ -88,43 +88,12 @@ impl SystemApiServer for SystemApi {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{
-		TxPool,
-		rpc_server::{ForkRpcServer, RpcServerConfig},
-	};
+	use crate::testing::RpcTestContext;
 	use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
-	use pop_common::test_env::TestNode;
-	use url::Url;
-
-	/// Test context holding spawned node and RPC server.
-	struct RpcTestContext {
-		#[allow(dead_code)]
-		node: TestNode,
-		#[allow(dead_code)]
-		server: ForkRpcServer,
-		ws_url: String,
-	}
-
-	/// Creates a test context with spawned node and RPC server.
-	async fn setup_rpc_test() -> RpcTestContext {
-		let node = TestNode::spawn().await.expect("Failed to spawn test node");
-		let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
-
-		let blockchain =
-			Blockchain::fork(&endpoint, None).await.expect("Failed to fork blockchain");
-		let txpool = Arc::new(TxPool::new());
-
-		let server = ForkRpcServer::start(blockchain.clone(), txpool, RpcServerConfig::default())
-			.await
-			.expect("Failed to start RPC server");
-
-		let ws_url = server.ws_url();
-		RpcTestContext { node, server, ws_url }
-	}
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_works() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -140,7 +109,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn name_works() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -155,7 +124,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn version_works() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -167,7 +136,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn health_works() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -180,7 +149,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_spec_chain_name() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -196,7 +165,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn properties_returns_json_or_null() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 

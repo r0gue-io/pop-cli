@@ -479,52 +479,14 @@ impl ArchiveApiServer for ArchiveApi {
 mod tests {
 	use super::*;
 	use crate::{
-		ExecutorConfig, TxPool,
-		rpc_server::{
-			ForkRpcServer, RpcServerConfig,
-			types::{ArchiveCallResult, ArchiveStorageResult},
-		},
+		rpc_server::types::{ArchiveCallResult, ArchiveStorageResult},
+		testing::RpcTestContext,
 	};
 	use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
-	use pop_common::test_env::TestNode;
-	use url::Url;
-
-	/// Test context holding spawned node and RPC server.
-	struct RpcTestContext {
-		#[allow(dead_code)]
-		node: TestNode,
-		#[allow(dead_code)]
-		server: ForkRpcServer,
-		ws_url: String,
-		blockchain: Arc<Blockchain>,
-	}
-
-	/// Creates a test context with spawned node and RPC server.
-	async fn setup_rpc_test() -> RpcTestContext {
-		setup_rpc_test_with_config(ExecutorConfig::default()).await
-	}
-
-	/// Creates a test context with custom executor config.
-	async fn setup_rpc_test_with_config(config: ExecutorConfig) -> RpcTestContext {
-		let node = TestNode::spawn().await.expect("Failed to spawn test node");
-		let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
-
-		let blockchain = Blockchain::fork_with_config(&endpoint, None, None, config)
-			.await
-			.expect("Failed to fork blockchain");
-		let txpool = Arc::new(TxPool::new());
-
-		let server = ForkRpcServer::start(blockchain.clone(), txpool, RpcServerConfig::default())
-			.await
-			.expect("Failed to start RPC server");
-
-		let ws_url = server.ws_url();
-		RpcTestContext { node, server, ws_url, blockchain }
-	}
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_finalized_height_returns_correct_value() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -551,7 +513,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_genesis_hash_returns_valid_hash() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -577,7 +539,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_hash_by_height_returns_hash_at_different_heights() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -642,7 +604,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_hash_by_height_returns_none_for_unknown_height() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -657,7 +619,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_header_returns_header_for_head_hash() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -678,7 +640,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_header_returns_none_for_unknown_hash() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -695,7 +657,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_header_returns_header_for_fork_point() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -713,7 +675,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_header_returns_header_for_parent_block() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -735,7 +697,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_header_is_idempotent_over_finalized_blocks() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -771,7 +733,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_body_returns_extrinsics_for_valid_hashes() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -801,7 +763,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_body_is_idempotent_over_finalized_blocks() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -837,7 +799,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_body_returns_none_for_unknown_hash() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -853,7 +815,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_call_executes_runtime_api() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -877,7 +839,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_call_returns_error_for_invalid_function() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -899,7 +861,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_call_returns_null_for_unknown_block() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -917,7 +879,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_call_executes_at_specific_block() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -953,7 +915,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_call_rejects_invalid_hex_hash() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -967,7 +929,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_returns_value_for_existing_key() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -1000,7 +962,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_returns_none_for_nonexistent_key() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -1030,7 +992,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_header_rejects_invalid_hex() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -1043,7 +1005,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_call_rejects_invalid_hex_parameters() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -1066,7 +1028,7 @@ mod tests {
 	async fn archive_call_does_not_persist_storage_changes() {
 		use crate::{DigestItem, consensus_engine, create_next_header};
 
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -1130,7 +1092,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_returns_hash_when_requested() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -1167,7 +1129,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_queries_at_specific_block() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -1214,7 +1176,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_returns_error_for_unknown_block() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -1239,7 +1201,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_diff_detects_modified_value() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -1286,7 +1248,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_diff_returns_empty_for_unchanged_keys() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -1325,7 +1287,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_diff_returns_added_for_new_key() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -1369,7 +1331,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_diff_returns_deleted_for_removed_key() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -1411,7 +1373,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_diff_returns_hash_when_requested() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -1457,7 +1419,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_diff_returns_error_for_unknown_hash() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -1483,7 +1445,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_diff_returns_error_for_unknown_previous_hash() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -1509,7 +1471,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_diff_uses_parent_when_previous_hash_omitted() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
@@ -1557,7 +1519,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_diff_handles_multiple_items() {
-		let ctx = setup_rpc_test().await;
+		let ctx = RpcTestContext::new().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 

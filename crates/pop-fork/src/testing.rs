@@ -6,12 +6,14 @@
 //! modules in the crate to avoid duplication.
 
 use crate::{
-	Block, ExecutorConfig, ForkRpcClient, LocalStorageLayer, RemoteStorageLayer, RuntimeExecutor,
-	StorageCache,
+	Block, Blockchain, ExecutorConfig, ForkRpcClient, LocalStorageLayer, RemoteStorageLayer,
+	RuntimeExecutor, StorageCache, TxPool,
+	rpc_server::{ForkRpcServer, RpcServerConfig},
 };
 use pop_common::test_env::TestNode;
 use scale::{Compact, Encode};
 use sp_core::H256;
+use std::sync::Arc;
 use subxt::{Metadata, ext::codec::Decode};
 use url::Url;
 
@@ -188,5 +190,47 @@ impl TestContext {
 		Block::fork_point(&self.endpoint, self.cache.clone(), self.block_hash.into())
 			.await
 			.expect("Failed to create fork point block")
+	}
+}
+
+/// Test context for RPC server tests.
+///
+/// This context spawns a test node, forks a blockchain from it, and starts
+/// an RPC server. Use this for testing RPC method implementations.
+pub struct RpcTestContext {
+	/// The spawned test node (kept alive for the duration of the test).
+	#[allow(dead_code)]
+	pub node: TestNode,
+	/// The RPC server (kept alive for the duration of the test).
+	#[allow(dead_code)]
+	pub server: ForkRpcServer,
+	/// WebSocket URL of the RPC server.
+	pub ws_url: String,
+	/// The forked blockchain.
+	pub blockchain: Arc<Blockchain>,
+}
+
+impl RpcTestContext {
+	/// Create a new RPC test context with default configuration.
+	pub async fn new() -> Self {
+		Self::with_config(ExecutorConfig::default()).await
+	}
+
+	/// Create a new RPC test context with custom executor configuration.
+	pub async fn with_config(config: ExecutorConfig) -> Self {
+		let node = TestNode::spawn().await.expect("Failed to spawn test node");
+		let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
+
+		let blockchain = Blockchain::fork_with_config(&endpoint, None, None, config)
+			.await
+			.expect("Failed to fork blockchain");
+		let txpool = Arc::new(TxPool::new());
+
+		let server = ForkRpcServer::start(blockchain.clone(), txpool, RpcServerConfig::default())
+			.await
+			.expect("Failed to start RPC server");
+
+		let ws_url = server.ws_url();
+		RpcTestContext { node, server, ws_url, blockchain }
 	}
 }
