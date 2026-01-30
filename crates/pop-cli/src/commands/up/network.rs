@@ -68,6 +68,9 @@ pub(crate) struct ConfigFileCommand {
 	/// Automatically remove the state upon tearing down the network.
 	#[clap(long = "rm")]
 	pub(crate) auto_remove: bool,
+	/// Automatically detach from the terminal and run the network in the background.
+	#[clap(short, long)]
+	pub(crate) detach: bool,
 }
 
 impl ConfigFileCommand {
@@ -87,6 +90,7 @@ impl ConfigFileCommand {
 			self.verbose,
 			self.skip_confirm,
 			self.auto_remove,
+			self.detach,
 			self.command.as_deref(),
 			cli,
 		)
@@ -124,6 +128,9 @@ impl ConfigFileCommand {
 		}
 		if self.auto_remove {
 			full_message.push_str(" --rm");
+		}
+		if self.detach {
+			full_message.push_str(" --detach");
 		}
 		full_message
 	}
@@ -170,6 +177,9 @@ pub(crate) struct BuildCommand<const FILTER: u8> {
 	/// Automatically remove the state upon tearing down the network.
 	#[clap(long = "rm")]
 	auto_remove: bool,
+	/// Automatically detach from the terminal and run the network in the background.
+	#[clap(short, long)]
+	detach: bool,
 }
 
 impl<const FILTER: u8> BuildCommand<FILTER> {
@@ -224,6 +234,7 @@ impl<const FILTER: u8> BuildCommand<FILTER> {
 			self.verbose,
 			self.skip_confirm,
 			self.auto_remove,
+			self.detach,
 			self.command.as_deref(),
 			cli,
 		)
@@ -264,6 +275,9 @@ impl<const FILTER: u8> BuildCommand<FILTER> {
 		}
 		if self.auto_remove {
 			full_message.push_str(" --rm");
+		}
+		if self.detach {
+			full_message.push_str(" --detach");
 		}
 		full_message
 	}
@@ -349,6 +363,7 @@ pub(crate) async fn spawn(
 	verbose: bool,
 	skip_confirm: bool,
 	auto_remove: bool,
+	detach: bool,
 	command: Option<&str>,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<()> {
@@ -411,9 +426,16 @@ pub(crate) async fn spawn(
 	progress.start("🚀 Launching local network...");
 	match zombienet.spawn().await {
 		Ok(network) => {
-			let mut result = "🚀 Network launched successfully - Ctrl+C to terminate".to_string();
+			let mut result = if detach {
+				"🚀 Network launched successfully - detached".to_string()
+			} else {
+				"🚀 Network launched successfully - Ctrl+C to terminate".to_string()
+			};
 			let base_dir = network.base_dir().expect("base_dir expected to exist");
 			let bar = Style::new().magenta().dim().apply_to(Emoji("│", "|"));
+			result.push_str(&format!(
+				"\n{bar}  base dir: {base_dir}\n{bar}  zombie.json: {base_dir}/zombie.json"
+			));
 
 			let output = |node: &NetworkNode| -> String {
 				let name = node.name();
@@ -496,16 +518,26 @@ pub(crate) async fn spawn(
 				}
 			}
 
-			tokio::signal::ctrl_c().await?;
-
-			if auto_remove {
-				// Remove zombienet directory after network is terminated
-				if let Err(e) = std::fs::remove_dir_all(base_dir) {
-					cli.warning(format!("🚫 Failed to remove zombienet directory: {e}"))?;
+			if detach {
+				network.detach().await;
+				if auto_remove {
+					cli.warning(format!(
+						"⚠️ --rm is ignored when used with --detach. Remove {base_dir} after stopping the network.",
+					))?;
 				}
-			}
+				cli.outro("✅ Network is running in the background.")?;
+			} else {
+				tokio::signal::ctrl_c().await?;
 
-			cli.outro("Done")?;
+				if auto_remove {
+					// Remove zombienet directory after network is terminated
+					if let Err(e) = std::fs::remove_dir_all(base_dir) {
+						cli.warning(format!("🚫 Failed to remove zombienet directory: {e}"))?;
+					}
+				}
+
+				cli.outro("Done")?;
+			}
 		},
 		Err(e) => {
 			cli.outro_cancel(format!("🚫 Could not launch local network: {e}"))?;
@@ -771,6 +803,7 @@ mod tests {
 			verbose: true,
 			skip_confirm: true,
 			auto_remove: true,
+			detach: false,
 		};
 		assert_eq!(
 			cmd.display(),
@@ -791,6 +824,7 @@ mod tests {
 			verbose: true,
 			skip_confirm: true,
 			auto_remove: true,
+			detach: false,
 		};
 		assert_eq!(
 			cmd.display(Relay::Paseo),

@@ -5,10 +5,11 @@ use anyhow::Result;
 use clap::{Args, Subcommand};
 use serde::Serialize;
 use std::{
-	fs::{read_dir, remove_file},
-	path::PathBuf,
+	fs::{read_dir, remove_dir_all, remove_file},
+	path::{Path, PathBuf},
 	process::Command as StdCommand,
 };
+use time::format_description::well_known::Rfc3339;
 
 #[derive(Args, Serialize)]
 #[command(args_conflicts_with_subcommands = true)]
@@ -26,6 +27,9 @@ pub(crate) enum Command {
 	/// Remove cached artifacts.
 	#[clap(alias = "c")]
 	Cache(CleanCommandArgs),
+	/// Remove running network(s).
+	#[clap(alias = "net")]
+	Network(CleanNetworkCommandArgs),
 }
 
 #[derive(Args, Serialize)]
@@ -36,6 +40,16 @@ pub struct CleanCommandArgs {
 	/// Pass one or more process IDs to remove artifacts for specific processes.
 	#[arg(short, long, num_args = 1..)]
 	pub(crate) pid: Option<Vec<String>>,
+}
+
+#[derive(Args, Serialize)]
+pub struct CleanNetworkCommandArgs {
+	/// Path to the network base directory or zombie.json.
+	#[arg(value_name = "PATH")]
+	pub(crate) path: Option<PathBuf>,
+	/// Keep the network state on disk after shutdown (default: remove state).
+	#[arg(long)]
+	pub(crate) keep_state: bool,
 }
 
 /// Removes cached artifacts.
@@ -132,6 +146,121 @@ impl<CLI: Cli> CleanCacheCommand<'_, CLI> {
 	}
 }
 
+/// Stops a running network and optionally removes its state.
+pub(crate) struct CleanNetworkCommand<'a, CLI: Cli> {
+	/// The cli to be used.
+	pub(crate) cli: &'a mut CLI,
+	/// Path to the network base directory or zombie.json.
+	pub(crate) path: Option<PathBuf>,
+	/// Whether to keep the network state on disk.
+	pub(crate) keep_state: bool,
+}
+
+impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
+	/// Executes the command.
+	pub(crate) async fn execute(self) -> Result<()> {
+		self.cli.intro("Remove running network")?;
+
+		let zombie_jsons = match self.path {
+			Some(path) => vec![resolve_zombie_json_path(&path)?],
+			None => {
+				let candidates = find_zombie_jsons()?;
+				if candidates.is_empty() {
+					self.cli.outro("ℹ️ No running networks found.")?;
+					return Ok(());
+				}
+				if candidates.len() == 1 {
+					vec![candidates[0].path.clone()]
+				} else {
+					let selection = {
+						let mut prompt = self
+							.cli
+							.multiselect("Select the networks to stop (type to filter):")
+							.required(false)
+							.filter_mode();
+						for candidate in &candidates {
+							let base_dir = candidate.path.parent().unwrap_or(&candidate.path);
+							let label = base_dir
+								.file_name()
+								.and_then(|f| f.to_str())
+								.unwrap_or("network");
+							let hint = format!(
+								"modified: {}",
+								candidate
+									.modified
+									.map(|t| t.format(&Rfc3339).unwrap_or_else(|_| "unknown".into()))
+									.unwrap_or_else(|| "unknown".into())
+							);
+							prompt = prompt.item(candidate.path.clone(), label, hint);
+						}
+						prompt.interact()?
+					};
+					if selection.is_empty() {
+						self.cli.outro("ℹ️ No networks stopped.")?;
+						return Ok(());
+					}
+					selection
+				}
+			},
+		};
+
+		let count = zombie_jsons.len();
+		let confirm = match count {
+			1 => "Stop the selected network?".to_string(),
+			_ => format!("Stop the {} selected networks?", count),
+		};
+		if !self.cli.confirm(confirm).initial_value(true).interact()? {
+			self.cli.outro("ℹ️ No networks stopped.")?;
+			return Ok(());
+		}
+
+		let mut failures = 0;
+		for zombie_json in &zombie_jsons {
+			let base_dir = zombie_json
+				.parent()
+				.ok_or_else(|| anyhow::anyhow!("invalid zombie.json path"))?
+				.to_path_buf();
+			if let Err(e) = pop_chains::up::destroy_network(zombie_json).await {
+				failures += 1;
+				self.cli.warning(format!(
+					"🚫 Failed to stop network at {}: {e}",
+					base_dir.display()
+				))?;
+				continue;
+			}
+
+			if self.keep_state {
+				self.cli.info(format!(
+					"ℹ️ Network stopped. State kept at {}",
+					base_dir.display()
+				))?;
+				continue;
+			}
+
+			if let Err(e) = remove_dir_all(&base_dir) {
+				self.cli.warning(format!(
+					"🚫 Failed to remove network state at {}: {e}",
+					base_dir.display()
+				))?;
+				failures += 1;
+			}
+		}
+
+		if failures > 0 {
+			self.cli.warning(format!(
+				"⚠️ Completed with {} failure{}.",
+				failures,
+				if failures == 1 { "" } else { "s" }
+			))?;
+		} else if self.keep_state {
+			self.cli.outro("ℹ️ Networks stopped. State kept.")?;
+		} else {
+			self.cli.outro("ℹ️ Networks stopped and state removed")?;
+		}
+		Ok(())
+	}
+}
+
 /// Returns the contents of the specified path.
 fn contents(path: &PathBuf) -> Result<Vec<(String, PathBuf, u64)>> {
 	let mut contents: Vec<_> = read_dir(path)?
@@ -148,6 +277,69 @@ fn contents(path: &PathBuf) -> Result<Vec<(String, PathBuf, u64)>> {
 		.collect();
 	contents.sort_by(|(a, _, _), (b, _, _)| a.cmp(b));
 	Ok(contents)
+}
+
+fn resolve_zombie_json_path(path: &Path) -> Result<PathBuf> {
+	if path.is_file() {
+		if path.file_name().and_then(|f| f.to_str()) == Some("zombie.json") {
+			return Ok(path.to_path_buf());
+		}
+		anyhow::bail!("Expected a zombie.json file at {}", path.display());
+	}
+
+	if path.is_dir() {
+		let candidate = path.join("zombie.json");
+		if candidate.exists() {
+			return Ok(candidate);
+		}
+		anyhow::bail!("No zombie.json found in {}", path.display());
+	}
+
+	anyhow::bail!("Invalid path: {}", path.display())
+}
+
+struct ZombieJsonCandidate {
+	path: PathBuf,
+	modified: Option<time::OffsetDateTime>,
+}
+
+fn find_zombie_jsons() -> Result<Vec<ZombieJsonCandidate>> {
+	let temp_dir = std::env::temp_dir();
+	let mut candidates = Vec::new();
+	for entry in read_dir(&temp_dir)? {
+		let entry = match entry {
+			Ok(entry) => entry,
+			Err(_) => continue,
+		};
+		let path = entry.path();
+		if !path.is_dir() {
+			continue;
+		}
+		let name = entry.file_name();
+		let name = match name.to_str() {
+			Some(name) => name,
+			None => continue,
+		};
+		if !name.starts_with("zombie-") {
+			continue;
+		}
+		let zombie_json = path.join("zombie.json");
+		if zombie_json.exists() {
+			let modified = zombie_json
+				.metadata()
+				.and_then(|m| m.modified())
+				.ok()
+				.map(time::OffsetDateTime::from);
+			candidates.push(ZombieJsonCandidate { path: zombie_json, modified });
+		}
+	}
+	candidates.sort_by(|a, b| match (a.modified, b.modified) {
+		(Some(a), Some(b)) => b.cmp(&a),
+		(Some(_), None) => std::cmp::Ordering::Less,
+		(None, Some(_)) => std::cmp::Ordering::Greater,
+		(None, None) => b.path.cmp(&a.path),
+	});
+	Ok(candidates)
 }
 
 /// Kills running nodes.
@@ -522,6 +714,36 @@ mod tests {
 			contents,
 			files.iter().map(|f| (f.to_string(), cache.join(f), 0)).collect::<Vec<_>>()
 		);
+		Ok(())
+	}
+
+	#[test]
+	fn resolve_zombie_json_path_accepts_file() -> Result<()> {
+		let temp = tempfile::tempdir()?;
+		let zombie_json = temp.path().join("zombie.json");
+		std::fs::write(&zombie_json, "{}")?;
+
+		let resolved = resolve_zombie_json_path(&zombie_json)?;
+		assert_eq!(resolved, zombie_json);
+		Ok(())
+	}
+
+	#[test]
+	fn resolve_zombie_json_path_accepts_dir() -> Result<()> {
+		let temp = tempfile::tempdir()?;
+		let zombie_json = temp.path().join("zombie.json");
+		std::fs::write(&zombie_json, "{}")?;
+
+		let resolved = resolve_zombie_json_path(temp.path())?;
+		assert_eq!(resolved, zombie_json);
+		Ok(())
+	}
+
+	#[test]
+	fn resolve_zombie_json_path_rejects_missing() -> Result<()> {
+		let temp = tempfile::tempdir()?;
+		let result = resolve_zombie_json_path(temp.path());
+		assert!(result.is_err());
 		Ok(())
 	}
 

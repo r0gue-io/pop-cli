@@ -27,7 +27,9 @@ use zombienet_configuration::{
 	shared::node::{Buildable, Initial, NodeConfigBuilder},
 };
 pub use zombienet_sdk::NetworkConfigBuilder;
-use zombienet_sdk::{LocalFileSystem, Network, NetworkConfig, NetworkConfigExt};
+use zombienet_sdk::{
+	AttachToLive, AttachToLiveNetwork, LocalFileSystem, Network, NetworkConfig, NetworkConfigExt,
+};
 
 mod chain_specs;
 /// Configuration for supported parachains.
@@ -46,6 +48,13 @@ pub struct Zombienet {
 	parachains: IndexMap<u32, Chain>,
 	/// Whether any HRMP channels are to be pre-opened.
 	hrmp_channels: bool,
+}
+
+/// Attaches to a running network via zombie.json and tears it down.
+pub async fn destroy_network(zombie_json: &Path) -> Result<(), Error> {
+	let network = AttachToLiveNetwork::attach_native(zombie_json.to_path_buf()).await?;
+	network.destroy().await.map_err(anyhow::Error::from)?;
+	Ok(())
 }
 
 impl Zombienet {
