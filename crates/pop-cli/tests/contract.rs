@@ -12,6 +12,7 @@ use pop_contracts::{
 	set_up_call, set_up_deployment,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::{path::Path, time::Duration};
 use strum::VariantArray;
 use subxt::{
@@ -286,6 +287,116 @@ async fn contract_lifecycle() -> Result<()> {
 	assert!(response.is_err());
 
 	// Stop the process ink-node
+	process.kill()?;
+
+	Ok(())
+}
+
+#[tokio::test]
+async fn verifiable_contract_lifecycle() -> Result<()> {
+	let endpoint_port = resolve_port(None);
+	let default_endpoint: &str = &format!("ws://127.0.0.1:{}", endpoint_port);
+
+	let temp = tempfile::tempdir()?;
+	let temp_dir = temp.path();
+
+	// pop new contract test_contract (default)
+	let mut command = pop(temp_dir, ["new", "contract", "test_contract", "--template", "standard"]);
+	assert!(command.spawn()?.wait().await?.success());
+	let contract_dir = temp_dir.join("test_contract");
+	assert!(contract_dir.exists());
+
+	// pop build --verifiable
+	command = pop(&temp_dir, ["build", "--path", "./test_contract", "--verifiable"]);
+	assert!(command.spawn()?.wait().await?.success());
+
+	let ink_target_path = contract_dir.join("target").join("ink");
+	assert!(ink_target_path.join("test_contract.contract").exists());
+	assert!(ink_target_path.join("test_contract.polkavm").exists());
+	let metadata_path = ink_target_path.join("test_contract.json");
+	assert!(metadata_path.exists());
+	let metadata_contents: Value = serde_json::from_str(&std::fs::read_to_string(&metadata_path)?)?;
+	// Verifiable builds include the used image (useink/contracts-verifiable:{tag} if not custom
+	// specified) in the metadata so that they can be exactly reproduced
+	let image_key = metadata_contents.get("image");
+	let build_image = match image_key {
+		Some(Value::String(value)) if value.starts_with("useink/contracts-verifiable") =>
+			value.clone(),
+		_ => return Err(anyhow::anyhow!("Verifiable build doesn't include the expected image")),
+	};
+
+	// Verify the contract recently built against itself
+	command = pop(
+		&temp_dir,
+		[
+			"verify",
+			"--contract-path",
+			"./test_contract/target/ink/test_contract.contract",
+			"--path",
+			"./test_contract",
+		],
+	);
+	assert!(command.spawn()?.wait().await?.success());
+
+	// Create a different contract and observe that verification fails
+	command = pop(temp_dir, ["new", "contract", "test_contract_2", "--template", "erc20"]);
+	assert!(command.spawn()?.wait().await?.success());
+
+	command = pop(
+		&temp_dir,
+		[
+			"verify",
+			"--contract-path",
+			"./test_contract/target/ink/test_contract.contract",
+			"--path",
+			"./test_contract_2",
+		],
+	);
+	assert!(!command.spawn()?.wait().await?.success());
+
+	// Spawn a local node and verify against a live deployment
+	let binary = ink_node_generator(temp_dir.to_path_buf().clone(), None).await?;
+	binary.source(false, &(), true).await?;
+	set_executable_permission(binary.path())?;
+	let mut process = run_ink_node(&binary.path(), None, endpoint_port).await?;
+	sleep(Duration::from_secs(5)).await;
+
+	// Deploy the verifiable contract to the local node
+	let instantiate_exec = set_up_deployment(UpOpts {
+		path: contract_dir.clone(),
+		constructor: "new".to_string(),
+		args: ["false".to_string()].to_vec(),
+		value: "0".to_string(),
+		gas_limit: None,
+		proof_size: None,
+		url: Url::parse(default_endpoint)?,
+		suri: "//Alice".to_string(),
+	})
+	.await?;
+	let weight_limit = dry_run_gas_estimate_instantiate(&instantiate_exec).await?;
+	let contract_info = instantiate_smart_contract(instantiate_exec, weight_limit).await?;
+
+	// Wait for the contract to be finalized in storage
+	sleep(Duration::from_secs(10)).await;
+
+	// Verify the contract against the live deployment using CLI
+	command = pop(
+		&temp_dir,
+		[
+			"verify",
+			"--path",
+			"./test_contract",
+			"--url",
+			default_endpoint,
+			"--address",
+			&contract_info.address,
+			"--image",
+			&build_image,
+		],
+	);
+	assert!(command.spawn()?.wait().await?.success());
+
+	// Stop the ink-node process
 	process.kill()?;
 
 	Ok(())
