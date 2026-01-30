@@ -54,7 +54,10 @@ brew install r0gue-io/pop-cli/pop
 sudo dpkg -i pop-cli_*.deb
 ```
 
-> :information_source: Pop CLI requires Rust 1.92 or later.
+**Nix/NixOS:**
+```shell
+# Run directly without installing
+nix run github:r0gue-io/pop-cli
 
 # Or install to your profile
 nix profile install github:r0gue-io/pop-cli
