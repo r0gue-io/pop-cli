@@ -514,11 +514,12 @@ impl CallContractCommand {
 			};
 
 		if self.execute {
-			let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
-				Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
-			} else {
-				estimated_weight
-			};
+			let weight_limit =
+				if let (Some(gas_limit), Some(proof_size)) = (self.gas_limit, self.proof_size) {
+					Weight::from_parts(gas_limit, proof_size)
+				} else {
+					estimated_weight
+				};
 
 			spinner.set_message("Calling the contract...");
 			let call_result = call_smart_contract(call_exec, weight_limit, &self.url()?)
@@ -612,11 +613,12 @@ impl CallContractCommand {
 		call_exec: &CallExec<DefaultConfig, DefaultEnvironment, Keypair>,
 		storage_deposit_limit: u128,
 	) -> anyhow::Result<Vec<u8>> {
-		let weight_limit = if self.gas_limit.is_some() && self.proof_size.is_some() {
-			Weight::from_parts(self.gas_limit.unwrap(), self.proof_size.unwrap())
-		} else {
-			Weight::zero()
-		};
+		let weight_limit =
+			if let (Some(gas_limit), Some(proof_size)) = (self.gas_limit, self.proof_size) {
+				Weight::from_parts(gas_limit, proof_size)
+			} else {
+				Weight::zero()
+			};
 		let call_data = get_call_payload(call_exec, weight_limit, storage_deposit_limit)?;
 		Ok(call_data)
 	}
