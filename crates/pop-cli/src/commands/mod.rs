@@ -19,6 +19,8 @@ pub(crate) mod build;
 pub(crate) mod call;
 pub(crate) mod clean;
 pub(crate) mod convert;
+#[cfg(feature = "chain")]
+pub(crate) mod fork;
 pub(crate) mod hash;
 #[cfg(any(feature = "chain", feature = "contract"))]
 pub(crate) mod install;
@@ -73,6 +75,10 @@ pub(crate) enum Command {
 	#[clap(alias = "v")]
 	#[cfg(feature = "contract")]
 	Verify(verify::VerifyCommand),
+	/// Fork a live chain and start a local RPC server.
+	#[cfg(feature = "chain")]
+	#[clap(alias = "f")]
+	Fork(fork::ForkArgs),
 }
 
 /// Help message for the build command.
@@ -265,6 +271,11 @@ impl Command {
 			},
 			#[cfg(feature = "contract")]
 			Self::Verify(verify) => verify.execute(&mut Cli).await,
+			#[cfg(feature = "chain")]
+			Self::Fork(args) => {
+				env_logger::init();
+				fork::Command::execute(args, &mut Cli).await
+			},
 		}
 	}
 }
@@ -326,6 +337,8 @@ impl Display for Command {
 			Command::Upgrade(_) => write!(f, "upgrade"),
 			#[cfg(feature = "contract")]
 			Command::Verify(_) => write!(f, "verify"),
+			#[cfg(feature = "chain")]
+			Self::Fork(_) => write!(f, "fork"),
 		}
 	}
 }

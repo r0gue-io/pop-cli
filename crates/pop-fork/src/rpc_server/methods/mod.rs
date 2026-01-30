@@ -21,7 +21,7 @@ mod state;
 mod system;
 
 use crate::{Blockchain, TxPool, rpc_server::RpcServerError};
-use jsonrpsee::RpcModule;
+use jsonrpsee::{RpcModule, types::ResponsePayload};
 use std::sync::Arc;
 
 pub use archive::{ArchiveApi, ArchiveApiServer};
@@ -31,6 +31,13 @@ pub use chain_spec::{ChainSpecApi, ChainSpecApiServer};
 pub use dev::{DevApi, DevApiServer};
 pub use state::{StateApi, StateApiServer};
 pub use system::{SystemApi, SystemApiServer};
+
+/// Response for the `rpc_methods` RPC call.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct RpcMethodsResponse {
+	/// List of available RPC methods.
+	pub methods: Vec<String>,
+}
 
 /// Create the merged RPC module with all methods.
 pub fn create_rpc_module(
@@ -75,6 +82,19 @@ pub fn create_rpc_module(
 
 	module
 		.merge(DevApiServer::into_rpc(dev_impl))
+		.map_err(|e| RpcServerError::Internal(e.to_string()))?;
+
+	// Collect method names before registering rpc_methods
+	let mut method_names: Vec<String> = module.method_names().map(String::from).collect();
+	method_names.push("rpc_methods".to_string());
+	method_names.sort();
+
+	// Register rpc_methods
+	let response = RpcMethodsResponse { methods: method_names };
+	module
+		.register_method("rpc_methods", move |_, _, _| {
+			ResponsePayload::success(response.clone())
+		})
 		.map_err(|e| RpcServerError::Internal(e.to_string()))?;
 
 	Ok(module)
