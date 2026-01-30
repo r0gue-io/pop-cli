@@ -21,7 +21,7 @@ use pop_chains::{
 	GENESIS_BUILDER_DEV_PRESET, GenesisBuilderPolicy, PalletExtrinsicsRegistry,
 	generate_pallet_benchmarks, load_pallet_extrinsics, utils::helpers::get_preset_names,
 };
-use pop_common::get_relative_or_absolute_path;
+use pop_common::{Profile, get_relative_or_absolute_path};
 use serde::{Deserialize, Serialize};
 use std::{
 	collections::BTreeMap,
@@ -712,7 +712,8 @@ impl BenchmarkPallet {
 	}
 
 	async fn update_runtime_path(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		let profile = guide_user_to_select_profile(cli)?;
+		let profile =
+			if !self.skip_confirm { guide_user_to_select_profile(cli)? } else { Profile::Release };
 		let (binary_path, project_path) = ensure_runtime_binary_exists(
 			cli,
 			&get_current_directory(),
@@ -730,14 +731,19 @@ impl BenchmarkPallet {
 	}
 
 	fn update_template_path(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		let input = cli
-			.input("Provide path to the custom template for generated weight files (optional)")
-			.required(false)
-			.interact()?;
-		let path: PathBuf = input.into();
-		if !path.is_file() {
-			return Err(anyhow::anyhow!("Template path does not exist or is a directory"));
-		}
+		let path = if !self.skip_confirm {
+			let input = cli
+				.input("Provide path to the custom template for generated weight files (optional)")
+				.required(false)
+				.interact()?;
+			let path: PathBuf = input.into();
+			if !path.is_file() {
+				return Err(anyhow::anyhow!("Template path does not exist or is a directory"));
+			}
+			path
+		} else {
+			Default::default()
+		};
 		self.template = Some(path);
 		Ok(())
 	}

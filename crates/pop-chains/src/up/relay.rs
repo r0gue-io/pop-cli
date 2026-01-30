@@ -29,7 +29,7 @@ pub(super) enum RelayChain {
 		Repository = "https://github.com/r0gue-io/polkadot",
 		Binary = "polkadot",
 		TagPattern = "polkadot-{version}",
-		Fallback = "stable2412"
+		Fallback = "stable2512"
 	))]
 	Polkadot,
 }
@@ -196,7 +196,7 @@ mod tests {
 		let expected = RelayChain::Polkadot;
 		let temp_dir = tempdir()?;
 		let relay = from(
-			"./bin-stable2503/polkadot",
+			"./bin-stable2512/polkadot",
 			Some(RELAY_BINARY_VERSION),
 			None,
 			"paseo-local",

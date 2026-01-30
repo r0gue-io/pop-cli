@@ -39,7 +39,7 @@ impl Drop for TestChildProcess {
 // Test that all templates are generated correctly
 #[tokio::test]
 async fn generate_all_the_templates() -> Result<()> {
-	let temp = tempfile::tempdir()?;
+	let temp = tempdir()?;
 	let temp_dir = temp.path();
 
 	for template in ChainTemplate::VARIANTS {
@@ -67,7 +67,7 @@ async fn generate_all_the_templates() -> Result<()> {
 /// Test the parachain lifecycle: new, build, up, call.
 #[tokio::test]
 async fn parachain_lifecycle() -> Result<()> {
-	let temp = tempfile::tempdir()?;
+	let temp = tempdir()?;
 	let temp_dir = temp.path();
 
 	// pop new chain test_parachain --verify (default)
@@ -162,7 +162,7 @@ async fn parachain_lifecycle() -> Result<()> {
 	fs::create_dir_all(&working_dir)?;
 	let random_port = resolve_port(None);
 	let localhost_url = format!("ws://127.0.0.1:{}", random_port);
-	fs::write(
+	write(
 		&network_toml_path,
 		format!(
 			r#"[relaychain]
@@ -192,7 +192,7 @@ rpc_port = {random_port}
 	// `pop up network ./network.toml --skip-confirm`
 	let mut command = pop(
 		&working_dir,
-		["up", "network", "./network.toml", "-r", "stable2506-2", "--verbose", "--skip-confirm"],
+		["up", "network", "./network.toml", "-r", "stable2512", "--verbose", "--skip-confirm"],
 	);
 	let mut up = TestChildProcess(command.spawn()?);
 
@@ -409,7 +409,7 @@ async fn fetch_runtime(cache: &Path) -> Result<String> {
 			tag_pattern: Some("polkadot-{version}".into()),
 			prerelease: false,
 			version_comparator: sort_by_latest_semantic_version,
-			fallback: "stable2503".to_string(),
+			fallback: "stable2512".to_string(),
 			archive: "parachain-template-runtime.tar.gz".to_string(),
 			contents: contents
 				.into_iter()

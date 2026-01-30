@@ -75,10 +75,10 @@ pub fn instantiate_standard_template(
 		version <= LATEST_NETWORK_TOML_OVERWRITE_VERSION
 	{
 		use askama::Template;
-		write_to_file(
-			&target.join("node/src/chain_spec.rs"),
-			chainspec.render().expect("infallible").as_ref(),
-		)?;
+		let chain_spec_path = target.join("node/src/chain_spec.rs");
+		if chain_spec_path.parent().is_some_and(|p| p.exists()) {
+			write_to_file(&chain_spec_path, chainspec.render().expect("infallible").as_ref())?;
+		}
 		// Add network configuration
 		let network = Network { node: "parachain-template-node".into() };
 		write_to_file(
@@ -120,7 +120,7 @@ mod tests {
 			&ChainTemplate::Standard,
 			temp_dir.path(),
 			config,
-			Some(LATEST_NETWORK_TOML_OVERWRITE_VERSION.to_string()),
+			Some("polkadot-stable2506".to_string()),
 		)?;
 		Ok(temp_dir)
 	}

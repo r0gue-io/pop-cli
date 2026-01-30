@@ -80,7 +80,7 @@ pub fn parse_semantic_version(value: impl AsRef<str>) -> Option<Version> {
 	})
 }
 
-/// Parses a stable version - e.g. `stable2503-1`. Prerelease versions are omitted.
+/// Parses a stable version - e.g. `stable2512-1`. Prerelease versions are omitted.
 ///
 /// # Arguments
 /// * `value` - The value to parse and evaluate.
@@ -232,16 +232,16 @@ mod tests {
 					"polkadot-v1.8.0",
 					"polkadot-v1.9.0",
 					"v1.18.1",
-					"stable2503-7",
-					"stable2506",
+					"stable2612",
+					"stable2512-7",
 					"stable2407-5",
 				]
 				.as_mut_slice()
 			)
 			.0,
 			[
-				"stable2506",
-				"stable2503-7",
+				"stable2612",
+				"stable2512-7",
 				"stable2407-5",
 				"v1.18.1",
 				"v1.18.0",
@@ -264,15 +264,15 @@ mod tests {
 					"polkadot-stable2409",
 					"polkadot-stable2409-1",
 					"polkadot-stable2407",
-					"polkadot-stable2503",
-					"polkadot-stable2503-1"
+					"polkadot-stable2612",
+					"polkadot-stable2512-1"
 				]
 				.as_mut_slice()
 			)
 			.0,
 			[
-				"polkadot-stable2503-1",
-				"polkadot-stable2503",
+				"polkadot-stable2612",
+				"polkadot-stable2512-1",
 				"polkadot-stable2409-1",
 				"polkadot-stable2409",
 				"polkadot-stable2407",
@@ -297,15 +297,15 @@ mod tests {
 					"polkadot-stable2409",
 					"polkadot-stable2409-1",
 					"polkadot-stable2407",
-					"polkadot-stable2503",
-					"polkadot-stable2503-1"
+					"polkadot-stable2612",
+					"polkadot-stable2512-1"
 				]
 				.as_mut_slice()
 			)
 			.0,
 			[
-				"polkadot-stable2503-1",
-				"polkadot-stable2503",
+				"polkadot-stable2612",
+				"polkadot-stable2512-1",
 				"polkadot-stable2409-1",
 				"polkadot-stable2409",
 				"polkadot-stable2407",

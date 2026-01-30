@@ -888,9 +888,9 @@ mod tests {
 	};
 	use tempfile::{Builder, tempdir};
 
-	pub(crate) const FALLBACK: &str = "stable2412";
-	pub(crate) const RELAY_BINARY_VERSION: &str = "stable2412-4";
-	pub(crate) const SYSTEM_PARA_BINARY_VERSION: &str = "stable2503";
+	pub(crate) const FALLBACK: &str = "stable2512";
+	pub(crate) const RELAY_BINARY_VERSION: &str = "stable2512";
+	pub(crate) const SYSTEM_PARA_BINARY_VERSION: &str = "stable2512";
 	const SYSTEM_PARA_RUNTIME_VERSION: &str = "v1.4.1";
 
 	mod zombienet {
@@ -1044,7 +1044,7 @@ chain = "paseo-local"
 				r#"
 [relaychain]
 chain = "paseo-local"
-default_command = "./bin-stable2503/polkadot"
+default_command = "./bin-stable2512/polkadot"
 "#
 			)?;
 
@@ -1184,14 +1184,14 @@ command = "polkadot"
 [[relaychain.nodes]]
 name = "bob"
 validator = true
-command = "polkadot-stable2503"
+command = "polkadot-stable2512"
 "#
 			)?;
 
 			assert!(matches!(
 				Zombienet::new(&cache, config.path().try_into()?, None, None, None, None, None).await,
 				Err(Error::UnsupportedCommand(error))
-				if error == "the relay chain command is unsupported: polkadot-stable2503"
+				if error == "the relay chain command is unsupported: polkadot-stable2512"
 			));
 			Ok(())
 		}
@@ -1211,14 +1211,14 @@ default_command = "polkadot"
 [[relaychain.nodes]]
 name = "alice"
 validator = true
-command = "polkadot-stable2503"
+command = "polkadot-stable2512"
 "#
 			)?;
 
 			assert!(matches!(
 				Zombienet::new(&cache, config.path().try_into()?, None, None, None, None, None).await,
 				Err(Error::UnsupportedCommand(error))
-				if error == "the relay chain command is unsupported: polkadot-stable2503"
+				if error == "the relay chain command is unsupported: polkadot-stable2512"
 			));
 			Ok(())
 		}

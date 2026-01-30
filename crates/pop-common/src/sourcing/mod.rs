@@ -901,9 +901,9 @@ pub(super) mod tests {
 	async fn sourcing_from_github_release_archive_works() -> anyhow::Result<()> {
 		let owner = "r0gue-io".to_string();
 		let repository = "polkadot".to_string();
-		let version = "stable2503";
+		let version = "stable2512";
 		let tag_pattern = Some("polkadot-{version}".into());
-		let fallback = "stable2412-4".into();
+		let fallback = "stable2512".into();
 		let archive = format!("polkadot-{}.tar.gz", target()?);
 		let contents = ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"];
 		let temp_dir = tempdir()?;
@@ -934,9 +934,9 @@ pub(super) mod tests {
 			.execute(async || {
 				let owner = "r0gue-io".to_string();
 				let repository = "polkadot".to_string();
-				let version = "stable2503";
+				let version = "stable2512";
 				let tag_pattern = Some("polkadot-{version}".into());
-				let fallback = "stable2412-4".into();
+				let fallback = "stable2512".into();
 				let archive = format!("polkadot-{}.tar.gz", target()?);
 				let contents = ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"];
 				let temp_dir = tempdir()?;
@@ -1010,10 +1010,10 @@ pub(super) mod tests {
 	async fn sourcing_from_github_release_archive_maps_contents() -> anyhow::Result<()> {
 		let owner = "r0gue-io".to_string();
 		let repository = "polkadot".to_string();
-		let version = "stable2503";
+		let version = "stable2512";
 		let tag_pattern = Some("polkadot-{version}".into());
 		let name = "polkadot".to_string();
-		let fallback = "stable2412-4".into();
+		let fallback = "stable2512".into();
 		let archive = format!("{name}-{}.tar.gz", target()?);
 		let contents = ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"];
 		let temp_dir = tempdir()?;
@@ -1047,7 +1047,7 @@ pub(super) mod tests {
 		let repository = "polkadot".to_string();
 		let tag_pattern = Some("polkadot-{version}".into());
 		let name = "polkadot".to_string();
-		let fallback = "stable2412-4".into();
+		let fallback = "stable2512".into();
 		let archive = format!("{name}-{}.tar.gz", target()?);
 		let contents = ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"];
 		let temp_dir = tempdir()?;
@@ -1312,10 +1312,10 @@ pub(super) mod tests {
 		assert_eq!(pattern.pattern, "polkadot-{version}");
 		assert_eq!(pattern, pattern.clone());
 
-		for value in ["polkadot-stable2503", "stable2503"] {
-			assert_eq!(pattern.resolve_tag(value).as_str(), "polkadot-stable2503");
+		for value in ["polkadot-stable2512", "stable2512"] {
+			assert_eq!(pattern.resolve_tag(value).as_str(), "polkadot-stable2512");
 		}
-		assert_eq!(pattern.version("polkadot-stable2503"), Some("stable2503"));
+		assert_eq!(pattern.version("polkadot-stable2512"), Some("stable2512"));
 	}
 
 	fn version_comparator<T: AsRef<str> + Ord>(versions: &'_ mut [T]) -> SortedSlice<'_, T> {
