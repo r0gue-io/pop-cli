@@ -17,7 +17,7 @@ edition = "2024"
 documentation = "https://learn.onpop.io/"
 license = "GPL-3.0"
 repository = "https://github.com/r0gue-io/pop-cli"
-rust-version = "1.88.0"
+rust-version = "1.92"
 version = "0.12.1"
 
 [workspace.dependencies]
@@ -34,8 +34,10 @@ git2 = { version = "0.18", default-features = true, features = ["vendored-openss
 glob = { version = "0.3.1", default-features = false }
 log = { version = "0.4.20", default-features = false }
 mockito = { version = "1.4.0", default-features = false }
+once_cell = "1.21.3"
 psvm = { version = "0.3.1", default-features = false }
 rustilities = "3.0.1"
+semver = "1.0.27"
 tar = { version = "0.4.40", default-features = false }
 temp-env = "0.3.6"
 tempfile = { version = "3.10", default-features = false }
@@ -61,13 +63,14 @@ scale-value = { version = "0.18.0", default-features = false, features = ["from-
 contract-build = { version = "6.0.0-beta.2", default-features = false }
 contract-extrinsics = { version = "6.0.0-beta.2", default-features = false }
 contract-transcode = { version = "6.0.0-beta.2", default-features = false }
+contract-metadata = { version = "6.0.0-beta.2", default-features = false }
 heck = { version = "0.5.0", default-features = false }
 
 # parachains
 askama = { version = "0.12", default-features = false, features = ["config"] }
 regex = { version = "1.10", default-features = false }
 walkdir = { version = "2.5", default-features = false }
-indexmap = { version = "2.2", default-features = false }
+indexmap = { version = "2.12.1", default-features = false }
 toml_edit = { version = "0.22", features = ["serde"] }
 symlink = { version = "0.1", default-features = false }
 serde_json = { version = "1.0", default-features = false, features = ["preserve_order"] }
