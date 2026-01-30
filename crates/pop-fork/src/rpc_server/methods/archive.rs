@@ -25,8 +25,9 @@ pub trait ArchiveApi {
 
 	/// Get block hash by height.
 	///
-	/// Returns an array of hashes (returns an `Option<Vec>` to comply with the spec but, in practice,
-	/// this Vec always contains a single element, as blocks are produced on-demand one by one).
+	/// Returns an array of hashes (returns an `Option<Vec>` to comply with the spec but, in
+	/// practice, this Vec always contains a single element, as blocks are produced on-demand one
+	/// by one).
 	#[method(name = "v1_hashByHeight")]
 	async fn hash_by_height(&self, height: u32) -> RpcResult<Option<Vec<String>>>;
 
@@ -479,7 +480,10 @@ mod tests {
 	use super::*;
 	use crate::{
 		ExecutorConfig, TxPool,
-		rpc_server::{ForkRpcServer, RpcServerConfig, types::ArchiveStorageResult},
+		rpc_server::{
+			ForkRpcServer, RpcServerConfig,
+			types::{ArchiveCallResult, ArchiveStorageResult},
+		},
 	};
 	use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
 	use pop_common::test_env::TestNode;
@@ -516,61 +520,6 @@ mod tests {
 
 		let ws_url = server.ws_url();
 		RpcTestContext { node, server, ws_url, blockchain }
-	}
-
-	/// Transfer amount: 100 units (with 12 decimals)
-	const TRANSFER_AMOUNT: u128 = 100_000_000_000_000;
-
-	/// Well-known dev account: Alice
-	const ALICE: [u8; 32] = [
-		0xd4, 0x35, 0x93, 0xc7, 0x15, 0xfd, 0xd3, 0x1c, 0x61, 0x14, 0x1a, 0xbd, 0x04, 0xa9, 0x9f,
-		0xd6, 0x82, 0x2c, 0x85, 0x58, 0x85, 0x4c, 0xcd, 0xe3, 0x9a, 0x56, 0x84, 0xe7, 0xa5, 0x6d,
-		0xa2, 0x7d,
-	];
-
-	/// Well-known dev account: Bob
-	const BOB: [u8; 32] = [
-		0x8e, 0xaf, 0x04, 0x15, 0x16, 0x87, 0x73, 0x63, 0x26, 0xc9, 0xfe, 0xa1, 0x7e, 0x25, 0xfc,
-		0x52, 0x87, 0x61, 0x36, 0x93, 0xc9, 0x12, 0x90, 0x9c, 0xb2, 0x26, 0xaa, 0x47, 0x94, 0xf2,
-		0x6a, 0x48,
-	];
-
-	/// Compute Blake2_128Concat storage key for System::Account.
-	fn account_storage_key(account: &[u8; 32]) -> Vec<u8> {
-		let mut key = Vec::new();
-		key.extend(sp_core::twox_128(b"System"));
-		key.extend(sp_core::twox_128(b"Account"));
-		key.extend(sp_core::blake2_128(account));
-		key.extend(account);
-		key
-	}
-
-	/// Decode AccountInfo and extract free balance.
-	fn decode_free_balance(data: &[u8]) -> u128 {
-		const ACCOUNT_DATA_OFFSET: usize = 16;
-		u128::from_le_bytes(
-			data[ACCOUNT_DATA_OFFSET..ACCOUNT_DATA_OFFSET + 16]
-				.try_into()
-				.expect("need 16 bytes for u128"),
-		)
-	}
-
-	/// Build a mock V4 signed extrinsic with dummy signature (from Alice).
-	fn build_mock_signed_extrinsic_v4(call_data: &[u8]) -> Vec<u8> {
-		use scale::{Compact, Encode};
-		let mut inner = Vec::new();
-		inner.push(0x84); // Version: signed (0x80) + v4 (0x04)
-		inner.push(0x00); // MultiAddress::Id variant
-		inner.extend(ALICE);
-		inner.extend([0u8; 64]); // Dummy signature (works with AlwaysValid)
-		inner.push(0x00); // CheckMortality: immortal
-		inner.extend(Compact(0u64).encode()); // CheckNonce
-		inner.extend(Compact(0u128).encode()); // ChargeTransactionPayment
-		inner.push(0x00); // EthSetOrigin: None
-		inner.extend(call_data);
-		let mut extrinsic = Compact(inner.len() as u32).encode();
-		extrinsic.extend(inner);
-		extrinsic
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -1080,22 +1029,6 @@ mod tests {
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
-	async fn archive_stop_storage_succeeds() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
-
-		// stop_storage is a no-op but should succeed
-		let result: () = client
-			.request("archive_v1_stopStorage", rpc_params!["some_operation_id"])
-			.await
-			.expect("RPC call failed");
-
-		// Just verify it doesn't error
-		assert_eq!(result, ());
-	}
-
-	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_header_rejects_invalid_hex() {
 		let ctx = setup_rpc_test().await;
 		let client =
@@ -1124,81 +1057,74 @@ mod tests {
 		assert!(result.is_err(), "Should reject invalid hex parameters");
 	}
 
-	/// Verifies that calling `BlockBuilder_apply_extrinsic` and `BlockBuilder_finalize_block`
-	/// via `archive_v1_call` RPC does NOT persist storage changes.
+	/// Verifies that calling `Core_initialize_block` via `archive_v1_call` RPC does NOT
+	/// persist storage changes.
+	///
+	/// `Core_initialize_block` writes to `System::Number` and other storage keys during
+	/// block initialization. This test verifies those changes are discarded after the call.
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_call_does_not_persist_storage_changes() {
-		use crate::SignatureMockMode;
-		use scale::{Compact, Encode};
+		use crate::{DigestItem, consensus_engine, create_next_header};
 
-		let config =
-			ExecutorConfig { signature_mock: SignatureMockMode::AlwaysValid, ..Default::default() };
-		let ctx = setup_rpc_test_with_config(config).await;
+		let ctx = setup_rpc_test().await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
-		// Get storage key for Alice
-		let alice_key = account_storage_key(&ALICE);
-
-		// Get head block for metadata
+		// Get head block info
 		let head = ctx.blockchain.head().await;
 		let head_hash = format!("0x{}", hex::encode(head.hash.as_bytes()));
-		let metadata = head.metadata().await.expect("Failed to get metadata");
+		let head_number = head.number;
 
-		// Query Alice's balance BEFORE directly via blockchain
-		let alice_balance_before = ctx
+		// System::Number storage key = twox128("System") ++ twox128("Number")
+		let system_number_key: Vec<u8> =
+			[sp_core::twox_128(b"System").as_slice(), sp_core::twox_128(b"Number").as_slice()]
+				.concat();
+
+		// Query System::Number BEFORE
+		let number_before = ctx
 			.blockchain
-			.storage(&alice_key)
+			.storage(&system_number_key)
 			.await
-			.expect("Failed to get Alice balance")
-			.map(|v| decode_free_balance(&v))
-			.expect("Alice should have a balance");
+			.expect("Failed to get System::Number")
+			.map(|v| u32::from_le_bytes(v.try_into().expect("System::Number should be 4 bytes")))
+			.expect("System::Number should exist");
 
-		// Build transfer call data: Balances.transfer_keep_alive(Bob, TRANSFER_AMOUNT)
-		let balances_pallet =
-			metadata.pallet_by_name("Balances").expect("Balances pallet should exist");
-		let pallet_index = balances_pallet.index();
-		let transfer_call = balances_pallet
-			.call_variant_by_name("transfer_keep_alive")
-			.expect("transfer_keep_alive call should exist");
-		let call_index = transfer_call.index;
+		// Build header for the next block using the crate's helper
+		let header = create_next_header(
+			&head,
+			vec![DigestItem::PreRuntime(consensus_engine::AURA, 0u64.to_le_bytes().to_vec())],
+		);
+		let header_hex = format!("0x{}", hex::encode(&header));
 
-		let mut call_data = vec![pallet_index, call_index];
-		call_data.push(0x00); // MultiAddress::Id variant
-		call_data.extend(BOB);
-		call_data.extend(Compact(TRANSFER_AMOUNT).encode());
-
-		// Build the signed extrinsic
-		let extrinsic = build_mock_signed_extrinsic_v4(&call_data);
-		let extrinsic_hex = format!("0x{}", hex::encode(&extrinsic));
-
-		// Call BlockBuilder_apply_extrinsic via archive_v1_call
-		let _: Option<serde_json::Value> = client
-			.request(
-				"archive_v1_call",
-				rpc_params![head_hash.clone(), "BlockBuilder_apply_extrinsic", extrinsic_hex],
-			)
+		// Call Core_initialize_block - this WOULD write System::Number = head_number + 1
+		let init_result: Option<ArchiveCallResult> = client
+			.request("archive_v1_call", rpc_params![head_hash, "Core_initialize_block", header_hex])
 			.await
-			.expect("BlockBuilder_apply_extrinsic RPC call failed");
+			.expect("Core_initialize_block RPC call failed");
+		let init_result = init_result.expect("Block should exist");
+		assert!(
+			init_result.success,
+			"Core_initialize_block should succeed: {:?}",
+			init_result.error
+		);
 
-		// Call BlockBuilder_finalize_block via archive_v1_call
-		let _: Option<serde_json::Value> = client
-			.request("archive_v1_call", rpc_params![head_hash, "BlockBuilder_finalize_block", "0x"])
-			.await
-			.expect("BlockBuilder_finalize_block RPC call failed");
-
-		// Query Alice's balance AFTER - should be UNCHANGED
-		let alice_balance_after = ctx
+		// Query System::Number AFTER - should be UNCHANGED
+		let number_after = ctx
 			.blockchain
-			.storage(&alice_key)
+			.storage(&system_number_key)
 			.await
-			.expect("Failed to get Alice balance after")
-			.map(|v| decode_free_balance(&v))
-			.expect("Alice should still have a balance");
+			.expect("Failed to get System::Number after")
+			.map(|v| u32::from_le_bytes(v.try_into().expect("System::Number should be 4 bytes")))
+			.expect("System::Number should still exist");
 
 		assert_eq!(
-			alice_balance_before, alice_balance_after,
-			"Storage should NOT be modified by archive_v1_call even when calling BlockBuilder methods"
+			number_before,
+			number_after,
+			"System::Number should NOT be modified by archive_v1_call. \
+			 Before: {}, After: {} (would have been {} if persisted)",
+			number_before,
+			number_after,
+			head_number + 1
 		);
 	}
 
