@@ -386,6 +386,10 @@ struct ZombieJsonCandidate {
 
 fn find_zombie_jsons() -> Result<Vec<ZombieJsonCandidate>> {
 	let temp_dir = std::env::temp_dir();
+	let pattern = regex::Regex::new(
+		r"^zombie-[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+	)
+	.expect("expected valid regex");
 	let mut candidates = Vec::new();
 	for entry in read_dir(&temp_dir)? {
 		let entry = match entry {
@@ -401,7 +405,7 @@ fn find_zombie_jsons() -> Result<Vec<ZombieJsonCandidate>> {
 			Some(name) => name,
 			None => continue,
 		};
-		if !name.starts_with("zombie-") {
+		if !pattern.is_match(name) {
 			continue;
 		}
 		if path.join(".CLEARED").exists() {
@@ -857,8 +861,7 @@ mod tests {
 
 	#[test]
 	fn find_zombie_jsons_skips_cleared() -> Result<()> {
-		let suffix = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_nanos();
-		let temp_dir = std::env::temp_dir().join(format!("zombie-{suffix}"));
+		let temp_dir = std::env::temp_dir().join("zombie-00000000-0000-0000-0000-000000000000");
 		std::fs::create_dir_all(&temp_dir)?;
 		std::fs::write(temp_dir.join("zombie.json"), "{}")?;
 		std::fs::write(temp_dir.join(".CLEARED"), "")?;
