@@ -7,6 +7,7 @@ use serde::Serialize;
 use serde_json::Value;
 use std::{
 	fs::{read_dir, remove_dir_all, remove_file},
+	io::IsTerminal,
 	path::{Path, PathBuf},
 	process::Command as StdCommand,
 };
@@ -220,7 +221,9 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 			1 => "Stop the selected network?".to_string(),
 			_ => format!("Stop the {} selected networks?", count),
 		};
-		if !self.cli.confirm(confirm).initial_value(true).interact()? {
+		if std::io::stdin().is_terminal() &&
+			!self.cli.confirm(confirm).initial_value(true).interact()?
+		{
 			self.cli.outro("ℹ️ No networks stopped.")?;
 			return Ok(());
 		}
@@ -233,23 +236,29 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 				.to_path_buf();
 			if let Err(e) = destroy_network(zombie_json).await {
 				let error_message = e.to_string();
-				if error_message.contains("Cannot abort a recreated/attached node") {
+				if error_message.contains("Cannot abort a recreated/attached node") ||
+					error_message.contains("not connected")
+				{
 					self.cli.warning(format!(
 						"⚠️ Falling back to process cleanup for attached network at {}",
 						base_dir.display()
 					))?;
 					let pids = read_pids_from_zombie_json(zombie_json)?;
 					if pids.is_empty() {
-						failures += 1;
 						self.cli.warning(format!(
-							"🚫 Failed to find process IDs in {}",
-							zombie_json.display()
+							"ℹ️ Network already stopped at {}",
+							base_dir.display()
 						))?;
-						continue;
+					} else {
+						for pid in pids {
+							kill_process(&pid)?;
+						}
 					}
-					for pid in pids {
-						kill_process(&pid)?;
-					}
+				} else if error_message.contains("ProcessIdRetrievalFailed") ||
+					error_message.contains("no process was attached")
+				{
+					self.cli
+						.warning(format!("ℹ️ Network already stopped at {}", base_dir.display()))?;
 				} else {
 					failures += 1;
 					self.cli.warning(format!(
@@ -261,6 +270,12 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 			}
 
 			if self.keep_state {
+				if let Err(e) = mark_cleared(&base_dir) {
+					self.cli.warning(format!(
+						"🚫 Failed to mark network as cleared at {}: {e}",
+						base_dir.display()
+					))?;
+				}
 				self.cli
 					.info(format!("ℹ️ Network stopped. State kept at {}", base_dir.display()))?;
 				continue;
@@ -327,6 +342,12 @@ fn resolve_zombie_json_path(path: &Path) -> Result<PathBuf> {
 	anyhow::bail!("Invalid path: {}", path.display())
 }
 
+fn mark_cleared(base_dir: &Path) -> Result<()> {
+	let cleared = base_dir.join(".CLEARED");
+	std::fs::write(cleared, "")?;
+	Ok(())
+}
+
 fn read_pids_from_zombie_json(path: &Path) -> Result<Vec<String>> {
 	let contents = std::fs::read_to_string(path)?;
 	let value: Value = serde_json::from_str(&contents)?;
@@ -341,7 +362,7 @@ fn collect_pids(value: &Value, pids: &mut Vec<String>) {
 	match value {
 		Value::Object(map) =>
 			for (key, value) in map {
-				if key == "pid" {
+				if key == "pid" || key == "process" {
 					match value {
 						Value::Number(number) => pids.push(number.to_string()),
 						Value::String(pid) => pids.push(pid.to_string()),
@@ -381,6 +402,9 @@ fn find_zombie_jsons() -> Result<Vec<ZombieJsonCandidate>> {
 			None => continue,
 		};
 		if !name.starts_with("zombie-") {
+			continue;
+		}
+		if path.join(".CLEARED").exists() {
 			continue;
 		}
 		let zombie_json = path.join("zombie.json");
@@ -817,16 +841,31 @@ mod tests {
 			{
 				"nodes": [
 					{ "name": "alice", "pid": 1234 },
-					{ "name": "bob", "pid": "5678" }
+					{ "name": "bob", "pid": "5678" },
+					{ "name": "charlie", "process": 9012 }
 				],
-				"other": { "nested": { "pid": 9999 } }
+				"other": { "nested": { "pid": 9999, "process": "3456" } }
 			}
 			"#,
 		)?;
 
 		let mut pids = read_pids_from_zombie_json(&zombie_json)?;
 		pids.sort();
-		assert_eq!(pids, vec!["1234", "5678", "9999"]);
+		assert_eq!(pids, vec!["1234", "3456", "5678", "9012", "9999"]);
+		Ok(())
+	}
+
+	#[test]
+	fn find_zombie_jsons_skips_cleared() -> Result<()> {
+		let suffix = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_nanos();
+		let temp_dir = std::env::temp_dir().join(format!("zombie-{suffix}"));
+		std::fs::create_dir_all(&temp_dir)?;
+		std::fs::write(temp_dir.join("zombie.json"), "{}")?;
+		std::fs::write(temp_dir.join(".CLEARED"), "")?;
+
+		let candidates = find_zombie_jsons()?;
+		assert!(!candidates.iter().any(|c| c.path.starts_with(&temp_dir)));
+		std::fs::remove_dir_all(&temp_dir)?;
 		Ok(())
 	}
 

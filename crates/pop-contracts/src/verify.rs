@@ -112,7 +112,7 @@ impl VerifyContract {
 			return Err(Error::Verification(format!(
 				"Only can run verification against 1 contract, found {} in the worsskpace",
 				build_results.len()
-			)))
+			)));
 		}
 
 		Ok(())
