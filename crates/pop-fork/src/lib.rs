@@ -74,7 +74,7 @@ mod strings;
 mod txpool;
 
 pub use block::{Block, BlockForkPoint};
-pub use blockchain::{Blockchain, BlockchainError, ChainType};
+pub use blockchain::{Blockchain, BlockchainError, BlockchainEvent, ChainType};
 pub use builder::{
 	ApplyExtrinsicResult, BlockBuilder, ConsensusEngineId, DigestItem, consensus_engine,
 	create_next_header,

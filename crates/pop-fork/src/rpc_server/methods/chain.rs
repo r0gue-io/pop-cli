@@ -5,19 +5,18 @@
 //! These methods provide block-related operations for polkadot.js compatibility.
 
 use crate::{
-	Blockchain,
-	rpc_server::{
-		RpcServerError, parse_block_hash,
-		types::{BlockData, Header, HexString, SignedBlock},
-	},
+	Blockchain, BlockchainEvent,
+	rpc_server::types::{BlockData, Header, SignedBlock},
 };
 use jsonrpsee::{
+	PendingSubscriptionSink,
 	core::{RpcResult, SubscriptionResult},
 	proc_macros::rpc,
-	PendingSubscriptionSink,
 };
 use scale::Decode;
 use std::sync::Arc;
+use subxt::config::substrate::H256;
+use tokio::sync::broadcast;
 
 /// Legacy chain RPC methods.
 #[rpc(server, namespace = "chain")]
@@ -164,22 +163,63 @@ impl ChainApiServer for ChainApi {
 
 	async fn subscribe_new_heads(&self, pending: PendingSubscriptionSink) -> SubscriptionResult {
 		let sink = pending.accept().await?;
+		let blockchain = Arc::clone(&self.blockchain);
 
-		// Get current head header and send it immediately
-		let head_hash = self.blockchain.head_hash().await;
-		if let Ok(Some(header_bytes)) = self.blockchain.block_header(head_hash).await {
+		// Send current head immediately
+		let head_hash = blockchain.head_hash().await;
+		if let Ok(Some(header_bytes)) = blockchain.block_header(head_hash).await {
 			if let Ok(header) = Header::decode(&mut header_bytes.as_slice()) {
 				let _ = sink.send(jsonrpsee::SubscriptionMessage::from_json(&header)?);
 			}
 		}
 
-		// Keep subscription open (mock - doesn't send updates)
-		// In a real implementation, we'd listen for new blocks from dev_newBlock
-		sink.closed().await;
+		// Subscribe to blockchain events
+		let mut receiver = blockchain.subscribe_events();
+
+		// Spawn task to forward events to sink
+		tokio::spawn(async move {
+			loop {
+				tokio::select! {
+					biased;
+
+					// Client disconnected
+					_ = sink.closed() => break,
+
+					// New event received
+					event = receiver.recv() => {
+						match event {
+							Ok(BlockchainEvent::NewBlock { header, .. }) => {
+								// Decode and send the new header
+								if let Ok(decoded) = Header::decode(&mut header.as_slice()) {
+									let msg = match jsonrpsee::SubscriptionMessage::from_json(&decoded) {
+										Ok(m) => m,
+										Err(_) => continue,
+									};
+									if sink.send(msg).await.is_err() {
+										break; // Client disconnected
+									}
+								}
+							}
+							Err(broadcast::error::RecvError::Lagged(_)) => {
+								// Slow consumer - skip missed events
+								continue;
+							}
+							Err(broadcast::error::RecvError::Closed) => {
+								break; // Channel closed
+							}
+						}
+					}
+				}
+			}
+		});
+
 		Ok(())
 	}
 
-	async fn subscribe_finalized_heads(&self, pending: PendingSubscriptionSink) -> SubscriptionResult {
+	async fn subscribe_finalized_heads(
+		&self,
+		pending: PendingSubscriptionSink,
+	) -> SubscriptionResult {
 		// For a fork, finalized = head
 		self.subscribe_new_heads(pending).await
 	}

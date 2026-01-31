@@ -4,8 +4,8 @@ use crate::cli::{self};
 use anyhow::Result;
 use clap::Args;
 use pop_fork::{
-	rpc_server::{ForkRpcServer, RpcServerConfig},
 	Blockchain, ExecutorConfig, SignatureMockMode, TxPool,
+	rpc_server::{ForkRpcServer, RpcServerConfig},
 };
 use serde::Serialize;
 use std::{path::PathBuf, sync::Arc};

@@ -92,9 +92,7 @@ pub fn create_rpc_module(
 	// Register rpc_methods
 	let response = RpcMethodsResponse { methods: method_names };
 	module
-		.register_method("rpc_methods", move |_, _, _| {
-			ResponsePayload::success(response.clone())
-		})
+		.register_method("rpc_methods", move |_, _, _| ResponsePayload::success(response.clone()))
 		.map_err(|e| RpcServerError::Internal(e.to_string()))?;
 
 	Ok(module)

@@ -56,10 +56,33 @@ use crate::{
 use scale::Encode;
 use std::{path::Path, sync::Arc};
 use subxt::config::substrate::H256;
-use tokio::sync::RwLock;
+use tokio::sync::{RwLock, broadcast};
 use url::Url;
 
 pub type BlockBody = Vec<Vec<u8>>;
+/// Capacity for the blockchain event broadcast channel.
+const EVENT_CHANNEL_CAPACITY: usize = 256;
+
+/// Events emitted by the blockchain when state changes.
+///
+/// Subscribe to these events via [`Blockchain::subscribe_events`] to receive
+/// notifications when blocks are built.
+#[derive(Debug, Clone)]
+pub enum BlockchainEvent {
+	/// A new block was built and is now the head.
+	NewBlock {
+		/// The new block's hash.
+		hash: H256,
+		/// The new block's number.
+		number: u32,
+		/// The parent block's hash.
+		parent_hash: H256,
+		/// The SCALE-encoded block header.
+		header: Vec<u8>,
+		/// Storage keys that were modified in this block.
+		modified_keys: Vec<Vec<u8>>,
+	},
+}
 
 /// Errors that can occur when working with the blockchain manager.
 #[derive(Debug, thiserror::Error)]
@@ -160,6 +183,12 @@ pub struct Blockchain {
 
 	/// RPC endpoint URL for fetching remote data.
 	endpoint: Url,
+
+	/// Event broadcaster for subscription notifications.
+	///
+	/// Subscriptions receive events through receivers obtained via
+	/// [`subscribe_events`](Blockchain::subscribe_events).
+	event_tx: broadcast::Sender<BlockchainEvent>,
 }
 
 impl Blockchain {
@@ -293,6 +322,9 @@ impl Blockchain {
 			.map(|p| Arc::from(p) as Arc<dyn InherentProvider>)
 			.collect();
 
+		// Create event broadcast channel
+		let (event_tx, _) = broadcast::channel(EVENT_CHANNEL_CAPACITY);
+
 		Ok(Arc::new(Self {
 			head: RwLock::new(fork_block),
 			inherent_providers,
@@ -302,6 +334,7 @@ impl Blockchain {
 			fork_point_number,
 			executor_config,
 			endpoint: endpoint.clone(),
+			event_tx,
 		}))
 	}
 
@@ -328,6 +361,29 @@ impl Blockchain {
 	/// Get the RPC endpoint URL.
 	pub fn endpoint(&self) -> &Url {
 		&self.endpoint
+	}
+
+	/// Subscribe to blockchain events.
+	///
+	/// Returns a receiver that will get events when blocks are built.
+	/// Use this for implementing reactive RPC subscriptions.
+	///
+	/// # Example
+	///
+	/// ```ignore
+	/// let mut receiver = blockchain.subscribe_events();
+	/// tokio::spawn(async move {
+	///     while let Ok(event) = receiver.recv().await {
+	///         match event {
+	///             BlockchainEvent::NewBlock { hash, number, .. } => {
+	///                 println!("New block #{} ({:?})", number, hash);
+	///             }
+	///         }
+	///     }
+	/// });
+	/// ```
+	pub fn subscribe_events(&self) -> broadcast::Receiver<BlockchainEvent> {
+		self.event_tx.subscribe()
 	}
 
 	/// Get the current head block.
@@ -595,6 +651,22 @@ impl Blockchain {
 
 		// Update head
 		*head = new_block.clone();
+
+		// Get modified keys from storage diff and emit event
+		let modified_keys: Vec<Vec<u8>> = new_block
+			.storage()
+			.diff()
+			.map(|diff| diff.into_iter().map(|(k, _)| k).collect())
+			.unwrap_or_default();
+
+		// Emit event (ignore errors - no subscribers is OK)
+		let _ = self.event_tx.send(BlockchainEvent::NewBlock {
+			hash: new_block.hash,
+			number: new_block.number,
+			parent_hash: new_block.parent_hash,
+			header: new_block.header.clone(),
+			modified_keys,
+		});
 
 		Ok(new_block)
 	}

@@ -6,11 +6,12 @@
 //! This implementation uses "Instant mode" where submitting an extrinsic
 //! immediately builds a block containing it.
 
-use crate::{
-	Blockchain, TxPool,
-	rpc_server::{RpcServerError, parse_hex_bytes, types::HexString},
+use crate::{Blockchain, TxPool};
+use jsonrpsee::{
+	PendingSubscriptionSink,
+	core::{RpcResult, SubscriptionResult},
+	proc_macros::rpc,
 };
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use std::sync::Arc;
 use subxt::config::substrate::H256;
 
@@ -26,9 +27,10 @@ pub trait AuthorApi {
 
 	/// Submit an extrinsic and watch its status.
 	///
-	/// NOTE: Subscriptions are not yet supported. Use `submitExtrinsic` instead.
-	#[method(name = "submitAndWatchExtrinsic")]
-	async fn submit_and_watch_extrinsic(&self, extrinsic: String) -> RpcResult<String>;
+	/// Returns a subscription that sends transaction lifecycle events:
+	/// ready → broadcast → inBlock → finalized
+	#[subscription(name = "submitAndWatchExtrinsic" => "extrinsicUpdate", unsubscribe = "unwatchExtrinsic", item = serde_json::Value)]
+	async fn submit_and_watch_extrinsic(&self, extrinsic: String) -> SubscriptionResult;
 
 	/// Get all pending extrinsics.
 	///
@@ -77,13 +79,84 @@ impl AuthorApiServer for AuthorApi {
 		Ok(HexString::from_bytes(hash.as_bytes()).into())
 	}
 
-	async fn submit_and_watch_extrinsic(&self, _extrinsic: String) -> RpcResult<String> {
-		// Subscriptions are not yet supported
-		Err(jsonrpsee::types::ErrorObjectOwned::owned(
-			crate::rpc_server::error_codes::METHOD_NOT_FOUND,
-			"Method not supported: subscriptions are not yet implemented. Use author_submitExtrinsic instead.",
-			None::<()>,
-		))
+	async fn submit_and_watch_extrinsic(
+		&self,
+		pending: PendingSubscriptionSink,
+		extrinsic: String,
+	) -> SubscriptionResult {
+		let sink = pending.accept().await?;
+
+		// Decode the hex extrinsic
+		let ext_bytes = match hex::decode(extrinsic.trim_start_matches("0x")) {
+			Ok(b) => b,
+			Err(e) => {
+				let msg = jsonrpsee::SubscriptionMessage::from_json(
+					&serde_json::json!({"invalid": format!("Invalid hex: {e}")}),
+				)?;
+				let _ = sink.send(msg).await;
+				return Ok(());
+			},
+		};
+
+		// Calculate hash
+		let _hash = H256::from(sp_core::blake2_256(&ext_bytes));
+
+		// Send "ready" status
+		let msg = jsonrpsee::SubscriptionMessage::from_json(&serde_json::json!({"ready": null}))?;
+		let _ = sink.send(msg).await;
+
+		// Send "broadcast" status (simulated in fork - empty peer list)
+		let msg = jsonrpsee::SubscriptionMessage::from_json(&serde_json::json!({"broadcast": []}))?;
+		let _ = sink.send(msg).await;
+
+		// Submit to TxPool
+		if let Err(e) = self.txpool.submit(ext_bytes) {
+			let msg = jsonrpsee::SubscriptionMessage::from_json(
+				&serde_json::json!({"invalid": format!("Failed to submit: {e}")}),
+			)?;
+			let _ = sink.send(msg).await;
+			return Ok(());
+		}
+
+		// Drain and build block (instant mode)
+		let pending_txs = match self.txpool.drain() {
+			Ok(txs) => txs,
+			Err(e) => {
+				let msg = jsonrpsee::SubscriptionMessage::from_json(
+					&serde_json::json!({"dropped": format!("Pool error: {e}")}),
+				)?;
+				let _ = sink.send(msg).await;
+				return Ok(());
+			},
+		};
+
+		match self.blockchain.build_block(pending_txs).await {
+			Ok(block) => {
+				let block_hex = format!("0x{}", hex::encode(block.hash.as_bytes()));
+
+				// Send "inBlock" status
+				let msg = jsonrpsee::SubscriptionMessage::from_json(
+					&serde_json::json!({"inBlock": block_hex}),
+				)?;
+				let _ = sink.send(msg).await;
+
+				// Small delay then send "finalized" (fork has instant finality)
+				tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+				let msg = jsonrpsee::SubscriptionMessage::from_json(
+					&serde_json::json!({"finalized": block_hex}),
+				)?;
+				let _ = sink.send(msg).await;
+			},
+			Err(e) => {
+				let msg = jsonrpsee::SubscriptionMessage::from_json(
+					&serde_json::json!({"dropped": format!("Build failed: {e}")}),
+				)?;
+				let _ = sink.send(msg).await;
+			},
+		}
+
+		Ok(())
 	}
 
 	async fn pending_extrinsics(&self) -> RpcResult<Vec<String>> {
@@ -338,26 +411,81 @@ mod tests {
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
-	async fn author_submit_and_watch_returns_not_supported() {
-		let ctx = setup_rpc_test().await;
+	async fn author_submit_and_watch_sends_lifecycle_events() {
+		use jsonrpsee::core::client::SubscriptionClientT;
+
+		let config =
+			ExecutorConfig { signature_mock: SignatureMockMode::AlwaysValid, ..Default::default() };
+		let ctx = setup_rpc_test_with_config(config).await;
 		let client =
 			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
 
+		let initial_block_number = ctx.blockchain.head_number().await;
+
 		// Build a valid extrinsic using metadata for correct pallet/call indices
 		let call_data = build_transfer_call_data(&ctx.blockchain).await;
-
 		let extrinsic = build_mock_signed_extrinsic_v4(&call_data);
 		let ext_hex = format!("0x{}", hex::encode(&extrinsic));
 
-		// Try to call submitAndWatchExtrinsic - should fail with not supported
-		let result: Result<String, _> =
-			client.request("author_submitAndWatchExtrinsic", rpc_params![ext_hex]).await;
+		// Subscribe to extrinsic status
+		let mut subscription: jsonrpsee::core::client::Subscription<serde_json::Value> = client
+			.subscribe(
+				"author_submitAndWatchExtrinsic",
+				rpc_params![ext_hex],
+				"author_unwatchExtrinsic",
+			)
+			.await
+			.expect("Failed to subscribe");
 
-		assert!(result.is_err(), "Should fail with not supported error");
-		let err = result.unwrap_err();
+		// Collect events with timeout
+		let mut events = Vec::new();
+		let timeout = tokio::time::Duration::from_secs(10);
+
+		loop {
+			match tokio::time::timeout(timeout, subscription.next()).await {
+				Ok(Some(Ok(event))) => {
+					let is_finalized = event.get("finalized").is_some();
+					events.push(event);
+					if is_finalized {
+						break;
+					}
+				},
+				Ok(Some(Err(e))) => panic!("Subscription error: {e}"),
+				Ok(None) => break, // Stream ended
+				Err(_) => panic!("Timeout waiting for subscription events"),
+			}
+		}
+
+		// Verify we got the expected lifecycle events
 		assert!(
-			err.to_string().contains("not supported") || err.to_string().contains("-32601"),
-			"Error should indicate method not supported: {err}"
+			events.len() >= 3,
+			"Should receive at least ready, inBlock, finalized events. Got: {:?}",
+			events
 		);
+
+		// First event should be "ready"
+		assert!(
+			events[0].get("ready").is_some(),
+			"First event should be 'ready', got: {:?}",
+			events[0]
+		);
+
+		// Should have "broadcast"
+		assert!(
+			events.iter().any(|e| e.get("broadcast").is_some()),
+			"Should have 'broadcast' event"
+		);
+
+		// Should have "inBlock"
+		let in_block_event = events.iter().find(|e| e.get("inBlock").is_some());
+		assert!(in_block_event.is_some(), "Should have 'inBlock' event");
+
+		// Should have "finalized"
+		let finalized_event = events.iter().find(|e| e.get("finalized").is_some());
+		assert!(finalized_event.is_some(), "Should have 'finalized' event");
+
+		// Block should have been built
+		let new_block_number = ctx.blockchain.head_number().await;
+		assert_eq!(new_block_number, initial_block_number + 1, "Block should have been built");
 	}
 }

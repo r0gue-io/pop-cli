@@ -76,7 +76,8 @@ fn build_mock_signed_extrinsic_v4(call_data: &[u8]) -> Vec<u8> {
 
 /// Build call data for Balances.transfer_keep_alive using metadata.
 fn build_transfer_call_data(metadata: &Metadata) -> Vec<u8> {
-	let balances_pallet = metadata.pallet_by_name("Balances").expect("Balances pallet should exist");
+	let balances_pallet =
+		metadata.pallet_by_name("Balances").expect("Balances pallet should exist");
 	let pallet_index = balances_pallet.index();
 	let transfer_call = balances_pallet
 		.call_variant_by_name("transfer_keep_alive")

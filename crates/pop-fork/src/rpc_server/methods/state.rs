@@ -5,14 +5,18 @@
 //! These methods provide state-related operations for polkadot.js compatibility.
 
 use crate::{
-	Blockchain,
-	rpc_server::{
-		RpcServerError, parse_block_hash, parse_hex_bytes,
-		types::{HexString, RuntimeVersion},
-	},
+	Blockchain, BlockchainEvent,
+	rpc_server::types::{RuntimeVersion, StorageChangeSet},
 };
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+use jsonrpsee::{
+	PendingSubscriptionSink,
+	core::{RpcResult, SubscriptionResult},
+	proc_macros::rpc,
+};
+use scale::Decode;
 use std::sync::Arc;
+use subxt::config::substrate::H256;
+use tokio::sync::broadcast;
 
 /// Legacy state RPC methods.
 #[rpc(server, namespace = "state")]
@@ -166,14 +170,88 @@ impl StateApiServer for StateApi {
 		pending: PendingSubscriptionSink,
 	) -> SubscriptionResult {
 		let sink = pending.accept().await?;
+		let blockchain = Arc::clone(&self.blockchain);
 
 		// Get current runtime version and send it immediately
-		if let Ok(version) = self.get_runtime_version(None).await {
-			let _ = sink.send(jsonrpsee::SubscriptionMessage::from_json(&version)?);
+		let current_version = self.get_runtime_version(None).await.ok();
+		if let Some(ref version) = current_version {
+			let _ = sink.send(jsonrpsee::SubscriptionMessage::from_json(version)?);
 		}
 
-		// Keep subscription open (mock - doesn't send updates)
-		sink.closed().await;
+		// Subscribe to blockchain events to detect runtime upgrades
+		let mut receiver = blockchain.subscribe_events();
+
+		// The `:code` storage key indicates a runtime upgrade
+		let code_key = b":code".to_vec();
+
+		tokio::spawn(async move {
+			let mut last_spec_version = current_version.map(|v| v.spec_version);
+
+			loop {
+				tokio::select! {
+					biased;
+
+					_ = sink.closed() => break,
+
+					event = receiver.recv() => {
+						match event {
+							Ok(BlockchainEvent::NewBlock { modified_keys, hash, .. }) => {
+								// Check if :code was modified (runtime upgrade)
+								let runtime_changed = modified_keys.iter().any(|k| *k == code_key);
+
+								if runtime_changed {
+									// Fetch new runtime version
+									if let Ok(Some(result)) = blockchain.call_at_block(hash, "Core_version", &[]).await {
+										#[derive(Decode)]
+										struct ScaleRuntimeVersion {
+											spec_name: String,
+											impl_name: String,
+											authoring_version: u32,
+											spec_version: u32,
+											impl_version: u32,
+											apis: Vec<([u8; 8], u32)>,
+											transaction_version: u32,
+											state_version: u8,
+										}
+
+										if let Ok(version) = ScaleRuntimeVersion::decode(&mut result.as_slice()) {
+											// Only notify if spec_version changed
+											if last_spec_version != Some(version.spec_version) {
+												last_spec_version = Some(version.spec_version);
+
+												let rt_version = RuntimeVersion {
+													spec_name: version.spec_name,
+													impl_name: version.impl_name,
+													authoring_version: version.authoring_version,
+													spec_version: version.spec_version,
+													impl_version: version.impl_version,
+													transaction_version: version.transaction_version,
+													state_version: version.state_version,
+													apis: version.apis.into_iter()
+														.map(|(id, ver)| (format!("0x{}", hex::encode(id)), ver))
+														.collect(),
+												};
+
+												let msg = match jsonrpsee::SubscriptionMessage::from_json(&rt_version) {
+													Ok(m) => m,
+													Err(_) => continue,
+												};
+												if sink.send(msg).await.is_err() {
+													break;
+												}
+											}
+										}
+									}
+								}
+							}
+							Err(broadcast::error::RecvError::Lagged(_)) => continue,
+							Err(broadcast::error::RecvError::Closed) => break,
+						}
+					}
+				}
+			}
+		});
+
 		Ok(())
 	}
 
@@ -183,24 +261,97 @@ impl StateApiServer for StateApi {
 		keys: Option<Vec<String>>,
 	) -> SubscriptionResult {
 		let sink = pending.accept().await?;
+		let blockchain = Arc::clone(&self.blockchain);
 
-		// Get current storage values for requested keys and send them
-		let head_hash = self.blockchain.head_hash().await;
+		// Parse subscribed keys from hex to bytes
+		let subscribed_keys: Vec<Vec<u8>> = keys
+			.clone()
+			.unwrap_or_default()
+			.iter()
+			.filter_map(|k| hex::decode(k.trim_start_matches("0x")).ok())
+			.collect();
+
+		// Also keep original hex keys for response formatting
+		let subscribed_keys_hex: Vec<String> = keys.unwrap_or_default();
+
+		// Send initial values
+		let head_hash = blockchain.head_hash().await;
 		let block_hex = format!("0x{}", hex::encode(head_hash.as_bytes()));
 
 		let mut changes = Vec::new();
-		if let Some(keys) = keys {
-			for key in keys {
-				let value = self.get_storage(key.clone(), None).await.ok().flatten();
-				changes.push((key, value));
-			}
+		for (i, key_bytes) in subscribed_keys.iter().enumerate() {
+			let value = blockchain
+				.storage(key_bytes)
+				.await
+				.ok()
+				.flatten()
+				.map(|v| format!("0x{}", hex::encode(v)));
+			let key_hex = subscribed_keys_hex.get(i).cloned().unwrap_or_default();
+			changes.push((key_hex, value));
 		}
 
 		let change_set = StorageChangeSet { block: block_hex, changes };
 		let _ = sink.send(jsonrpsee::SubscriptionMessage::from_json(&change_set)?);
 
-		// Keep subscription open (mock - doesn't send updates)
-		sink.closed().await;
+		// If no keys to watch, just wait for close
+		if subscribed_keys.is_empty() {
+			sink.closed().await;
+			return Ok(());
+		}
+
+		// Subscribe to blockchain events
+		let mut receiver = blockchain.subscribe_events();
+
+		tokio::spawn(async move {
+			loop {
+				tokio::select! {
+					biased;
+
+					_ = sink.closed() => break,
+
+					event = receiver.recv() => {
+						match event {
+							Ok(BlockchainEvent::NewBlock { hash, modified_keys, .. }) => {
+								// Filter to keys we're watching that were modified
+								let affected_indices: Vec<usize> = subscribed_keys.iter()
+									.enumerate()
+									.filter(|(_, k)| modified_keys.iter().any(|mk| mk == *k))
+									.map(|(i, _)| i)
+									.collect();
+
+								if affected_indices.is_empty() {
+									continue;
+								}
+
+								// Fetch new values for affected keys
+								let block_hex = format!("0x{}", hex::encode(hash.as_bytes()));
+								let mut changes = Vec::new();
+
+								for i in affected_indices {
+									let key_hex = subscribed_keys_hex.get(i).cloned().unwrap_or_default();
+									let key_bytes = &subscribed_keys[i];
+									let value = blockchain.storage(key_bytes).await.ok().flatten()
+										.map(|v| format!("0x{}", hex::encode(v)));
+									changes.push((key_hex, value));
+								}
+
+								let change_set = StorageChangeSet { block: block_hex, changes };
+								let msg = match jsonrpsee::SubscriptionMessage::from_json(&change_set) {
+									Ok(m) => m,
+									Err(_) => continue,
+								};
+								if sink.send(msg).await.is_err() {
+									break;
+								}
+							}
+							Err(broadcast::error::RecvError::Lagged(_)) => continue,
+							Err(broadcast::error::RecvError::Closed) => break,
+						}
+					}
+				}
+			}
+		});
+
 		Ok(())
 	}
 }
