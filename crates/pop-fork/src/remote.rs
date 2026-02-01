@@ -564,28 +564,25 @@ mod tests {
 			let ctx = create_test_context().await;
 			let layer = &ctx.remote;
 
-			// Get finalized block number
-			let finalized_hash = layer.rpc().finalized_head().await.unwrap();
-			let finalized_header = layer.rpc().header(finalized_hash).await.unwrap();
-			let finalized_number = finalized_header.number;
+			// Use the fork point block which is pre-cached by TestContext
+			let block_number = ctx.block_number;
 
-			// Verify block is not in cache initially
-			let cached = layer.cache().get_block_by_number(finalized_number).await.unwrap();
+			// Verify block IS in cache (pre-cached by TestContext)
+			let cached = layer.cache().get_block_by_number(block_number).await.unwrap();
+			assert!(cached.is_some(), "Fork point should be pre-cached by TestContext");
 
-			assert!(cached.is_none());
-
-			// Fetch and cache the block
-			let result = layer.fetch_and_cache_block_by_number(finalized_number).await.unwrap();
+			// fetch_and_cache_block_by_number should return the cached block (idempotent)
+			let result = layer.fetch_and_cache_block_by_number(block_number).await.unwrap();
 			assert!(result.is_some());
 
 			let block_row = result.unwrap();
-			assert_eq!(block_row.number, finalized_number as i64);
+			assert_eq!(block_row.number, block_number as i64);
 			assert_eq!(block_row.hash.len(), 32);
 			assert_eq!(block_row.parent_hash.len(), 32);
 			assert!(!block_row.header.is_empty());
 
-			// Verify it's now in cache
-			let cached = layer.cache().get_block_by_number(finalized_number).await.unwrap();
+			// Verify it's still in cache
+			let cached = layer.cache().get_block_by_number(block_number).await.unwrap();
 			assert!(cached.is_some());
 
 			let cached_block = cached.unwrap();

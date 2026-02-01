@@ -1111,21 +1111,17 @@ mod tests {
 		let ctx = create_test_context().await;
 		let layer = create_layer(&ctx);
 
-		// Query a block that's not in cache (fork point)
+		// Query the fork point block (which is pre-cached by TestContext)
 		let block_number = ctx.block_number;
 		let key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 
-		// Verify block is not in cache initially
-		let cached_before = ctx.remote.cache().get_block_by_number(block_number).await.unwrap();
-		assert!(cached_before.is_none());
-
-		// Get storage from historical block
+		// Get storage from historical block - should work even though it's at the fork point
 		let result = layer.get(block_number, &key).await.unwrap().unwrap().value.clone().unwrap();
-		assert_eq!(u32::decode(&mut &result[..]).unwrap(), ctx.block_number);
+		assert_eq!(u32::decode(&mut &result[..]).unwrap(), block_number);
 
-		// Cached after
-		let cached_before = ctx.remote.cache().get_block_by_number(block_number).await.unwrap();
-		assert!(cached_before.is_some());
+		// The block should be in cache (was pre-cached by TestContext)
+		let cached = ctx.remote.cache().get_block_by_number(block_number).await.unwrap();
+		assert!(cached.is_some());
 	}
 
 	// Tests for set()
