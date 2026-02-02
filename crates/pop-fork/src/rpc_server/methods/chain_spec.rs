@@ -6,7 +6,7 @@
 //! during the fork's lifetime. Values are fetched lazily on first call and
 //! cached in static memory.
 
-use crate::{Blockchain, rpc::ForkRpcClient, rpc_server::RpcServerError};
+use crate::{Blockchain, rpc::ForkRpcClient, rpc_server::{RpcServerError, types::HexString}};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use std::sync::{Arc, OnceLock};
 
@@ -70,7 +70,7 @@ impl ChainSpecApiServer for ChainSpecApi {
 		// Fetch genesis hash (block 0)
 		match self.blockchain.block_hash_at(0).await {
 			Ok(Some(hash)) => {
-				let formatted = format!("0x{}", hex::encode(hash.as_bytes()));
+				let formatted: String = HexString::from_bytes(hash.as_bytes()).into();
 				Ok(GENESIS_HASH.get_or_init(|| formatted).clone())
 			},
 			Ok(None) =>

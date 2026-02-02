@@ -6,7 +6,7 @@
 
 use crate::{
 	Blockchain,
-	rpc_server::{RpcServerError, parse_block_hash, parse_hex_bytes, types::RuntimeVersion},
+	rpc_server::{RpcServerError, parse_block_hash, parse_hex_bytes, types::{HexString, RuntimeVersion}},
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use std::sync::Arc;
@@ -61,7 +61,7 @@ impl StateApiServer for StateApi {
 
 		// Query storage from blockchain
 		match self.blockchain.storage_at(block_number, &key_bytes).await {
-			Ok(Some(value)) => Ok(Some(format!("0x{}", hex::encode(value)))),
+			Ok(Some(value)) => Ok(Some(HexString::from_bytes(&value).into())),
 			Ok(None) => Ok(None),
 			Err(e) => Err(RpcServerError::Storage(e.to_string()).into()),
 		}
@@ -74,7 +74,7 @@ impl StateApiServer for StateApi {
 		};
 		// Fetch real metadata via runtime call
 		match self.blockchain.call_at_block(block_hash, "Metadata_metadata", &[]).await {
-			Ok(Some(result)) => Ok(format!("0x{}", hex::encode(result))),
+			Ok(Some(result)) => Ok(HexString::from_bytes(&result).into()),
 			_ => Err(RpcServerError::Internal("Failed to get metadata".to_string()).into()),
 		}
 	}
@@ -118,7 +118,7 @@ impl StateApiServer for StateApi {
 					apis: version
 						.apis
 						.into_iter()
-						.map(|(id, ver)| (format!("0x{}", hex::encode(id)), ver))
+						.map(|(id, ver)| (HexString::from_bytes(&id).into(), ver))
 						.collect(),
 				})
 			},

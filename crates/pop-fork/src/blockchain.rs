@@ -59,7 +59,7 @@ use subxt::config::substrate::H256;
 use tokio::sync::RwLock;
 use url::Url;
 
-pub type BlockBody = Vec<Vec<u8>>
+pub type BlockBody = Vec<Vec<u8>>;
 
 /// Errors that can occur when working with the blockchain manager.
 #[derive(Debug, thiserror::Error)]
@@ -359,7 +359,7 @@ impl Blockchain {
 	/// # Returns
 	///
 	/// The block's extrinsics as raw bytes, or `None` if the block is not found.
-	pub async fn block_body(&self, hash: H256) -> Result<Option<BlockBody>>, BlockchainError> {
+	pub async fn block_body(&self, hash: H256) -> Result<Option<BlockBody>, BlockchainError> {
 		// First, check if it matches any locally-built block (but not the fork point,
 		// which has empty extrinsics since we don't fetch them during fork)
 		let head = self.head.read().await;

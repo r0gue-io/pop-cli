@@ -6,7 +6,7 @@
 //! This implementation uses "Instant mode" where submitting an extrinsic
 //! immediately builds a block containing it.
 
-use crate::{Blockchain, TxPool, rpc_server::{RpcServerError, parse_hex_bytes}};
+use crate::{Blockchain, TxPool, rpc_server::{RpcServerError, parse_hex_bytes, types::HexString}};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use std::sync::Arc;
 use subxt::config::substrate::H256;
@@ -71,7 +71,7 @@ impl AuthorApiServer for AuthorApi {
 			.await
 			.map_err(|e| RpcServerError::Internal(format!("Failed to build block: {e}")))?;
 
-		Ok(format!("0x{}", hex::encode(hash.as_bytes())))
+		Ok(HexString::from_bytes(hash.as_bytes()).into())
 	}
 
 	async fn submit_and_watch_extrinsic(&self, _extrinsic: String) -> RpcResult<String> {
@@ -87,7 +87,7 @@ impl AuthorApiServer for AuthorApi {
 		let pending = self.txpool.pending().map_err(|e| {
 			RpcServerError::Internal(format!("Failed to get pending extrinsics: {e}"))
 		})?;
-		Ok(pending.iter().map(|ext| format!("0x{}", hex::encode(ext))).collect())
+		Ok(pending.iter().map(|ext| HexString::from_bytes(ext).into()).collect())
 	}
 }
 

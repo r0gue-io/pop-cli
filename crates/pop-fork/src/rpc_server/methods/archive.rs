@@ -11,7 +11,7 @@ use crate::{
 		RpcServerError, parse_block_hash, parse_hex_bytes,
 		types::{
 			ArchiveCallResult, ArchiveStorageDiffResult, ArchiveStorageItem, ArchiveStorageResult,
-			StorageDiffItem, StorageDiffQueryItem, StorageDiffType, StorageQueryItem,
+			HexString, StorageDiffItem, StorageDiffQueryItem, StorageDiffType, StorageQueryItem,
 			StorageQueryType,
 		},
 	},
@@ -109,7 +109,7 @@ impl ArchiveApiServer for ArchiveApi {
 	async fn hash_by_height(&self, height: u32) -> RpcResult<Option<Vec<String>>> {
 		// Fetch block hash (checks local blocks first, then remote)
 		match self.blockchain.block_hash_at(height).await {
-			Ok(Some(hash)) => Ok(Some(vec![format!("0x{}", hex::encode(hash.as_bytes()))])),
+			Ok(Some(hash)) => Ok(Some(vec![HexString::from_bytes(hash.as_bytes()).into()])),
 			Ok(None) => Ok(None),
 			Err(e) =>
 				Err(RpcServerError::Internal(format!("Failed to fetch block hash: {e}")).into()),
@@ -121,7 +121,7 @@ impl ArchiveApiServer for ArchiveApi {
 
 		// Fetch block header (checks local blocks first, then remote)
 		match self.blockchain.block_header(block_hash).await {
-			Ok(Some(header)) => Ok(Some(format!("0x{}", hex::encode(&header)))),
+			Ok(Some(header)) => Ok(Some(HexString::from_bytes(&header).into())),
 			Ok(None) => Ok(None),
 			Err(e) =>
 				Err(RpcServerError::Internal(format!("Failed to fetch block header: {e}")).into()),
@@ -135,7 +135,7 @@ impl ArchiveApiServer for ArchiveApi {
 		match self.blockchain.block_body(block_hash).await {
 			Ok(Some(extrinsics)) => {
 				let hex_extrinsics: Vec<String> =
-					extrinsics.iter().map(|ext| format!("0x{}", hex::encode(ext))).collect();
+					extrinsics.iter().map(|ext| HexString::from_bytes(ext).into()).collect();
 				Ok(Some(hex_extrinsics))
 			},
 			Ok(None) => Ok(None),
@@ -155,8 +155,7 @@ impl ArchiveApiServer for ArchiveApi {
 
 		// Execute the call at the specified block
 		match self.blockchain.call_at_block(block_hash, &function, &params).await {
-			Ok(Some(result)) =>
-				Ok(Some(ArchiveCallResult::ok(format!("0x{}", hex::encode(result))))),
+			Ok(Some(result)) => Ok(Some(ArchiveCallResult::ok(HexString::from_bytes(&result).into()))),
 			Ok(None) => Ok(None), // Block not found
 			Err(e) => Ok(Some(ArchiveCallResult::err(e.to_string()))),
 		}
@@ -189,7 +188,7 @@ impl ArchiveApiServer for ArchiveApi {
 					StorageQueryType::Value => {
 						results.push(ArchiveStorageItem {
 							key: item.key,
-							value: Some(format!("0x{}", hex::encode(&value))),
+							value: Some(HexString::from_bytes(&value).into()),
 							hash: None,
 						});
 					},
@@ -198,7 +197,7 @@ impl ArchiveApiServer for ArchiveApi {
 						results.push(ArchiveStorageItem {
 							key: item.key,
 							value: None,
-							hash: Some(format!("0x{}", hex::encode(hash))),
+							hash: Some(HexString::from_bytes(&hash).into()),
 						});
 					},
 				},
@@ -223,7 +222,7 @@ impl ArchiveApiServer for ArchiveApi {
 		// Fetch genesis hash (block 0) and cache it
 		match self.blockchain.block_hash_at(0).await {
 			Ok(Some(hash)) => {
-				let formatted = format!("0x{}", hex::encode(hash.as_bytes()));
+				let formatted: String = HexString::from_bytes(hash.as_bytes()).into();
 				Ok(GENESIS_HASH.get_or_init(|| formatted).clone())
 			},
 			Ok(None) =>
@@ -314,10 +313,11 @@ impl ArchiveApiServer for ArchiveApi {
 				// Added: exists in current but not in previous
 				(Some(value), None) => {
 					let (value_field, hash_field) = match item.return_type {
-						StorageQueryType::Value =>
-							(Some(format!("0x{}", hex::encode(value))), None),
-						StorageQueryType::Hash =>
-							(None, Some(format!("0x{}", hex::encode(sp_core::blake2_256(value))))),
+						StorageQueryType::Value => (Some(HexString::from_bytes(value).into()), None),
+						StorageQueryType::Hash => (
+							None,
+							Some(HexString::from_bytes(&sp_core::blake2_256(value)).into()),
+						),
 					};
 					StorageDiffItem {
 						key: item.key,
@@ -346,9 +346,11 @@ impl ArchiveApiServer for ArchiveApi {
 					}
 					// Modified
 					let (value_field, hash_field) = match item.return_type {
-						StorageQueryType::Value => (Some(format!("0x{}", hex::encode(curr))), None),
-						StorageQueryType::Hash =>
-							(None, Some(format!("0x{}", hex::encode(sp_core::blake2_256(curr))))),
+						StorageQueryType::Value => (Some(HexString::from_bytes(curr).into()), None),
+						StorageQueryType::Hash => (
+							None,
+							Some(HexString::from_bytes(&sp_core::blake2_256(curr)).into()),
+						),
 					};
 					StorageDiffItem {
 						key: item.key,

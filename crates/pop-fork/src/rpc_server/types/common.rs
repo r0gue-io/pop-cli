@@ -3,7 +3,61 @@
 //! Common types used across RPC methods.
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt};
+
+/// A hex-encoded string with "0x" prefix.
+///
+/// This type handles the common pattern of encoding/decoding hex strings
+/// for RPC communication.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct HexString(String);
+
+impl HexString {
+	/// Create a new HexString from raw bytes.
+	pub fn from_bytes(bytes: &[u8]) -> Self {
+		Self(format!("0x{}", hex::encode(bytes)))
+	}
+
+	/// Decode the hex string back to raw bytes.
+	pub fn to_bytes(&self) -> Result<Vec<u8>, hex::FromHexError> {
+		hex::decode(self.0.trim_start_matches("0x"))
+	}
+
+	/// Get the inner string representation.
+	pub fn as_str(&self) -> &str {
+		&self.0
+	}
+
+	/// Convert into the inner String.
+	pub fn into_inner(self) -> String {
+		self.0
+	}
+}
+
+impl fmt::Display for HexString {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "{}", self.0)
+	}
+}
+
+impl From<HexString> for String {
+	fn from(hex: HexString) -> Self {
+		hex.0
+	}
+}
+
+impl From<&[u8]> for HexString {
+	fn from(bytes: &[u8]) -> Self {
+		Self::from_bytes(bytes)
+	}
+}
+
+impl<const N: usize> From<&[u8; N]> for HexString {
+	fn from(bytes: &[u8; N]) -> Self {
+		Self::from_bytes(bytes)
+	}
+}
 
 /// Subxt's built-in header type for decoding SCALE-encoded headers.
 pub type Header = <subxt::SubstrateConfig as subxt::Config>::Header;

@@ -8,7 +8,7 @@ use crate::{
 	Blockchain,
 	rpc_server::{
 		RpcServerError, parse_block_hash,
-		types::{BlockData, Header, SignedBlock},
+		types::{BlockData, Header, HexString, SignedBlock},
 	},
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
@@ -63,7 +63,7 @@ impl ChainApiServer for ChainApi {
 		};
 
 		match self.blockchain.block_hash_at(number).await {
-			Ok(Some(hash)) => Ok(Some(format!("0x{}", hex::encode(hash.as_bytes())))),
+			Ok(Some(hash)) => Ok(Some(HexString::from_bytes(hash.as_bytes()).into())),
 			Ok(None) => Ok(None),
 			Err(e) =>
 				Err(RpcServerError::Internal(format!("Failed to fetch block hash: {e}")).into()),
@@ -95,7 +95,7 @@ impl ChainApiServer for ChainApi {
 
 		// Get header
 		let header = match self
-			.get_header(Some(format!("0x{}", hex::encode(block_hash.as_bytes()))))
+			.get_header(Some(HexString::from_bytes(block_hash.as_bytes()).into()))
 			.await?
 		{
 			Some(h) => h,
@@ -104,7 +104,8 @@ impl ChainApiServer for ChainApi {
 
 		// Get extrinsics
 		let extrinsics = match self.blockchain.block_body(block_hash).await {
-			Ok(Some(body)) => body.iter().map(|ext| format!("0x{}", hex::encode(ext))).collect(),
+			Ok(Some(body)) =>
+				body.iter().map(|ext| HexString::from_bytes(ext).into()).collect(),
 			Ok(None) => return Ok(None),
 			Err(e) =>
 				return Err(
@@ -117,7 +118,7 @@ impl ChainApiServer for ChainApi {
 
 	async fn get_finalized_head(&self) -> RpcResult<String> {
 		let hash = self.blockchain.head_hash().await;
-		Ok(format!("0x{}", hex::encode(hash.as_bytes())))
+		Ok(HexString::from_bytes(hash.as_bytes()).into())
 	}
 }
 

@@ -5,7 +5,7 @@
 //! These methods are not part of the Substrate RPC spec but are useful for
 //! development and testing purposes.
 
-use crate::{Blockchain, TxPool, rpc_server::RpcServerError};
+use crate::{Blockchain, TxPool, rpc_server::{RpcServerError, types::HexString}};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use std::sync::Arc;
 
@@ -64,7 +64,7 @@ impl DevApiServer for DevApi {
 			.map_err(|e| RpcServerError::Internal(format!("Failed to build block: {e}")))?;
 
 		Ok(NewBlockResult {
-			hash: format!("0x{}", hex::encode(block.hash.as_bytes())),
+			hash: HexString::from_bytes(block.hash.as_bytes()).into(),
 			number: block.number,
 			extrinsics_count: block.extrinsics.len(),
 		})
