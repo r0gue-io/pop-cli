@@ -149,23 +149,23 @@ fn post_install_steps(shell: CompletionShell, path: &Path) -> String {
 	let path_display = path.display();
 	match shell {
 		CompletionShell::Zsh => format!(
-			"Next steps:\n  fpath=({} $fpath)\n  autoload -Uz compinit && compinit\n  restart your shell",
+			"Next steps (commands):\n  fpath=({} $fpath)\n  autoload -Uz compinit && compinit\n\nNotes:\n  Restart your shell",
 			path.parent().map(|p| p.display()).unwrap_or(path_display)
 		),
 		CompletionShell::Bash => format!(
-			"Next steps:\n  source {}\n  add the line above to ~/.bashrc\n  restart your shell",
+			"Next steps (commands):\n  source {}\n\nNotes:\n  Add the line above to ~/.bashrc\n  Restart your shell",
 			path_display
 		),
 		CompletionShell::Fish => format!(
-			"Next steps:\n  restart your shell\n  fish will auto-load completions from {}",
+			"Next steps:\n  Restart your shell\n\nNotes:\n  Fish will auto-load completions from {}",
 			path_display
 		),
 		CompletionShell::PowerShell => format!(
-			"Next steps:\n  restart your shell\n  ensure your profile loads {}",
+			"Next steps:\n  Restart your shell\n\nNotes:\n  Ensure your profile loads {}",
 			path_display
 		),
 		CompletionShell::Elvish => format!(
-			"Next steps:\n  restart your shell\n  ensure your config loads {}",
+			"Next steps:\n  Restart your shell\n\nNotes:\n  Ensure your config loads {}",
 			path_display
 		),
 	}
