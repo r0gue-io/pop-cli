@@ -6,7 +6,10 @@
 
 use crate::{
 	Blockchain,
-	rpc_server::{RpcServerError, types::{BlockData, Header, SignedBlock}},
+	rpc_server::{
+		RpcServerError,
+		types::{BlockData, Header, SignedBlock},
+	},
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use scale::Decode;
@@ -63,7 +66,8 @@ impl ChainApiServer for ChainApi {
 		match self.blockchain.block_hash_at(number).await {
 			Ok(Some(hash)) => Ok(Some(format!("0x{}", hex::encode(hash.as_bytes())))),
 			Ok(None) => Ok(None),
-			Err(e) => Err(RpcServerError::Internal(format!("Failed to fetch block hash: {e}")).into()),
+			Err(e) =>
+				Err(RpcServerError::Internal(format!("Failed to fetch block hash: {e}")).into()),
 		}
 	}
 
@@ -112,7 +116,9 @@ impl ChainApiServer for ChainApi {
 			Ok(Some(body)) => body.iter().map(|ext| format!("0x{}", hex::encode(ext))).collect(),
 			Ok(None) => return Ok(None),
 			Err(e) =>
-				return Err(RpcServerError::Internal(format!("Failed to fetch block body: {e}")).into()),
+				return Err(
+					RpcServerError::Internal(format!("Failed to fetch block body: {e}")).into()
+				),
 		};
 
 		Ok(Some(SignedBlock { block: BlockData { header, extrinsics }, justifications: None }))

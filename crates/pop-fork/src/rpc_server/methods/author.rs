@@ -64,10 +64,9 @@ impl AuthorApiServer for AuthorApi {
 			.map_err(|e| RpcServerError::Internal(format!("Failed to submit extrinsic: {e}")))?;
 
 		// Instant mode: immediately drain txpool and build block.
-		let pending_txs = self
-			.txpool
-			.drain()
-			.map_err(|e| RpcServerError::Internal(format!("Failed to drain transaction pool: {e}")))?;
+		let pending_txs = self.txpool.drain().map_err(|e| {
+			RpcServerError::Internal(format!("Failed to drain transaction pool: {e}"))
+		})?;
 
 		self.blockchain
 			.build_block(pending_txs)
@@ -87,10 +86,9 @@ impl AuthorApiServer for AuthorApi {
 	}
 
 	async fn pending_extrinsics(&self) -> RpcResult<Vec<String>> {
-		let pending = self
-			.txpool
-			.pending()
-			.map_err(|e| RpcServerError::Internal(format!("Failed to get pending extrinsics: {e}")))?;
+		let pending = self.txpool.pending().map_err(|e| {
+			RpcServerError::Internal(format!("Failed to get pending extrinsics: {e}"))
+		})?;
 		Ok(pending.iter().map(|ext| format!("0x{}", hex::encode(ext))).collect())
 	}
 }

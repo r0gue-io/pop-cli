@@ -112,7 +112,8 @@ impl ArchiveApiServer for ArchiveApi {
 		match self.blockchain.block_hash_at(height).await {
 			Ok(Some(hash)) => Ok(Some(vec![format!("0x{}", hex::encode(hash.as_bytes()))])),
 			Ok(None) => Ok(None),
-			Err(e) => Err(RpcServerError::Internal(format!("Failed to fetch block hash: {e}")).into()),
+			Err(e) =>
+				Err(RpcServerError::Internal(format!("Failed to fetch block hash: {e}")).into()),
 		}
 	}
 
@@ -277,8 +278,10 @@ impl ArchiveApiServer for ArchiveApi {
 		let prev_block_hash = match previous_hash {
 			Some(prev_hash_str) => {
 				// Parse provided previous hash
-				let prev_hash_bytes = hex::decode(prev_hash_str.trim_start_matches("0x"))
-					.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex previousHash: {e}")))?;
+				let prev_hash_bytes =
+					hex::decode(prev_hash_str.trim_start_matches("0x")).map_err(|e| {
+						RpcServerError::InvalidParam(format!("Invalid hex previousHash: {e}"))
+					})?;
 				H256::from_slice(&prev_hash_bytes)
 			},
 			None => {
@@ -290,9 +293,10 @@ impl ArchiveApiServer for ArchiveApi {
 							error: "Block not found".to_string(),
 						}),
 					Err(e) =>
-						return Err(
-							RpcServerError::Internal(format!("Failed to get parent hash: {e}")).into(),
-						),
+						return Err(RpcServerError::Internal(format!(
+							"Failed to get parent hash: {e}"
+						))
+						.into()),
 				}
 			},
 		};
@@ -305,9 +309,10 @@ impl ArchiveApiServer for ArchiveApi {
 					error: "Previous block not found".to_string(),
 				}),
 			Err(e) =>
-				return Err(
-					RpcServerError::Internal(format!("Failed to resolve previous block: {e}")).into(),
-				),
+				return Err(RpcServerError::Internal(format!(
+					"Failed to resolve previous block: {e}"
+				))
+				.into()),
 		};
 
 		// Query storage for each item at both blocks and compute differences

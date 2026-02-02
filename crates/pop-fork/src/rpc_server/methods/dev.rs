@@ -52,10 +52,9 @@ impl DevApi {
 impl DevApiServer for DevApi {
 	async fn new_block(&self) -> RpcResult<NewBlockResult> {
 		// Drain pending transactions from the pool
-		let pending_txs = self
-			.txpool
-			.drain()
-			.map_err(|e| RpcServerError::Internal(format!("Failed to drain transaction pool: {e}")))?;
+		let pending_txs = self.txpool.drain().map_err(|e| {
+			RpcServerError::Internal(format!("Failed to drain transaction pool: {e}"))
+		})?;
 
 		// Build a new block with the pending transactions
 		let block = self
