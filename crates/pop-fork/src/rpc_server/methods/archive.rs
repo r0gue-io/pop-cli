@@ -7,9 +7,13 @@
 use super::chain_spec::GENESIS_HASH;
 use crate::{
 	Blockchain,
-	rpc_server::types::{
-		ArchiveCallResult, ArchiveStorageDiffResult, ArchiveStorageItem, ArchiveStorageResult,
-		StorageDiffItem, StorageDiffQueryItem, StorageDiffType, StorageQueryItem, StorageQueryType,
+	rpc_server::{
+		RpcServerError,
+		types::{
+			ArchiveCallResult, ArchiveStorageDiffResult, ArchiveStorageItem, ArchiveStorageResult,
+			StorageDiffItem, StorageDiffQueryItem, StorageDiffType, StorageQueryItem,
+			StorageQueryType,
+		},
 	},
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
@@ -108,23 +112,14 @@ impl ArchiveApiServer for ArchiveApi {
 		match self.blockchain.block_hash_at(height).await {
 			Ok(Some(hash)) => Ok(Some(vec![format!("0x{}", hex::encode(hash.as_bytes()))])),
 			Ok(None) => Ok(None),
-			Err(e) => Err(jsonrpsee::types::ErrorObjectOwned::owned(
-				-32603,
-				format!("Failed to fetch block hash: {e}"),
-				None::<()>,
-			)),
+			Err(e) => Err(RpcServerError::Internal(format!("Failed to fetch block hash: {e}")).into()),
 		}
 	}
 
 	async fn header(&self, hash: String) -> RpcResult<Option<String>> {
 		// Parse the hash
-		let hash_bytes = hex::decode(hash.trim_start_matches("0x")).map_err(|e| {
-			jsonrpsee::types::ErrorObjectOwned::owned(
-				-32602,
-				format!("Invalid hex hash: {e}"),
-				None::<()>,
-			)
-		})?;
+		let hash_bytes = hex::decode(hash.trim_start_matches("0x"))
+			.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex hash: {e}")))?;
 
 		// Convert to H256
 		let block_hash = H256::from_slice(&hash_bytes);
@@ -133,23 +128,15 @@ impl ArchiveApiServer for ArchiveApi {
 		match self.blockchain.block_header(block_hash).await {
 			Ok(Some(header)) => Ok(Some(format!("0x{}", hex::encode(&header)))),
 			Ok(None) => Ok(None),
-			Err(e) => Err(jsonrpsee::types::ErrorObjectOwned::owned(
-				-32603,
-				format!("Failed to fetch block header: {e}"),
-				None::<()>,
-			)),
+			Err(e) =>
+				Err(RpcServerError::Internal(format!("Failed to fetch block header: {e}")).into()),
 		}
 	}
 
 	async fn body(&self, hash: String) -> RpcResult<Option<Vec<String>>> {
 		// Parse the hash
-		let hash_bytes = hex::decode(hash.trim_start_matches("0x")).map_err(|e| {
-			jsonrpsee::types::ErrorObjectOwned::owned(
-				-32602,
-				format!("Invalid hex hash: {e}"),
-				None::<()>,
-			)
-		})?;
+		let hash_bytes = hex::decode(hash.trim_start_matches("0x"))
+			.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex hash: {e}")))?;
 
 		// Convert to H256
 		let block_hash = H256::from_slice(&hash_bytes);
@@ -162,11 +149,8 @@ impl ArchiveApiServer for ArchiveApi {
 				Ok(Some(hex_extrinsics))
 			},
 			Ok(None) => Ok(None),
-			Err(e) => Err(jsonrpsee::types::ErrorObjectOwned::owned(
-				-32603,
-				format!("Failed to fetch block body: {e}"),
-				None::<()>,
-			)),
+			Err(e) =>
+				Err(RpcServerError::Internal(format!("Failed to fetch block body: {e}")).into()),
 		}
 	}
 
@@ -177,23 +161,13 @@ impl ArchiveApiServer for ArchiveApi {
 		call_parameters: String,
 	) -> RpcResult<Option<ArchiveCallResult>> {
 		// Parse the hash
-		let hash_bytes = hex::decode(hash.trim_start_matches("0x")).map_err(|e| {
-			jsonrpsee::types::ErrorObjectOwned::owned(
-				-32602,
-				format!("Invalid hex hash: {e}"),
-				None::<()>,
-			)
-		})?;
+		let hash_bytes = hex::decode(hash.trim_start_matches("0x"))
+			.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex hash: {e}")))?;
 		let block_hash = H256::from_slice(&hash_bytes);
 
 		// Decode parameters
-		let params = hex::decode(call_parameters.trim_start_matches("0x")).map_err(|e| {
-			jsonrpsee::types::ErrorObjectOwned::owned(
-				-32602,
-				format!("Invalid hex parameters: {e}"),
-				None::<()>,
-			)
-		})?;
+		let params = hex::decode(call_parameters.trim_start_matches("0x"))
+			.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex parameters: {e}")))?;
 
 		// Execute the call at the specified block
 		match self.blockchain.call_at_block(block_hash, &function, &params).await {
@@ -211,13 +185,8 @@ impl ArchiveApiServer for ArchiveApi {
 		_child_trie: Option<String>,
 	) -> RpcResult<ArchiveStorageResult> {
 		// Parse and validate hash
-		let hash_bytes = hex::decode(hash.trim_start_matches("0x")).map_err(|e| {
-			jsonrpsee::types::ErrorObjectOwned::owned(
-				-32602,
-				format!("Invalid hex hash: {e}"),
-				None::<()>,
-			)
-		})?;
+		let hash_bytes = hex::decode(hash.trim_start_matches("0x"))
+			.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex hash: {e}")))?;
 		let block_hash = H256::from_slice(&hash_bytes);
 
 		// Get block number from hash
@@ -226,23 +195,14 @@ impl ArchiveApiServer for ArchiveApi {
 			Ok(None) =>
 				return Ok(ArchiveStorageResult::Err { error: "Block not found".to_string() }),
 			Err(e) =>
-				return Err(jsonrpsee::types::ErrorObjectOwned::owned(
-					-32603,
-					format!("Failed to resolve block: {e}"),
-					None::<()>,
-				)),
+				return Err(RpcServerError::Internal(format!("Failed to resolve block: {e}")).into()),
 		};
 
 		// Query storage for each item at the specific block
 		let mut results = Vec::new();
 		for item in items {
-			let key_bytes = hex::decode(item.key.trim_start_matches("0x")).map_err(|e| {
-				jsonrpsee::types::ErrorObjectOwned::owned(
-					-32602,
-					format!("Invalid hex key: {e}"),
-					None::<()>,
-				)
-			})?;
+			let key_bytes = hex::decode(item.key.trim_start_matches("0x"))
+				.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex key: {e}")))?;
 
 			match self.blockchain.storage_at(block_number, &key_bytes).await {
 				Ok(Some(value)) => match item.query_type {
@@ -267,11 +227,7 @@ impl ArchiveApiServer for ArchiveApi {
 					results.push(ArchiveStorageItem { key: item.key, value: None, hash: None });
 				},
 				Err(e) => {
-					return Err(jsonrpsee::types::ErrorObjectOwned::owned(
-						-32603,
-						format!("Storage error: {e}"),
-						None::<()>,
-					));
+					return Err(RpcServerError::Storage(e.to_string()).into());
 				},
 			}
 		}
@@ -290,16 +246,10 @@ impl ArchiveApiServer for ArchiveApi {
 				let formatted = format!("0x{}", hex::encode(hash.as_bytes()));
 				Ok(GENESIS_HASH.get_or_init(|| formatted).clone())
 			},
-			Ok(None) => Err(jsonrpsee::types::ErrorObjectOwned::owned(
-				-32603,
-				"Genesis block not found",
-				None::<()>,
-			)),
-			Err(e) => Err(jsonrpsee::types::ErrorObjectOwned::owned(
-				-32603,
-				format!("Failed to fetch genesis hash: {e}"),
-				None::<()>,
-			)),
+			Ok(None) =>
+				Err(RpcServerError::BlockNotFound("Genesis block not found".to_string()).into()),
+			Err(e) =>
+				Err(RpcServerError::Internal(format!("Failed to fetch genesis hash: {e}")).into()),
 		}
 	}
 
@@ -310,13 +260,8 @@ impl ArchiveApiServer for ArchiveApi {
 		previous_hash: Option<String>,
 	) -> RpcResult<ArchiveStorageDiffResult> {
 		// Parse and validate hash
-		let hash_bytes = hex::decode(hash.trim_start_matches("0x")).map_err(|e| {
-			jsonrpsee::types::ErrorObjectOwned::owned(
-				-32602,
-				format!("Invalid hex hash: {e}"),
-				None::<()>,
-			)
-		})?;
+		let hash_bytes = hex::decode(hash.trim_start_matches("0x"))
+			.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex hash: {e}")))?;
 		let block_hash = H256::from_slice(&hash_bytes);
 
 		// Get block number for the target block
@@ -325,25 +270,15 @@ impl ArchiveApiServer for ArchiveApi {
 			Ok(None) =>
 				return Ok(ArchiveStorageDiffResult::Err { error: "Block not found".to_string() }),
 			Err(e) =>
-				return Err(jsonrpsee::types::ErrorObjectOwned::owned(
-					-32603,
-					format!("Failed to resolve block: {e}"),
-					None::<()>,
-				)),
+				return Err(RpcServerError::Internal(format!("Failed to resolve block: {e}")).into()),
 		};
 
 		// Determine the previous block hash
 		let prev_block_hash = match previous_hash {
 			Some(prev_hash_str) => {
 				// Parse provided previous hash
-				let prev_hash_bytes =
-					hex::decode(prev_hash_str.trim_start_matches("0x")).map_err(|e| {
-						jsonrpsee::types::ErrorObjectOwned::owned(
-							-32602,
-							format!("Invalid hex previousHash: {e}"),
-							None::<()>,
-						)
-					})?;
+				let prev_hash_bytes = hex::decode(prev_hash_str.trim_start_matches("0x"))
+					.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex previousHash: {e}")))?;
 				H256::from_slice(&prev_hash_bytes)
 			},
 			None => {
@@ -355,11 +290,9 @@ impl ArchiveApiServer for ArchiveApi {
 							error: "Block not found".to_string(),
 						}),
 					Err(e) =>
-						return Err(jsonrpsee::types::ErrorObjectOwned::owned(
-							-32603,
-							format!("Failed to get parent hash: {e}"),
-							None::<()>,
-						)),
+						return Err(
+							RpcServerError::Internal(format!("Failed to get parent hash: {e}")).into(),
+						),
 				}
 			},
 		};
@@ -372,33 +305,22 @@ impl ArchiveApiServer for ArchiveApi {
 					error: "Previous block not found".to_string(),
 				}),
 			Err(e) =>
-				return Err(jsonrpsee::types::ErrorObjectOwned::owned(
-					-32603,
-					format!("Failed to resolve previous block: {e}"),
-					None::<()>,
-				)),
+				return Err(
+					RpcServerError::Internal(format!("Failed to resolve previous block: {e}")).into(),
+				),
 		};
 
 		// Query storage for each item at both blocks and compute differences
 		let mut results = Vec::new();
 		for item in items {
-			let key_bytes = hex::decode(item.key.trim_start_matches("0x")).map_err(|e| {
-				jsonrpsee::types::ErrorObjectOwned::owned(
-					-32602,
-					format!("Invalid hex key: {e}"),
-					None::<()>,
-				)
-			})?;
+			let key_bytes = hex::decode(item.key.trim_start_matches("0x"))
+				.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex key: {e}")))?;
 
 			// Get value at current block
 			let current_value = match self.blockchain.storage_at(block_number, &key_bytes).await {
 				Ok(v) => v,
 				Err(e) => {
-					return Err(jsonrpsee::types::ErrorObjectOwned::owned(
-						-32603,
-						format!("Storage error: {e}"),
-						None::<()>,
-					));
+					return Err(RpcServerError::Storage(e.to_string()).into());
 				},
 			};
 
@@ -407,11 +329,7 @@ impl ArchiveApiServer for ArchiveApi {
 				match self.blockchain.storage_at(prev_block_number, &key_bytes).await {
 					Ok(v) => v,
 					Err(e) => {
-						return Err(jsonrpsee::types::ErrorObjectOwned::owned(
-							-32603,
-							format!("Storage error: {e}"),
-							None::<()>,
-						));
+						return Err(RpcServerError::Storage(e.to_string()).into());
 					},
 				};
 

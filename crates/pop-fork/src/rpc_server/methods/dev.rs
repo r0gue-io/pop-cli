@@ -5,7 +5,7 @@
 //! These methods are not part of the Substrate RPC spec but are useful for
 //! development and testing purposes.
 
-use crate::{Blockchain, TxPool};
+use crate::{Blockchain, TxPool, rpc_server::RpcServerError};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use std::sync::Arc;
 
@@ -52,22 +52,17 @@ impl DevApi {
 impl DevApiServer for DevApi {
 	async fn new_block(&self) -> RpcResult<NewBlockResult> {
 		// Drain pending transactions from the pool
-		let pending_txs = self.txpool.drain().map_err(|e| {
-			jsonrpsee::types::ErrorObjectOwned::owned(
-				-32603,
-				format!("Failed to drain transaction pool: {e}"),
-				None::<()>,
-			)
-		})?;
+		let pending_txs = self
+			.txpool
+			.drain()
+			.map_err(|e| RpcServerError::Internal(format!("Failed to drain transaction pool: {e}")))?;
 
 		// Build a new block with the pending transactions
-		let block = self.blockchain.build_block(pending_txs).await.map_err(|e| {
-			jsonrpsee::types::ErrorObjectOwned::owned(
-				-32603,
-				format!("Failed to build block: {e}"),
-				None::<()>,
-			)
-		})?;
+		let block = self
+			.blockchain
+			.build_block(pending_txs)
+			.await
+			.map_err(|e| RpcServerError::Internal(format!("Failed to build block: {e}")))?;
 
 		Ok(NewBlockResult {
 			hash: format!("0x{}", hex::encode(block.hash.as_bytes())),

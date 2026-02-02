@@ -4,7 +4,7 @@
 //!
 //! These methods provide state-related operations for polkadot.js compatibility.
 
-use crate::{Blockchain, rpc_server::types::RuntimeVersion};
+use crate::{Blockchain, rpc_server::{RpcServerError, types::RuntimeVersion}};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use std::sync::Arc;
 use subxt::config::substrate::H256;
@@ -47,86 +47,50 @@ impl StateApiServer for StateApi {
 		let block_number = match at {
 			Some(hash) => {
 				let hash_bytes = H256::from_slice(
-					&hex::decode(hash.trim_start_matches("0x")).map_err(|_| {
-						jsonrpsee::types::ErrorObjectOwned::owned(
-							-32602,
-							format!("Invalid block hash : {}", hash),
-							None::<()>,
-						)
-					})?,
+					&hex::decode(hash.trim_start_matches("0x"))
+						.map_err(|_| RpcServerError::InvalidParam(format!("Invalid block hash: {}", hash)))?,
 				);
 				self.blockchain
 					.block_number_by_hash(hash_bytes)
 					.await
-					.map_err(|_| {
-						jsonrpsee::types::ErrorObjectOwned::owned(
-							-32602,
-							format!("Invalid block hash {}", hash),
-							None::<()>,
-						)
-					})?
-					.ok_or(jsonrpsee::types::ErrorObjectOwned::owned(
-						-32602,
-						format!("Invalid block hash {}", hash),
-						None::<()>,
-					))?
+					.map_err(|_| RpcServerError::InvalidParam(format!("Invalid block hash: {}", hash)))?
+					.ok_or_else(|| RpcServerError::InvalidParam(format!("Invalid block hash: {}", hash)))?
 			},
 			None => self.blockchain.head_number().await,
 		};
 		// Decode the hex key
-		let key_bytes = hex::decode(key.trim_start_matches("0x")).map_err(|e| {
-			jsonrpsee::types::ErrorObjectOwned::owned(
-				-32602,
-				format!("Invalid hex key: {e}"),
-				None::<()>,
-			)
-		})?;
+		let key_bytes = hex::decode(key.trim_start_matches("0x"))
+			.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex key: {e}")))?;
 
 		// Query storage from blockchain
 		match self.blockchain.storage_at(block_number, &key_bytes).await {
 			Ok(Some(value)) => Ok(Some(format!("0x{}", hex::encode(value)))),
 			Ok(None) => Ok(None),
-			Err(e) => Err(jsonrpsee::types::ErrorObjectOwned::owned(
-				-32603,
-				format!("Storage error: {e}"),
-				None::<()>,
-			)),
+			Err(e) => Err(RpcServerError::Storage(e.to_string()).into()),
 		}
 	}
 
 	async fn get_metadata(&self, at: Option<String>) -> RpcResult<String> {
 		let block_hash = match at {
-			Some(hash) =>
-				H256::from_slice(&hex::decode(hash.trim_start_matches("0x")).map_err(|_| {
-					jsonrpsee::types::ErrorObjectOwned::owned(
-						-32602,
-						format!("Invalid block hash : {}", hash),
-						None::<()>,
-					)
-				})?),
+			Some(hash) => H256::from_slice(
+				&hex::decode(hash.trim_start_matches("0x"))
+					.map_err(|_| RpcServerError::InvalidParam(format!("Invalid block hash: {}", hash)))?,
+			),
 			None => self.blockchain.head().await.hash,
 		};
 		// Fetch real metadata via runtime call
 		match self.blockchain.call_at_block(block_hash, "Metadata_metadata", &[]).await {
 			Ok(Some(result)) => Ok(format!("0x{}", hex::encode(result))),
-			_ => Err(jsonrpsee::types::ErrorObjectOwned::owned(
-				-32603,
-				"Failed to get metadata".to_string(),
-				None::<()>,
-			)),
+			_ => Err(RpcServerError::Internal("Failed to get metadata".to_string()).into()),
 		}
 	}
 
 	async fn get_runtime_version(&self, at: Option<String>) -> RpcResult<RuntimeVersion> {
 		let block_hash = match at {
-			Some(hash) =>
-				H256::from_slice(&hex::decode(hash.trim_start_matches("0x")).map_err(|_| {
-					jsonrpsee::types::ErrorObjectOwned::owned(
-						-32602,
-						format!("Invalid block hash : {}", hash),
-						None::<()>,
-					)
-				})?),
+			Some(hash) => H256::from_slice(
+				&hex::decode(hash.trim_start_matches("0x"))
+					.map_err(|_| RpcServerError::InvalidParam(format!("Invalid block hash: {}", hash)))?,
+			),
 			None => self.blockchain.head().await.hash,
 		};
 		// Fetch runtime version via Core_version call and decode
@@ -148,13 +112,8 @@ impl StateApiServer for StateApi {
 					transaction_version: u32,
 					state_version: u8,
 				}
-				let version = ScaleRuntimeVersion::decode(&mut result.as_slice()).map_err(|e| {
-					jsonrpsee::types::ErrorObjectOwned::owned(
-						-32603,
-						format!("Failed to decode runtime version: {e}"),
-						None::<()>,
-					)
-				})?;
+				let version = ScaleRuntimeVersion::decode(&mut result.as_slice())
+					.map_err(|e| RpcServerError::Internal(format!("Failed to decode runtime version: {e}")))?;
 
 				Ok(RuntimeVersion {
 					spec_name: version.spec_name,
@@ -171,11 +130,7 @@ impl StateApiServer for StateApi {
 						.collect(),
 				})
 			},
-			_ => Err(jsonrpsee::types::ErrorObjectOwned::owned(
-				-32603,
-				"Failed to get runtime version".to_string(),
-				None::<()>,
-			)),
+			_ => Err(RpcServerError::Internal("Failed to get runtime version".to_string()).into()),
 		}
 	}
 }

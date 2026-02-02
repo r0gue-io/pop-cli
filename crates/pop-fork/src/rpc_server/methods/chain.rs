@@ -6,7 +6,7 @@
 
 use crate::{
 	Blockchain,
-	rpc_server::types::{BlockData, Header, SignedBlock},
+	rpc_server::{RpcServerError, types::{BlockData, Header, SignedBlock}},
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use scale::Decode;
@@ -63,24 +63,15 @@ impl ChainApiServer for ChainApi {
 		match self.blockchain.block_hash_at(number).await {
 			Ok(Some(hash)) => Ok(Some(format!("0x{}", hex::encode(hash.as_bytes())))),
 			Ok(None) => Ok(None),
-			Err(e) => Err(jsonrpsee::types::ErrorObjectOwned::owned(
-				-32603,
-				format!("Failed to fetch block hash: {e}"),
-				None::<()>,
-			)),
+			Err(e) => Err(RpcServerError::Internal(format!("Failed to fetch block hash: {e}")).into()),
 		}
 	}
 
 	async fn get_header(&self, hash: Option<String>) -> RpcResult<Option<Header>> {
 		let block_hash = match hash {
 			Some(h) => {
-				let bytes = hex::decode(h.trim_start_matches("0x")).map_err(|e| {
-					jsonrpsee::types::ErrorObjectOwned::owned(
-						-32602,
-						format!("Invalid hex hash: {e}"),
-						None::<()>,
-					)
-				})?;
+				let bytes = hex::decode(h.trim_start_matches("0x"))
+					.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex hash: {e}")))?;
 				H256::from_slice(&bytes)
 			},
 			None => self.blockchain.head_hash().await,
@@ -89,31 +80,19 @@ impl ChainApiServer for ChainApi {
 		match self.blockchain.block_header(block_hash).await {
 			Ok(Some(header_bytes)) =>
 				Ok(Some(Header::decode(&mut header_bytes.as_slice()).map_err(|e| {
-					jsonrpsee::types::ErrorObjectOwned::owned(
-						-32603,
-						format!("Failed to decode header: {e}"),
-						None::<()>,
-					)
+					RpcServerError::Internal(format!("Failed to decode header: {e}"))
 				})?)),
 			Ok(None) => Ok(None),
-			Err(e) => Err(jsonrpsee::types::ErrorObjectOwned::owned(
-				-32603,
-				format!("Failed to fetch block header: {e}"),
-				None::<()>,
-			)),
+			Err(e) =>
+				Err(RpcServerError::Internal(format!("Failed to fetch block header: {e}")).into()),
 		}
 	}
 
 	async fn get_block(&self, hash: Option<String>) -> RpcResult<Option<SignedBlock>> {
 		let block_hash = match &hash {
 			Some(h) => {
-				let bytes = hex::decode(h.trim_start_matches("0x")).map_err(|e| {
-					jsonrpsee::types::ErrorObjectOwned::owned(
-						-32602,
-						format!("Invalid hex hash: {e}"),
-						None::<()>,
-					)
-				})?;
+				let bytes = hex::decode(h.trim_start_matches("0x"))
+					.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex hash: {e}")))?;
 				H256::from_slice(&bytes)
 			},
 			None => self.blockchain.head_hash().await,
@@ -133,11 +112,7 @@ impl ChainApiServer for ChainApi {
 			Ok(Some(body)) => body.iter().map(|ext| format!("0x{}", hex::encode(ext))).collect(),
 			Ok(None) => return Ok(None),
 			Err(e) =>
-				return Err(jsonrpsee::types::ErrorObjectOwned::owned(
-					-32603,
-					format!("Failed to fetch block body: {e}"),
-					None::<()>,
-				)),
+				return Err(RpcServerError::Internal(format!("Failed to fetch block body: {e}")).into()),
 		};
 
 		Ok(Some(SignedBlock { block: BlockData { header, extrinsics }, justifications: None }))

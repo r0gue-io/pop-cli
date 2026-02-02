@@ -6,7 +6,7 @@
 //! during the fork's lifetime. Values are fetched lazily on first call and
 //! cached in static memory.
 
-use crate::{Blockchain, rpc::ForkRpcClient};
+use crate::{Blockchain, rpc::ForkRpcClient, rpc_server::RpcServerError};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use std::sync::{Arc, OnceLock};
 
@@ -73,16 +73,10 @@ impl ChainSpecApiServer for ChainSpecApi {
 				let formatted = format!("0x{}", hex::encode(hash.as_bytes()));
 				Ok(GENESIS_HASH.get_or_init(|| formatted).clone())
 			},
-			Ok(None) => Err(jsonrpsee::types::ErrorObjectOwned::owned(
-				-32603,
-				"Genesis block not found",
-				None::<()>,
-			)),
-			Err(e) => Err(jsonrpsee::types::ErrorObjectOwned::owned(
-				-32603,
-				format!("Failed to fetch genesis hash: {e}"),
-				None::<()>,
-			)),
+			Ok(None) =>
+				Err(RpcServerError::BlockNotFound("Genesis block not found".to_string()).into()),
+			Err(e) =>
+				Err(RpcServerError::Internal(format!("Failed to fetch genesis hash: {e}")).into()),
 		}
 	}
 

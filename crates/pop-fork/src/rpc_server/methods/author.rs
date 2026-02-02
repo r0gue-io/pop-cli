@@ -6,7 +6,7 @@
 //! This implementation uses "Instant mode" where submitting an extrinsic
 //! immediately builds a block containing it.
 
-use crate::{Blockchain, TxPool};
+use crate::{Blockchain, TxPool, rpc_server::RpcServerError};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use std::sync::Arc;
 use subxt::config::substrate::H256;
@@ -52,42 +52,27 @@ impl AuthorApi {
 impl AuthorApiServer for AuthorApi {
 	async fn submit_extrinsic(&self, extrinsic: String) -> RpcResult<String> {
 		// Decode the hex extrinsic
-		let ext_bytes = hex::decode(extrinsic.trim_start_matches("0x")).map_err(|e| {
-			jsonrpsee::types::ErrorObjectOwned::owned(
-				-32602,
-				format!("Invalid hex extrinsic: {e}"),
-				None::<()>,
-			)
-		})?;
+		let ext_bytes = hex::decode(extrinsic.trim_start_matches("0x"))
+			.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex extrinsic: {e}")))?;
 
 		// Calculate hash before submitting
 		let hash = H256::from(sp_core::blake2_256(&ext_bytes));
 
 		// Submit to TxPool
-		self.txpool.submit(ext_bytes).map_err(|e| {
-			jsonrpsee::types::ErrorObjectOwned::owned(
-				-32603,
-				format!("Failed to submit extrinsic: {e}"),
-				None::<()>,
-			)
-		})?;
+		self.txpool
+			.submit(ext_bytes)
+			.map_err(|e| RpcServerError::Internal(format!("Failed to submit extrinsic: {e}")))?;
 
 		// Instant mode: immediately drain txpool and build block.
-		let pending_txs = self.txpool.drain().map_err(|e| {
-			jsonrpsee::types::ErrorObjectOwned::owned(
-				-32603,
-				format!("Failed to drain transaction pool: {e}"),
-				None::<()>,
-			)
-		})?;
+		let pending_txs = self
+			.txpool
+			.drain()
+			.map_err(|e| RpcServerError::Internal(format!("Failed to drain transaction pool: {e}")))?;
 
-		self.blockchain.build_block(pending_txs).await.map_err(|e| {
-			jsonrpsee::types::ErrorObjectOwned::owned(
-				-32603,
-				format!("Failed to build block: {e}"),
-				None::<()>,
-			)
-		})?;
+		self.blockchain
+			.build_block(pending_txs)
+			.await
+			.map_err(|e| RpcServerError::Internal(format!("Failed to build block: {e}")))?;
 
 		Ok(format!("0x{}", hex::encode(hash.as_bytes())))
 	}
@@ -95,20 +80,17 @@ impl AuthorApiServer for AuthorApi {
 	async fn submit_and_watch_extrinsic(&self, _extrinsic: String) -> RpcResult<String> {
 		// Subscriptions are not yet supported
 		Err(jsonrpsee::types::ErrorObjectOwned::owned(
-			-32601,
+			crate::rpc_server::error_codes::METHOD_NOT_FOUND,
 			"Method not supported: subscriptions are not yet implemented. Use author_submitExtrinsic instead.",
 			None::<()>,
 		))
 	}
 
 	async fn pending_extrinsics(&self) -> RpcResult<Vec<String>> {
-		let pending = self.txpool.pending().map_err(|e| {
-			jsonrpsee::types::ErrorObjectOwned::owned(
-				-32603,
-				format!("Failed to get pending extrinsics: {e}"),
-				None::<()>,
-			)
-		})?;
+		let pending = self
+			.txpool
+			.pending()
+			.map_err(|e| RpcServerError::Internal(format!("Failed to get pending extrinsics: {e}")))?;
 		Ok(pending.iter().map(|ext| format!("0x{}", hex::encode(ext))).collect())
 	}
 }
