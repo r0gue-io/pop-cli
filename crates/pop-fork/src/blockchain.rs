@@ -59,6 +59,8 @@ use subxt::config::substrate::H256;
 use tokio::sync::RwLock;
 use url::Url;
 
+pub type BlockBody = Vec<Vec<u8>>
+
 /// Errors that can occur when working with the blockchain manager.
 #[derive(Debug, thiserror::Error)]
 pub enum BlockchainError {
@@ -357,7 +359,7 @@ impl Blockchain {
 	/// # Returns
 	///
 	/// The block's extrinsics as raw bytes, or `None` if the block is not found.
-	pub async fn block_body(&self, hash: H256) -> Result<Option<Vec<Vec<u8>>>, BlockchainError> {
+	pub async fn block_body(&self, hash: H256) -> Result<Option<BlockBody>>, BlockchainError> {
 		// First, check if it matches any locally-built block (but not the fork point,
 		// which has empty extrinsics since we don't fetch them during fork)
 		let head = self.head.read().await;
@@ -382,7 +384,7 @@ impl Blockchain {
 		match rpc.block_by_hash(hash).await.map_err(BlockError::from)? {
 			Some(block) => {
 				// Convert extrinsics to raw bytes
-				let extrinsics: Vec<Vec<u8>> =
+				let extrinsics: BlockBody =
 					block.extrinsics.into_iter().map(|ext| ext.0.to_vec()).collect();
 				Ok(Some(extrinsics))
 			},
@@ -554,7 +556,7 @@ impl Blockchain {
 	/// let block = blockchain.build_block(vec![extrinsic]).await?;
 	/// println!("New block: #{} ({:?})", block.number, block.hash);
 	/// ```
-	pub async fn build_block(&self, extrinsics: Vec<Vec<u8>>) -> Result<Block, BlockchainError> {
+	pub async fn build_block(&self, extrinsics: BlockBody) -> Result<Block, BlockchainError> {
 		let mut head = self.head.write().await;
 
 		// Get runtime code from current head
