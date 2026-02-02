@@ -7,14 +7,13 @@
 use crate::{
 	Blockchain,
 	rpc_server::{
-		RpcServerError,
+		RpcServerError, parse_block_hash,
 		types::{BlockData, Header, SignedBlock},
 	},
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use scale::Decode;
 use std::sync::Arc;
-use subxt::config::substrate::H256;
 
 /// Legacy chain RPC methods.
 #[rpc(server, namespace = "chain")]
@@ -73,11 +72,7 @@ impl ChainApiServer for ChainApi {
 
 	async fn get_header(&self, hash: Option<String>) -> RpcResult<Option<Header>> {
 		let block_hash = match hash {
-			Some(h) => {
-				let bytes = hex::decode(h.trim_start_matches("0x"))
-					.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex hash: {e}")))?;
-				H256::from_slice(&bytes)
-			},
+			Some(h) => parse_block_hash(&h)?,
 			None => self.blockchain.head_hash().await,
 		};
 
@@ -94,11 +89,7 @@ impl ChainApiServer for ChainApi {
 
 	async fn get_block(&self, hash: Option<String>) -> RpcResult<Option<SignedBlock>> {
 		let block_hash = match &hash {
-			Some(h) => {
-				let bytes = hex::decode(h.trim_start_matches("0x"))
-					.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex hash: {e}")))?;
-				H256::from_slice(&bytes)
-			},
+			Some(h) => parse_block_hash(h)?,
 			None => self.blockchain.head_hash().await,
 		};
 

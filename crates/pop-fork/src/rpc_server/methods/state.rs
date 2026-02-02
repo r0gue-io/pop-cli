@@ -6,11 +6,10 @@
 
 use crate::{
 	Blockchain,
-	rpc_server::{RpcServerError, types::RuntimeVersion},
+	rpc_server::{RpcServerError, parse_block_hash, parse_hex_bytes, types::RuntimeVersion},
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use std::sync::Arc;
-use subxt::config::substrate::H256;
 
 /// Legacy state RPC methods.
 #[rpc(server, namespace = "state")]
@@ -49,25 +48,16 @@ impl StateApiServer for StateApi {
 	async fn get_storage(&self, key: String, at: Option<String>) -> RpcResult<Option<String>> {
 		let block_number = match at {
 			Some(hash) => {
-				let hash_bytes =
-					H256::from_slice(&hex::decode(hash.trim_start_matches("0x")).map_err(
-						|_| RpcServerError::InvalidParam(format!("Invalid block hash: {}", hash)),
-					)?);
+				let block_hash = parse_block_hash(&hash)?;
 				self.blockchain
-					.block_number_by_hash(hash_bytes)
+					.block_number_by_hash(block_hash)
 					.await
-					.map_err(|_| {
-						RpcServerError::InvalidParam(format!("Invalid block hash: {}", hash))
-					})?
-					.ok_or_else(|| {
-						RpcServerError::InvalidParam(format!("Invalid block hash: {}", hash))
-					})?
+					.map_err(|_| RpcServerError::InvalidParam(format!("Invalid block hash: {}", hash)))?
+					.ok_or_else(|| RpcServerError::InvalidParam(format!("Invalid block hash: {}", hash)))?
 			},
 			None => self.blockchain.head_number().await,
 		};
-		// Decode the hex key
-		let key_bytes = hex::decode(key.trim_start_matches("0x"))
-			.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex key: {e}")))?;
+		let key_bytes = parse_hex_bytes(&key, "key")?;
 
 		// Query storage from blockchain
 		match self.blockchain.storage_at(block_number, &key_bytes).await {
@@ -79,10 +69,7 @@ impl StateApiServer for StateApi {
 
 	async fn get_metadata(&self, at: Option<String>) -> RpcResult<String> {
 		let block_hash = match at {
-			Some(hash) =>
-				H256::from_slice(&hex::decode(hash.trim_start_matches("0x")).map_err(|_| {
-					RpcServerError::InvalidParam(format!("Invalid block hash: {}", hash))
-				})?),
+			Some(hash) => parse_block_hash(&hash)?,
 			None => self.blockchain.head().await.hash,
 		};
 		// Fetch real metadata via runtime call
@@ -94,10 +81,7 @@ impl StateApiServer for StateApi {
 
 	async fn get_runtime_version(&self, at: Option<String>) -> RpcResult<RuntimeVersion> {
 		let block_hash = match at {
-			Some(hash) =>
-				H256::from_slice(&hex::decode(hash.trim_start_matches("0x")).map_err(|_| {
-					RpcServerError::InvalidParam(format!("Invalid block hash: {}", hash))
-				})?),
+			Some(hash) => parse_block_hash(&hash)?,
 			None => self.blockchain.head().await.hash,
 		};
 		// Fetch runtime version via Core_version call and decode

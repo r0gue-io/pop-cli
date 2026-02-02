@@ -28,6 +28,20 @@ use crate::{Blockchain, TxPool};
 
 use jsonrpsee::server::{ServerBuilder, ServerHandle};
 use std::{net::SocketAddr, sync::Arc};
+use subxt::config::substrate::H256;
+
+/// Parse a hex-encoded string into an H256 block hash.
+pub fn parse_block_hash(hex: &str) -> Result<H256, RpcServerError> {
+	let bytes = hex::decode(hex.trim_start_matches("0x"))
+		.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex hash: {e}")))?;
+	Ok(H256::from_slice(&bytes))
+}
+
+/// Parse a hex-encoded string into raw bytes.
+pub fn parse_hex_bytes(hex: &str, field_name: &str) -> Result<Vec<u8>, RpcServerError> {
+	hex::decode(hex.trim_start_matches("0x"))
+		.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex {field_name}: {e}")))
+}
 
 /// Default starting port for the RPC server.
 pub const DEFAULT_RPC_PORT: u16 = 9944;

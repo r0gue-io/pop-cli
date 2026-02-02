@@ -6,7 +6,7 @@
 //! This implementation uses "Instant mode" where submitting an extrinsic
 //! immediately builds a block containing it.
 
-use crate::{Blockchain, TxPool, rpc_server::RpcServerError};
+use crate::{Blockchain, TxPool, rpc_server::{RpcServerError, parse_hex_bytes}};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use std::sync::Arc;
 use subxt::config::substrate::H256;
@@ -51,9 +51,7 @@ impl AuthorApi {
 #[async_trait::async_trait]
 impl AuthorApiServer for AuthorApi {
 	async fn submit_extrinsic(&self, extrinsic: String) -> RpcResult<String> {
-		// Decode the hex extrinsic
-		let ext_bytes = hex::decode(extrinsic.trim_start_matches("0x"))
-			.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex extrinsic: {e}")))?;
+		let ext_bytes = parse_hex_bytes(&extrinsic, "extrinsic")?;
 
 		// Calculate hash before submitting
 		let hash = H256::from(sp_core::blake2_256(&ext_bytes));

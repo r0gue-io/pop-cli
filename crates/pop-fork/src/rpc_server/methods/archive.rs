@@ -8,7 +8,7 @@ use super::chain_spec::GENESIS_HASH;
 use crate::{
 	Blockchain,
 	rpc_server::{
-		RpcServerError,
+		RpcServerError, parse_block_hash, parse_hex_bytes,
 		types::{
 			ArchiveCallResult, ArchiveStorageDiffResult, ArchiveStorageItem, ArchiveStorageResult,
 			StorageDiffItem, StorageDiffQueryItem, StorageDiffType, StorageQueryItem,
@@ -18,7 +18,6 @@ use crate::{
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use std::sync::Arc;
-use subxt::config::substrate::H256;
 
 /// New archive RPC methods (v1 spec).
 #[rpc(server, namespace = "archive")]
@@ -118,12 +117,7 @@ impl ArchiveApiServer for ArchiveApi {
 	}
 
 	async fn header(&self, hash: String) -> RpcResult<Option<String>> {
-		// Parse the hash
-		let hash_bytes = hex::decode(hash.trim_start_matches("0x"))
-			.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex hash: {e}")))?;
-
-		// Convert to H256
-		let block_hash = H256::from_slice(&hash_bytes);
+		let block_hash = parse_block_hash(&hash)?;
 
 		// Fetch block header (checks local blocks first, then remote)
 		match self.blockchain.block_header(block_hash).await {
@@ -135,12 +129,7 @@ impl ArchiveApiServer for ArchiveApi {
 	}
 
 	async fn body(&self, hash: String) -> RpcResult<Option<Vec<String>>> {
-		// Parse the hash
-		let hash_bytes = hex::decode(hash.trim_start_matches("0x"))
-			.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex hash: {e}")))?;
-
-		// Convert to H256
-		let block_hash = H256::from_slice(&hash_bytes);
+		let block_hash = parse_block_hash(&hash)?;
 
 		// Fetch block body (checks local blocks first, then remote)
 		match self.blockchain.block_body(block_hash).await {
@@ -161,14 +150,8 @@ impl ArchiveApiServer for ArchiveApi {
 		function: String,
 		call_parameters: String,
 	) -> RpcResult<Option<ArchiveCallResult>> {
-		// Parse the hash
-		let hash_bytes = hex::decode(hash.trim_start_matches("0x"))
-			.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex hash: {e}")))?;
-		let block_hash = H256::from_slice(&hash_bytes);
-
-		// Decode parameters
-		let params = hex::decode(call_parameters.trim_start_matches("0x"))
-			.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex parameters: {e}")))?;
+		let block_hash = parse_block_hash(&hash)?;
+		let params = parse_hex_bytes(&call_parameters, "parameters")?;
 
 		// Execute the call at the specified block
 		match self.blockchain.call_at_block(block_hash, &function, &params).await {
@@ -185,10 +168,7 @@ impl ArchiveApiServer for ArchiveApi {
 		items: Vec<StorageQueryItem>,
 		_child_trie: Option<String>,
 	) -> RpcResult<ArchiveStorageResult> {
-		// Parse and validate hash
-		let hash_bytes = hex::decode(hash.trim_start_matches("0x"))
-			.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex hash: {e}")))?;
-		let block_hash = H256::from_slice(&hash_bytes);
+		let block_hash = parse_block_hash(&hash)?;
 
 		// Get block number from hash
 		let block_number = match self.blockchain.block_number_by_hash(block_hash).await {
@@ -202,8 +182,7 @@ impl ArchiveApiServer for ArchiveApi {
 		// Query storage for each item at the specific block
 		let mut results = Vec::new();
 		for item in items {
-			let key_bytes = hex::decode(item.key.trim_start_matches("0x"))
-				.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex key: {e}")))?;
+			let key_bytes = parse_hex_bytes(&item.key, "key")?;
 
 			match self.blockchain.storage_at(block_number, &key_bytes).await {
 				Ok(Some(value)) => match item.query_type {
@@ -260,10 +239,7 @@ impl ArchiveApiServer for ArchiveApi {
 		items: Vec<StorageDiffQueryItem>,
 		previous_hash: Option<String>,
 	) -> RpcResult<ArchiveStorageDiffResult> {
-		// Parse and validate hash
-		let hash_bytes = hex::decode(hash.trim_start_matches("0x"))
-			.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex hash: {e}")))?;
-		let block_hash = H256::from_slice(&hash_bytes);
+		let block_hash = parse_block_hash(&hash)?;
 
 		// Get block number for the target block
 		let block_number = match self.blockchain.block_number_by_hash(block_hash).await {
@@ -276,14 +252,7 @@ impl ArchiveApiServer for ArchiveApi {
 
 		// Determine the previous block hash
 		let prev_block_hash = match previous_hash {
-			Some(prev_hash_str) => {
-				// Parse provided previous hash
-				let prev_hash_bytes =
-					hex::decode(prev_hash_str.trim_start_matches("0x")).map_err(|e| {
-						RpcServerError::InvalidParam(format!("Invalid hex previousHash: {e}"))
-					})?;
-				H256::from_slice(&prev_hash_bytes)
-			},
+			Some(prev_hash_str) => parse_block_hash(&prev_hash_str)?,
 			None => {
 				// Get parent hash from the block
 				match self.blockchain.block_parent_hash(block_hash).await {
@@ -318,8 +287,7 @@ impl ArchiveApiServer for ArchiveApi {
 		// Query storage for each item at both blocks and compute differences
 		let mut results = Vec::new();
 		for item in items {
-			let key_bytes = hex::decode(item.key.trim_start_matches("0x"))
-				.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex key: {e}")))?;
+			let key_bytes = parse_hex_bytes(&item.key, "key")?;
 
 			// Get value at current block
 			let current_value = match self.blockchain.storage_at(block_number, &key_bytes).await {
