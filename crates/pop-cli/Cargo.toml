@@ -24,6 +24,7 @@ pkg-fmt = "tgz"
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
+clap_complete.workspace = true
 cliclack.workspace = true
 console.workspace = true
 dirs.workspace = true

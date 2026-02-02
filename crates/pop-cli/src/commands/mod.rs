@@ -18,6 +18,7 @@ pub(crate) mod build;
 #[cfg(any(feature = "chain", feature = "contract"))]
 pub(crate) mod call;
 pub(crate) mod clean;
+pub(crate) mod completion;
 pub(crate) mod convert;
 pub(crate) mod hash;
 #[cfg(any(feature = "chain", feature = "contract"))]
@@ -69,6 +70,8 @@ pub(crate) enum Command {
 	/// Convert between different formats.
 	#[clap(alias = "cv")]
 	Convert(convert::ConvertArgs),
+	/// Generate shell completions.
+	Completion(completion::CompletionArgs),
 	/// Verify a smart contract binary
 	#[clap(alias = "v")]
 	#[cfg(feature = "contract")]
@@ -263,6 +266,7 @@ impl Command {
 				env_logger::init();
 				args.command.execute(&mut Cli)
 			},
+			Command::Completion(args) => completion::Command::execute(args),
 			#[cfg(feature = "contract")]
 			Self::Verify(verify) => verify.execute(&mut Cli).await,
 		}
@@ -324,6 +328,7 @@ impl Display for Command {
 			Command::Hash(args) => write!(f, "hash {}", args.command),
 			Command::Convert(args) => write!(f, "convert {}", args.command),
 			Command::Upgrade(_) => write!(f, "upgrade"),
+			Command::Completion(_) => write!(f, "completion"),
 			#[cfg(feature = "contract")]
 			Command::Verify(_) => write!(f, "verify"),
 		}
@@ -429,6 +434,13 @@ mod tests {
 					list: false,
 				}),
 				"new contract",
+			),
+			// Completion.
+			(
+				Command::Completion(completion::CompletionArgs {
+					shell: completion::CompletionShell::Bash,
+				}),
+				"completion",
 			),
 			// Bench.
 			(
