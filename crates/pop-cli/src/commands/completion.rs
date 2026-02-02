@@ -9,15 +9,15 @@ use std::{io, io::Write};
 #[derive(Clone, Copy, Debug, Serialize, ValueEnum)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum CompletionShell {
-	#[value(rename = "bash")]
+	#[value(name = "bash")]
 	Bash,
-	#[value(rename = "zsh")]
+	#[value(name = "zsh")]
 	Zsh,
-	#[value(rename = "fish")]
+	#[value(name = "fish")]
 	Fish,
-	#[value(rename = "powershell")]
+	#[value(name = "powershell")]
 	PowerShell,
-	#[value(rename = "elvish")]
+	#[value(name = "elvish")]
 	Elvish,
 }
 
@@ -50,7 +50,8 @@ impl Command {
 
 fn generate_completion(shell: CompletionShell, writer: &mut dyn Write) -> Result<()> {
 	let mut cmd = crate::Cli::command();
-	generate(shell.into(), &mut cmd, "pop", writer);
+	let generator: Shell = shell.into();
+	generate(generator, &mut cmd, "pop", writer);
 	Ok(())
 }
 
