@@ -61,8 +61,6 @@ pub mod parachain {
 		pub const PALLET_NAME: &str = "ParachainSystem";
 
 		/// Call name for the `set_validation_data` function.
-		/// Reserved for future use when full parachain inherent is implemented.
-		#[allow(dead_code)]
 		pub const SET_VALIDATION_DATA_CALL_NAME: &str = "set_validation_data";
 	}
 }

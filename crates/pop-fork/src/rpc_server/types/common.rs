@@ -62,6 +62,55 @@ impl<const N: usize> From<&[u8; N]> for HexString {
 /// Subxt's built-in header type for decoding SCALE-encoded headers.
 pub type Header = <subxt::SubstrateConfig as subxt::Config>::Header;
 
+/// RPC-compatible header format for polkadot.js.
+///
+/// This matches the format expected by polkadot.js apps:
+/// - Block number as hex string with 0x prefix
+/// - Hashes as hex strings with 0x prefix
+/// - Digest logs as hex strings
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RpcHeader {
+	/// Parent block hash.
+	pub parent_hash: String,
+	/// Block number as hex string (e.g., "0x3039").
+	pub number: String,
+	/// State root hash.
+	pub state_root: String,
+	/// Extrinsics root hash.
+	pub extrinsics_root: String,
+	/// Block digest.
+	pub digest: RpcDigest,
+}
+
+/// RPC-compatible digest format.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RpcDigest {
+	/// Digest logs as hex strings.
+	pub logs: Vec<String>,
+}
+
+impl RpcHeader {
+	/// Convert from subxt's Header type to RPC-compatible format.
+	pub fn from_header(header: &Header) -> Self {
+		use scale::Encode;
+		Self {
+			parent_hash: HexString::from_bytes(header.parent_hash.as_bytes()).into(),
+			number: format!("0x{:x}", header.number),
+			state_root: HexString::from_bytes(header.state_root.as_bytes()).into(),
+			extrinsics_root: HexString::from_bytes(header.extrinsics_root.as_bytes()).into(),
+			digest: RpcDigest {
+				logs: header
+					.digest
+					.logs
+					.iter()
+					.map(|log| HexString::from_bytes(&log.encode()).into())
+					.collect(),
+			},
+		}
+	}
+}
+
 /// Runtime version information.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -131,8 +180,8 @@ pub struct SignedBlock {
 /// Block data (header + extrinsics).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BlockData {
-	/// Block header.
-	pub header: Header,
+	/// Block header in RPC-compatible format.
+	pub header: RpcHeader,
 	/// Extrinsics.
 	pub extrinsics: Vec<String>,
 }
@@ -213,10 +262,15 @@ pub struct FinalizedEvent {
 }
 
 /// Operation response for chainHead methods.
+///
+/// Note: Uses `#[serde(flatten)]` to avoid double nesting of "result".
+/// The spec expects `{"result": "started", "operationId": "..."}` not
+/// `{"result": {"result": "started", ...}}`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MethodResponse {
 	/// Operation result.
+	#[serde(flatten)]
 	pub result: OperationResult,
 }
 
@@ -237,4 +291,77 @@ pub struct StorageChangeSet {
 	pub block: String,
 	/// List of storage changes (key, value).
 	pub changes: Vec<(String, Option<String>)>,
+}
+
+/// Operation event for chainHead subscription.
+///
+/// These events are sent via the chainHead_v1_followEvent subscription
+/// to report the results of async operations (body, call, storage).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "event", rename_all = "camelCase")]
+pub enum OperationEvent {
+	/// Body operation completed successfully.
+	#[serde(rename_all = "camelCase")]
+	OperationBodyDone {
+		/// Operation identifier.
+		operation_id: String,
+		/// Hex-encoded extrinsics.
+		value: Vec<String>,
+	},
+	/// Call operation completed successfully.
+	#[serde(rename_all = "camelCase")]
+	OperationCallDone {
+		/// Operation identifier.
+		operation_id: String,
+		/// Hex-encoded call output.
+		output: String,
+	},
+	/// Storage items returned.
+	#[serde(rename_all = "camelCase")]
+	OperationStorageItems {
+		/// Operation identifier.
+		operation_id: String,
+		/// Storage items.
+		items: Vec<StorageResultItem>,
+	},
+	/// Storage operation completed.
+	#[serde(rename_all = "camelCase")]
+	OperationStorageDone {
+		/// Operation identifier.
+		operation_id: String,
+	},
+	/// Operation failed with error.
+	#[serde(rename_all = "camelCase")]
+	OperationError {
+		/// Operation identifier.
+		operation_id: String,
+		/// Error message.
+		error: String,
+	},
+}
+
+/// Storage result item for chainHead_v1_storage responses.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StorageResultItem {
+	/// Storage key (hex-encoded).
+	pub key: String,
+	/// Storage value (hex-encoded, if exists).
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub value: Option<String>,
+	/// Hash of the value (for hash queries).
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub hash: Option<String>,
+}
+
+/// System sync state.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncState {
+	/// Starting block number.
+	pub starting_block: u32,
+	/// Current block number.
+	pub current_block: u32,
+	/// Highest known block number.
+	pub highest_block: u32,
 }

@@ -227,10 +227,16 @@ impl BlockBuilder {
 		}
 
 		// Call Core_initialize_block with the header
+		eprintln!("[BlockBuilder] Calling Core_initialize_block...");
 		let result = self
 			.executor
 			.call(runtime_api::CORE_INITIALIZE_BLOCK, &self.header, self.storage())
-			.await?;
+			.await
+			.map_err(|e| {
+				eprintln!("[BlockBuilder] Core_initialize_block FAILED: {e}");
+				e
+			})?;
+		eprintln!("[BlockBuilder] Core_initialize_block OK");
 
 		// Apply storage changes
 		self.apply_storage_diff(&result.storage_diff)?;
@@ -268,20 +274,39 @@ impl BlockBuilder {
 
 		// Collect inherents from all providers
 		for provider in &self.inherent_providers {
+			eprintln!("[BlockBuilder] Getting inherents from provider: {}", provider.identifier());
 			let inherents = provider.provide(&self.parent, &self.executor).await.map_err(|e| {
+				eprintln!("[BlockBuilder] Provider {} FAILED: {e}", provider.identifier());
 				BlockBuilderError::InherentProvider {
 					provider: provider.identifier().to_string(),
 					message: e.to_string(),
 				}
 			})?;
+			eprintln!(
+				"[BlockBuilder] Provider {} returned {} inherents",
+				provider.identifier(),
+				inherents.len()
+			);
 
 			// Apply each inherent
-			for inherent in inherents {
-				let result = self.call_apply_extrinsic(&inherent).await?;
+			for (i, inherent) in inherents.iter().enumerate() {
+				eprintln!(
+					"[BlockBuilder] Applying inherent {i} from {} ({} bytes)...",
+					provider.identifier(),
+					inherent.len()
+				);
+				let result = self.call_apply_extrinsic(inherent).await.map_err(|e| {
+					eprintln!(
+						"[BlockBuilder] Inherent {i} from {} FAILED: {e}",
+						provider.identifier()
+					);
+					e
+				})?;
+				eprintln!("[BlockBuilder] Inherent {i} from {} OK", provider.identifier());
 
 				// Inherents should always succeed - apply storage changes
 				self.apply_storage_diff(&result.storage_diff)?;
-				self.extrinsics.push(inherent);
+				self.extrinsics.push(inherent.clone());
 				results.push(result);
 			}
 		}
@@ -377,10 +402,16 @@ impl BlockBuilder {
 		}
 
 		// Call BlockBuilder_finalize_block
+		eprintln!("[BlockBuilder] Calling BlockBuilder_finalize_block...");
 		let result = self
 			.executor
 			.call(runtime_api::BLOCK_BUILDER_FINALIZE_BLOCK, &[], self.storage())
-			.await?;
+			.await
+			.map_err(|e| {
+				eprintln!("[BlockBuilder] BlockBuilder_finalize_block FAILED: {e}");
+				e
+			})?;
+		eprintln!("[BlockBuilder] BlockBuilder_finalize_block OK");
 
 		// Apply final storage changes
 		self.apply_storage_diff(&result.storage_diff)?;

@@ -8,7 +8,7 @@ use crate::{
 	Blockchain, BlockchainEvent,
 	rpc_server::{
 		RpcServerError, parse_block_hash,
-		types::{BlockData, Header, HexString, SignedBlock},
+		types::{BlockData, Header, HexString, RpcHeader, SignedBlock},
 	},
 };
 use jsonrpsee::{
@@ -34,7 +34,7 @@ pub trait ChainApi {
 	/// Returns the header of the block with the given hash, or the best block header if no hash is
 	/// provided.
 	#[method(name = "getHeader")]
-	async fn get_header(&self, hash: Option<String>) -> RpcResult<Option<Header>>;
+	async fn get_header(&self, hash: Option<String>) -> RpcResult<Option<RpcHeader>>;
 
 	/// Get full block by hash.
 	///
@@ -47,15 +47,15 @@ pub trait ChainApi {
 	async fn get_finalized_head(&self) -> RpcResult<String>;
 
 	/// Subscribe to new block headers.
-	#[subscription(name = "subscribeNewHeads" => "newHead", unsubscribe = "unsubscribeNewHeads", item = Header)]
+	#[subscription(name = "subscribeNewHeads" => "newHead", unsubscribe = "unsubscribeNewHeads", item = RpcHeader)]
 	async fn subscribe_new_heads(&self) -> SubscriptionResult;
 
 	/// Subscribe to finalized block headers.
-	#[subscription(name = "subscribeFinalizedHeads" => "finalizedHead", unsubscribe = "unsubscribeFinalizedHeads", item = Header)]
+	#[subscription(name = "subscribeFinalizedHeads" => "finalizedHead", unsubscribe = "unsubscribeFinalizedHeads", item = RpcHeader)]
 	async fn subscribe_finalized_heads(&self) -> SubscriptionResult;
 
 	/// Subscribe to all block headers (alias for subscribeNewHeads).
-	#[subscription(name = "subscribeAllHeads" => "allHead", unsubscribe = "unsubscribeAllHeads", item = Header)]
+	#[subscription(name = "subscribeAllHeads" => "allHead", unsubscribe = "unsubscribeAllHeads", item = RpcHeader)]
 	async fn subscribe_all_heads(&self) -> SubscriptionResult;
 }
 
@@ -87,17 +87,19 @@ impl ChainApiServer for ChainApi {
 		}
 	}
 
-	async fn get_header(&self, hash: Option<String>) -> RpcResult<Option<Header>> {
+	async fn get_header(&self, hash: Option<String>) -> RpcResult<Option<RpcHeader>> {
 		let block_hash = match hash {
 			Some(h) => parse_block_hash(&h)?,
 			None => self.blockchain.head_hash().await,
 		};
 
 		match self.blockchain.block_header(block_hash).await {
-			Ok(Some(header_bytes)) =>
-				Ok(Some(Header::decode(&mut header_bytes.as_slice()).map_err(|e| {
+			Ok(Some(header_bytes)) => {
+				let header = Header::decode(&mut header_bytes.as_slice()).map_err(|e| {
 					RpcServerError::Internal(format!("Failed to decode header: {e}"))
-				})?)),
+				})?;
+				Ok(Some(RpcHeader::from_header(&header)))
+			},
 			Ok(None) => Ok(None),
 			Err(e) =>
 				Err(RpcServerError::Internal(format!("Failed to fetch block header: {e}")).into()),
@@ -146,7 +148,8 @@ impl ChainApiServer for ChainApi {
 		if let Ok(Some(header_bytes)) = blockchain.block_header(head_hash).await &&
 			let Ok(header) = Header::decode(&mut header_bytes.as_slice())
 		{
-			drop(sink.send(jsonrpsee::SubscriptionMessage::from_json(&header)?));
+			let rpc_header = RpcHeader::from_header(&header);
+			let _ = sink.send(jsonrpsee::SubscriptionMessage::from_json(&rpc_header)?).await;
 		}
 
 		// Subscribe to blockchain events
@@ -165,9 +168,10 @@ impl ChainApiServer for ChainApi {
 					event = receiver.recv() => {
 						match event {
 							Ok(BlockchainEvent::NewBlock { header, .. }) => {
-								// Decode and send the new header
+								// Decode and send the new header in RPC format
 								if let Ok(decoded) = Header::decode(&mut header.as_slice()) {
-									let msg = match jsonrpsee::SubscriptionMessage::from_json(&decoded) {
+									let rpc_header = RpcHeader::from_header(&decoded);
+									let msg = match jsonrpsee::SubscriptionMessage::from_json(&rpc_header) {
 										Ok(m) => m,
 										Err(_) => continue,
 									};
@@ -345,7 +349,7 @@ mod tests {
 		let block = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
 		let hash = format!("0x{}", hex::encode(block.hash.as_bytes()));
 
-		let header: Option<Header> = client
+		let header: Option<RpcHeader> = client
 			.request("chain_getHeader", rpc_params![hash])
 			.await
 			.expect("RPC call failed");
@@ -353,9 +357,9 @@ mod tests {
 		assert!(header.is_some(), "Should return header");
 		let header = header.unwrap();
 
-		// Verify header fields are properly formatted
-		assert_eq!(header.parent_hash, block.parent_hash);
-		assert_eq!(header.number, block.number);
+		// Verify header fields are properly formatted as hex strings
+		assert_eq!(header.parent_hash, format!("0x{}", hex::encode(block.parent_hash.as_bytes())));
+		assert_eq!(header.number, format!("0x{:x}", block.number));
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -368,11 +372,11 @@ mod tests {
 		let block = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
 
 		// Query without hash (should return head)
-		let header: Option<Header> =
+		let header: Option<RpcHeader> =
 			client.request("chain_getHeader", rpc_params![]).await.expect("RPC call failed");
 
 		assert!(header.is_some(), "Should return header when no hash provided");
-		assert_eq!(header.unwrap().number, block.number);
+		assert_eq!(header.unwrap().number, format!("0x{:x}", block.number));
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -384,13 +388,13 @@ mod tests {
 		let fork_point_hash = ctx.blockchain.fork_point();
 		let hash = format!("0x{}", hex::encode(fork_point_hash.as_bytes()));
 
-		let header: Option<Header> = client
+		let header: Option<RpcHeader> = client
 			.request("chain_getHeader", rpc_params![hash])
 			.await
 			.expect("RPC call failed");
 
 		assert!(header.is_some(), "Should return header for fork point");
-		assert_eq!(header.unwrap().number, ctx.blockchain.fork_point_number());
+		assert_eq!(header.unwrap().number, format!("0x{:x}", ctx.blockchain.fork_point_number()));
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
@@ -411,9 +415,12 @@ mod tests {
 		assert!(signed_block.is_some(), "Should return full block");
 		let signed_block = signed_block.unwrap();
 
-		// Verify block structure
-		assert_eq!(signed_block.block.header.parent_hash, block.parent_hash);
-		assert_eq!(signed_block.block.header.number, block.number);
+		// Verify block structure (header fields are hex strings in RPC format)
+		assert_eq!(
+			signed_block.block.header.parent_hash,
+			format!("0x{}", hex::encode(block.parent_hash.as_bytes()))
+		);
+		assert_eq!(signed_block.block.header.number, format!("0x{:x}", block.number));
 
 		// Extrinsics should be present (at least inherents)
 		assert_eq!(
@@ -440,7 +447,7 @@ mod tests {
 			client.request("chain_getBlock", rpc_params![]).await.expect("RPC call failed");
 
 		let signed_block = signed_block.unwrap();
-		assert_eq!(signed_block.block.header.number, block.number);
+		assert_eq!(signed_block.block.header.number, format!("0x{:x}", block.number));
 		assert_eq!(
 			signed_block.block.extrinsics,
 			block

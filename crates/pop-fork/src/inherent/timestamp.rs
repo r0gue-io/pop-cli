@@ -258,11 +258,22 @@ impl InherentProvider for TimestampInherent {
 		// Calculate new timestamp
 		let new_timestamp = current_timestamp.saturating_add(slot_duration);
 
+		eprintln!(
+			"[Timestamp] current_timestamp={current_timestamp}, slot_duration={slot_duration}, new_timestamp={new_timestamp}"
+		);
+		eprintln!("[Timestamp] pallet_index={pallet_index}, call_index={call_index}");
+
 		// Encode the timestamp.set call with dynamic indices
 		let call = Self::encode_timestamp_set_call(pallet_index, call_index, new_timestamp);
 
 		// Wrap as unsigned extrinsic
 		let extrinsic = Self::encode_inherent_extrinsic(call);
+
+		eprintln!(
+			"[Timestamp] extrinsic ({} bytes): 0x{}",
+			extrinsic.len(),
+			hex::encode(&extrinsic)
+		);
 
 		Ok(vec![extrinsic])
 	}

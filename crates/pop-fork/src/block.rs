@@ -151,6 +151,13 @@ impl Block {
 		let block_number = header.number;
 		let parent_hash = header.parent_hash;
 
+		// Fetch full block to get extrinsics (needed for parachain inherents)
+		let extrinsics = rpc
+			.block_by_hash(block_hash)
+			.await?
+			.map(|block| block.extrinsics.into_iter().map(|ext| ext.0.to_vec()).collect::<Vec<_>>())
+			.unwrap_or_default();
+
 		// Fetch and decode runtime metadata
 		let metadata_bytes = rpc.metadata(block_hash).await?;
 		let metadata = Metadata::decode(&mut metadata_bytes.as_slice())
@@ -168,7 +175,7 @@ impl Block {
 			hash: block_hash,
 			parent_hash,
 			header: header_encoded,
-			extrinsics: vec![], // Fork point has no new extrinsics
+			extrinsics, // Extrinsics from the forked block (needed for parachain inherents)
 			storage,
 			parent: None,
 		})
@@ -373,7 +380,7 @@ mod tests {
 			assert_eq!(block.hash, ctx.block_hash);
 			assert_eq!(block.parent_hash, expected_parent_hash);
 			assert!(!block.header.is_empty());
-			assert!(block.extrinsics.is_empty());
+			// Note: extrinsics may or may not be empty depending on the block
 			assert!(block.parent.is_none());
 		}
 
@@ -403,7 +410,7 @@ mod tests {
 			assert_eq!(block.hash, ctx.block_hash);
 			assert_eq!(block.parent_hash, expected_parent_hash);
 			assert!(!block.header.is_empty());
-			assert!(block.extrinsics.is_empty());
+			// Note: extrinsics may or may not be empty depending on the block
 			assert!(block.parent.is_none());
 		}
 

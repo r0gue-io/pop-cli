@@ -136,11 +136,12 @@ pub fn default_providers(is_parachain: bool) -> Vec<Box<dyn InherentProvider>> {
 		TimestampInherent::default_relay()
 	};
 
-	let mut providers: Vec<Box<dyn InherentProvider>> = vec![Box::new(timestamp)];
-
+	// For parachains, setValidationData MUST be applied BEFORE timestamp.
+	// The validation data sets up the relay chain state that timestamp pallet
+	// uses for time validation checks.
 	if is_parachain {
-		providers.push(Box::new(ParachainInherent::new()));
+		vec![Box::new(ParachainInherent::new()), Box::new(timestamp)]
+	} else {
+		vec![Box::new(timestamp)]
 	}
-
-	providers
 }

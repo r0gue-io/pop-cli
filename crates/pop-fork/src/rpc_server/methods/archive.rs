@@ -184,6 +184,21 @@ impl ArchiveApiServer for ArchiveApi {
 		for item in items {
 			let key_bytes = parse_hex_bytes(&item.key, "key")?;
 
+			match item.query_type {
+				StorageQueryType::ClosestDescendantMerkleValue => {
+					// Merkle proofs not supported in fork - return empty result
+					results.push(ArchiveStorageItem { key: item.key, value: None, hash: None });
+					continue;
+				},
+				StorageQueryType::DescendantsValues | StorageQueryType::DescendantsHashes => {
+					// Descendants queries require key enumeration which is not yet implemented.
+					// Return empty result to allow PAPI to not error out.
+					results.push(ArchiveStorageItem { key: item.key, value: None, hash: None });
+					continue;
+				},
+				_ => {},
+			}
+
 			match self.blockchain.storage_at(block_number, &key_bytes).await {
 				Ok(Some(value)) => match item.query_type {
 					StorageQueryType::Value => {
@@ -201,6 +216,10 @@ impl ArchiveApiServer for ArchiveApi {
 							hash: Some(HexString::from_bytes(&hash).into()),
 						});
 					},
+					// Already handled above
+					StorageQueryType::ClosestDescendantMerkleValue |
+					StorageQueryType::DescendantsValues |
+					StorageQueryType::DescendantsHashes => unreachable!(),
 				},
 				Ok(None) => {
 					// Key doesn't exist - include in results with null value
@@ -318,6 +337,10 @@ impl ArchiveApiServer for ArchiveApi {
 							(Some(HexString::from_bytes(value).into()), None),
 						StorageQueryType::Hash =>
 							(None, Some(HexString::from_bytes(&sp_core::blake2_256(value)).into())),
+						// Merkle/descendants types not applicable to diff - treat as value
+						StorageQueryType::ClosestDescendantMerkleValue |
+						StorageQueryType::DescendantsValues |
+						StorageQueryType::DescendantsHashes => (Some(HexString::from_bytes(value).into()), None),
 					};
 					StorageDiffItem {
 						key: item.key,
@@ -349,6 +372,10 @@ impl ArchiveApiServer for ArchiveApi {
 						StorageQueryType::Value => (Some(HexString::from_bytes(curr).into()), None),
 						StorageQueryType::Hash =>
 							(None, Some(HexString::from_bytes(&sp_core::blake2_256(curr)).into())),
+						// Merkle/descendants types not applicable to diff - treat as value
+						StorageQueryType::ClosestDescendantMerkleValue |
+						StorageQueryType::DescendantsValues |
+						StorageQueryType::DescendantsHashes => (Some(HexString::from_bytes(curr).into()), None),
 					};
 					StorageDiffItem {
 						key: item.key,

@@ -10,3 +10,4 @@ pub mod cache;
 pub mod executor;
 pub mod inherent;
 pub mod rpc;
+pub mod rpc_server;
