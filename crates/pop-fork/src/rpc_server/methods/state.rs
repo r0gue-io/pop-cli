@@ -6,7 +6,10 @@
 
 use crate::{
 	Blockchain, BlockchainEvent,
-	rpc_server::types::{RuntimeVersion, StorageChangeSet},
+	rpc_server::{
+		RpcServerError, parse_block_hash, parse_hex_bytes,
+		types::{HexString, RuntimeVersion, StorageChangeSet},
+	},
 };
 use jsonrpsee::{
 	PendingSubscriptionSink,
@@ -15,7 +18,6 @@ use jsonrpsee::{
 };
 use scale::Decode;
 use std::sync::Arc;
-use subxt::config::substrate::H256;
 use tokio::sync::broadcast;
 
 /// Legacy state RPC methods.
@@ -175,7 +177,7 @@ impl StateApiServer for StateApi {
 		// Get current runtime version and send it immediately
 		let current_version = self.get_runtime_version(None).await.ok();
 		if let Some(ref version) = current_version {
-			let _ = sink.send(jsonrpsee::SubscriptionMessage::from_json(version)?);
+			drop(sink.send(jsonrpsee::SubscriptionMessage::from_json(version)?));
 		}
 
 		// Subscribe to blockchain events to detect runtime upgrades
@@ -197,7 +199,7 @@ impl StateApiServer for StateApi {
 						match event {
 							Ok(BlockchainEvent::NewBlock { modified_keys, hash, .. }) => {
 								// Check if :code was modified (runtime upgrade)
-								let runtime_changed = modified_keys.iter().any(|k| *k == code_key);
+								let runtime_changed = modified_keys.contains(&code_key);
 
 								if runtime_changed {
 									// Fetch new runtime version
@@ -291,7 +293,7 @@ impl StateApiServer for StateApi {
 		}
 
 		let change_set = StorageChangeSet { block: block_hex, changes };
-		let _ = sink.send(jsonrpsee::SubscriptionMessage::from_json(&change_set)?);
+		drop(sink.send(jsonrpsee::SubscriptionMessage::from_json(&change_set)?));
 
 		// If no keys to watch, just wait for close
 		if subscribed_keys.is_empty() {

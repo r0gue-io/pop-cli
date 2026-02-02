@@ -6,7 +6,10 @@
 
 use crate::{
 	Blockchain, BlockchainEvent,
-	rpc_server::types::{BlockData, Header, SignedBlock},
+	rpc_server::{
+		RpcServerError, parse_block_hash,
+		types::{BlockData, Header, HexString, SignedBlock},
+	},
 };
 use jsonrpsee::{
 	PendingSubscriptionSink,
@@ -15,7 +18,6 @@ use jsonrpsee::{
 };
 use scale::Decode;
 use std::sync::Arc;
-use subxt::config::substrate::H256;
 use tokio::sync::broadcast;
 
 /// Legacy chain RPC methods.
@@ -137,40 +139,14 @@ impl ChainApiServer for ChainApi {
 
 	async fn subscribe_new_heads(&self, pending: PendingSubscriptionSink) -> SubscriptionResult {
 		let sink = pending.accept().await?;
-
-		// Get current head header and send it immediately
-		let head_hash = self.blockchain.head_hash().await;
-		if let Ok(Some(header_bytes)) = self.blockchain.block_header(head_hash).await {
-			if let Ok(header) = Header::decode(&mut header_bytes.as_slice()) {
-				let _ = sink.send(jsonrpsee::SubscriptionMessage::from_json(&header)?);
-			}
-		}
-
-		// Keep subscription open (mock - doesn't send updates)
-		// In a real implementation, we'd listen for new blocks from dev_newBlock
-		sink.closed().await;
-		Ok(())
-	}
-
-	async fn subscribe_finalized_heads(&self, pending: PendingSubscriptionSink) -> SubscriptionResult {
-		// For a fork, finalized = head
-		self.subscribe_new_heads(pending).await
-	}
-
-	async fn subscribe_all_heads(&self, pending: PendingSubscriptionSink) -> SubscriptionResult {
-		self.subscribe_new_heads(pending).await
-	}
-
-	async fn subscribe_new_heads(&self, pending: PendingSubscriptionSink) -> SubscriptionResult {
-		let sink = pending.accept().await?;
 		let blockchain = Arc::clone(&self.blockchain);
 
 		// Send current head immediately
 		let head_hash = blockchain.head_hash().await;
-		if let Ok(Some(header_bytes)) = blockchain.block_header(head_hash).await {
-			if let Ok(header) = Header::decode(&mut header_bytes.as_slice()) {
-				let _ = sink.send(jsonrpsee::SubscriptionMessage::from_json(&header)?);
-			}
+		if let Ok(Some(header_bytes)) = blockchain.block_header(head_hash).await &&
+			let Ok(header) = Header::decode(&mut header_bytes.as_slice())
+		{
+			drop(sink.send(jsonrpsee::SubscriptionMessage::from_json(&header)?));
 		}
 
 		// Subscribe to blockchain events
