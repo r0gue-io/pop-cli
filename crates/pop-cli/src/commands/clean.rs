@@ -173,16 +173,16 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 	pub(crate) async fn execute(self) -> Result<()> {
 		self.cli.intro("Remove running network")?;
 
-		let zombie_jsons = match self.path {
-			Some(path) => vec![resolve_zombie_json_path(&path)?],
+		let (zombie_jsons, selection_kind) = match self.path {
+			Some(path) => (vec![resolve_zombie_json_path(&path)?], NetworkSelection::Specified),
 			None => {
 				let candidates = find_zombie_jsons()?;
 				if candidates.is_empty() {
-					self.cli.outro("ℹ️ No running networks found.")?;
+					self.cli.outro("ℹ️  No running networks found.")?;
 					return Ok(());
 				}
 				if candidates.len() == 1 {
-					vec![candidates[0].path.clone()]
+					(vec![candidates[0].path.clone()], NetworkSelection::AutoSingle)
 				} else {
 					let selection = {
 						let mut prompt = self
@@ -208,23 +208,34 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 						prompt.interact()?
 					};
 					if selection.is_empty() {
-						self.cli.outro("ℹ️ No networks stopped.")?;
+						self.cli.outro("ℹ️  No networks stopped.")?;
 						return Ok(());
 					}
-					selection
+					(selection, NetworkSelection::Selected)
 				}
 			},
 		};
 
 		let count = zombie_jsons.len();
-		let confirm = match count {
-			1 => "Stop the selected network?".to_string(),
+		let single_location = if count == 1 {
+			zombie_jsons[0]
+				.parent()
+				.map(|p| p.display().to_string())
+				.unwrap_or_else(|| zombie_jsons[0].display().to_string())
+		} else {
+			String::new()
+		};
+		let confirm = match (count, selection_kind) {
+			(1, NetworkSelection::AutoSingle) => format!("Stop the network at {single_location}?"),
+			(1, NetworkSelection::Specified) =>
+				format!("Stop the specified network at {single_location}?"),
+			(1, NetworkSelection::Selected) => "Stop the selected network?".to_string(),
 			_ => format!("Stop the {} selected networks?", count),
 		};
 		if std::io::stdin().is_terminal() &&
 			!self.cli.confirm(confirm).initial_value(true).interact()?
 		{
-			self.cli.outro("ℹ️ No networks stopped.")?;
+			self.cli.outro("ℹ️  No networks stopped.")?;
 			return Ok(());
 		}
 
@@ -240,13 +251,13 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 					error_message.contains("not connected")
 				{
 					self.cli.warning(format!(
-						"⚠️ Falling back to process cleanup for attached network at {}",
+						"⚠️  Falling back to process cleanup for attached network at {}",
 						base_dir.display()
 					))?;
 					let pids = read_pids_from_zombie_json(zombie_json)?;
 					if pids.is_empty() {
 						self.cli.warning(format!(
-							"ℹ️ Network already stopped at {}",
+							"ℹ️  Network already stopped at {}",
 							base_dir.display()
 						))?;
 					} else {
@@ -257,12 +268,14 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 				} else if error_message.contains("ProcessIdRetrievalFailed") ||
 					error_message.contains("no process was attached")
 				{
-					self.cli
-						.warning(format!("ℹ️ Network already stopped at {}", base_dir.display()))?;
+					self.cli.warning(format!(
+						"ℹ️  Network already stopped at {}",
+						base_dir.display()
+					))?;
 				} else {
 					failures += 1;
 					self.cli.warning(format!(
-						"🚫 Failed to stop network at {}: {e}",
+						"🚫  Failed to stop network at {}: {e}",
 						base_dir.display()
 					))?;
 					continue;
@@ -272,18 +285,18 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 			if self.keep_state {
 				if let Err(e) = mark_cleared(&base_dir) {
 					self.cli.warning(format!(
-						"🚫 Failed to mark network as cleared at {}: {e}",
+						"🚫  Failed to mark network as cleared at {}: {e}",
 						base_dir.display()
 					))?;
 				}
 				self.cli
-					.info(format!("ℹ️ Network stopped. State kept at {}", base_dir.display()))?;
+					.info(format!("ℹ️  Network stopped. State kept at {}", base_dir.display()))?;
 				continue;
 			}
 
 			if let Err(e) = remove_dir_all(&base_dir) {
 				self.cli.warning(format!(
-					"🚫 Failed to remove network state at {}: {e}",
+					"🚫  Failed to remove network state at {}: {e}",
 					base_dir.display()
 				))?;
 				failures += 1;
@@ -292,14 +305,14 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 
 		if failures > 0 {
 			self.cli.warning(format!(
-				"⚠️ Completed with {} failure{}.",
+				"⚠️  Completed with {} failure{}.",
 				failures,
 				if failures == 1 { "" } else { "s" }
 			))?;
 		} else if self.keep_state {
-			self.cli.outro("ℹ️ Networks stopped. State kept.")?;
+			self.cli.outro("ℹ️  Networks stopped. State kept.")?;
 		} else {
-			self.cli.outro("ℹ️ Networks stopped and state removed")?;
+			self.cli.outro("ℹ️  Networks stopped and state removed")?;
 		}
 		Ok(())
 	}
@@ -464,7 +477,7 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 		};
 
 		if processes.is_empty() {
-			self.cli.outro("ℹ️ No running nodes found.")?;
+			self.cli.outro("ℹ️  No running nodes found.")?;
 			return Ok(());
 		}
 
@@ -490,7 +503,7 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 
 			if !invalid_pids.is_empty() {
 				self.cli.outro_cancel(format!(
-					"🚫 Invalid PID(s): {}. No processes killed.",
+					"🚫  Invalid PID(s): {}. No processes killed.",
 					invalid_pids.iter().map(|p| p.as_str()).collect::<Vec<_>>().join(", ")
 				))?;
 				return Ok(());
@@ -513,7 +526,7 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 			};
 
 			if selected.is_empty() {
-				self.cli.outro("ℹ️ No processes killed")?;
+				self.cli.outro("ℹ️  No processes killed")?;
 				return Ok(());
 			}
 
@@ -526,7 +539,7 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 				),
 			};
 			if !self.cli.confirm(prompt).interact()? {
-				self.cli.outro("ℹ️ No processes killed")?;
+				self.cli.outro("ℹ️  No processes killed")?;
 				return Ok(());
 			}
 
@@ -544,10 +557,17 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 			}
 		}
 
-		self.cli.outro(format!("ℹ️ {} processes killed", pids.len()))?;
+		self.cli.outro(format!("ℹ️  {} processes killed", pids.len()))?;
 
 		Ok(())
 	}
+}
+
+#[derive(Clone, Copy)]
+enum NetworkSelection {
+	AutoSingle,
+	Selected,
+	Specified,
 }
 
 /// Returns a list of (process_name, PID, ports) for ink-node and eth-rpc processes.
@@ -876,7 +896,7 @@ mod tests {
 	fn clean_nodes_handles_no_processes() -> Result<()> {
 		let mut cli = MockCli::new()
 			.expect_intro("Remove running nodes")
-			.expect_outro("ℹ️ No running nodes found.");
+			.expect_outro("ℹ️  No running nodes found.");
 
 		let cmd = CleanNodesCommand {
 			cli: &mut cli,
@@ -914,7 +934,7 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_intro("Remove running nodes")
 			.expect_info(format!("Killing the following processes...\n {list} \n"))
-			.expect_outro("ℹ️ 2 processes killed");
+			.expect_outro("ℹ️  2 processes killed");
 
 		let killed: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
 		let killed2 = killed.clone();
@@ -947,7 +967,7 @@ mod tests {
 				Some(items),
 				None,
 			)
-			.expect_outro("ℹ️ No processes killed");
+			.expect_outro("ℹ️  No processes killed");
 
 		let cmd = CleanNodesCommand {
 			cli: &mut cli,
@@ -968,7 +988,7 @@ mod tests {
 			.expect_intro("Remove running nodes")
 			.expect_multiselect("Select the processes you wish to kill:", None, true, None, None)
 			.expect_confirm("Are you sure you want to kill the selected process?", false)
-			.expect_outro("ℹ️ No processes killed");
+			.expect_outro("ℹ️  No processes killed");
 
 		let cmd = CleanNodesCommand {
 			cli: &mut cli,
@@ -994,7 +1014,7 @@ mod tests {
 			.expect_intro("Remove running nodes")
 			.expect_multiselect("Select the processes you wish to kill:", None, true, None, None)
 			.expect_confirm("Are you sure you want to kill the 3 selected processes?", true)
-			.expect_outro("ℹ️ 3 processes killed");
+			.expect_outro("ℹ️  3 processes killed");
 
 		let killed: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
 		let killed2 = killed.clone();
@@ -1028,7 +1048,7 @@ mod tests {
 
 		let mut cli = MockCli::new()
 			.expect_intro("Remove running nodes")
-			.expect_outro("ℹ️ 1 processes killed");
+			.expect_outro("ℹ️  1 processes killed");
 
 		let killed: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
 		let killed2 = killed.clone();
@@ -1055,7 +1075,7 @@ mod tests {
 
 		let mut cli = MockCli::new()
 			.expect_intro("Remove running nodes")
-			.expect_outro_cancel("🚫 Invalid PID(s): 222, 333. No processes killed.");
+			.expect_outro_cancel("🚫  Invalid PID(s): 222, 333. No processes killed.");
 
 		let cmd = CleanNodesCommand {
 			cli: &mut cli,
