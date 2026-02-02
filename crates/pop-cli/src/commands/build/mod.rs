@@ -3,19 +3,23 @@
 use crate::{cli, cli::traits::Cli as _};
 use clap::{Args, Subcommand};
 use duct::cmd;
+#[cfg(any(feature = "chain", feature = "contract"))]
+use pop_common::Docker;
 use pop_common::Profile;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 #[cfg(feature = "chain")]
 use {
 	chain::BuildChain,
-	pop_common::Docker,
 	runtime::{BuildRuntime, Feature::*},
 	spec::BuildSpecCommand,
 	std::fmt::{Display, Formatter, Result},
 };
 #[cfg(feature = "contract")]
-use {contract::BuildContract, pop_contracts::MetadataSpec};
+use {
+	contract::BuildContract,
+	pop_contracts::{BuildMode, MetadataSpec},
+};
 
 #[cfg(feature = "chain")]
 pub(crate) mod chain;
@@ -89,6 +93,14 @@ pub(crate) struct BuildArgs {
 	#[clap(long, help_heading = CONTRACT_HELP_HEADER)]
 	#[cfg(feature = "contract")]
 	pub(crate) metadata: Option<MetadataSpec>,
+	/// Whether to build in a way that the contract is verifiable.
+	#[clap(long, conflicts_with_all = ["release", "profile"], help_heading = CONTRACT_HELP_HEADER)]
+	#[cfg(feature = "contract")]
+	pub(crate) verifiable: bool,
+	/// Custom image for verifiable builds.
+	#[clap(long, requires = "verifiable", help_heading = CONTRACT_HELP_HEADER)]
+	#[cfg(feature = "contract")]
+	pub(crate) image: Option<String>,
 }
 
 impl BuildArgs {
@@ -170,13 +182,13 @@ impl Command {
 
 		#[cfg(feature = "contract")]
 		if pop_contracts::is_supported(&project_path)? {
-			// All commands originating from root command are valid
-			let release = match &args.profile {
-				Some(profile) => (*profile).into(),
-				None => args.release,
-			};
-			BuildContract { path: project_path, release, metadata: args.metadata }.execute()?;
-			cli::Cli.info(args.display())?;
+			let build_mode = contract::resolve_build_mode(args);
+			if let BuildMode::Verifiable = build_mode {
+				Docker::ensure_running().await?;
+			}
+			let image = contract::resolve_image(args)?;
+			BuildContract { path: project_path, build_mode, metadata: args.metadata, image }
+				.execute()?;
 			return Ok(());
 		}
 
@@ -337,6 +349,10 @@ mod tests {
 			only_runtime: true,
 			#[cfg(feature = "contract")]
 			metadata: Some(MetadataSpec::Solidity),
+			#[cfg(feature = "contract")]
+			verifiable: false,
+			#[cfg(feature = "contract")]
+			image: None,
 		};
 		let expected =
 			"pop build --path my-path --package my-package --release --features feature1,feature2";
@@ -371,6 +387,10 @@ mod tests {
 			only_runtime: false,
 			#[cfg(feature = "contract")]
 			metadata: None,
+			#[cfg(feature = "contract")]
+			verifiable: false,
+			#[cfg(feature = "contract")]
+			image: None,
 		};
 		assert_eq!(args.display(), "pop build my-path-pos --profile debug");
 	}
@@ -486,6 +506,10 @@ mod tests {
 					only_runtime: false,
 					#[cfg(feature = "contract")]
 					metadata: None,
+					#[cfg(feature = "contract")]
+					verifiable: false,
+					#[cfg(feature = "contract")]
+					image: None,
 				},
 				project_path,
 				&mut cli,
@@ -556,6 +580,10 @@ mod tests {
 			only_runtime: false,
 			#[cfg(feature = "contract")]
 			metadata: None,
+			#[cfg(feature = "contract")]
+			verifiable: false,
+			#[cfg(feature = "contract")]
+			image: None,
 		})
 		.await?;
 
@@ -604,6 +632,10 @@ mod tests {
 			only_runtime: false,
 			#[cfg(feature = "contract")]
 			metadata: None,
+			#[cfg(feature = "contract")]
+			verifiable: false,
+			#[cfg(feature = "contract")]
+			image: None,
 		})
 		.await?;
 
@@ -629,6 +661,10 @@ mod tests {
 			only_runtime: false,
 			#[cfg(feature = "contract")]
 			metadata: None,
+			#[cfg(feature = "contract")]
+			verifiable: false,
+			#[cfg(feature = "contract")]
+			image: None,
 		})
 		.await?;
 
@@ -650,6 +686,10 @@ mod tests {
 				only_runtime: false,
 				#[cfg(feature = "contract")]
 				metadata: None,
+				#[cfg(feature = "contract")]
+				verifiable: false,
+				#[cfg(feature = "contract")]
+				image: None,
 			})
 			.await?;
 		}
@@ -676,6 +716,10 @@ mod tests {
 			only_runtime: false,
 			#[cfg(feature = "contract")]
 			metadata: None,
+			#[cfg(feature = "contract")]
+			verifiable: false,
+			#[cfg(feature = "contract")]
+			image: None,
 		})
 		.await?;
 
@@ -701,6 +745,10 @@ mod tests {
 			only_runtime: false,
 			#[cfg(feature = "contract")]
 			metadata: None,
+			#[cfg(feature = "contract")]
+			verifiable: false,
+			#[cfg(feature = "contract")]
+			image: None,
 		})
 		.await?;
 
@@ -722,6 +770,10 @@ mod tests {
 				only_runtime: false,
 				#[cfg(feature = "contract")]
 				metadata: None,
+				#[cfg(feature = "contract")]
+				verifiable: false,
+				#[cfg(feature = "contract")]
+				image: None,
 			})
 			.await?;
 		}
