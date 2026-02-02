@@ -136,7 +136,7 @@ fn interactive_setup(cli: &mut impl crate::cli::traits::Cli) -> Result<()> {
 
 	let steps = post_install_steps(shell, &path);
 	cli.plain(steps)?;
-	cli.outro("Completion setup complete. Restart your shell.")?;
+	cli.outro("Completion setup complete.")?;
 	Ok(())
 }
 
@@ -149,23 +149,23 @@ fn post_install_steps(shell: CompletionShell, path: &Path) -> String {
 	let path_display = path.display();
 	match shell {
 		CompletionShell::Zsh => format!(
-			"Next steps:\n  fpath=({} $fpath)\n  autoload -Uz compinit && compinit\n  # restart your shell",
+			"Next steps:\n  fpath=({} $fpath)\n  autoload -Uz compinit && compinit\n  restart your shell",
 			path.parent().map(|p| p.display()).unwrap_or(path_display)
 		),
 		CompletionShell::Bash => format!(
-			"Next steps:\n  source {}\n  # add the line above to ~/.bashrc\n  # restart your shell",
+			"Next steps:\n  source {}\n  add the line above to ~/.bashrc\n  restart your shell",
 			path_display
 		),
 		CompletionShell::Fish => format!(
-			"Next steps:\n  # restart your shell\n  # fish will auto-load completions from {}",
+			"Next steps:\n  restart your shell\n  fish will auto-load completions from {}",
 			path_display
 		),
 		CompletionShell::PowerShell => format!(
-			"Next steps:\n  # restart your shell\n  # ensure your profile loads {}",
+			"Next steps:\n  restart your shell\n  ensure your profile loads {}",
 			path_display
 		),
 		CompletionShell::Elvish => format!(
-			"Next steps:\n  # restart your shell\n  # ensure your config loads {}",
+			"Next steps:\n  restart your shell\n  ensure your config loads {}",
 			path_display
 		),
 	}
