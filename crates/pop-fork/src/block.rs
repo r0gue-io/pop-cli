@@ -208,6 +208,28 @@ impl Block {
 		})
 	}
 
+	/// Create a mocked Block for executing runtime calls on historical blocks.
+	///
+	/// This block uses the real block hash (for identification) but placeholder
+	/// values for other fields since the executor only needs storage access.
+	/// The storage layer delegates to remote for historical data.
+	///
+	/// # Arguments
+	///
+	/// * `hash` - The real block hash being queried
+	/// * `storage` - Storage layer that delegates to remote for historical data
+	pub fn mocked_for_call(hash: H256, storage: LocalStorageLayer) -> Self {
+		Self {
+			number: 0,
+			hash,
+			parent_hash: H256::zero(),
+			header: vec![],
+			extrinsics: vec![],
+			storage,
+			parent: None,
+		}
+	}
+
 	/// Get a reference to the storage layer.
 	///
 	/// Use this to read storage values at this block's height.
@@ -284,7 +306,7 @@ impl Block {
 		self.storage()
 			.get(self.number, code_key)
 			.await?
-			.map(|v| v.value.clone())
+			.and_then(|v| v.value.clone())
 			.ok_or(BlockError::RuntimeCodeNotFound)
 	}
 }
@@ -422,6 +444,19 @@ mod tests {
 			assert_eq!(child.parent.unwrap().number, parent.number);
 		}
 
+		async fn get_storage_value(block: Block, number: u32, key: &[u8]) -> Vec<u8> {
+			block
+				.storage()
+				.get(number, key)
+				.await
+				.unwrap()
+				.as_deref()
+				.unwrap()
+				.value
+				.clone()
+				.unwrap()
+		}
+
 		#[tokio::test(flavor = "multi_thread")]
 		async fn child_commits_parent_storage() {
 			let ctx = create_test_context().await;
@@ -444,22 +479,9 @@ mod tests {
 
 			// child.number is the latest committed block, but these changes aren't committed yet,
 			// they're happening in the block we're building
-			assert_eq!(
-				child
-					.storage()
-					.get(child.number + 1, key)
-					.await
-					.unwrap()
-					.as_deref()
-					.unwrap()
-					.value,
-				value2
-			);
+			assert_eq!(get_storage_value(child.clone(), child.number + 1, key).await, value2);
 			// child.number is the latest committed block
-			assert_eq!(
-				child.storage().get(child.number, key).await.unwrap().as_deref().unwrap().value,
-				value
-			);
+			assert_eq!(get_storage_value(child.clone(), child.number, key).await, value);
 		}
 
 		#[tokio::test(flavor = "multi_thread")]
@@ -477,10 +499,7 @@ mod tests {
 			let child = parent.child(H256::from([0x42; 32]), vec![], vec![]).await.unwrap();
 
 			// Child should see the value at its block number
-			assert_eq!(
-				child.storage().get(child.number, key).await.unwrap().as_deref().unwrap().value,
-				value
-			);
+			assert_eq!(get_storage_value(child.clone(), child.number, key).await, value);
 		}
 	}
 }

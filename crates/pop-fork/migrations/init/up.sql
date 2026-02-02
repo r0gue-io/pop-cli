@@ -31,7 +31,7 @@ CREATE TABLE local_keys (
 CREATE TABLE local_values (
     id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
     key_id INTEGER NOT NULL,
-    value BLOB NOT NULL,
+    value BLOB,
     valid_from BIGINT NOT NULL,
     valid_until BIGINT,
     FOREIGN KEY (key_id) REFERENCES local_keys(id)

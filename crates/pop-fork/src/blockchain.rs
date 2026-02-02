@@ -50,13 +50,16 @@
 
 use crate::{
 	Block, BlockBuilder, BlockBuilderError, BlockError, BlockForkPoint, CacheError, ExecutorConfig,
-	ExecutorError, InherentProvider, RuntimeExecutor, StorageCache, create_next_header,
-	default_providers,
+	ExecutorError, ForkRpcClient, InherentProvider, RuntimeExecutor, StorageCache,
+	create_next_header, default_providers,
 };
+use scale::Encode;
 use std::{path::Path, sync::Arc};
 use subxt::config::substrate::H256;
 use tokio::sync::RwLock;
 use url::Url;
+
+pub type BlockBody = Vec<Vec<u8>>;
 
 /// Errors that can occur when working with the blockchain manager.
 #[derive(Debug, thiserror::Error)]
@@ -154,6 +157,9 @@ pub struct Blockchain {
 
 	/// Executor configuration for runtime calls.
 	executor_config: ExecutorConfig,
+
+	/// RPC endpoint URL for fetching remote data.
+	endpoint: Url,
 }
 
 impl Blockchain {
@@ -295,6 +301,7 @@ impl Blockchain {
 			fork_point_hash,
 			fork_point_number,
 			executor_config,
+			endpoint: endpoint.clone(),
 		}))
 	}
 
@@ -318,6 +325,11 @@ impl Blockchain {
 		self.fork_point_number
 	}
 
+	/// Get the RPC endpoint URL.
+	pub fn endpoint(&self) -> &Url {
+		&self.endpoint
+	}
+
 	/// Get the current head block.
 	pub async fn head(&self) -> Block {
 		self.head.read().await.clone()
@@ -331,6 +343,194 @@ impl Blockchain {
 	/// Get the current head block hash.
 	pub async fn head_hash(&self) -> H256 {
 		self.head.read().await.hash
+	}
+
+	/// Get block body (extrinsics) by hash.
+	///
+	/// This method searches for the block in three places:
+	/// 1. The current head block
+	/// 2. Locally-built blocks (traversing the parent chain)
+	/// 3. The remote chain (for blocks at or before the fork point)
+	///
+	/// # Arguments
+	///
+	/// * `hash` - The block hash to query
+	///
+	/// # Returns
+	///
+	/// The block's extrinsics as raw bytes, or `None` if the block is not found.
+	pub async fn block_body(&self, hash: H256) -> Result<Option<BlockBody>, BlockchainError> {
+		// First, check if it matches any locally-built block (but not the fork point,
+		// which has empty extrinsics since we don't fetch them during fork)
+		let head = self.head.read().await;
+
+		// Traverse the parent chain to find the block
+		let mut current: Option<&Block> = Some(&head);
+		while let Some(block) = current {
+			if block.hash == hash {
+				// If this is the fork point (no parent), we need to fetch from remote
+				// because fork point's extrinsics are not stored locally
+				if block.parent.is_none() {
+					break; // Fall through to remote fetch
+				}
+				return Ok(Some(block.extrinsics.clone()));
+			}
+			current = block.parent.as_deref();
+		}
+
+		// Not found locally or is fork point - fetch from remote RPC
+		let rpc = ForkRpcClient::connect(&self.endpoint).await.map_err(BlockError::from)?;
+
+		match rpc.block_by_hash(hash).await.map_err(BlockError::from)? {
+			Some(block) => {
+				// Convert extrinsics to raw bytes
+				let extrinsics: BlockBody =
+					block.extrinsics.into_iter().map(|ext| ext.0.to_vec()).collect();
+				Ok(Some(extrinsics))
+			},
+			None => Ok(None),
+		}
+	}
+
+	/// Get block header by hash.
+	///
+	/// This method searches for the block in three places:
+	/// 1. Locally-built blocks (traversing the parent chain)
+	/// 2. The fork point block
+	/// 3. The remote chain (for blocks at or before the fork point)
+	///
+	/// # Arguments
+	///
+	/// * `hash` - The block hash to query
+	///
+	/// # Returns
+	///
+	/// The SCALE-encoded block header, or `None` if the block is not found.
+	pub async fn block_header(&self, hash: H256) -> Result<Option<Vec<u8>>, BlockchainError> {
+		let head = self.head.read().await;
+
+		// Traverse the parent chain to find the block
+		let mut current: Option<&Block> = Some(&head);
+		while let Some(block) = current {
+			if block.hash == hash {
+				return Ok(Some(block.header.clone()));
+			}
+			current = block.parent.as_deref();
+		}
+
+		// Not found locally  - fetch from remote RPC
+		let rpc = ForkRpcClient::connect(&self.endpoint).await.map_err(BlockError::from)?;
+
+		// Use existing header() method - errors (block not found) are converted to None
+		match rpc.header(hash).await {
+			Ok(header) => Ok(Some(header.encode())),
+			Err(_) => Ok(None), // Block not found on remote
+		}
+	}
+
+	/// Get block hash by block number.
+	///
+	/// This method searches for the block in three places:
+	/// 1. Locally-built blocks (traversing the parent chain from head)
+	/// 2. The fork point block
+	/// 3. The remote chain (for blocks before the fork point)
+	///
+	/// # Arguments
+	///
+	/// * `block_number` - The block number to query
+	///
+	/// # Returns
+	///
+	/// The block hash, or `None` if the block number doesn't exist.
+	pub async fn block_hash_at(&self, block_number: u32) -> Result<Option<H256>, BlockchainError> {
+		// Check if block number is within our local chain range
+		let head = self.head.read().await;
+
+		if head.number < block_number {
+			return Ok(None);
+		}
+
+		// Traverse the parent chain to find the block by number
+		let mut current: Option<&Block> = Some(&head);
+		while let Some(block) = current {
+			if block.number == block_number {
+				return Ok(Some(block.hash));
+			}
+
+			if block.parent.is_none() {
+				break;
+			}
+
+			current = block.parent.as_deref();
+		}
+
+		// Block number is before our fork point or not found - fetch from remote RPC
+		let rpc = ForkRpcClient::connect(&self.endpoint).await.map_err(BlockError::from)?;
+		Ok(rpc.block_hash_at(block_number).await.map_err(BlockError::from)?)
+	}
+
+	/// Get block number by block hash.
+	///
+	/// This method searches for the block in two places:
+	/// 1. Locally-built blocks (traversing the parent chain from head)
+	/// 2. The remote chain (for blocks at or before the fork point)
+	///
+	/// # Arguments
+	///
+	/// * `hash` - The block hash to query
+	///
+	/// # Returns
+	///
+	/// The block number, or `None` if the block hash doesn't exist.
+	pub async fn block_number_by_hash(&self, hash: H256) -> Result<Option<u32>, BlockchainError> {
+		// Traverse local chain to find block by hash
+		let head = self.head.read().await;
+		let mut current: Option<&Block> = Some(&head);
+		while let Some(block) = current {
+			if block.hash == hash {
+				return Ok(Some(block.number));
+			}
+			current = block.parent.as_deref();
+		}
+
+		// Not found locally - check if it exists on remote chain
+		let rpc = ForkRpcClient::connect(&self.endpoint).await.map_err(BlockError::from)?;
+		match rpc.block_by_hash(hash).await.map_err(BlockError::from)? {
+			Some(block) => Ok(Some(block.header.number)),
+			None => Ok(None),
+		}
+	}
+
+	/// Get parent hash of a block by its hash.
+	///
+	/// This method searches for the block in two places:
+	/// 1. Locally-built blocks (traversing the parent chain from head)
+	/// 2. The remote chain (for blocks at or before the fork point)
+	///
+	/// # Arguments
+	///
+	/// * `hash` - The block hash to query
+	///
+	/// # Returns
+	///
+	/// The parent block hash, or `None` if the block hash doesn't exist.
+	pub async fn block_parent_hash(&self, hash: H256) -> Result<Option<H256>, BlockchainError> {
+		// Traverse local chain to find block by hash
+		let head = self.head.read().await;
+		let mut current: Option<&Block> = Some(&head);
+		while let Some(block) = current {
+			if block.hash == hash {
+				return Ok(Some(block.parent_hash));
+			}
+			current = block.parent.as_deref();
+		}
+
+		// Not found locally - check if it exists on remote chain
+		let rpc = ForkRpcClient::connect(&self.endpoint).await.map_err(BlockError::from)?;
+		match rpc.block_by_hash(hash).await.map_err(BlockError::from)? {
+			Some(block) => Ok(Some(block.header.parent_hash)),
+			None => Ok(None),
+		}
 	}
 
 	/// Build a new block with the given extrinsics.
@@ -356,7 +556,7 @@ impl Blockchain {
 	/// let block = blockchain.build_block(vec![extrinsic]).await?;
 	/// println!("New block: #{} ({:?})", block.number, block.hash);
 	/// ```
-	pub async fn build_block(&self, extrinsics: Vec<Vec<u8>>) -> Result<Block, BlockchainError> {
+	pub async fn build_block(&self, extrinsics: BlockBody) -> Result<Block, BlockchainError> {
 		let mut head = self.head.write().await;
 
 		// Get runtime code from current head
@@ -422,8 +622,10 @@ impl Blockchain {
 	///
 	/// The SCALE-encoded result from the runtime.
 	pub async fn call(&self, method: &str, args: &[u8]) -> Result<Vec<u8>, BlockchainError> {
-		let head = self.head.read().await;
-		self.call_at_block(&head, method, args).await
+		let head_hash = self.head_hash().await;
+		self.call_at_block(head_hash, method, args)
+			.await
+			.map(|result| result.expect("head_hash always exists; qed;"))
 	}
 
 	/// Get storage value at the current head.
@@ -470,7 +672,7 @@ impl Blockchain {
 	) -> Result<Option<Vec<u8>>, BlockchainError> {
 		let head = self.head.read().await;
 		let value = head.storage().get(block_number, key).await.map_err(BlockError::from)?;
-		Ok(value.map(|v| v.value.clone()))
+		Ok(value.and_then(|v| v.value.clone()))
 	}
 
 	/// Detect chain type by checking for ParachainSystem pallet and extracting para_id.
@@ -501,8 +703,7 @@ impl Blockchain {
 		// Query storage
 		let value = block.storage().get(block.number, &key).await.ok().flatten()?;
 
-		// Decode as u32
-		u32::decode(&mut value.value.as_slice()).ok()
+		value.value.as_ref().map(|value| u32::decode(&mut value.as_slice()).ok())?
 	}
 
 	/// Get chain name from runtime version.
@@ -516,19 +717,93 @@ impl Blockchain {
 		Ok(version.spec_name)
 	}
 
-	/// Execute a runtime call at a specific block.
-	async fn call_at_block(
+	/// Execute a runtime call at a specific block hash.
+	///
+	/// # Arguments
+	///
+	/// * `hash` - The block hash to execute at
+	/// * `method` - Runtime API method name (e.g., "Core_version")
+	/// * `args` - SCALE-encoded arguments
+	///
+	/// # Returns
+	///
+	/// * `Ok(Some(result))` - Call succeeded at the specified block
+	/// * `Ok(None)` - Block hash not found
+	/// * `Err(_)` - Call failed (runtime error, storage error, etc.)
+	pub async fn call_at_block(
 		&self,
-		block: &Block,
+		hash: H256,
 		method: &str,
 		args: &[u8],
-	) -> Result<Vec<u8>, BlockchainError> {
+	) -> Result<Option<Vec<u8>>, BlockchainError> {
+		// Find block: search fork history or create mocked block for historical
+		let block = self.find_or_create_block_for_call(hash).await?;
+
+		let Some(block) = block else {
+			return Ok(None); // Block not found
+		};
+
+		// Execute call on the found/created block
 		let runtime_code = block.runtime_code().await?;
 		let executor =
 			RuntimeExecutor::with_config(runtime_code, None, self.executor_config.clone())?;
-
 		let result = executor.call(method, args, block.storage()).await?;
-		Ok(result.output)
+		Ok(Some(result.output))
+	}
+
+	/// Find a block by hash in fork history, or create a mocked block for historical execution.
+	///
+	/// Returns:
+	/// - `Some(block)` if found in fork history or exists on remote chain
+	/// - `None` if block doesn't exist anywhere
+	async fn find_or_create_block_for_call(
+		&self,
+		hash: H256,
+	) -> Result<Option<Block>, BlockchainError> {
+		let head = self.head.read().await;
+
+		// Search fork history
+		let mut current: Option<&Block> = Some(&head);
+		while let Some(block) = current {
+			if block.hash == hash {
+				return Ok(Some(block.clone()));
+			}
+			// Stop at fork point - anything before this is on remote chain
+			if block.parent.is_none() {
+				break;
+			}
+			current = block.parent.as_deref();
+		}
+
+		// Not in fork history - check if block exists on remote chain
+		let rpc = ForkRpcClient::connect(&self.endpoint).await.map_err(BlockError::from)?;
+
+		if rpc.block_by_hash(hash).await.map_err(BlockError::from)?.is_none() {
+			return Ok(None); // Block doesn't exist anywhere
+		}
+
+		// Block exists on remote - create mocked block with real hash
+		// Storage layer delegates to remote for historical data
+		Ok(Some(Block::mocked_for_call(hash, head.storage().clone())))
+	}
+
+	/// Set storage value at the current head (for testing purposes).
+	///
+	/// This method allows tests to manually set storage values to create
+	/// differences between blocks for testing storage diff functionality.
+	///
+	/// # Arguments
+	///
+	/// * `key` - Storage key
+	/// * `value` - Value to set, or `None` to delete
+	///
+	/// # Returns
+	///
+	/// `Ok(())` on success, or an error if storage modification fails.
+	#[cfg(test)]
+	pub async fn set_storage_for_testing(&self, key: &[u8], value: Option<&[u8]>) {
+		let mut head = self.head.write().await;
+		head.storage_mut().set(key, value).unwrap();
 	}
 }
 
@@ -583,6 +858,61 @@ mod tests {
 			let node = TestNode::spawn().await.expect("Failed to spawn test node");
 			let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
 			BlockchainTestContext { node, endpoint }
+		}
+
+		/// Transfer amount: 100 units (with 12 decimals)
+		const TRANSFER_AMOUNT: u128 = 100_000_000_000_000;
+
+		/// Well-known dev account: Alice
+		const ALICE: [u8; 32] = [
+			0xd4, 0x35, 0x93, 0xc7, 0x15, 0xfd, 0xd3, 0x1c, 0x61, 0x14, 0x1a, 0xbd, 0x04, 0xa9,
+			0x9f, 0xd6, 0x82, 0x2c, 0x85, 0x58, 0x85, 0x4c, 0xcd, 0xe3, 0x9a, 0x56, 0x84, 0xe7,
+			0xa5, 0x6d, 0xa2, 0x7d,
+		];
+
+		/// Well-known dev account: Bob
+		const BOB: [u8; 32] = [
+			0x8e, 0xaf, 0x04, 0x15, 0x16, 0x87, 0x73, 0x63, 0x26, 0xc9, 0xfe, 0xa1, 0x7e, 0x25,
+			0xfc, 0x52, 0x87, 0x61, 0x36, 0x93, 0xc9, 0x12, 0x90, 0x9c, 0xb2, 0x26, 0xaa, 0x47,
+			0x94, 0xf2, 0x6a, 0x48,
+		];
+
+		/// Compute Blake2_128Concat storage key for System::Account.
+		fn account_storage_key(account: &[u8; 32]) -> Vec<u8> {
+			let mut key = Vec::new();
+			key.extend(sp_core::twox_128(b"System"));
+			key.extend(sp_core::twox_128(b"Account"));
+			key.extend(sp_core::blake2_128(account));
+			key.extend(account);
+			key
+		}
+
+		/// Decode AccountInfo and extract free balance.
+		fn decode_free_balance(data: &[u8]) -> u128 {
+			const ACCOUNT_DATA_OFFSET: usize = 16;
+			u128::from_le_bytes(
+				data[ACCOUNT_DATA_OFFSET..ACCOUNT_DATA_OFFSET + 16]
+					.try_into()
+					.expect("need 16 bytes for u128"),
+			)
+		}
+
+		/// Build a mock V4 signed extrinsic with dummy signature (from Alice).
+		fn build_mock_signed_extrinsic_v4(call_data: &[u8]) -> Vec<u8> {
+			use scale::{Compact, Encode};
+			let mut inner = Vec::new();
+			inner.push(0x84); // Version: signed (0x80) + v4 (0x04)
+			inner.push(0x00); // MultiAddress::Id variant
+			inner.extend(ALICE);
+			inner.extend([0u8; 64]); // Dummy signature (works with AlwaysValid)
+			inner.push(0x00); // CheckMortality: immortal
+			inner.extend(Compact(0u64).encode()); // CheckNonce
+			inner.extend(Compact(0u128).encode()); // ChargeTransactionPayment
+			inner.push(0x00); // EthSetOrigin: None
+			inner.extend(call_data);
+			let mut extrinsic = Compact(inner.len() as u32).encode();
+			extrinsic.extend(inner);
+			extrinsic
 		}
 
 		#[tokio::test(flavor = "multi_thread")]
@@ -828,64 +1158,6 @@ mod tests {
 			use crate::{ExecutorConfig, SignatureMockMode};
 			use scale::{Compact, Encode};
 
-			// Transfer 100 units (with 12 decimals)
-			const TRANSFER_AMOUNT: u128 = 100_000_000_000_000;
-
-			// Well-known dev accounts
-			const ALICE: [u8; 32] = [
-				0xd4, 0x35, 0x93, 0xc7, 0x15, 0xfd, 0xd3, 0x1c, 0x61, 0x14, 0x1a, 0xbd, 0x04, 0xa9,
-				0x9f, 0xd6, 0x82, 0x2c, 0x85, 0x58, 0x85, 0x4c, 0xcd, 0xe3, 0x9a, 0x56, 0x84, 0xe7,
-				0xa5, 0x6d, 0xa2, 0x7d,
-			];
-			const BOB: [u8; 32] = [
-				0x8e, 0xaf, 0x04, 0x15, 0x16, 0x87, 0x73, 0x63, 0x26, 0xc9, 0xfe, 0xa1, 0x7e, 0x25,
-				0xfc, 0x52, 0x87, 0x61, 0x36, 0x93, 0xc9, 0x12, 0x90, 0x9c, 0xb2, 0x26, 0xaa, 0x47,
-				0x94, 0xf2, 0x6a, 0x48,
-			];
-
-			/// Compute Blake2_128Concat storage key for System::Account.
-			fn account_storage_key(account: &[u8; 32]) -> Vec<u8> {
-				let mut key = Vec::new();
-				key.extend(sp_core::twox_128(b"System"));
-				key.extend(sp_core::twox_128(b"Account"));
-				key.extend(sp_core::blake2_128(account));
-				key.extend(account);
-				key
-			}
-
-			/// Decode AccountInfo and extract free balance.
-			fn decode_free_balance(data: &[u8]) -> u128 {
-				const ACCOUNT_DATA_OFFSET: usize = 16;
-				u128::from_le_bytes(
-					data[ACCOUNT_DATA_OFFSET..ACCOUNT_DATA_OFFSET + 16]
-						.try_into()
-						.expect("need 16 bytes for u128"),
-				)
-			}
-
-			/// Build a mock V4 signed extrinsic with dummy signature.
-			fn build_mock_signed_extrinsic_v4(call_data: &[u8]) -> Vec<u8> {
-				let mut inner = Vec::new();
-				// Version byte: signed (0x80) + v4 (0x04) = 0x84
-				inner.push(0x84);
-				// Address: MultiAddress::Id variant (0x00) + 32-byte account
-				inner.push(0x00);
-				inner.extend(ALICE);
-				// Signature: 64 bytes (dummy - works with AlwaysValid)
-				inner.extend([0u8; 64]);
-				// Extra params (signed extensions):
-				inner.push(0x00); // CheckMortality: immortal
-				inner.extend(Compact(0u64).encode()); // CheckNonce
-				inner.extend(Compact(0u128).encode()); // ChargeTransactionPayment
-				inner.push(0x00); // EthSetOrigin: None
-				// Call data
-				inner.extend(call_data);
-				// Prefix with compact length
-				let mut extrinsic = Compact(inner.len() as u32).encode();
-				extrinsic.extend(inner);
-				extrinsic
-			}
-
 			let ctx = create_test_context().await;
 
 			// Fork with signature mocking enabled
@@ -977,6 +1249,565 @@ mod tests {
 			assert!(
 				alice_balance_before - alice_balance_after >= TRANSFER_AMOUNT,
 				"Alice should have paid at least the transfer amount plus fees"
+			);
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_body_returns_extrinsics_for_head() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			// Build a block so we have extrinsics (inherents)
+			let block = blockchain.build_empty_block().await.expect("Failed to build block");
+
+			// Query body for head hash
+			let body = blockchain.block_body(block.hash).await.expect("Failed to get block body");
+
+			assert!(body.is_some(), "Should return body for head hash");
+			// Should have inherent extrinsics
+			let extrinsics = body.unwrap();
+			assert!(!extrinsics.is_empty(), "Built block should have inherent extrinsics");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_body_returns_extrinsics_for_parent_block() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			// Build two blocks
+			let block1 = blockchain.build_empty_block().await.expect("Failed to build block 1");
+			let _block2 = blockchain.build_empty_block().await.expect("Failed to build block 2");
+
+			// Query body for the first built block (parent of head)
+			let body = blockchain.block_body(block1.hash).await.expect("Failed to get block body");
+
+			assert!(body.is_some(), "Should return body for parent block");
+			let extrinsics = body.unwrap();
+			assert!(!extrinsics.is_empty(), "Parent block should have inherent extrinsics");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_body_returns_extrinsics_for_fork_point_from_remote() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			let fork_point_hash = blockchain.fork_point();
+
+			// Query body for fork point (should fetch from remote)
+			let body =
+				blockchain.block_body(fork_point_hash).await.expect("Failed to get block body");
+
+			// Fork point exists on remote chain, so body should be Some
+			assert!(body.is_some(), "Should return body for fork point from remote");
+			assert!(!body.unwrap().is_empty(), "Should contain body");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_body_returns_none_for_unknown_hash() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			// Use a fabricated hash that doesn't exist
+			let unknown_hash = H256::from([0xde; 32]);
+
+			let body =
+				blockchain.block_body(unknown_hash).await.expect("Failed to query block body");
+
+			assert!(body.is_none(), "Should return None for unknown hash");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_header_returns_header_for_head() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			// Build a block so we have a locally-built header
+			let block = blockchain.build_empty_block().await.expect("Failed to build block");
+
+			// Query header for head hash
+			let header =
+				blockchain.block_header(block.hash).await.expect("Failed to get block header");
+
+			assert!(header.is_some(), "Should return header for head hash");
+			// Header should not be empty
+			let header_bytes = header.unwrap();
+			assert!(!header_bytes.is_empty(), "Built block should have a header");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_header_returns_header_for_different_blocks() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			// Build two blocks
+			let block1 = blockchain.build_empty_block().await.expect("Failed to build block 1");
+			let block2 = blockchain.build_empty_block().await.expect("Failed to build block 2");
+
+			let header_1 = blockchain
+				.block_header(block1.hash)
+				.await
+				.expect("Failed to get block header")
+				.unwrap();
+			let header_2 = blockchain
+				.block_header(block2.hash)
+				.await
+				.expect("Failed to get block header")
+				.unwrap();
+
+			assert_ne!(header_1, header_2);
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_header_returns_header_for_fork_point() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			let fork_point_hash = blockchain.fork_point();
+
+			// Query header for fork point (should fetch from remote)
+			let header = blockchain
+				.block_header(fork_point_hash)
+				.await
+				.expect("Failed to get block header");
+
+			// Fork point exists on remote chain, so header should be Some
+			assert!(header.is_some(), "Should return header for fork point from remote");
+			assert!(!header.unwrap().is_empty(), "Should contain header");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_header_returns_none_for_unknown_hash() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			// Use a fabricated hash that doesn't exist
+			let unknown_hash = H256::from([0xde; 32]);
+
+			let header = blockchain
+				.block_header(unknown_hash)
+				.await
+				.expect("Failed to query block header");
+
+			assert!(header.is_none(), "Should return None for unknown hash");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_header_returns_header_for_historical_block() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			let fork_number = blockchain.fork_point_number();
+
+			// Only test if fork point is > 0 (has blocks before it)
+			if fork_number > 0 {
+				// Get the hash of a block before the fork point
+				let historical_hash = blockchain
+					.block_hash_at(fork_number - 1)
+					.await
+					.expect("Failed to get historical hash")
+					.expect("Historical block should exist");
+
+				// Query header for historical block (before fork point, on remote chain)
+				let header = blockchain
+					.block_header(historical_hash)
+					.await
+					.expect("Failed to get block header");
+
+				assert!(header.is_some(), "Should return header for historical block");
+				assert!(!header.unwrap().is_empty(), "Historical block should have a header");
+			}
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_hash_at_returns_hash_for_head() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			// Build a block
+			let block = blockchain.build_empty_block().await.expect("Failed to build block");
+
+			// Query hash for head block number
+			let hash =
+				blockchain.block_hash_at(block.number).await.expect("Failed to get block hash");
+
+			assert!(hash.is_some(), "Should return hash for head block number");
+			assert_eq!(hash.unwrap(), block.hash, "Hash should match head block hash");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_hash_at_returns_hash_for_parent_block() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			// Build two blocks
+			let block1 = blockchain.build_empty_block().await.expect("Failed to build block 1");
+			let _block2 = blockchain.build_empty_block().await.expect("Failed to build block 2");
+
+			// Query hash for the first built block
+			let hash =
+				blockchain.block_hash_at(block1.number).await.expect("Failed to get block hash");
+
+			assert!(hash.is_some(), "Should return hash for parent block number");
+			assert_eq!(hash.unwrap(), block1.hash, "Hash should match first block hash");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_hash_at_returns_hash_for_fork_point() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			let fork_point_number = blockchain.fork_point_number();
+			let fork_point_hash = blockchain.fork_point();
+
+			// Query hash for fork point
+			let hash = blockchain
+				.block_hash_at(fork_point_number)
+				.await
+				.expect("Failed to get block hash");
+
+			assert!(hash.is_some(), "Should return hash for fork point");
+			assert_eq!(hash.unwrap(), fork_point_hash, "Hash should match fork point hash");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_hash_at_returns_hash_for_block_before_fork_point() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			let fork_point_number = blockchain.fork_point_number();
+
+			// Only test if fork point is > 0 (has blocks before it)
+			if fork_point_number > 0 {
+				let hash = blockchain
+					.block_hash_at(fork_point_number - 1)
+					.await
+					.expect("Failed to get block hash");
+
+				assert!(hash.is_some(), "Should return hash for block before fork point");
+			}
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_hash_at_returns_none_for_future_block() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			let head_number = blockchain.head_number().await;
+
+			// Query a block number that doesn't exist yet
+			let hash = blockchain
+				.block_hash_at(head_number + 100)
+				.await
+				.expect("Failed to query block hash");
+
+			assert!(hash.is_none(), "Should return None for future block number");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_number_by_hash_returns_number_for_head() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			// Build a block
+			let block = blockchain.build_empty_block().await.unwrap();
+
+			// Query number by hash
+			let number = blockchain
+				.block_number_by_hash(block.hash)
+				.await
+				.expect("Failed to query block number");
+
+			assert_eq!(number, Some(block.number));
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_number_by_hash_returns_number_for_parent() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			// Build two blocks
+			let block1 = blockchain.build_empty_block().await.unwrap();
+			let _block2 = blockchain.build_empty_block().await.unwrap();
+
+			// Query number for first block
+			let number = blockchain
+				.block_number_by_hash(block1.hash)
+				.await
+				.expect("Failed to query block number");
+
+			assert_eq!(number, Some(block1.number));
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_number_by_hash_returns_number_for_fork_point() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			let fork_hash = blockchain.fork_point();
+			let fork_number = blockchain.fork_point_number();
+
+			let number = blockchain
+				.block_number_by_hash(fork_hash)
+				.await
+				.expect("Failed to query block number");
+
+			assert_eq!(number, Some(fork_number));
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_number_by_hash_returns_none_for_unknown() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			let unknown_hash = H256::from_slice(&[0u8; 32]);
+			let number = blockchain
+				.block_number_by_hash(unknown_hash)
+				.await
+				.expect("Failed to query block number");
+
+			assert!(number.is_none());
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn block_number_by_hash_returns_number_for_historical_block() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			// Get a block before the fork point (if available)
+			let fork_number = blockchain.fork_point_number();
+			if fork_number > 0 {
+				let historical_hash = blockchain
+					.block_hash_at(fork_number - 1)
+					.await
+					.expect("Failed to query block hash")
+					.expect("Block should exist");
+
+				let number = blockchain
+					.block_number_by_hash(historical_hash)
+					.await
+					.expect("Failed to query block number");
+
+				assert_eq!(number, Some(fork_number - 1));
+			}
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn call_at_block_executes_at_head() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			blockchain.build_empty_block().await.unwrap();
+			blockchain.build_empty_block().await.unwrap();
+			blockchain.build_empty_block().await.unwrap();
+
+			let head_hash = blockchain.head_hash().await;
+
+			// Call Core_version at head hash
+			let result = blockchain
+				.call_at_block(head_hash, "Core_version", &[])
+				.await
+				.expect("Failed to call runtime API");
+
+			assert!(result.is_some(), "Should return result for head hash");
+			assert!(!result.unwrap().is_empty(), "Result should not be empty");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn call_at_block_executes_at_fork_point() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			blockchain.build_empty_block().await.unwrap();
+			blockchain.build_empty_block().await.unwrap();
+			blockchain.build_empty_block().await.unwrap();
+
+			let fork_hash = blockchain.fork_point();
+
+			// Call Core_version at fork point
+			let result = blockchain
+				.call_at_block(fork_hash, "Core_version", &[])
+				.await
+				.expect("Failed to call runtime API");
+
+			assert!(result.is_some(), "Should return result for fork point hash");
+			assert!(!result.unwrap().is_empty(), "Result should not be empty");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn call_at_block_executes_at_parent_block() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			// Build two blocks
+			let block1 = blockchain.build_empty_block().await.expect("Failed to build block 1");
+			let _block2 = blockchain.build_empty_block().await.expect("Failed to build block 2");
+
+			// Call at the first built block (parent of head)
+			let result = blockchain
+				.call_at_block(block1.hash, "Core_version", &[])
+				.await
+				.expect("Failed to call runtime API");
+
+			assert!(result.is_some(), "Should return result for parent block hash");
+			assert!(!result.unwrap().is_empty(), "Result should not be empty");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn call_at_block_returns_none_for_unknown_hash() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			// Use a fabricated hash that doesn't exist
+			let unknown_hash = H256::from([0xde; 32]);
+
+			let result = blockchain
+				.call_at_block(unknown_hash, "Core_version", &[])
+				.await
+				.expect("Failed to query");
+
+			assert!(result.is_none(), "Should return None for unknown hash");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn call_at_block_executes_at_historical_block() {
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			let fork_number = blockchain.fork_point_number();
+
+			// Only test if fork point is > 0 (has blocks before it)
+			if fork_number > 0 {
+				// Get the hash of a block before the fork point
+				let historical_hash = blockchain
+					.block_hash_at(fork_number - 1)
+					.await
+					.expect("Failed to get historical hash")
+					.expect("Historical block should exist");
+
+				// Call at historical block (before fork point, on remote chain)
+				let result = blockchain
+					.call_at_block(historical_hash, "Core_version", &[])
+					.await
+					.expect("Failed to call runtime API");
+
+				assert!(result.is_some(), "Should return result for historical block");
+				assert!(!result.unwrap().is_empty(), "Result should not be empty");
+			}
+		}
+
+		/// Verifies that calling `Core_initialize_block` via `call_at_block` does NOT
+		/// persist storage changes.
+		///
+		/// `Core_initialize_block` writes to `System::Number` and other storage keys during
+		/// block initialization. This test verifies those changes are discarded after the call.
+		#[tokio::test(flavor = "multi_thread")]
+		async fn call_at_block_does_not_persist_storage() {
+			use crate::{DigestItem, consensus_engine, create_next_header};
+
+			let ctx = create_test_context().await;
+
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			// Get head block info
+			let head = blockchain.head().await;
+			let head_hash = head.hash;
+			let head_number = head.number;
+
+			// System::Number storage key = twox128("System") ++ twox128("Number")
+			let system_number_key: Vec<u8> =
+				[sp_core::twox_128(b"System").as_slice(), sp_core::twox_128(b"Number").as_slice()]
+					.concat();
+
+			// Query System::Number BEFORE
+			let number_before = blockchain
+				.storage(&system_number_key)
+				.await
+				.expect("Failed to get System::Number")
+				.map(|v| {
+					u32::from_le_bytes(v.try_into().expect("System::Number should be 4 bytes"))
+				})
+				.expect("System::Number should exist");
+
+			// Build header for the next block using the crate's helper
+			let header = create_next_header(
+				&head,
+				vec![DigestItem::PreRuntime(consensus_engine::AURA, 0u64.to_le_bytes().to_vec())],
+			);
+
+			// Call Core_initialize_block - this WOULD write System::Number = head_number + 1
+			let result = blockchain
+				.call_at_block(head_hash, "Core_initialize_block", &header)
+				.await
+				.expect("Core_initialize_block call failed");
+			assert!(result.is_some(), "Block should exist");
+
+			// Query System::Number AFTER - should be UNCHANGED
+			let number_after = blockchain
+				.storage(&system_number_key)
+				.await
+				.expect("Failed to get System::Number after")
+				.map(|v| {
+					u32::from_le_bytes(v.try_into().expect("System::Number should be 4 bytes"))
+				})
+				.expect("System::Number should still exist");
+
+			assert_eq!(
+				number_before,
+				number_after,
+				"System::Number should NOT be modified by call_at_block. \
+				 Before: {}, After: {} (would have been {} if persisted)",
+				number_before,
+				number_after,
+				head_number + 1
 			);
 		}
 	}

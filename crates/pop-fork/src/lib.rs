@@ -68,6 +68,7 @@ mod local;
 mod models;
 mod remote;
 mod rpc;
+pub mod rpc_server;
 mod schema;
 mod strings;
 mod txpool;
