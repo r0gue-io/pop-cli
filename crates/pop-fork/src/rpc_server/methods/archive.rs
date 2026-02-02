@@ -155,7 +155,8 @@ impl ArchiveApiServer for ArchiveApi {
 
 		// Execute the call at the specified block
 		match self.blockchain.call_at_block(block_hash, &function, &params).await {
-			Ok(Some(result)) => Ok(Some(ArchiveCallResult::ok(HexString::from_bytes(&result).into()))),
+			Ok(Some(result)) =>
+				Ok(Some(ArchiveCallResult::ok(HexString::from_bytes(&result).into()))),
 			Ok(None) => Ok(None), // Block not found
 			Err(e) => Ok(Some(ArchiveCallResult::err(e.to_string()))),
 		}
@@ -313,11 +314,10 @@ impl ArchiveApiServer for ArchiveApi {
 				// Added: exists in current but not in previous
 				(Some(value), None) => {
 					let (value_field, hash_field) = match item.return_type {
-						StorageQueryType::Value => (Some(HexString::from_bytes(value).into()), None),
-						StorageQueryType::Hash => (
-							None,
-							Some(HexString::from_bytes(&sp_core::blake2_256(value)).into()),
-						),
+						StorageQueryType::Value =>
+							(Some(HexString::from_bytes(value).into()), None),
+						StorageQueryType::Hash =>
+							(None, Some(HexString::from_bytes(&sp_core::blake2_256(value)).into())),
 					};
 					StorageDiffItem {
 						key: item.key,
@@ -347,10 +347,8 @@ impl ArchiveApiServer for ArchiveApi {
 					// Modified
 					let (value_field, hash_field) = match item.return_type {
 						StorageQueryType::Value => (Some(HexString::from_bytes(curr).into()), None),
-						StorageQueryType::Hash => (
-							None,
-							Some(HexString::from_bytes(&sp_core::blake2_256(curr)).into()),
-						),
+						StorageQueryType::Hash =>
+							(None, Some(HexString::from_bytes(&sp_core::blake2_256(curr)).into())),
 					};
 					StorageDiffItem {
 						key: item.key,

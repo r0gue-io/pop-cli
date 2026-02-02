@@ -104,8 +104,7 @@ impl ChainApiServer for ChainApi {
 
 		// Get extrinsics
 		let extrinsics = match self.blockchain.block_body(block_hash).await {
-			Ok(Some(body)) =>
-				body.iter().map(|ext| HexString::from_bytes(ext).into()).collect(),
+			Ok(Some(body)) => body.iter().map(|ext| HexString::from_bytes(ext).into()).collect(),
 			Ok(None) => return Ok(None),
 			Err(e) =>
 				return Err(

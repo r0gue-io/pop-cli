@@ -6,7 +6,11 @@
 //! during the fork's lifetime. Values are fetched lazily on first call and
 //! cached in static memory.
 
-use crate::{Blockchain, rpc::ForkRpcClient, rpc_server::{RpcServerError, types::HexString}};
+use crate::{
+	Blockchain,
+	rpc::ForkRpcClient,
+	rpc_server::{RpcServerError, types::HexString},
+};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use std::sync::{Arc, OnceLock};
 

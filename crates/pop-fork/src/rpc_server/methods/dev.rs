@@ -5,7 +5,10 @@
 //! These methods are not part of the Substrate RPC spec but are useful for
 //! development and testing purposes.
 
-use crate::{Blockchain, TxPool, rpc_server::{RpcServerError, types::HexString}};
+use crate::{
+	Blockchain, TxPool,
+	rpc_server::{RpcServerError, types::HexString},
+};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use std::sync::Arc;
 

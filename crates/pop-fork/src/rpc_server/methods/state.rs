@@ -6,7 +6,10 @@
 
 use crate::{
 	Blockchain,
-	rpc_server::{RpcServerError, parse_block_hash, parse_hex_bytes, types::{HexString, RuntimeVersion}},
+	rpc_server::{
+		RpcServerError, parse_block_hash, parse_hex_bytes,
+		types::{HexString, RuntimeVersion},
+	},
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use std::sync::Arc;
@@ -52,8 +55,12 @@ impl StateApiServer for StateApi {
 				self.blockchain
 					.block_number_by_hash(block_hash)
 					.await
-					.map_err(|_| RpcServerError::InvalidParam(format!("Invalid block hash: {}", hash)))?
-					.ok_or_else(|| RpcServerError::InvalidParam(format!("Invalid block hash: {}", hash)))?
+					.map_err(|_| {
+						RpcServerError::InvalidParam(format!("Invalid block hash: {}", hash))
+					})?
+					.ok_or_else(|| {
+						RpcServerError::InvalidParam(format!("Invalid block hash: {}", hash))
+					})?
 			},
 			None => self.blockchain.head_number().await,
 		};

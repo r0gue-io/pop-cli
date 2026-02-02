@@ -6,7 +6,10 @@
 //! This implementation uses "Instant mode" where submitting an extrinsic
 //! immediately builds a block containing it.
 
-use crate::{Blockchain, TxPool, rpc_server::{RpcServerError, parse_hex_bytes, types::HexString}};
+use crate::{
+	Blockchain, TxPool,
+	rpc_server::{RpcServerError, parse_hex_bytes, types::HexString},
+};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use std::sync::Arc;
 use subxt::config::substrate::H256;
