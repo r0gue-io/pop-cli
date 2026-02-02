@@ -438,7 +438,8 @@ mod tests {
 			// Completion.
 			(
 				Command::Completion(completion::CompletionArgs {
-					shell: completion::CompletionShell::Bash,
+					shell: Some(completion::CompletionShell::Bash),
+					output: None,
 				}),
 				"completion",
 			),
