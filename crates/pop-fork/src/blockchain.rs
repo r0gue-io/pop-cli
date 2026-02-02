@@ -850,13 +850,17 @@ impl Blockchain {
 		// Not in fork history - check if block exists on remote chain
 		let rpc = ForkRpcClient::connect(&self.endpoint).await.map_err(BlockError::from)?;
 
-		if rpc.block_by_hash(hash).await.map_err(BlockError::from)?.is_none() {
-			return Ok(None); // Block doesn't exist anywhere
-		}
+		let remote_block = match rpc.block_by_hash(hash).await.map_err(BlockError::from)? {
+			Some(block) => block,
+			None => return Ok(None), // Block doesn't exist anywhere
+		};
 
-		// Block exists on remote - create mocked block with real hash
+		// Extract block number from header
+		let block_number = remote_block.header.number;
+
+		// Block exists on remote - create mocked block with real hash and number
 		// Storage layer delegates to remote for historical data
-		Ok(Some(Block::mocked_for_call(hash, head.storage().clone())))
+		Ok(Some(Block::mocked_for_call(hash, block_number, head.storage().clone())))
 	}
 
 	/// Set storage value at the current head (for testing purposes).
