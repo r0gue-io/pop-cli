@@ -30,7 +30,7 @@ pub struct NewBlockResult {
 	/// Hash of the new block.
 	pub hash: String,
 	/// Block number.
-	pub number: u64,
+	pub number: u32,
 	/// Number of extrinsics included (inherents + user transactions).
 	pub extrinsics_count: usize,
 }
@@ -65,7 +65,7 @@ impl DevApiServer for DevApi {
 
 		Ok(NewBlockResult {
 			hash: format!("0x{}", hex::encode(block.hash.as_bytes())),
-			number: block.number as u64,
+			number: block.number,
 			extrinsics_count: block.extrinsics.len(),
 		})
 	}
