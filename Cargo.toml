@@ -118,3 +118,7 @@ diesel_migrations = { version = "2.3.1", default-features = false }
 async-trait = "0.1"
 smoldot = { version = "0.21.0", default-features = false, features = ["std"] }
 
+# trie / proof building (for relay chain state proofs)
+sp-trie = { version = "41.0.0", default-features = false, features = ["std"] }
+sp-state-machine = { version = "0.48.0", default-features = false, features = ["std"] }
+

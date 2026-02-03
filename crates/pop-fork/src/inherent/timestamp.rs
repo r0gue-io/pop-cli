@@ -44,9 +44,12 @@ const DEFAULT_RELAY_SLOT_DURATION_MS: u64 = 6_000;
 /// Default slot duration for parachains (12 seconds).
 const DEFAULT_PARA_SLOT_DURATION_MS: u64 = 12_000;
 
-/// Extrinsic format version for unsigned/bare extrinsics.
-/// Version 5 is current; version 4 is legacy.
-const EXTRINSIC_FORMAT_VERSION: u8 = 5;
+/// Extrinsic format byte for bare/unsigned extrinsics.
+///
+/// Both v4 and v5 extrinsic formats use 0x04 for bare extrinsics:
+/// - V4: version byte = 0x04 (unsigned, no signature)
+/// - V5: mode byte = 0x04 (bare extrinsic, no extensions)
+const BARE_EXTRINSIC_VERSION: u8 = 0x04;
 
 /// Timestamp inherent provider.
 ///
@@ -109,14 +112,14 @@ impl TimestampInherent {
 		call
 	}
 
-	/// Wrap a call as an unsigned inherent extrinsic.
+	/// Wrap a call as a bare inherent extrinsic.
 	///
-	/// Unsigned extrinsics have the format:
+	/// Bare extrinsics have the format:
 	/// - Compact length prefix
-	/// - Version byte
+	/// - Version/mode byte (0x04 for bare)
 	/// - Call data
 	fn encode_inherent_extrinsic(call: Vec<u8>) -> Vec<u8> {
-		let mut extrinsic = vec![EXTRINSIC_FORMAT_VERSION];
+		let mut extrinsic = vec![BARE_EXTRINSIC_VERSION];
 		extrinsic.extend(call);
 
 		// Prefix with compact length
@@ -345,8 +348,8 @@ mod tests {
 		// Compact encoding of 6 is (6 << 2) = 0x18
 		const EXPECTED_COMPACT_LEN: u8 = 0x18;
 		assert_eq!(extrinsic[0], EXPECTED_COMPACT_LEN);
-		// Next byte is extrinsic format version
-		assert_eq!(extrinsic[1], EXTRINSIC_FORMAT_VERSION);
+		// Next byte is bare extrinsic version (0x04)
+		assert_eq!(extrinsic[1], BARE_EXTRINSIC_VERSION);
 		// Rest is the call
 		assert_eq!(&extrinsic[2..], &call[..]);
 	}

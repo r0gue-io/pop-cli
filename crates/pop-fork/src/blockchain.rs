@@ -50,8 +50,9 @@
 
 use crate::{
 	Block, BlockBuilder, BlockBuilderError, BlockError, BlockForkPoint, CacheError, ExecutorConfig,
-	ExecutorError, ForkRpcClient, InherentProvider, RuntimeExecutor, StorageCache,
-	create_next_header, default_providers,
+	ExecutorError, ForkRpcClient, InherentProvider, ParachainInherent, RuntimeExecutor,
+	StorageCache, create_next_header_with_slot, create_next_header_with_specific_slot,
+	default_providers,
 };
 use scale::Encode;
 use std::{path::Path, sync::Arc};
@@ -622,8 +623,8 @@ impl Blockchain {
 		let executor =
 			RuntimeExecutor::with_config(runtime_code, None, self.executor_config.clone())?;
 
-		// Create header for new block
-		let header = create_next_header(&head, vec![]);
+		// Create header for new block - for parachains, derive slot from relay chain
+		let header = self.create_block_header(&head).await;
 
 		// Convert Arc providers to Box for BlockBuilder
 		let providers: Vec<Box<dyn InherentProvider>> = self
@@ -787,6 +788,96 @@ impl Blockchain {
 		// Get runtime version which contains the spec name
 		let version = executor.runtime_version()?;
 		Ok(version.spec_name)
+	}
+
+	/// Create a block header for the next block.
+	///
+	/// For relay chains, this simply increments the slot from the parent.
+	/// For parachains, the slot must be derived from the relay chain slot
+	/// in the validation data (FixedVelocityConsensusHook validation).
+	async fn create_block_header(&self, parent: &Block) -> Vec<u8> {
+		match &self.chain_type {
+			ChainType::RelayChain => {
+				// Relay chains: simply increment slot from parent
+				create_next_header_with_slot(parent)
+			},
+			ChainType::Parachain { .. } => {
+				// Parachains: derive slot from relay chain slot
+				self.create_parachain_header(parent).await
+			},
+		}
+	}
+
+	/// Create a header for a parachain block with the correct slot.
+	///
+	/// For parachains, the slot must be derived from the relay chain slot:
+	/// `para_slot = relay_slot * RELAY_DURATION / PARA_DURATION`
+	///
+	/// This ensures the FixedVelocityConsensusHook validation passes.
+	async fn create_parachain_header(&self, parent: &Block) -> Vec<u8> {
+		// Standard slot timing constants
+		// Most Aura parachains: 12s blocks (para) with 6s relay slots
+		const RELAY_SLOT_DURATION_MS: u64 = 6000;
+		const PARA_SLOT_DURATION_MS: u64 = 12000;
+
+		// Determine relay slot increment based on debug mode.
+		// When PARACHAIN_DEBUG_NO_PATCH is set, we use the original extrinsic unchanged,
+		// so the header slot must match the ORIGINAL relay slot (no increment).
+		let relay_slot_increment: u64 = if std::env::var("PARACHAIN_DEBUG_NO_PATCH").is_ok() {
+			0 // Use original slot when not modifying proof
+		} else {
+			2 // Standard increment for 12s para / 6s relay timing
+		};
+
+		// Get parachain pallet indices from metadata
+		let (pallet_index, call_index) = match parent.metadata().await {
+			Ok(metadata) => {
+				match metadata.pallet_by_name("ParachainSystem") {
+					Some(pallet) => {
+						let pallet_idx = pallet.index();
+						let call_idx = pallet
+							.call_variant_by_name("set_validation_data")
+							.map(|c| c.index)
+							.unwrap_or(0);
+						(pallet_idx, call_idx)
+					},
+					None => (1, 0), // Default indices
+				}
+			},
+			Err(_) => (1, 0), // Default indices
+		};
+
+		// Get the relay slot from the parent's validation data
+		let relay_slot_opt = ParachainInherent::get_new_relay_slot_async(
+			parent,
+			pallet_index,
+			call_index,
+			relay_slot_increment,
+		)
+		.await;
+
+		match relay_slot_opt {
+			Some(relay_slot) => {
+				// Calculate para slot from relay slot
+				let para_slot = ParachainInherent::relay_slot_to_para_slot(
+					relay_slot,
+					RELAY_SLOT_DURATION_MS,
+					PARA_SLOT_DURATION_MS,
+				);
+				eprintln!(
+					"[Blockchain] Parachain header: relay_slot={} -> para_slot={}",
+					relay_slot, para_slot
+				);
+				create_next_header_with_specific_slot(parent, para_slot)
+			},
+			None => {
+				// Fallback: increment slot from parent (may fail validation)
+				eprintln!(
+					"[Blockchain] WARNING: Could not derive para slot from relay chain, using incremented slot"
+				);
+				create_next_header_with_slot(parent)
+			},
+		}
 	}
 
 	/// Execute a runtime call at a specific block hash.
@@ -1885,6 +1976,104 @@ mod tests {
 				number_after,
 				head_number + 1
 			);
+		}
+	}
+
+	/// Tests against live Aura/Babe chains to verify block building works correctly.
+	///
+	/// These tests are more expensive (network I/O) so they're in a separate module.
+	/// They may be skipped in CI if the endpoints are unavailable.
+	mod live_chain {
+		use super::*;
+
+		/// Asset Hub Paseo endpoints (Aura-based parachain).
+		const ASSET_HUB_PASEO_ENDPOINTS: &[&str] = &[
+			"wss://sys.ibp.network/asset-hub-paseo",
+			"wss://sys.turboflakes.io/asset-hub-paseo",
+			"wss://asset-hub-paseo.dotters.network",
+		];
+
+		/// Try to create a blockchain fork from a list of endpoints.
+		/// Returns first successful connection.
+		async fn fork_with_fallbacks(endpoints: &[&str]) -> Option<Arc<Blockchain>> {
+			for endpoint_str in endpoints {
+				let endpoint: Url = match endpoint_str.parse() {
+					Ok(url) => url,
+					Err(_) => continue,
+				};
+
+				eprintln!("Trying endpoint: {endpoint_str}");
+
+				match Blockchain::fork(&endpoint, None).await {
+					Ok(bc) => {
+						eprintln!("Connected to: {endpoint_str}");
+						return Some(bc);
+					},
+					Err(e) => {
+						eprintln!("Failed to connect to {endpoint_str}: {e}");
+					},
+				}
+			}
+
+			None
+		}
+
+		/// Test that reproduces the "unreachable" error when building blocks on Aura chains.
+		///
+		/// This test:
+		/// 1. Connects to Asset Hub Paseo (an Aura-based parachain)
+		/// 2. Forks from the latest finalized block
+		/// 3. Attempts to build a new empty block
+		///
+		/// The "unreachable" error occurs when the slot validation in the timestamp pallet
+		/// fails because the slot number doesn't match the expected calculation.
+		#[tokio::test(flavor = "multi_thread")]
+		async fn build_empty_block_on_aura_chain() {
+			let blockchain = match fork_with_fallbacks(ASSET_HUB_PASEO_ENDPOINTS).await {
+				Some(bc) => bc,
+				None => {
+					eprintln!(
+						"Skipping test: all Asset Hub Paseo endpoints unavailable: {:?}",
+						ASSET_HUB_PASEO_ENDPOINTS
+					);
+					return;
+				},
+			};
+
+			eprintln!("Forked at block #{} ({:?})", blockchain.fork_point_number(), blockchain.fork_point());
+			eprintln!("Chain: {} ({:?})", blockchain.chain_name(), blockchain.chain_type());
+
+			// Get the head block to inspect digest
+			let head = blockchain.head().await;
+			eprintln!("Head header ({} bytes): 0x{}", head.header.len(), hex::encode(&head.header));
+
+			// Parse parent header to inspect slot
+			if let Ok(decoded) = crate::builder::DecodedHeader::decode(&head.header) {
+				eprintln!("Decoded header:");
+				eprintln!("  number: {}", decoded.number);
+				eprintln!("  parent_hash: {:?}", decoded.parent_hash);
+				if let Some(slot) = decoded.slot() {
+					eprintln!("  slot: {}", slot);
+				}
+				if let Some(engine) = decoded.consensus_engine() {
+					eprintln!("  consensus_engine: {:?}", String::from_utf8_lossy(&engine));
+				}
+			}
+
+			// Try to build an empty block - this should trigger the "unreachable" error
+			// on Aura chains if our slot encoding is wrong
+			eprintln!("\nAttempting to build empty block...");
+			match blockchain.build_empty_block().await {
+				Ok(block) => {
+					eprintln!("SUCCESS! Built block #{} ({:?})", block.number, block.hash);
+					eprintln!("Block header ({} bytes): 0x{}", block.header.len(), hex::encode(&block.header));
+				},
+				Err(e) => {
+					eprintln!("FAILED to build block: {e}");
+					eprintln!("Error debug: {e:?}");
+					panic!("Block building failed on live Aura chain: {e}");
+				},
+			}
 		}
 	}
 }

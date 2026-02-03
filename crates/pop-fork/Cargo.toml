@@ -28,6 +28,10 @@ url.workspace = true
 # Executor
 smoldot.workspace = true
 
+# Trie / proof building (for relay chain state proofs)
+sp-trie.workspace = true
+sp-state-machine.workspace = true
+
 # RPC Server
 futures.workspace = true
 jsonrpsee.workspace = true

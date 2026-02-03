@@ -546,6 +546,148 @@ pub mod consensus_engine {
 	pub const GRANDPA: ConsensusEngineId = *b"FRNK";
 }
 
+/// SCALE codec indices for digest item types.
+///
+/// These are the variant indices used in the Polkadot SDK's `DigestItem` enum.
+/// The indices match the `#[codec(index = N)]` attributes.
+mod digest_item_tag {
+	/// Tag for `DigestItem::Other` variant.
+	pub const OTHER: u8 = 0;
+	/// Tag for `DigestItem::Consensus` variant.
+	pub const CONSENSUS: u8 = 4;
+	/// Tag for `DigestItem::Seal` variant.
+	pub const SEAL: u8 = 5;
+	/// Tag for `DigestItem::PreRuntime` variant.
+	pub const PRE_RUNTIME: u8 = 6;
+}
+
+/// Decoded digest item for reading from headers.
+#[derive(Debug, Clone)]
+pub enum DecodedDigestItem {
+	/// A pre-runtime digest item (contains slot for Aura/Babe).
+	PreRuntime(ConsensusEngineId, Vec<u8>),
+	/// A consensus digest item.
+	Consensus(ConsensusEngineId, Vec<u8>),
+	/// A seal digest item.
+	Seal(ConsensusEngineId, Vec<u8>),
+	/// An "other" digest item.
+	Other(Vec<u8>),
+	/// Unknown digest type (for forward compatibility).
+	Unknown(u8, Vec<u8>),
+}
+
+impl DecodedDigestItem {
+	/// Decode a digest item from SCALE-encoded bytes.
+	fn decode(data: &mut &[u8]) -> Result<Self, scale::Error> {
+		let tag = u8::decode(data)?;
+		match tag {
+			digest_item_tag::PRE_RUNTIME => {
+				let engine_id = <[u8; 4]>::decode(data)?;
+				let payload = Vec::<u8>::decode(data)?;
+				Ok(Self::PreRuntime(engine_id, payload))
+			},
+			digest_item_tag::CONSENSUS => {
+				let engine_id = <[u8; 4]>::decode(data)?;
+				let payload = Vec::<u8>::decode(data)?;
+				Ok(Self::Consensus(engine_id, payload))
+			},
+			digest_item_tag::SEAL => {
+				let engine_id = <[u8; 4]>::decode(data)?;
+				let payload = Vec::<u8>::decode(data)?;
+				Ok(Self::Seal(engine_id, payload))
+			},
+			digest_item_tag::OTHER => {
+				let payload = Vec::<u8>::decode(data)?;
+				Ok(Self::Other(payload))
+			},
+			_ => {
+				// Unknown type - try to read as length-prefixed bytes
+				let payload = Vec::<u8>::decode(data)?;
+				Ok(Self::Unknown(tag, payload))
+			},
+		}
+	}
+}
+
+/// Decoded block header for reading existing headers.
+#[derive(Debug, Clone)]
+pub struct DecodedHeader {
+	/// The parent block hash.
+	pub parent_hash: H256,
+	/// The block number.
+	pub number: u32,
+	/// The state root.
+	pub state_root: H256,
+	/// The extrinsics root.
+	pub extrinsics_root: H256,
+	/// Digest items.
+	pub digest: Vec<DecodedDigestItem>,
+}
+
+impl DecodedHeader {
+	/// Decode a block header from SCALE-encoded bytes.
+	pub fn decode(data: &[u8]) -> Result<Self, scale::Error> {
+		let mut cursor = data;
+
+		let parent_hash = H256::decode(&mut cursor)?;
+		let number = <scale::Compact<u32>>::decode(&mut cursor)?.0;
+		let state_root = H256::decode(&mut cursor)?;
+		let extrinsics_root = H256::decode(&mut cursor)?;
+
+		// Decode digest items
+		let digest_len = <scale::Compact<u32>>::decode(&mut cursor)?.0 as usize;
+		let mut digest = Vec::with_capacity(digest_len);
+		for _ in 0..digest_len {
+			digest.push(DecodedDigestItem::decode(&mut cursor)?);
+		}
+
+		Ok(Self { parent_hash, number, state_root, extrinsics_root, digest })
+	}
+
+	/// Extract the slot number from the PreRuntime digest.
+	///
+	/// Returns `None` if no PreRuntime digest is found or if decoding fails.
+	pub fn slot(&self) -> Option<u64> {
+		self.slot_with_engine().map(|(slot, _)| slot)
+	}
+
+	/// Get the slot number and its associated consensus engine from the PreRuntime digest.
+	///
+	/// This is useful when you need to create a new header with the same engine type.
+	/// Only recognizes AURA and BABE engines which encode slots as u64.
+	///
+	/// Returns `None` if no slot-bearing PreRuntime digest is found or if decoding fails.
+	pub fn slot_with_engine(&self) -> Option<(u64, ConsensusEngineId)> {
+		for item in &self.digest {
+			if let DecodedDigestItem::PreRuntime(engine, data) = item {
+				// Both Aura and Babe encode slot as u64
+				if *engine == consensus_engine::AURA || *engine == consensus_engine::BABE {
+					if let Ok(slot) = u64::decode(&mut &data[..]) {
+						return Some((slot, *engine));
+					}
+				}
+			}
+		}
+		None
+	}
+
+	/// Get the consensus engine ID from the PreRuntime digest.
+	///
+	/// Note: This returns the FIRST PreRuntime engine found, which may not be
+	/// the slot engine. Use `slot_with_engine()` if you need the engine that
+	/// contains the slot.
+	///
+	/// Returns `None` if no PreRuntime digest is found.
+	pub fn consensus_engine(&self) -> Option<ConsensusEngineId> {
+		for item in &self.digest {
+			if let DecodedDigestItem::PreRuntime(engine, _) = item {
+				return Some(*engine);
+			}
+		}
+		None
+	}
+}
+
 /// Internal header struct for encoding.
 #[derive(Encode)]
 struct Header {
@@ -598,6 +740,108 @@ pub fn create_next_header(parent: &Block, digest_items: Vec<DigestItem>) -> Vec<
 		digest: digest_items,
 	};
 	header.encode()
+}
+
+/// Create a header for the next block, automatically extracting and incrementing
+/// the slot from the parent block's digest.
+///
+/// This is the recommended way to create headers for Aura/Babe chains, as it
+/// ensures the PreRuntime digest contains the correct slot number.
+///
+/// # Arguments
+///
+/// * `parent` - The parent block to build upon
+///
+/// # Returns
+///
+/// Encoded header bytes ready for `BlockBuilder::new()`.
+///
+/// # Behavior
+///
+/// 1. Decodes the parent block's header to extract the PreRuntime digest
+/// 2. Extracts the slot number and consensus engine ID
+/// 3. Increments the slot by 1
+/// 4. Creates a new header with the updated PreRuntime digest
+///
+/// If the parent has no PreRuntime digest (e.g., genesis or non-Aura/Babe chain),
+/// returns a header with an empty digest.
+///
+/// # Example
+///
+/// ```ignore
+/// use pop_fork::create_next_header_with_slot;
+///
+/// // Automatically extracts slot from parent and increments it
+/// let header = create_next_header_with_slot(&parent_block);
+///
+/// let builder = BlockBuilder::new(parent_block, executor, header, providers);
+/// ```
+pub fn create_next_header_with_slot(parent: &Block) -> Vec<u8> {
+	// Try to decode parent header and extract slot
+	let digest_items = match DecodedHeader::decode(&parent.header) {
+		Ok(decoded) => {
+			if let Some((slot, engine)) = decoded.slot_with_engine() {
+				let new_slot = slot.saturating_add(1);
+				eprintln!(
+					"[create_next_header_with_slot] Incrementing slot: {} -> {} (engine: {:?})",
+					slot,
+					new_slot,
+					String::from_utf8_lossy(&engine)
+				);
+				vec![DigestItem::PreRuntime(engine, new_slot.encode())]
+			} else {
+				eprintln!(
+					"[create_next_header_with_slot] No slot found in parent header, using empty digest"
+				);
+				vec![]
+			}
+		},
+		Err(e) => {
+			eprintln!(
+				"[create_next_header_with_slot] Failed to decode parent header: {}, using empty digest",
+				e
+			);
+			vec![]
+		},
+	};
+
+	create_next_header(parent, digest_items)
+}
+
+/// Create a next block header with a specific slot value.
+///
+/// This is necessary for parachains where the slot must be calculated from
+/// the relay chain slot, not simply incremented.
+///
+/// # Arguments
+///
+/// * `parent` - The parent block
+/// * `slot` - The specific slot value to use
+///
+/// # Returns
+///
+/// SCALE-encoded header bytes with the specified slot in the Aura pre-digest.
+///
+/// # Example
+///
+/// ```ignore
+/// // Calculate para slot from relay slot (for 6s relay, 12s para)
+/// let para_slot = new_relay_slot / 2;
+/// let header = create_next_header_with_specific_slot(&parent_block, para_slot);
+/// ```
+pub fn create_next_header_with_specific_slot(parent: &Block, slot: u64) -> Vec<u8> {
+	// Always use AURA engine for the slot PreRuntime digest.
+	// pallet_aura::on_initialize only looks for AURA_ENGINE_ID (*b"aura") when
+	// extracting the slot from digests. Other engines like CUMULUS_CONSENSUS_ID
+	// (*b"CMLS") are used for different purposes (core selection) and won't be
+	// recognized for slot extraction.
+	eprintln!(
+		"[create_next_header_with_specific_slot] Using slot: {} (engine: aura)",
+		slot
+	);
+
+	let digest_items = vec![DigestItem::PreRuntime(consensus_engine::AURA, slot.encode())];
+	create_next_header(parent, digest_items)
 }
 
 #[cfg(test)]

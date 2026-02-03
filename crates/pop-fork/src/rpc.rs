@@ -49,6 +49,7 @@ use crate::{
 	error::rpc::RpcClientError,
 	strings::rpc::{methods, storage_keys},
 };
+use std::sync::Arc;
 use subxt::{
 	SubstrateConfig,
 	backend::{
@@ -57,13 +58,48 @@ use subxt::{
 	},
 	config::substrate::H256,
 };
+use tokio::sync::RwLock;
 use url::Url;
+
+/// Maximum number of reconnection attempts before giving up.
+const MAX_RECONNECT_ATTEMPTS: u32 = 3;
+
+/// Delay between reconnection attempts in milliseconds.
+const RECONNECT_DELAY_MS: u64 = 500;
+
+/// Macro to execute an RPC call with automatic reconnection on connection errors.
+macro_rules! with_retry {
+	($self:expr, |$guard:ident| $call:expr) => {{
+		let mut attempts = 0u32;
+		loop {
+			let result = {
+				let $guard = $self.inner.read().await;
+				$call
+			};
+
+			match result {
+				Ok(v) => break Ok(v),
+				Err(e) => {
+					if $self.handle_connection_error(&e, &mut attempts).await? {
+						continue;
+					}
+					break Err(e);
+				},
+			}
+		}
+	}};
+}
 
 /// RPC client wrapper for fork operations.
 ///
 /// Wraps subxt's [`LegacyRpcMethods`] to provide a focused API for fetching state
 /// from live Polkadot-SDK chains. See the module-level documentation for why this
 /// wrapper exists rather than using `LegacyRpcMethods` directly.
+///
+/// # Reconnection
+///
+/// This client automatically handles connection drops. If an RPC call fails due to
+/// a closed connection, it will attempt to reconnect and retry the request.
 ///
 /// # Example
 ///
@@ -77,7 +113,7 @@ use url::Url;
 /// ```
 #[derive(Clone, Debug)]
 pub struct ForkRpcClient {
-	legacy: LegacyRpcMethods<SubstrateConfig>,
+	inner: Arc<RwLock<LegacyRpcMethods<SubstrateConfig>>>,
 	endpoint: Url,
 }
 
@@ -92,6 +128,14 @@ impl ForkRpcClient {
 	/// let client = ForkRpcClient::connect(&"wss://rpc.polkadot.io".parse()?).await?;
 	/// ```
 	pub async fn connect(endpoint: &Url) -> Result<Self, RpcClientError> {
+		let legacy = Self::create_legacy(endpoint).await?;
+		Ok(Self { inner: Arc::new(RwLock::new(legacy)), endpoint: endpoint.clone() })
+	}
+
+	/// Create a new LegacyRpcMethods connected to the endpoint.
+	async fn create_legacy(
+		endpoint: &Url,
+	) -> Result<LegacyRpcMethods<SubstrateConfig>, RpcClientError> {
 		let client = RpcClient::from_url(endpoint.as_str()).await.map_err(|e| {
 			RpcClientError::ConnectionFailed {
 				endpoint: endpoint.to_string(),
@@ -99,9 +143,7 @@ impl ForkRpcClient {
 			}
 		})?;
 
-		let legacy = LegacyRpcMethods::new(client);
-
-		Ok(Self { legacy, endpoint: endpoint.clone() })
+		Ok(LegacyRpcMethods::new(client))
 	}
 
 	/// Get the endpoint URL this client is connected to.
@@ -109,18 +151,67 @@ impl ForkRpcClient {
 		&self.endpoint
 	}
 
+	/// Attempt to reconnect to the endpoint.
+	///
+	/// This replaces the internal client with a new connection.
+	async fn reconnect(&self) -> Result<(), RpcClientError> {
+		let new_legacy = Self::create_legacy(&self.endpoint).await?;
+		let mut guard = self.inner.write().await;
+		*guard = new_legacy;
+		Ok(())
+	}
+
+	/// Handle a potential connection error by attempting reconnection and retry.
+	///
+	/// Returns Ok(true) if reconnection succeeded and caller should retry.
+	/// Returns Ok(false) if this wasn't a connection error.
+	/// Returns Err if reconnection failed after max attempts.
+	async fn handle_connection_error(
+		&self,
+		err: &RpcClientError,
+		attempts: &mut u32,
+	) -> Result<bool, RpcClientError> {
+		if !err.is_connection_error() {
+			return Ok(false);
+		}
+
+		if *attempts >= MAX_RECONNECT_ATTEMPTS {
+			return Ok(false);
+		}
+
+		*attempts += 1;
+		eprintln!(
+			"[RPC] Connection error, attempting reconnect ({}/{}): {}",
+			attempts, MAX_RECONNECT_ATTEMPTS, err
+		);
+
+		// Wait before reconnecting
+		tokio::time::sleep(tokio::time::Duration::from_millis(RECONNECT_DELAY_MS)).await;
+
+		// Try to reconnect
+		if let Err(reconnect_err) = self.reconnect().await {
+			eprintln!("[RPC] Reconnection failed: {}", reconnect_err);
+			return Err(RpcClientError::ConnectionLost(format!(
+				"Original error: {}. Reconnection failed: {}",
+				err, reconnect_err
+			)));
+		}
+
+		eprintln!("[RPC] Reconnected successfully, retrying request...");
+		Ok(true)
+	}
+
 	/// Get the latest finalized block hash.
 	///
 	/// This is typically the starting point for forking - we fork from the latest
 	/// finalized state to ensure consistency.
 	pub async fn finalized_head(&self) -> Result<H256, RpcClientError> {
-		self.legacy
-			.chain_get_finalized_head()
-			.await
-			.map_err(|e| RpcClientError::RequestFailed {
+		with_retry!(self, |guard| {
+			guard.chain_get_finalized_head().await.map_err(|e| RpcClientError::RequestFailed {
 				method: methods::CHAIN_GET_FINALIZED_HEAD,
 				message: e.to_string(),
 			})
+		})
 	}
 
 	/// Get block header by hash.
@@ -131,14 +222,18 @@ impl ForkRpcClient {
 		&self,
 		hash: H256,
 	) -> Result<<SubstrateConfig as subxt::Config>::Header, RpcClientError> {
-		self.legacy
-			.chain_get_header(Some(hash))
-			.await
-			.map_err(|e| RpcClientError::RequestFailed {
-				method: methods::CHAIN_GET_HEADER,
-				message: e.to_string(),
-			})?
-			.ok_or_else(|| RpcClientError::InvalidResponse(format!("No header found for {hash:?}")))
+		with_retry!(self, |guard| {
+			guard
+				.chain_get_header(Some(hash))
+				.await
+				.map_err(|e| RpcClientError::RequestFailed {
+					method: methods::CHAIN_GET_HEADER,
+					message: e.to_string(),
+				})?
+				.ok_or_else(|| {
+					RpcClientError::InvalidResponse(format!("No header found for {hash:?}"))
+				})
+		})
 	}
 
 	/// Get a block hash by its number.
@@ -151,11 +246,13 @@ impl ForkRpcClient {
 	/// * `Ok(None)` - Block number doesn't exist yet
 	/// * `Err(_)` - RPC error
 	pub async fn block_hash_at(&self, block_number: u32) -> Result<Option<H256>, RpcClientError> {
-		self.legacy.chain_get_block_hash(Some(block_number.into())).await.map_err(|e| {
-			RpcClientError::RequestFailed {
-				method: methods::CHAIN_GET_BLOCK_HASH,
-				message: e.to_string(),
-			}
+		with_retry!(self, |guard| {
+			guard.chain_get_block_hash(Some(block_number.into())).await.map_err(|e| {
+				RpcClientError::RequestFailed {
+					method: methods::CHAIN_GET_BLOCK_HASH,
+					message: e.to_string(),
+				}
+			})
 		})
 	}
 
@@ -184,11 +281,13 @@ impl ForkRpcClient {
 		};
 
 		// Get full block data
-		let block = self.legacy.chain_get_block(Some(block_hash)).await.map_err(|e| {
-			RpcClientError::RequestFailed {
-				method: methods::CHAIN_GET_BLOCK,
-				message: e.to_string(),
-			}
+		let block = with_retry!(self, |guard| {
+			guard.chain_get_block(Some(block_hash)).await.map_err(|e| {
+				RpcClientError::RequestFailed {
+					method: methods::CHAIN_GET_BLOCK,
+					message: e.to_string(),
+				}
+			})
 		})?;
 
 		Ok(block.map(|block| (block_hash, block.block)))
@@ -207,11 +306,13 @@ impl ForkRpcClient {
 		&self,
 		block_hash: H256,
 	) -> Result<Option<Block<SubstrateConfig>>, RpcClientError> {
-		let block = self.legacy.chain_get_block(Some(block_hash)).await.map_err(|e| {
-			RpcClientError::RequestFailed {
-				method: methods::CHAIN_GET_BLOCK,
-				message: e.to_string(),
-			}
+		let block = with_retry!(self, |guard| {
+			guard.chain_get_block(Some(block_hash)).await.map_err(|e| {
+				RpcClientError::RequestFailed {
+					method: methods::CHAIN_GET_BLOCK,
+					message: e.to_string(),
+				}
+			})
 		})?;
 
 		Ok(block.map(|b| b.block))
@@ -228,11 +329,13 @@ impl ForkRpcClient {
 	/// * `Ok(None)` - Storage key doesn't exist (empty)
 	/// * `Err(_)` - RPC error
 	pub async fn storage(&self, key: &[u8], at: H256) -> Result<Option<Vec<u8>>, RpcClientError> {
-		self.legacy.state_get_storage(key, Some(at)).await.map_err(|e| {
-			RpcClientError::RequestFailed {
-				method: methods::STATE_GET_STORAGE,
-				message: e.to_string(),
-			}
+		with_retry!(self, |guard| {
+			guard.state_get_storage(key, Some(at)).await.map_err(|e| {
+				RpcClientError::RequestFailed {
+					method: methods::STATE_GET_STORAGE,
+					message: e.to_string(),
+				}
+			})
 		})
 	}
 
@@ -256,14 +359,15 @@ impl ForkRpcClient {
 			return Ok(vec![]);
 		}
 
-		let result = self
-			.legacy
-			.state_query_storage_at(keys.iter().copied(), Some(at))
-			.await
-			.map_err(|e| RpcClientError::RequestFailed {
-				method: methods::STATE_QUERY_STORAGE_AT,
-				message: e.to_string(),
-			})?;
+		let result = with_retry!(self, |guard| {
+			guard
+				.state_query_storage_at(keys.iter().copied(), Some(at))
+				.await
+				.map_err(|e| RpcClientError::RequestFailed {
+					method: methods::STATE_QUERY_STORAGE_AT,
+					message: e.to_string(),
+				})
+		})?;
 
 		// Build a map of key -> value from the response
 		let mut changes: std::collections::HashMap<Vec<u8>, Option<Vec<u8>>> = result
@@ -301,24 +405,26 @@ impl ForkRpcClient {
 		start_key: Option<&[u8]>,
 		at: H256,
 	) -> Result<Vec<Vec<u8>>, RpcClientError> {
-		self.legacy
-			.state_get_keys_paged(prefix, count, start_key, Some(at))
-			.await
-			.map_err(|e| RpcClientError::RequestFailed {
-				method: methods::STATE_GET_KEYS_PAGED,
-				message: e.to_string(),
-			})
+		with_retry!(self, |guard| {
+			guard
+				.state_get_keys_paged(prefix, count, start_key, Some(at))
+				.await
+				.map_err(|e| RpcClientError::RequestFailed {
+					method: methods::STATE_GET_KEYS_PAGED,
+					message: e.to_string(),
+				})
+		})
 	}
 
 	/// Get runtime metadata at a specific block.
 	///
 	/// Returns the raw metadata bytes which can be parsed using `subxt::Metadata`.
 	pub async fn metadata(&self, at: H256) -> Result<Vec<u8>, RpcClientError> {
-		let metadata = self.legacy.state_get_metadata(Some(at)).await.map_err(|e| {
-			RpcClientError::RequestFailed {
+		let metadata = with_retry!(self, |guard| {
+			guard.state_get_metadata(Some(at)).await.map_err(|e| RpcClientError::RequestFailed {
 				method: methods::STATE_GET_METADATA,
 				message: e.to_string(),
-			}
+			})
 		})?;
 
 		Ok(metadata.into_raw())
@@ -338,9 +444,11 @@ impl ForkRpcClient {
 
 	/// Get the chain name from system properties.
 	pub async fn system_chain(&self) -> Result<String, RpcClientError> {
-		self.legacy.system_chain().await.map_err(|e| RpcClientError::RequestFailed {
-			method: methods::SYSTEM_CHAIN,
-			message: e.to_string(),
+		with_retry!(self, |guard| {
+			guard.system_chain().await.map_err(|e| RpcClientError::RequestFailed {
+				method: methods::SYSTEM_CHAIN,
+				message: e.to_string(),
+			})
 		})
 	}
 
@@ -348,13 +456,12 @@ impl ForkRpcClient {
 	pub async fn system_properties(
 		&self,
 	) -> Result<subxt::backend::legacy::rpc_methods::SystemProperties, RpcClientError> {
-		self.legacy
-			.system_properties()
-			.await
-			.map_err(|e| RpcClientError::RequestFailed {
+		with_retry!(self, |guard| {
+			guard.system_properties().await.map_err(|e| RpcClientError::RequestFailed {
 				method: methods::SYSTEM_PROPERTIES,
 				message: e.to_string(),
 			})
+		})
 	}
 }
 

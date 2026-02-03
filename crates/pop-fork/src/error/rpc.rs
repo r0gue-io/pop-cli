@@ -35,4 +35,29 @@ pub enum RpcClientError {
 	/// Storage key not found (this is different from empty storage).
 	#[error("Required storage key not found: {0}")]
 	StorageNotFound(String),
+	/// Connection was closed and reconnection failed.
+	#[error("RPC connection closed and reconnection failed: {0}")]
+	ConnectionLost(String),
+}
+
+impl RpcClientError {
+	/// Check if this error indicates a connection was closed or dropped.
+	///
+	/// This is useful for determining if a reconnection attempt should be made.
+	pub fn is_connection_error(&self) -> bool {
+		match self {
+			Self::ConnectionFailed { .. } | Self::ConnectionLost(_) => true,
+			Self::RequestFailed { message, .. } => {
+				// Check for common connection error patterns in error messages
+				message.contains("connection closed")
+					|| message.contains("closed connection")
+					|| message.contains("background task closed")
+					|| message.contains("restart required")
+					|| message.contains("WebSocket")
+					|| message.contains("connection reset")
+					|| message.contains("Connection refused")
+			},
+			_ => false,
+		}
+	}
 }

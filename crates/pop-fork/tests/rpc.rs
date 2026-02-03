@@ -138,7 +138,8 @@ async fn fetch_storage_batch() {
 
 	let keys =
 		vec![hex::decode(SYSTEM_NUMBER_KEY).unwrap(), hex::decode(SYSTEM_PARENT_HASH_KEY).unwrap()];
-	let values = client.storage_batch(&keys, hash).await.unwrap();
+	let keys_refs: Vec<&[u8]> = keys.iter().map(|k| k.as_slice()).collect();
+	let values = client.storage_batch(&keys_refs, hash).await.unwrap();
 
 	assert_eq!(values.len(), 2);
 	// Both System::Number and System::ParentHash should exist
@@ -231,7 +232,8 @@ async fn fetch_storage_batch_with_mixed_keys() {
 		hex::decode(SYSTEM_NUMBER_KEY).unwrap(), // exists
 		vec![0xff; 32],                          // doesn't exist
 	];
-	let values = client.storage_batch(&keys, hash).await.unwrap();
+	let keys_refs: Vec<&[u8]> = keys.iter().map(|k| k.as_slice()).collect();
+	let values = client.storage_batch(&keys_refs, hash).await.unwrap();
 
 	assert_eq!(values.len(), 2);
 	assert!(values[0].is_some(), "System::Number should exist");

@@ -66,6 +66,7 @@ pub mod executor;
 pub mod inherent;
 mod local;
 mod models;
+pub mod proof;
 mod remote;
 mod rpc;
 pub mod rpc_server;
@@ -76,8 +77,9 @@ mod txpool;
 pub use block::{Block, BlockForkPoint};
 pub use blockchain::{Blockchain, BlockchainError, BlockchainEvent, ChainType};
 pub use builder::{
-	ApplyExtrinsicResult, BlockBuilder, ConsensusEngineId, DigestItem, consensus_engine,
-	create_next_header,
+	ApplyExtrinsicResult, BlockBuilder, ConsensusEngineId, DecodedHeader, DigestItem,
+	consensus_engine, create_next_header, create_next_header_with_slot,
+	create_next_header_with_specific_slot,
 };
 pub use cache::{PrefixScanProgress, StorageCache};
 pub use error::{
