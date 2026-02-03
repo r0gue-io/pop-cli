@@ -266,9 +266,7 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 				.to_path_buf();
 			if let Err(e) = destroy_network(zombie_json).await {
 				let error_message = e.to_string();
-				if error_message.contains("Cannot abort a recreated/attached node") ||
-					error_message.contains("not connected")
-				{
+				if should_fallback_to_process_cleanup(&error_message) {
 					self.cli.warning(format!(
 						"⚠️  Falling back to process cleanup for attached network at {}",
 						base_dir.display()
@@ -284,9 +282,7 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 							kill_process(&pid)?;
 						}
 					}
-				} else if error_message.contains("ProcessIdRetrievalFailed") ||
-					error_message.contains("no process was attached")
-				{
+				} else if is_already_stopped_error(&error_message) {
 					self.cli.warning(format!(
 						"ℹ️  Network already stopped at {}",
 						base_dir.display()
@@ -378,6 +374,19 @@ fn mark_cleared(base_dir: &Path) -> Result<()> {
 	let cleared = base_dir.join(".CLEARED");
 	std::fs::write(cleared, "")?;
 	Ok(())
+}
+
+fn should_fallback_to_process_cleanup(message: &str) -> bool {
+	message.contains("Cannot abort a recreated/attached node") ||
+		message.contains("not connected") ||
+		message.contains("Provider error")
+}
+
+fn is_already_stopped_error(message: &str) -> bool {
+	message.contains("ProcessIdRetrievalFailed") ||
+		message.contains("no process was attached") ||
+		message.contains("ESRCH") ||
+		message.contains("No such process")
 }
 
 fn read_pids_from_zombie_json(path: &Path) -> Result<Vec<String>> {
@@ -909,6 +918,18 @@ mod tests {
 		assert!(!candidates.iter().any(|c| c.path.starts_with(&temp_dir)));
 		std::fs::remove_dir_all(&temp_dir)?;
 		Ok(())
+	}
+
+	#[test]
+	fn already_stopped_error_detects_esrch() {
+		let message = "Failed to kill attached process 1234: ESRCH: No such process";
+		assert!(is_already_stopped_error(message));
+	}
+
+	#[test]
+	fn fallback_cleanup_detects_provider_error() {
+		let message = "Orchestrator error: Provider error";
+		assert!(should_fallback_to_process_cleanup(message));
 	}
 
 	#[test]
