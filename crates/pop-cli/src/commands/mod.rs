@@ -260,6 +260,7 @@ impl Command {
 					clean::Command::Network(cmd_args) =>
 						clean::CleanNetworkCommand {
 							cli: &mut Cli,
+							all: cmd_args.all,
 							path: cmd_args.path.clone(),
 							keep_state: cmd_args.keep_state,
 						}

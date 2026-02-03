@@ -46,6 +46,9 @@ pub struct CleanCommandArgs {
 
 #[derive(Args, Serialize)]
 pub struct CleanNetworkCommandArgs {
+	/// Stop all running networks without prompting.
+	#[arg(short, long)]
+	pub(crate) all: bool,
 	/// Path to the network base directory or zombie.json.
 	#[arg(value_name = "PATH")]
 	pub(crate) path: Option<PathBuf>,
@@ -162,6 +165,8 @@ impl<CLI: Cli> CleanCacheCommand<'_, CLI> {
 pub(crate) struct CleanNetworkCommand<'a, CLI: Cli> {
 	/// The cli to be used.
 	pub(crate) cli: &'a mut CLI,
+	/// Whether to stop all running networks without prompting.
+	pub(crate) all: bool,
 	/// Path to the network base directory or zombie.json.
 	pub(crate) path: Option<PathBuf>,
 	/// Whether to keep the network state on disk.
@@ -173,47 +178,61 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 	pub(crate) async fn execute(self) -> Result<()> {
 		self.cli.intro("Remove running network")?;
 
-		let (zombie_jsons, selection_kind) = match self.path {
-			Some(path) => (vec![resolve_zombie_json_path(&path)?], NetworkSelection::Specified),
-			None => {
-				let candidates = find_zombie_jsons()?;
-				if candidates.is_empty() {
-					self.cli.outro("ℹ️  No running networks found.")?;
-					return Ok(());
-				}
-				if candidates.len() == 1 {
-					(vec![candidates[0].path.clone()], NetworkSelection::AutoSingle)
-				} else {
-					let selection = {
-						let mut prompt = self
-							.cli
-							.multiselect("Select the networks to stop (type to filter):")
-							.required(false)
-							.filter_mode();
-						for candidate in &candidates {
-							let base_dir = candidate.path.parent().unwrap_or(&candidate.path);
-							let label =
-								base_dir.file_name().and_then(|f| f.to_str()).unwrap_or("network");
-							let hint = format!(
-								"modified: {}",
-								candidate
-									.modified
-									.map(|t| t
-										.format(&Rfc3339)
-										.unwrap_or_else(|_| "unknown".into()))
-									.unwrap_or_else(|| "unknown".into())
-							);
-							prompt = prompt.item(candidate.path.clone(), label, hint);
-						}
-						prompt.interact()?
-					};
-					if selection.is_empty() {
-						self.cli.outro("ℹ️  No networks stopped.")?;
+		let (zombie_jsons, selection_kind) = if self.all {
+			let candidates = find_zombie_jsons()?;
+			if candidates.is_empty() {
+				self.cli.outro("ℹ️  No running networks found.")?;
+				return Ok(());
+			}
+			(
+				candidates.into_iter().map(|c| c.path).collect(),
+				NetworkSelection::Selected,
+			)
+		} else {
+			match self.path {
+				Some(path) => (vec![resolve_zombie_json_path(&path)?], NetworkSelection::Specified),
+				None => {
+					let candidates = find_zombie_jsons()?;
+					if candidates.is_empty() {
+						self.cli.outro("ℹ️  No running networks found.")?;
 						return Ok(());
 					}
-					(selection, NetworkSelection::Selected)
-				}
-			},
+					if candidates.len() == 1 {
+						(vec![candidates[0].path.clone()], NetworkSelection::AutoSingle)
+					} else {
+						let selection = {
+							let mut prompt = self
+								.cli
+								.multiselect("Select the networks to stop (type to filter):")
+								.required(false)
+								.filter_mode();
+							for candidate in &candidates {
+								let base_dir = candidate.path.parent().unwrap_or(&candidate.path);
+								let label = base_dir
+									.file_name()
+									.and_then(|f| f.to_str())
+									.unwrap_or("network");
+								let hint = format!(
+									"modified: {}",
+									candidate
+										.modified
+										.map(|t| t
+											.format(&Rfc3339)
+											.unwrap_or_else(|_| "unknown".into()))
+										.unwrap_or_else(|| "unknown".into())
+								);
+								prompt = prompt.item(candidate.path.clone(), label, hint);
+							}
+							prompt.interact()?
+						};
+						if selection.is_empty() {
+							self.cli.outro("ℹ️  No networks stopped.")?;
+							return Ok(());
+						}
+						(selection, NetworkSelection::Selected)
+					}
+				},
+			}
 		};
 
 		let count = zombie_jsons.len();
@@ -232,7 +251,8 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 			(1, NetworkSelection::Selected) => "Stop the selected network?".to_string(),
 			_ => format!("Stop the {} selected networks?", count),
 		};
-		if std::io::stdin().is_terminal() &&
+		if !self.all &&
+			std::io::stdin().is_terminal() &&
 			!self.cli.confirm(confirm).initial_value(true).interact()?
 		{
 			self.cli.outro("ℹ️  No networks stopped.")?;
