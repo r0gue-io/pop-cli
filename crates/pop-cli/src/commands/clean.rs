@@ -178,6 +178,7 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 	pub(crate) async fn execute(self) -> Result<()> {
 		self.cli.intro("Remove running network")?;
 
+		let path_provided = self.path.is_some();
 		let (zombie_jsons, selection_kind) = if self.all {
 			let candidates = find_zombie_jsons()?;
 			if candidates.is_empty() {
@@ -189,8 +190,8 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 				NetworkSelection::Selected,
 			)
 		} else {
-			match self.path {
-				Some(path) => (vec![resolve_zombie_json_path(&path)?], NetworkSelection::Specified),
+			match self.path.as_ref() {
+				Some(path) => (vec![resolve_zombie_json_path(path)?], NetworkSelection::Specified),
 				None => {
 					let candidates = find_zombie_jsons()?;
 					if candidates.is_empty() {
@@ -252,7 +253,7 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 			_ => format!("Stop the {} selected networks?", count),
 		};
 		if !self.all &&
-			self.path.is_none() &&
+			!path_provided &&
 			std::io::stdin().is_terminal() &&
 			!self.cli.confirm(confirm).initial_value(true).interact()?
 		{
