@@ -185,10 +185,7 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 				self.cli.outro("ℹ️  No running networks found.")?;
 				return Ok(());
 			}
-			(
-				candidates.into_iter().map(|c| c.path).collect(),
-				NetworkSelection::Selected,
-			)
+			(candidates.into_iter().map(|c| c.path).collect(), NetworkSelection::Selected)
 		} else {
 			match self.path.as_ref() {
 				Some(path) => (vec![resolve_zombie_json_path(path)?], NetworkSelection::Specified),
