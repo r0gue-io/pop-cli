@@ -11,8 +11,6 @@ debug
 .idea
 .vscode
 .envrc
-_MAP.md
-CLAUDE.md
 
 debian/pop-cli/
 debian/debhelper-build-stamp
