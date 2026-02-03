@@ -252,6 +252,7 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 			_ => format!("Stop the {} selected networks?", count),
 		};
 		if !self.all &&
+			self.path.is_none() &&
 			std::io::stdin().is_terminal() &&
 			!self.cli.confirm(confirm).initial_value(true).interact()?
 		{
