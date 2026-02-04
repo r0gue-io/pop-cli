@@ -28,8 +28,10 @@
 //! This is handled automatically by `BlockBuilder::apply_inherents()` when it
 //! detects a relay chain runtime (one with `ParaInherent` pallet).
 
+use crate::strings::inherent::relay as strings;
+
 /// Pallet name for ParaInherent (relay chain parachains inherent).
-pub const PARA_INHERENT_PALLET: &str = "ParaInherent";
+pub const PARA_INHERENT_PALLET: &str = strings::PARA_INHERENT_PALLET;
 
 /// Compute the storage key for `ParaInherent::Included`.
 ///
@@ -43,8 +45,8 @@ pub const PARA_INHERENT_PALLET: &str = "ParaInherent";
 ///
 /// A 32-byte storage key.
 pub fn para_inherent_included_key() -> Vec<u8> {
-	let pallet_hash = sp_core::twox_128(b"ParaInherent");
-	let storage_hash = sp_core::twox_128(b"Included");
+	let pallet_hash = sp_core::twox_128(strings::storage_keys::PARA_INHERENT_PALLET);
+	let storage_hash = sp_core::twox_128(strings::storage_keys::INCLUDED);
 	[pallet_hash.as_slice(), storage_hash.as_slice()].concat()
 }
 

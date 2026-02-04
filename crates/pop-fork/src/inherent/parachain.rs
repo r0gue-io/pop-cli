@@ -49,6 +49,16 @@ const EXTRINSIC_FORMAT_VERSION_V5: u8 = 5;
 /// Extrinsic format version for unsigned/bare extrinsics (v4 - legacy format).
 const EXTRINSIC_FORMAT_VERSION_V4: u8 = 4;
 
+/// Minimum size of extrinsic body (version + pallet_index + call_index).
+const MIN_EXTRINSIC_BODY_SIZE: usize = 3;
+
+/// Number of relay slots per parachain block.
+///
+/// Parachains typically produce blocks every 12 seconds, while relay chains
+/// produce blocks every 6 seconds. This ratio (12s / 6s = 2) determines
+/// how many relay slots advance per parachain block.
+const RELAY_SLOTS_PER_PARA_BLOCK: u64 = 2;
+
 // ============================================================================
 // Types for decoding/encoding the inherent data
 // ============================================================================
@@ -174,8 +184,8 @@ impl ParachainInherent {
 
 	/// Compute the storage key for `ParachainInfo::ParachainId`.
 	fn parachain_id_key() -> Vec<u8> {
-		let pallet_hash = sp_core::twox_128(b"ParachainInfo");
-		let storage_hash = sp_core::twox_128(b"ParachainId");
+		let pallet_hash = sp_core::twox_128(strings::storage_keys::PARACHAIN_INFO_PALLET);
+		let storage_hash = sp_core::twox_128(strings::storage_keys::PARACHAIN_ID);
 		[pallet_hash.as_slice(), storage_hash.as_slice()].concat()
 	}
 
@@ -222,7 +232,10 @@ impl ParachainInherent {
 				continue;
 			}
 
-			if remainder.len() >= 3 && remainder[1] == pallet_index && remainder[2] == call_index {
+			if remainder.len() >= MIN_EXTRINSIC_BODY_SIZE &&
+				remainder[1] == pallet_index &&
+				remainder[2] == call_index
+			{
 				eprintln!(
 					"[ParachainInherent] ext[{}]: MATCH! pallet={}, call={}, version={}",
 					i, pallet_index, call_index, version
@@ -365,9 +378,8 @@ impl ParachainInherent {
 			message: "CURRENT_SLOT not found in relay chain proof".to_string(),
 		})?;
 
-		// Increment relay slot by 2 (12s para block / 6s relay slot = 2)
-		// This ensures the derived para slot matches the timestamp we'll set
-		let new_relay_slot = current_relay_slot.saturating_add(2);
+		// Increment relay slot to match the parachain's expected timing
+		let new_relay_slot = current_relay_slot.saturating_add(RELAY_SLOTS_PER_PARA_BLOCK);
 
 		eprintln!("[ParachainInherent] Relay slot: {} -> {}", current_relay_slot, new_relay_slot);
 
