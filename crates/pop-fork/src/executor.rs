@@ -374,8 +374,8 @@ impl RuntimeExecutor {
 						let none_placeholder: Option<(Once<[u8; 0]>, TrieEntryVersion)> = None;
 						match value {
 							// A local shared value can be empty, just flagging that a key was
-							// manually
-							Some(value) => req.inject_value(Some((
+							// manually deleted. Some(()) is encoded as empty bytes, so we need to distinguish where we return an empty existing key and a non-existent key
+							Some(value) if value.value.is_some() => req.inject_value(Some((
 								iter::once(ArcLocalSharedValue(value)),
 								TrieEntryVersion::V1,
 							))),
