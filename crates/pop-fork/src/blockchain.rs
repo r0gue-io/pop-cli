@@ -881,6 +881,22 @@ impl Blockchain {
 		let mut head = self.head.write().await;
 		head.storage_mut().set(key, value).unwrap();
 	}
+
+	/// Clear all locally tracked storage data from the cache.
+	///
+	/// This removes all key-value pairs that were created during block building
+	/// (stored in the `local_keys` and `local_values` tables). Remote chain data
+	/// that was fetched and cached remains intact.
+	///
+	/// Call this during shutdown to clean up local storage state.
+	///
+	/// # Returns
+	///
+	/// `Ok(())` on success, or a cache error if the operation fails.
+	pub async fn clear_local_storage(&self) -> Result<(), CacheError> {
+		let head = self.head.read().await;
+		head.storage().cache().clear_local_storage().await
+	}
 }
 
 /// Wrapper to convert `Arc<dyn InherentProvider>` to `Box<dyn InherentProvider>`.

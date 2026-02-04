@@ -53,7 +53,7 @@ impl Command {
 			..Default::default()
 		};
 
-		let mut servers: Vec<(String, ForkRpcServer)> = Vec::new();
+		let mut servers: Vec<(String, Arc<Blockchain>, ForkRpcServer)> = Vec::new();
 		let mut current_port = args.port;
 
 		for (i, endpoint) in endpoints.iter().enumerate() {
@@ -99,7 +99,7 @@ impl Command {
 				server.ws_url()
 			))?;
 
-			servers.push((blockchain.chain_name().to_string(), server));
+			servers.push((blockchain.chain_name().to_string(), blockchain, server));
 		}
 
 		cli.info("Press Ctrl+C to stop.")?;
@@ -107,8 +107,12 @@ impl Command {
 		tokio::signal::ctrl_c().await?;
 
 		cli.info("Shutting down...")?;
-		for (_, server) in servers {
+		for (_, blockchain, server) in servers {
 			server.stop().await;
+			// Clear local storage to remove temporary state from cache
+			if let Err(e) = blockchain.clear_local_storage().await {
+				cli.warning(format!("Failed to clear local storage: {}", e))?;
+			}
 		}
 
 		cli.outro("Done.")?;
