@@ -155,7 +155,7 @@ pub struct ExecutorConfig {
 impl Default for ExecutorConfig {
 	fn default() -> Self {
 		Self {
-			signature_mock: SignatureMockMode::None,
+			signature_mock: SignatureMockMode::MagicSignature,
 			allow_unresolved_imports: false,
 			max_log_level: 3, // Info
 			storage_proof_size: 0,
@@ -375,13 +375,10 @@ impl RuntimeExecutor {
 						match value {
 							// A local shared value can be empty, just flagging that a key was
 							// manually
-							Some(value)
-								if !<LocalSharedValue as AsRef<[u8]>>::as_ref(&value)
-									.is_empty() =>
-								req.inject_value(Some((
-									iter::once(ArcLocalSharedValue(value)),
-									TrieEntryVersion::V1,
-								))),
+							Some(value) => req.inject_value(Some((
+								iter::once(ArcLocalSharedValue(value)),
+								TrieEntryVersion::V1,
+							))),
 							_ => req.inject_value(none_placeholder),
 						}
 					}
@@ -618,7 +615,7 @@ mod tests {
 	#[test]
 	fn executor_config_has_sensible_defaults() {
 		let config = ExecutorConfig::default();
-		assert_eq!(config.signature_mock, SignatureMockMode::None);
+		assert_eq!(config.signature_mock, SignatureMockMode::MagicSignature);
 		assert!(!config.allow_unresolved_imports);
 		assert_eq!(config.max_log_level, 3);
 		assert_eq!(config.storage_proof_size, 0);
@@ -626,6 +623,8 @@ mod tests {
 
 	#[test]
 	fn signature_mock_mode_defaults_to_none() {
+		// SignatureMockMode::default() is None (the derive(Default) picks the first variant).
+		// However, ExecutorConfig::default() uses MagicSignature for fork compatibility.
 		let mode = SignatureMockMode::default();
 		assert_eq!(mode, SignatureMockMode::None);
 	}

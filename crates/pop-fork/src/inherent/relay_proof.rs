@@ -189,10 +189,7 @@ where
 	// Extract the new proof from the modified database
 	let new_proof = extract_proof_from_db(&db);
 
-	eprintln!(
-		"[RelayProof] New storage root: 0x{}",
-		hex::encode(&root_hash)
-	);
+	eprintln!("[RelayProof] New storage root: 0x{}", hex::encode(root_hash));
 
 	Ok((root_hash.into(), new_proof))
 }

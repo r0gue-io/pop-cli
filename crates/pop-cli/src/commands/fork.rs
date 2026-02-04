@@ -26,9 +26,10 @@ pub(crate) struct ForkArgs {
 	#[arg(short, long)]
 	pub port: Option<u16>,
 
-	/// Enable signature mocking (accept all signatures as valid).
-	#[arg(long)]
-	pub mock_signatures: bool,
+	/// Accept all signatures as valid (default: only magic signatures 0xdeadbeef).
+	/// Use this for maximum flexibility when testing.
+	#[arg(long = "mock-all-signatures")]
+	pub mock_all_signatures: bool,
 }
 
 pub(crate) struct Command;
@@ -44,10 +45,10 @@ impl Command {
 			.collect::<std::result::Result<Vec<_>, _>>()?;
 
 		let executor_config = ExecutorConfig {
-			signature_mock: if args.mock_signatures {
+			signature_mock: if args.mock_all_signatures {
 				SignatureMockMode::AlwaysValid
 			} else {
-				SignatureMockMode::None
+				SignatureMockMode::MagicSignature
 			},
 			..Default::default()
 		};

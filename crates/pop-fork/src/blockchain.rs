@@ -51,7 +51,7 @@
 use crate::{
 	Block, BlockBuilder, BlockBuilderError, BlockError, BlockForkPoint, CacheError, ExecutorConfig,
 	ExecutorError, ForkRpcClient, InherentProvider, RuntimeExecutor, StorageCache,
-	create_next_header, create_next_header_with_slot, default_providers,
+	create_next_header_with_slot, default_providers,
 };
 use scale::Encode;
 use std::{path::Path, sync::Arc};

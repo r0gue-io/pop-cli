@@ -34,8 +34,9 @@
 
 use super::relay_proof;
 use crate::{
-	Block, BlockBuilderError, RuntimeExecutor, inherent::InherentProvider,
-	strings::inherent::parachain as strings,
+	Block, BlockBuilderError, DigestItem, RuntimeExecutor, consensus_engine,
+	inherent::InherentProvider,
+	strings::{executor::magic_signature, inherent::parachain as strings},
 };
 use async_trait::async_trait;
 use scale::{Compact, Decode, Encode};
@@ -98,6 +99,62 @@ impl From<RelayChainStateProof> for StorageProof {
 	}
 }
 
+/// Relay chain header for descendant validation.
+///
+/// This structure matches the header format expected by `parachain-system`
+/// for validating relay parent descendants.
+#[derive(Debug, Clone, Encode, Decode)]
+struct RelayHeader {
+	parent_hash: [u8; 32],
+	#[codec(compact)]
+	number: u32,
+	state_root: [u8; 32],
+	extrinsics_root: [u8; 32],
+	digest: Digest,
+}
+
+/// Digest containing log items for a relay chain header.
+#[derive(Debug, Clone, Encode, Decode)]
+struct Digest {
+	logs: Vec<DigestItem>,
+}
+
+impl RelayHeader {
+	/// Compute the blake2-256 hash of this header.
+	fn hash(&self) -> [u8; 32] {
+		blake2_256(&self.encode())
+	}
+
+	/// Replace the BABE seal with a magic signature.
+	///
+	/// This allows the signature to pass validation when `MagicSignature` mode is enabled.
+	fn replace_seal_with_magic(&mut self) {
+		for item in self.digest.logs.iter_mut() {
+			if let DigestItem::Seal(engine_id, signature) = item &&
+				*engine_id == consensus_engine::BABE
+			{
+				// Create magic signature: 0xdeadbeef + padding to fill sr25519 size
+				let mut magic_sig = magic_signature::PREFIX.to_vec();
+				magic_sig.extend(std::iter::repeat_n(
+					magic_signature::PADDING,
+					magic_signature::SR25519_SIZE - magic_signature::PREFIX.len(),
+				));
+				*signature = magic_sig;
+			}
+		}
+	}
+}
+
+/// Parsed inherent data with typed relay_parent_descendants.
+struct ParsedInherentData {
+	validation_data: PersistedValidationData,
+	relay_chain_state: RelayChainStateProof,
+	relay_parent_descendants: Vec<RelayHeader>,
+	collator_peer_id: Option<Vec<u8>>,
+	/// Remaining bytes after collator_peer_id (e.g., InboundMessagesData in v5 format).
+	remaining: Vec<u8>,
+}
+
 // ============================================================================
 // ParachainInherent Provider
 // ============================================================================
@@ -143,7 +200,7 @@ impl ParachainInherent {
 		call_index: u8,
 	) -> Option<&Vec<u8>> {
 		for (i, ext) in extrinsics.iter().enumerate() {
-			let Some((len, remainder)) = decode_compact_len(ext) else {
+			let Some((_len, remainder)) = decode_compact_len(ext) else {
 				eprintln!("[ParachainInherent] ext[{}]: failed to decode compact length", i);
 				continue;
 			};
@@ -176,13 +233,9 @@ impl ParachainInherent {
 		None
 	}
 
-	/// Parse the extrinsic to extract validation data and proof.
-	///
-	/// Returns (PersistedValidationData, RelayChainStateProof, remaining_bytes).
-	fn parse_inherent_data(
-		call_data: &[u8],
-	) -> Result<(PersistedValidationData, RelayChainStateProof, Vec<u8>), BlockBuilderError> {
-		let mut cursor = &call_data[..];
+	/// Parse the extrinsic to extract validation data, proof, and relay parent descendants.
+	fn parse_inherent_data(call_data: &[u8]) -> Result<ParsedInherentData, BlockBuilderError> {
+		let mut cursor = call_data;
 
 		// Decode PersistedValidationData (first field of BasicParachainInherentData)
 		let validation_data = PersistedValidationData::decode(&mut cursor).map_err(|e| {
@@ -200,13 +253,64 @@ impl ParachainInherent {
 			}
 		})?;
 
-		// Remaining bytes (relay_parent_descendants, collator_peer_id, inbound_messages_data)
+		// Decode relay_parent_descendants (Vec<RelayHeader>)
+		let relay_parent_descendants: Vec<RelayHeader> =
+			Decode::decode(&mut cursor).map_err(|e| BlockBuilderError::InherentProvider {
+				provider: "ParachainSystem".to_string(),
+				message: format!("Failed to decode relay_parent_descendants: {}", e),
+			})?;
+
+		// Decode collator_peer_id (Option<Vec<u8>>)
+		let collator_peer_id: Option<Vec<u8>> =
+			Decode::decode(&mut cursor).map_err(|e| BlockBuilderError::InherentProvider {
+				provider: "ParachainSystem".to_string(),
+				message: format!("Failed to decode collator_peer_id: {}", e),
+			})?;
+
+		// Capture any remaining bytes (e.g., InboundMessagesData in v5 format)
 		let remaining = cursor.to_vec();
 
-		Ok((validation_data, relay_chain_state, remaining))
+		Ok(ParsedInherentData {
+			validation_data,
+			relay_chain_state,
+			relay_parent_descendants,
+			collator_peer_id,
+			remaining,
+		})
 	}
 
-	/// Process the inherent: update proof, storage root, and relay parent number.
+	/// Process relay_parent_descendants to match updated storage root.
+	///
+	/// For chains with `RELAY_PARENT_OFFSET > 0` (like AssetHub-Paseo with offset=2),
+	/// the runtime validates that the first descendant's `state_root` matches
+	/// `relay_parent_storage_root`. When we modify the proof, we must also update
+	/// the first header's `state_root` and re-chain the subsequent headers.
+	fn process_relay_parent_descendants(
+		mut descendants: Vec<RelayHeader>,
+		new_storage_root: [u8; 32],
+	) -> Vec<RelayHeader> {
+		if descendants.is_empty() {
+			return descendants;
+		}
+
+		eprintln!("[ParachainInherent] Processing {} relay parent descendants", descendants.len());
+
+		// 1. Update first header's state_root to match the new storage root
+		descendants[0].state_root = new_storage_root;
+		descendants[0].replace_seal_with_magic();
+
+		// 2. Re-chain: update parentHash for subsequent headers
+		let mut prev_hash = descendants[0].hash();
+		for header in descendants.iter_mut().skip(1) {
+			header.parent_hash = prev_hash;
+			header.replace_seal_with_magic();
+			prev_hash = header.hash();
+		}
+
+		descendants
+	}
+
+	/// Process the inherent: update proof, storage root, and relay parent descendants.
 	fn process_inherent(
 		&self,
 		ext: &[u8],
@@ -227,14 +331,20 @@ impl ParachainInherent {
 		let call_data = &body[3..];
 
 		// Parse the inherent data
-		let (mut validation_data, relay_chain_state, remaining) =
-			Self::parse_inherent_data(call_data)?;
+		let parsed = Self::parse_inherent_data(call_data)?;
+		let mut validation_data = parsed.validation_data;
+		let relay_chain_state = parsed.relay_chain_state;
+		let relay_parent_descendants = parsed.relay_parent_descendants;
+		let collator_peer_id = parsed.collator_peer_id;
+		let remaining = parsed.remaining;
 
 		eprintln!(
-			"[ParachainInherent] Decoded: relay_parent_number={}, storage_root=0x{}, proof_nodes={}",
+			"[ParachainInherent] Decoded: relay_parent_number={}, storage_root=0x{}, proof_nodes={}, descendants={}, remaining={}",
 			validation_data.relay_parent_number,
-			hex::encode(&validation_data.relay_parent_storage_root),
-			relay_chain_state.trie_nodes.len()
+			hex::encode(validation_data.relay_parent_storage_root),
+			relay_chain_state.trie_nodes.len(),
+			relay_parent_descendants.len(),
+			remaining.len()
 		);
 
 		// Convert to sp_trie::StorageProof for manipulation
@@ -259,10 +369,7 @@ impl ParachainInherent {
 		// This ensures the derived para slot matches the timestamp we'll set
 		let new_relay_slot = current_relay_slot.saturating_add(2);
 
-		eprintln!(
-			"[ParachainInherent] Relay slot: {} -> {}",
-			current_relay_slot, new_relay_slot
-		);
+		eprintln!("[ParachainInherent] Relay slot: {} -> {}", current_relay_slot, new_relay_slot);
 
 		// Construct the Paras::Heads(para_id) key
 		let heads_key = relay_proof::paras_heads_key(para_id);
@@ -295,10 +402,12 @@ impl ParachainInherent {
 		// Update validation data with new storage root
 		validation_data.relay_parent_storage_root = new_root;
 
-		eprintln!(
-			"[ParachainInherent] Updated storage_root=0x{}",
-			hex::encode(&new_root)
-		);
+		eprintln!("[ParachainInherent] Updated storage_root=0x{}", hex::encode(new_root));
+
+		// Process relay parent descendants to match the new storage root
+		// This is required for chains with RELAY_PARENT_OFFSET > 0 (e.g., AssetHub-Paseo)
+		let processed_descendants =
+			Self::process_relay_parent_descendants(relay_parent_descendants, new_root);
 
 		// Convert new proof back to our type
 		let new_relay_state: RelayChainStateProof = new_proof.into();
@@ -307,7 +416,10 @@ impl ParachainInherent {
 		let mut new_call_data = Vec::new();
 		new_call_data.extend(validation_data.encode());
 		new_call_data.extend(new_relay_state.encode());
-		new_call_data.extend(remaining);
+		new_call_data.extend(processed_descendants.encode());
+		new_call_data.extend(collator_peer_id.encode());
+		// Append any remaining bytes (e.g., InboundMessagesData in v5 format)
+		new_call_data.extend(&remaining);
 
 		// Build new body
 		let mut new_body = vec![version, pallet, call];

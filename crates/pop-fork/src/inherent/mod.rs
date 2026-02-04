@@ -62,7 +62,10 @@ mod timestamp;
 
 pub use parachain::ParachainInherent;
 pub use relay::{PARA_INHERENT_PALLET, para_inherent_included_key};
-pub use relay_proof::{CURRENT_SLOT_KEY, ProofError, modify_proof, paras_heads_key, read_from_proof, read_raw_from_proof};
+pub use relay_proof::{
+	CURRENT_SLOT_KEY, ProofError, modify_proof, paras_heads_key, read_from_proof,
+	read_raw_from_proof,
+};
 pub use slot::{
 	ConsensusType, aura_current_slot_key, babe_current_slot_key, calculate_next_slot,
 	detect_consensus_type, encode_aura_slot, encode_babe_predigest,

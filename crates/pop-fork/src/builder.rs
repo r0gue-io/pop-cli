@@ -56,7 +56,10 @@
 
 use crate::{
 	Block, BlockBuilderError, RuntimeCallResult, RuntimeExecutor,
-	inherent::{InherentProvider, relay::{PARA_INHERENT_PALLET, para_inherent_included_key}},
+	inherent::{
+		InherentProvider,
+		relay::{PARA_INHERENT_PALLET, para_inherent_included_key},
+	},
 	strings::builder::runtime_api,
 };
 use scale::{Decode, Encode};
@@ -320,12 +323,16 @@ impl BlockBuilder {
 					);
 					e
 				})?;
-				// Check dispatch result - format: Result<Result<(), DispatchError>, TransactionValidityError>
-				// First byte: 0x00 = Ok (applied), 0x01 = Err (transaction invalid)
-				// If Ok, second byte: 0x00 = dispatch success, 0x01 = dispatch error
+				// Check dispatch result - format: Result<Result<(), DispatchError>,
+				// TransactionValidityError> First byte: 0x00 = Ok (applied), 0x01 = Err
+				// (transaction invalid) If Ok, second byte: 0x00 = dispatch success, 0x01 =
+				// dispatch error
 				let dispatch_ok = match (result.output.first(), result.output.get(1)) {
 					(Some(0x00), Some(0x00)) => {
-						eprintln!("[BlockBuilder] Inherent {i} from {} OK (dispatch success)", provider.identifier());
+						eprintln!(
+							"[BlockBuilder] Inherent {i} from {} OK (dispatch success)",
+							provider.identifier()
+						);
 						true
 					},
 					(Some(0x00), Some(0x01)) => {
@@ -416,7 +423,7 @@ impl BlockBuilder {
 		// Set ParaInherent::Included to Some(())
 		// The value is () which encodes to empty bytes, but FRAME stores Some(()) as existing key
 		let key = para_inherent_included_key();
-		self.storage().set_batch(&[(&key, Some(&[][..]))])?;
+		self.storage().set(&key, Some(&().encode()))?;
 
 		Ok(())
 	}
@@ -619,7 +626,7 @@ impl BlockBuilder {
 ///
 /// Digest items contain consensus-related information that is included
 /// in the block header but not part of the main block body.
-#[derive(Debug, Clone, Encode)]
+#[derive(Debug, Clone, Encode, Decode)]
 pub enum DigestItem {
 	/// A pre-runtime digest item.
 	///
@@ -777,8 +784,8 @@ pub async fn create_next_header_with_slot(
 	use crate::inherent::{
 		TimestampInherent,
 		slot::{
-			ConsensusType, calculate_next_slot, detect_consensus_type,
-			encode_aura_slot, encode_babe_predigest,
+			ConsensusType, calculate_next_slot, detect_consensus_type, encode_aura_slot,
+			encode_babe_predigest,
 		},
 	};
 
@@ -793,10 +800,9 @@ pub async fn create_next_header_with_slot(
 
 	// Check if caller already provided a PreRuntime digest for this consensus
 	let has_preruntime = additional_digest_items.iter().any(|item| match item {
-		DigestItem::PreRuntime(engine, _) => {
-			(consensus_type == ConsensusType::Aura && *engine == consensus_engine::AURA)
-				|| (consensus_type == ConsensusType::Babe && *engine == consensus_engine::BABE)
-		},
+		DigestItem::PreRuntime(engine, _) =>
+			(consensus_type == ConsensusType::Aura && *engine == consensus_engine::AURA) ||
+				(consensus_type == ConsensusType::Babe && *engine == consensus_engine::BABE),
 		_ => false,
 	});
 
