@@ -942,6 +942,29 @@ mod tests {
 	}
 
 	#[test]
+	fn read_pids_from_zombie_json_ignores_non_numeric_process() -> Result<()> {
+		let temp = tempfile::tempdir()?;
+		let zombie_json = temp.path().join("zombie.json");
+		std::fs::write(
+			&zombie_json,
+			r#"
+			{
+				"nodes": [
+					{ "name": "alice", "pid": 1234 },
+					{ "name": "bob", "process": "polkadot" },
+					{ "name": "charlie", "process": "5678" }
+				]
+			}
+			"#,
+		)?;
+
+		let mut pids = read_pids_from_zombie_json(&zombie_json)?;
+		pids.sort();
+		assert_eq!(pids, vec!["1234", "5678"]);
+		Ok(())
+	}
+
+	#[test]
 	fn clean_nodes_handles_no_processes() -> Result<()> {
 		let mut cli = MockCli::new()
 			.expect_intro("Remove running nodes")
