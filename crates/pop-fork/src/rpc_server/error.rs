@@ -24,7 +24,7 @@ pub mod error_codes {
 	/// Internal error.
 	pub const INTERNAL_ERROR: i32 = -32603;
 
-	/// Too many follow subscriptions (limit: 2 per connection).
+	/// Too many follow subscriptions.
 	pub const TOO_MANY_SUBSCRIPTIONS: i32 = -32800;
 
 	/// Block hash not found or unpinned.
