@@ -192,7 +192,7 @@ rpc_port = {random_port}
 	// `pop up network ./network.toml --skip-confirm`
 	let mut command = pop(
 		&working_dir,
-		["up", "network", "./network.toml", "-r", "stable2506-2", "--verbose", "--skip-confirm"],
+		["up", "network", "./network.toml", "-r", "stable2512", "--verbose", "--skip-confirm"],
 	);
 	let mut up = TestChildProcess(command.spawn()?);
 
@@ -409,7 +409,7 @@ async fn fetch_runtime(cache: &Path) -> Result<String> {
 			tag_pattern: Some("polkadot-{version}".into()),
 			prerelease: false,
 			version_comparator: sort_by_latest_semantic_version,
-			fallback: "stable2503".to_string(),
+			fallback: "stable2512".to_string(),
 			archive: "parachain-template-runtime.tar.gz".to_string(),
 			contents: contents
 				.into_iter()

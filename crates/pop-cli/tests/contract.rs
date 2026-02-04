@@ -307,7 +307,7 @@ async fn verifiable_contract_lifecycle() -> Result<()> {
 	assert!(contract_dir.exists());
 
 	// pop build --verifiable
-	command = pop(&temp_dir, ["build", "--path", "./test_contract", "--verifiable"]);
+	command = pop(temp_dir, ["build", "--path", "./test_contract", "--verifiable"]);
 	assert!(command.spawn()?.wait().await?.success());
 
 	let ink_target_path = contract_dir.join("target").join("ink");
@@ -327,7 +327,7 @@ async fn verifiable_contract_lifecycle() -> Result<()> {
 
 	// Verify the contract recently built against itself
 	command = pop(
-		&temp_dir,
+		temp_dir,
 		[
 			"verify",
 			"--contract-path",
@@ -343,7 +343,7 @@ async fn verifiable_contract_lifecycle() -> Result<()> {
 	assert!(command.spawn()?.wait().await?.success());
 
 	command = pop(
-		&temp_dir,
+		temp_dir,
 		[
 			"verify",
 			"--contract-path",
@@ -381,7 +381,7 @@ async fn verifiable_contract_lifecycle() -> Result<()> {
 
 	// Verify the contract against the live deployment using CLI
 	command = pop(
-		&temp_dir,
+		temp_dir,
 		[
 			"verify",
 			"--path",

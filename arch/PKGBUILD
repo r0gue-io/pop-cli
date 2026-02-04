@@ -1,0 +1,39 @@
+# Maintainer: R0GUE <go@r0gue.io>
+pkgname=pop-cli
+pkgver=0.12.1
+pkgrel=1
+pkgdesc="An all-in-one tool for Polkadot development"
+arch=('x86_64' 'aarch64')
+url="https://onpop.io/"
+license=('GPL-3.0-only')
+depends=('gcc-libs' 'openssl' 'zstd')
+makedepends=('cargo' 'clang' 'protobuf' 'cmake' 'pkgconf' 'lld' 'rust-wasm')
+provides=('pop')
+options=(!lto)
+source=("$pkgname-$pkgver.tar.gz::https://github.com/r0gue-io/pop-cli/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+prepare() {
+    cd "$pkgname-$pkgver"
+    export CARGO_HOME="$srcdir/cargo-home"
+    cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+    cd "$pkgname-$pkgver"
+    export CARGO_HOME="$srcdir/cargo-home"
+    export ZSTD_SYS_USE_PKG_CONFIG=1
+    export CC=clang
+    export CXX=clang++
+    export CXXFLAGS="${CXXFLAGS} -std=c++17"
+    export CARGO_PROFILE_PRODUCTION_LTO=thin
+    export CARGO_PROFILE_PRODUCTION_CODEGEN_UNITS=4
+    cargo build --frozen -p pop-cli --profile=production
+}
+
+package() {
+    cd "$pkgname-$pkgver"
+    install -Dm755 "target/production/pop" "$pkgdir/usr/bin/pop"
+    install -Dm644 "LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
+
