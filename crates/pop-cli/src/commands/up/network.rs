@@ -520,21 +520,34 @@ pub(crate) async fn spawn(
 				}
 			}
 
+			let mut detached = false;
 			if detach {
-				network.detach().await;
-				std::mem::forget(network);
-				cli.info(format!(
-					"ℹ️ base dir: {0}\nℹ️ zombie.json: {0}/zombie.json",
-					base_dir.display()
-				))?;
-				if auto_remove {
-					cli.warning(format!(
-						"⚠️ --rm is ignored when used with --detach. Remove {} after stopping the network.",
-						base_dir.display()
-					))?;
+				match network.detach().await {
+					Ok(()) => {
+						std::mem::forget(network);
+						detached = true;
+						cli.info(format!(
+							"ℹ️ base dir: {0}\nℹ️ zombie.json: {0}/zombie.json",
+							base_dir.display()
+						))?;
+						if auto_remove {
+							cli.warning(format!(
+								"⚠️ --rm is ignored when used with --detach. Remove {} after stopping the network.",
+								base_dir.display()
+							))?;
+						}
+						cli.outro("✅ Network is running in the background.")?;
+						return Ok(());
+					},
+					Err(e) => {
+						cli.warning(format!(
+							"🚫 Failed to detach; staying attached to the network: {e}"
+						))?;
+					},
 				}
-				cli.outro("✅ Network is running in the background.")?;
-			} else {
+			}
+
+			if !detached {
 				tokio::signal::ctrl_c().await?;
 
 				if auto_remove {

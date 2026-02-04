@@ -405,8 +405,8 @@ fn collect_pids(value: &Value, pids: &mut Vec<String>) {
 			for (key, value) in map {
 				if key == "pid" || key == "process" {
 					match value {
-						Value::Number(number) => pids.push(number.to_string()),
-						Value::String(pid) => pids.push(pid.to_string()),
+						Value::Number(number) => push_pid(number.to_string(), pids),
+						Value::String(pid) => push_pid(pid.to_string(), pids),
 						_ => {},
 					}
 				}
@@ -417,6 +417,12 @@ fn collect_pids(value: &Value, pids: &mut Vec<String>) {
 				collect_pids(item, pids);
 			},
 		_ => {},
+	}
+}
+
+fn push_pid(pid: String, pids: &mut Vec<String>) {
+	if pid.parse::<u32>().is_ok() {
+		pids.push(pid);
 	}
 }
 
@@ -650,7 +656,10 @@ fn get_node_processes() -> Result<Vec<(String, String, String)>> {
 
 /// Kills a process by PID.
 fn kill_process(pid: &str) -> Result<()> {
-	StdCommand::new("kill").arg("-9").arg(pid).output()?;
+	let output = StdCommand::new("kill").arg("-9").arg(pid).output()?;
+	if !output.status.success() {
+		anyhow::bail!("failed to kill process {pid}");
+	}
 	Ok(())
 }
 
