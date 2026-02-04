@@ -36,7 +36,7 @@ pub(crate) struct ConfigFileCommand {
 	#[arg(value_name = "FILE")]
 	pub path: PathBuf,
 	/// The version of the binary to be used for the relay chain, as per the release tag (e.g.
-	/// "stable2503"). See <https://github.com/paritytech/polkadot-sdk/releases> for more details.
+	/// "stable2512"). See <https://github.com/paritytech/polkadot-sdk/releases> for more details.
 	#[arg(short, long)]
 	pub(crate) relay_chain: Option<String>,
 	/// The version of the runtime to be used for the relay chain, as per the release tag (e.g.
@@ -44,7 +44,7 @@ pub(crate) struct ConfigFileCommand {
 	#[arg(short = 'R', long)]
 	pub(crate) relay_chain_runtime: Option<String>,
 	/// The version of the binary to be used for system parachains, as per the release tag (e.g.
-	/// "stable2503"). Defaults to the relay chain version if not specified.
+	/// "stable2512"). Defaults to the relay chain version if not specified.
 	/// See <https://github.com/paritytech/polkadot-sdk/releases> for more details.
 	#[arg(short, long)]
 	pub(crate) system_parachain: Option<String>,
@@ -141,7 +141,7 @@ impl ConfigFileCommand {
 #[cfg_attr(test, derive(Default))]
 pub(crate) struct BuildCommand<const FILTER: u8> {
 	/// The version of the binary to be used for the relay chain, as per the release tag (e.g.
-	/// "stable2503"). See <https://github.com/paritytech/polkadot-sdk/releases> for more details.
+	/// "stable2512"). See <https://github.com/paritytech/polkadot-sdk/releases> for more details.
 	#[arg(short, long)]
 	relay_chain: Option<String>,
 	/// The version of the runtime to be used for the relay chain, as per the release tag (e.g.
@@ -149,7 +149,7 @@ pub(crate) struct BuildCommand<const FILTER: u8> {
 	#[arg(short = 'R', long)]
 	relay_chain_runtime: Option<String>,
 	/// The version of the binary to be used for system parachains, as per the release tag (e.g.
-	/// "stable2503"). Defaults to the relay chain version if not specified.
+	/// "stable2512"). Defaults to the relay chain version if not specified.
 	/// See <https://github.com/paritytech/polkadot-sdk/releases> for more details.
 	#[arg(short, long)]
 	system_parachain: Option<String>,

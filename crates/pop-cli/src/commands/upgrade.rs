@@ -240,7 +240,7 @@ mod tests {
 		let cargo_path = write_minimal_cargo_toml(tmp.path());
 		let info_msg = format!("Using Cargo.toml file at {}", cargo_path.display());
 
-		let initial_version = "polkadot-stable2407-8".to_string();
+		let initial_version = "polkadot-stable2512".to_string();
 		let mut cli = MockCli::new()
 			.expect_intro("Upgrade Polkadot SDK version")
 			.expect_info(info_msg);
