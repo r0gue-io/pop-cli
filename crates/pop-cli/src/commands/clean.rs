@@ -658,7 +658,13 @@ fn get_node_processes() -> Result<Vec<(String, String, String)>> {
 fn kill_process(pid: &str) -> Result<()> {
 	let output = StdCommand::new("kill").arg("-9").arg(pid).output()?;
 	if !output.status.success() {
-		anyhow::bail!("failed to kill process {pid}");
+		let stderr = String::from_utf8_lossy(&output.stderr);
+		let stdout = String::from_utf8_lossy(&output.stdout);
+		let message = if stderr.is_empty() { stdout.to_string() } else { stderr.to_string() };
+		if is_already_stopped_error(message.trim()) {
+			return Ok(());
+		}
+		anyhow::bail!("failed to kill process {pid}: {message}");
 	}
 	Ok(())
 }

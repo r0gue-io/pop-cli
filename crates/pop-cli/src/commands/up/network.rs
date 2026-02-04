@@ -540,6 +540,11 @@ pub(crate) async fn spawn(
 						return Ok(());
 					},
 					Err(e) => {
+						if !std::io::stdin().is_terminal() {
+							return Err(anyhow::anyhow!(
+								"Failed to detach in non-interactive mode: {e}"
+							));
+						}
 						cli.warning(format!(
 							"🚫 Failed to detach; staying attached to the network: {e}"
 						))?;
