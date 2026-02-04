@@ -520,11 +520,9 @@ pub(crate) async fn spawn(
 				}
 			}
 
-			let mut detached = false;
 			if detach {
 				network.detach().await;
 				std::mem::forget(network);
-				detached = true;
 				cli.info(format!(
 					"ℹ️ base dir: {0}\nℹ️ zombie.json: {0}/zombie.json",
 					base_dir.display()
@@ -539,20 +537,18 @@ pub(crate) async fn spawn(
 				return Ok(());
 			}
 
-			if !detached {
-				tokio::signal::ctrl_c().await?;
+			tokio::signal::ctrl_c().await?;
 
-				if auto_remove {
-					// Remove zombienet directory after network is terminated
-					if let Err(e) = std::fs::remove_dir_all(&base_dir) {
-						cli.warning(format!("🚫 Failed to remove zombienet directory: {e}"))?;
-					}
-				} else if let Err(e) = std::fs::write(base_dir.join(".CLEARED"), "") {
-					cli.warning(format!("🚫 Failed to mark network as cleared: {e}"))?;
+			if auto_remove {
+				// Remove zombienet directory after network is terminated
+				if let Err(e) = std::fs::remove_dir_all(&base_dir) {
+					cli.warning(format!("🚫 Failed to remove zombienet directory: {e}"))?;
 				}
-
-				cli.outro("Done")?;
+			} else if let Err(e) = std::fs::write(base_dir.join(".CLEARED"), "") {
+				cli.warning(format!("🚫 Failed to mark network as cleared: {e}"))?;
 			}
+
+			cli.outro("Done")?;
 		},
 		Err(e) => {
 			cli.outro_cancel(format!("🚫 Could not launch local network: {e}"))?;
