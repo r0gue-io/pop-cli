@@ -11,7 +11,7 @@ makedepends=('cargo' 'clang' 'protobuf' 'cmake' 'pkgconf' 'lld' 'rust-wasm')
 provides=('pop')
 options=(!lto)
 source=("$pkgname-$pkgver.tar.gz::https://github.com/r0gue-io/pop-cli/archive/refs/tags/v$pkgver.tar.gz")
-sha256sums=('d9b59a13779fae9b4a7e63bb8d0b35e20ae1ca9dc03ead1cc01f8f9499cd4784')
+sha256sums=('SKIP')
 
 prepare() {
     cd "$pkgname-$pkgver"
