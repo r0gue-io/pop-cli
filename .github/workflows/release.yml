@@ -129,6 +129,107 @@ jobs:
           yes | debuild -S -sa -k"${GPG_KEY_ID}" -d --lintian-opts --no-lintian 
           dput ${{ secrets.LAUNCHPAD_PPA }} ${{ github.workspace }}/../pop-cli_*.changes
 
+  build-arch:
+    name: Build Arch Linux Package
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    if: github.event_name == 'release'
+    container:
+      image: archlinux:latest
+    steps:
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm base-devel git cargo clang protobuf cmake pkgconf zstd fakeroot sudo
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.inputs.ref }}
+
+      - name: Create build user
+        run: |
+          useradd -m builder
+          echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+          chown -R builder:builder .
+
+      - name: Build package
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          cd arch
+          sed -i "s/^pkgver=.*/pkgver=$VERSION/" PKGBUILD
+          sed -i "s/^sha256sums=.*/sha256sums=('SKIP')/" PKGBUILD
+          chown -R builder:builder .
+          su builder -c "makepkg -sf --noconfirm --skipchecksums"
+
+      - name: Upload Arch package to GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            arch/pop-cli-*.pkg.tar.zst
+
+  publish-aur:
+    name: Publish to AUR
+    runs-on: ubuntu-latest
+    needs: build-node
+    if: github.event_name == 'release'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version
+        run: |
+          echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+
+      - name: Calculate source tarball checksum
+        run: |
+          curl -sL "https://github.com/${{ github.repository }}/archive/refs/tags/v${{ env.VERSION }}.tar.gz" -o source.tar.gz
+          echo "SHA256SUM=$(sha256sum source.tar.gz | cut -d' ' -f1)" >> $GITHUB_ENV
+
+      - name: Setup SSH for AUR
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AUR_SSH_PRIVATE_KEY }}" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          echo "Host aur.archlinux.org" >> ~/.ssh/config
+          echo "  IdentityFile ~/.ssh/aur" >> ~/.ssh/config
+          echo "  User aur" >> ~/.ssh/config
+          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
+
+      - name: Clone AUR repository
+        run: |
+          git clone ssh://aur@aur.archlinux.org/pop-cli.git aur-repo
+
+      - name: Update PKGBUILD
+        run: |
+          cd aur-repo
+          sed -i "s/^pkgver=.*/pkgver=${{ env.VERSION }}/" PKGBUILD
+          sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
+          sed -i "s/^sha256sums=.*/sha256sums=('${{ env.SHA256SUM }}')/" PKGBUILD
+
+      - name: Generate .SRCINFO
+        run: |
+          cd aur-repo
+          docker run --rm -v $(pwd):/pkg -w /pkg archlinux:latest bash -c "
+            pacman -Sy --noconfirm pacman-contrib
+            useradd -m builder
+            chown -R builder:builder /pkg
+            su builder -c 'makepkg --printsrcinfo > .SRCINFO'
+          "
+
+      - name: Push to AUR
+        run: |
+          cd aur-repo
+          git config user.name "R0GUE"
+          git config user.email "go@r0gue.io"
+          git add PKGBUILD .SRCINFO
+          git diff --cached --quiet || git commit -m "Update to version ${{ env.VERSION }}"
+          git push
+
   publish-homebrew:
     name: Publish to Homebrew
     runs-on: ubuntu-latest

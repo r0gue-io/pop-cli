@@ -29,7 +29,7 @@ impl SourceT for System {
 			tag_pattern: Some("polkadot-{version}".into()),
 			prerelease: false,
 			version_comparator: sort_by_latest_stable_version,
-			fallback: "stable2412".into(),
+			fallback: "stable2512".into(),
 			archive: format!("{binary}-{}.tar.gz", target()?),
 			contents: vec![ArchiveFileSpec::new(binary.into(), None, true)],
 			latest: None,
@@ -205,7 +205,7 @@ mod tests {
 					tag_pattern == Some("polkadot-{version}".into()) &&
 					!prerelease &&
 					fn_addr_eq(version_comparator, sort_by_latest_stable_version as for<'a> fn(&'a mut [String]) -> SortedSlice<'a, String>) &&
-					fallback == "stable2412" &&
+					fallback == "stable2512" &&
 					archive == format!("polkadot-parachain-{}.tar.gz", target().unwrap()) &&
 					contents == vec![ArchiveFileSpec::new("polkadot-parachain".into(), None, true)] &&
 					latest.is_none()

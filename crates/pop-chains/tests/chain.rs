@@ -8,7 +8,7 @@ use anyhow::Result;
 use pop_chains::{generate_pallet_benchmarks, up::Zombienet, utils::helpers::get_preset_names};
 use std::path::Path;
 
-const BINARY_VERSION: &str = "stable2412";
+const BINARY_VERSION: &str = "stable2512";
 
 #[tokio::test]
 async fn launch_kusama() -> Result<()> {
