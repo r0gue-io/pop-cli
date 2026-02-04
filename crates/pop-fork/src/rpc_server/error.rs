@@ -35,6 +35,21 @@ pub mod error_codes {
 
 	/// Operation not found.
 	pub const OPERATION_NOT_FOUND: i32 = -32803;
+
+	/// Invalid transaction - Transaction is invalid (code 1010).
+	///
+	/// This covers validation failures like:
+	/// - Invalid signature
+	/// - Nonce too low (stale)
+	/// - Account cannot pay fees
+	pub const INVALID_TRANSACTION: i32 = 1010;
+
+	/// Unknown transaction - Transaction validity cannot be determined (code 1011).
+	///
+	/// This covers cases where the transaction might become valid later:
+	/// - Nonce too high (future)
+	/// - Dependencies not met
+	pub const UNKNOWN_TRANSACTION: i32 = 1011;
 }
 
 /// Errors that can occur in the RPC server.
@@ -91,6 +106,24 @@ pub enum RpcServerError {
 	/// Block not found.
 	#[error("Block not found: {0}")]
 	BlockNotFound(String),
+
+	/// Transaction validation failed - transaction is invalid.
+	#[error("Transaction is invalid: {reason}")]
+	InvalidTransaction {
+		/// Human-readable reason for invalidity.
+		reason: String,
+		/// Raw error data from runtime (hex-encoded).
+		data: Option<String>,
+	},
+
+	/// Transaction validity unknown - may become valid later.
+	#[error("Transaction validity unknown: {reason}")]
+	UnknownTransaction {
+		/// Human-readable reason.
+		reason: String,
+		/// Raw error data from runtime (hex-encoded).
+		data: Option<String>,
+	},
 }
 
 impl From<RpcServerError> for ErrorObjectOwned {
@@ -128,6 +161,47 @@ impl From<RpcServerError> for ErrorObjectOwned {
 				ErrorObjectOwned::owned(error_codes::INTERNAL_ERROR, msg, None::<()>),
 			RpcServerError::BlockNotFound(msg) =>
 				ErrorObjectOwned::owned(error_codes::INVALID_BLOCK, msg, None::<()>),
+			RpcServerError::InvalidTransaction { reason, data } => ErrorObjectOwned::owned(
+				error_codes::INVALID_TRANSACTION,
+				format!("Transaction is invalid: {reason}"),
+				data,
+			),
+			RpcServerError::UnknownTransaction { reason, data } => ErrorObjectOwned::owned(
+				error_codes::UNKNOWN_TRANSACTION,
+				format!("Transaction validity unknown: {reason}"),
+				data,
+			),
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn invalid_transaction_error_has_correct_code() {
+		let error = RpcServerError::InvalidTransaction {
+			reason: "Nonce too low".to_string(),
+			data: Some("0x1234".to_string()),
+		};
+		let error_object: ErrorObjectOwned = error.into();
+
+		assert_eq!(error_object.code(), error_codes::INVALID_TRANSACTION);
+		assert_eq!(error_object.code(), 1010);
+		assert!(error_object.message().contains("Transaction is invalid"));
+		assert!(error_object.message().contains("Nonce too low"));
+	}
+
+	#[test]
+	fn unknown_transaction_error_has_correct_code() {
+		let error =
+			RpcServerError::UnknownTransaction { reason: "Nonce too high".to_string(), data: None };
+		let error_object: ErrorObjectOwned = error.into();
+
+		assert_eq!(error_object.code(), error_codes::UNKNOWN_TRANSACTION);
+		assert_eq!(error_object.code(), 1011);
+		assert!(error_object.message().contains("Transaction validity unknown"));
+		assert!(error_object.message().contains("Nonce too high"));
 	}
 }
