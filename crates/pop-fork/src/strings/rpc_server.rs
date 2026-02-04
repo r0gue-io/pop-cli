@@ -63,7 +63,10 @@ pub mod transaction {
 /// ChainHead subscription limits.
 pub mod chain_head {
 	/// Maximum number of concurrent chainHead follow subscriptions.
-	pub const MAX_SUBSCRIPTIONS: usize = 2;
+	///
+	/// Matches polkadot-sdk's default of 1024 subscriptions per connection
+	/// (defined in substrate/client/cli/src/config.rs as RPC_DEFAULT_MAX_SUBS_PER_CONN).
+	pub const MAX_SUBSCRIPTIONS: usize = 1024;
 
 	/// Maximum number of concurrent operations per subscription.
 	pub const MAX_OPERATIONS: usize = 16;
