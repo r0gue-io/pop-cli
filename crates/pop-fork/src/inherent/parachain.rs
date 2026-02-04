@@ -12,9 +12,17 @@
 //! other inherents (like timestamp). This provider:
 //!
 //! 1. Finds the `setValidationData` extrinsic in the parent block
-//! 2. Extracts and decodes the validation data
-//! 3. Increments the relay parent number
-//! 4. Re-encodes the extrinsic with the updated data
+//! 2. Decodes the validation data and relay chain state proof
+//! 3. Modifies the proof to update `Paras::Heads(para_id)` with the parachain's head
+//! 4. Regenerates the storage root to match the updated proof
+//! 5. Re-encodes the extrinsic with all updated data
+//!
+//! # Why Proof Modification is Needed
+//!
+//! The parachain runtime validates that its head appears in the relay chain
+//! state proof at `Paras::Heads(para_id)`. When forking, the original proof
+//! contains the old head, so we update it with our latest block header to
+//! make the validation pass.
 //!
 //! # Example
 //!
@@ -24,57 +32,99 @@
 //! let provider = ParachainInherent::new();
 //! ```
 
+use super::relay_proof;
 use crate::{
 	Block, BlockBuilderError, RuntimeExecutor, inherent::InherentProvider,
 	strings::inherent::parachain as strings,
 };
 use async_trait::async_trait;
 use scale::{Compact, Decode, Encode};
+use sp_core::blake2_256;
+use sp_trie::StorageProof;
+use std::collections::BTreeSet;
 
-/// Extrinsic format version for unsigned/bare extrinsics.
-const EXTRINSIC_FORMAT_VERSION: u8 = 5;
+/// Extrinsic format version for unsigned/bare extrinsics (v5 - new format).
+const EXTRINSIC_FORMAT_VERSION_V5: u8 = 5;
+/// Extrinsic format version for unsigned/bare extrinsics (v4 - legacy format).
+const EXTRINSIC_FORMAT_VERSION_V4: u8 = 4;
+
+// ============================================================================
+// Types for decoding/encoding the inherent data
+// ============================================================================
+
+/// Persisted validation data from the relay chain.
+#[derive(Debug, Clone, Encode, Decode)]
+struct PersistedValidationData {
+	/// Parachain head data (parent block header).
+	parent_head: Vec<u8>,
+	/// Relay chain block number.
+	relay_parent_number: u32,
+	/// Storage root of the relay chain at `relay_parent_number`.
+	relay_parent_storage_root: [u8; 32],
+	/// Maximum proof-of-validity size.
+	max_pov_size: u32,
+}
+
+/// Storage proof from the relay chain (just a set of trie nodes).
+#[derive(Debug, Clone)]
+struct RelayChainStateProof {
+	trie_nodes: BTreeSet<Vec<u8>>,
+}
+
+impl Encode for RelayChainStateProof {
+	fn encode(&self) -> Vec<u8> {
+		// Encode as Vec<Vec<u8>> (sorted order from BTreeSet)
+		let nodes: Vec<Vec<u8>> = self.trie_nodes.iter().cloned().collect();
+		nodes.encode()
+	}
+}
+
+impl Decode for RelayChainStateProof {
+	fn decode<I: scale::Input>(input: &mut I) -> Result<Self, scale::Error> {
+		let nodes: Vec<Vec<u8>> = Decode::decode(input)?;
+		Ok(Self { trie_nodes: nodes.into_iter().collect() })
+	}
+}
+
+impl From<StorageProof> for RelayChainStateProof {
+	fn from(proof: StorageProof) -> Self {
+		Self { trie_nodes: proof.into_nodes() }
+	}
+}
+
+impl From<RelayChainStateProof> for StorageProof {
+	fn from(proof: RelayChainStateProof) -> Self {
+		StorageProof::new(proof.trie_nodes)
+	}
+}
+
+// ============================================================================
+// ParachainInherent Provider
+// ============================================================================
 
 /// Parachain inherent provider.
 ///
 /// Generates the `parachainSystem.setValidationData` inherent extrinsic
 /// that provides relay chain validation data to the parachain runtime.
-///
-/// # Implementation
-///
-/// This provider extracts the validation data from the parent block's
-/// `setValidationData` extrinsic and updates the relay parent number.
 #[derive(Debug, Clone, Default)]
-pub struct ParachainInherent {
-	/// Parachain ID (reserved for future use).
-	#[allow(dead_code)]
-	para_id: Option<u32>,
-}
+pub struct ParachainInherent;
 
 impl ParachainInherent {
 	/// Create a new parachain inherent provider.
 	pub fn new() -> Self {
-		Self::default()
+		Self
 	}
 
-	/// Create a parachain inherent provider with a specific para ID.
-	///
-	/// The para ID is reserved for future use when full relay chain
-	/// integration is implemented.
-	#[allow(dead_code)]
-	pub fn with_para_id(para_id: u32) -> Self {
-		Self { para_id: Some(para_id) }
-	}
-
-	/// Compute the storage key for `ParachainSystem::LastRelayChainBlockNumber`.
-	fn last_relay_chain_block_number_key() -> Vec<u8> {
-		let pallet_hash = sp_core::twox_128(b"ParachainSystem");
-		let storage_hash = sp_core::twox_128(b"LastRelayChainBlockNumber");
+	/// Compute the storage key for `ParachainInfo::ParachainId`.
+	fn parachain_id_key() -> Vec<u8> {
+		let pallet_hash = sp_core::twox_128(b"ParachainInfo");
+		let storage_hash = sp_core::twox_128(b"ParachainId");
 		[pallet_hash.as_slice(), storage_hash.as_slice()].concat()
 	}
 
-	/// Read the last relay chain block number from storage.
-	async fn read_last_relay_chain_block_number(parent: &Block) -> Option<u32> {
-		let key = Self::last_relay_chain_block_number_key();
+	/// Read the parachain ID from storage.
+	async fn read_parachain_id(parent: &Block) -> Option<u32> {
+		let key = Self::parachain_id_key();
 		let storage = parent.storage();
 
 		match storage.get(parent.number, &key).await {
@@ -86,90 +136,198 @@ impl ParachainInherent {
 		}
 	}
 
-	/// Find and extract the setValidationData extrinsic from the parent block.
-	///
-	/// Returns the raw extrinsic bytes and the offset where validation data starts.
+	/// Find the setValidationData extrinsic in the parent block.
 	fn find_validation_data_extrinsic(
 		extrinsics: &[Vec<u8>],
 		pallet_index: u8,
 		call_index: u8,
 	) -> Option<&Vec<u8>> {
-		for ext in extrinsics {
-			// Skip compact length prefix
-			let (_, remainder) = decode_compact_len(ext)?;
+		for (i, ext) in extrinsics.iter().enumerate() {
+			let Some((len, remainder)) = decode_compact_len(ext) else {
+				eprintln!("[ParachainInherent] ext[{}]: failed to decode compact length", i);
+				continue;
+			};
 
-			// Check version byte (should be 0x05 for unsigned v5)
-			if remainder.first() != Some(&EXTRINSIC_FORMAT_VERSION) {
+			if remainder.is_empty() {
 				continue;
 			}
 
-			// Check pallet and call indices
+			let version = remainder[0];
+			// Accept both v4 (legacy) and v5 (new) extrinsic formats
+			let is_valid_version =
+				version == EXTRINSIC_FORMAT_VERSION_V4 || version == EXTRINSIC_FORMAT_VERSION_V5;
+
+			if !is_valid_version {
+				eprintln!(
+					"[ParachainInherent] ext[{}]: version {} not recognized (expected 4 or 5)",
+					i, version
+				);
+				continue;
+			}
+
 			if remainder.len() >= 3 && remainder[1] == pallet_index && remainder[2] == call_index {
+				eprintln!(
+					"[ParachainInherent] ext[{}]: MATCH! pallet={}, call={}, version={}",
+					i, pallet_index, call_index, version
+				);
 				return Some(ext);
 			}
 		}
 		None
 	}
 
-	/// Find the offset of a known u32 value in the extrinsic bytes.
+	/// Parse the extrinsic to extract validation data and proof.
 	///
-	/// This searches for the little-endian encoding of the value in the
-	/// extrinsic body (after the compact length prefix).
-	fn find_u32_offset_in_body(body: &[u8], value: u32) -> Option<usize> {
-		let needle = value.to_le_bytes();
-		// Start searching after version + pallet + call (3 bytes)
-		for i in 3..body.len().saturating_sub(3) {
-			if body[i..].starts_with(&needle) {
-				return Some(i);
+	/// Returns (PersistedValidationData, RelayChainStateProof, remaining_bytes).
+	fn parse_inherent_data(
+		call_data: &[u8],
+	) -> Result<(PersistedValidationData, RelayChainStateProof, Vec<u8>), BlockBuilderError> {
+		let mut cursor = &call_data[..];
+
+		// Decode PersistedValidationData (first field of BasicParachainInherentData)
+		let validation_data = PersistedValidationData::decode(&mut cursor).map_err(|e| {
+			BlockBuilderError::InherentProvider {
+				provider: "ParachainSystem".to_string(),
+				message: format!("Failed to decode PersistedValidationData: {}", e),
 			}
-		}
-		None
+		})?;
+
+		// Decode relay_chain_state (StorageProof)
+		let relay_chain_state = RelayChainStateProof::decode(&mut cursor).map_err(|e| {
+			BlockBuilderError::InherentProvider {
+				provider: "ParachainSystem".to_string(),
+				message: format!("Failed to decode relay_chain_state: {}", e),
+			}
+		})?;
+
+		// Remaining bytes (relay_parent_descendants, collator_peer_id, inbound_messages_data)
+		let remaining = cursor.to_vec();
+
+		Ok((validation_data, relay_chain_state, remaining))
 	}
 
-	/// Patch the relay parent number in the validation data extrinsic.
-	///
-	/// Uses the known relay chain block number from storage to find the
-	/// correct offset in the extrinsic, then increments it.
-	fn patch_relay_parent_number(
-		extrinsic: &[u8],
-		known_relay_block: u32,
-		increment: u32,
-	) -> Option<Vec<u8>> {
-		// Decode compact length prefix
-		let (compact_len, body) = decode_compact_len(extrinsic)?;
+	/// Process the inherent: update proof, storage root, and relay parent number.
+	fn process_inherent(
+		&self,
+		ext: &[u8],
+		para_id: u32,
+		para_head: &[u8],
+	) -> Result<Vec<u8>, BlockBuilderError> {
+		// Decode the extrinsic structure
+		let (_, body) =
+			decode_compact_len(ext).ok_or_else(|| BlockBuilderError::InherentProvider {
+				provider: "ParachainSystem".to_string(),
+				message: "Failed to decode extrinsic length prefix".to_string(),
+			})?;
 
-		// Find the offset of the known relay block number in the extrinsic body
-		let relay_parent_offset = Self::find_u32_offset_in_body(body, known_relay_block)?;
+		// body[0] = version, body[1] = pallet, body[2] = call
+		let version = body[0];
+		let pallet = body[1];
+		let call = body[2];
+		let call_data = &body[3..];
+
+		// Parse the inherent data
+		let (mut validation_data, relay_chain_state, remaining) =
+			Self::parse_inherent_data(call_data)?;
 
 		eprintln!(
-			"[ParachainInherent] Found relay_parent_number {} at offset {}",
-			known_relay_block, relay_parent_offset
+			"[ParachainInherent] Decoded: relay_parent_number={}, storage_root=0x{}, proof_nodes={}",
+			validation_data.relay_parent_number,
+			hex::encode(&validation_data.relay_parent_storage_root),
+			relay_chain_state.trie_nodes.len()
 		);
 
-		// Calculate new number
-		let new_number = known_relay_block.saturating_add(increment);
+		// Convert to sp_trie::StorageProof for manipulation
+		let proof: StorageProof = relay_chain_state.into();
+
+		// Read the current relay slot from the proof
+		let current_relay_slot: u64 = relay_proof::read_from_proof(
+			&proof,
+			&validation_data.relay_parent_storage_root,
+			&relay_proof::CURRENT_SLOT_KEY,
+		)
+		.map_err(|e| BlockBuilderError::InherentProvider {
+			provider: "ParachainSystem".to_string(),
+			message: format!("Failed to read current slot from proof: {}", e),
+		})?
+		.ok_or_else(|| BlockBuilderError::InherentProvider {
+			provider: "ParachainSystem".to_string(),
+			message: "CURRENT_SLOT not found in relay chain proof".to_string(),
+		})?;
+
+		// Increment relay slot by 2 (12s para block / 6s relay slot = 2)
+		// This ensures the derived para slot matches the timestamp we'll set
+		let new_relay_slot = current_relay_slot.saturating_add(2);
 
 		eprintln!(
-			"[ParachainInherent] Patching relay parent number: {} -> {}",
-			known_relay_block, new_number
+			"[ParachainInherent] Relay slot: {} -> {}",
+			current_relay_slot, new_relay_slot
 		);
 
-		// Create new extrinsic with patched number
-		let mut new_body = body.to_vec();
-		new_body[relay_parent_offset..relay_parent_offset + 4]
-			.copy_from_slice(&new_number.to_le_bytes());
+		// Construct the Paras::Heads(para_id) key
+		let heads_key = relay_proof::paras_heads_key(para_id);
 
-		// Re-encode with compact length prefix
-		// Note: since we're only changing a fixed-size field, the length doesn't change
-		let mut result = encode_compact_len(compact_len);
+		eprintln!(
+			"[ParachainInherent] Updating Paras::Heads({}) with {} bytes",
+			para_id,
+			para_head.len()
+		);
+
+		// The value is the HeadData which is just the encoded header wrapped in a Vec
+		let head_data = para_head.to_vec().encode();
+
+		// Update both keys in a single modify_proof call
+		let updates: Vec<(&[u8], Vec<u8>)> = vec![
+			(&heads_key[..], head_data),
+			(&relay_proof::CURRENT_SLOT_KEY[..], new_relay_slot.encode()),
+		];
+
+		let (new_root, new_proof) = relay_proof::modify_proof(
+			&proof,
+			&validation_data.relay_parent_storage_root,
+			updates.into_iter(),
+		)
+		.map_err(|e| BlockBuilderError::InherentProvider {
+			provider: "ParachainSystem".to_string(),
+			message: format!("Failed to modify relay proof: {}", e),
+		})?;
+
+		// Update validation data with new storage root
+		validation_data.relay_parent_storage_root = new_root;
+
+		eprintln!(
+			"[ParachainInherent] Updated storage_root=0x{}",
+			hex::encode(&new_root)
+		);
+
+		// Convert new proof back to our type
+		let new_relay_state: RelayChainStateProof = new_proof.into();
+
+		// Re-encode the extrinsic
+		let mut new_call_data = Vec::new();
+		new_call_data.extend(validation_data.encode());
+		new_call_data.extend(new_relay_state.encode());
+		new_call_data.extend(remaining);
+
+		// Build new body
+		let mut new_body = vec![version, pallet, call];
+		new_body.extend(new_call_data);
+
+		// Encode with compact length prefix
+		let mut result = Compact(new_body.len() as u32).encode();
 		result.extend(new_body);
 
-		Some(result)
+		eprintln!(
+			"[ParachainInherent] Re-encoded extrinsic: {} bytes (was {} bytes)",
+			result.len(),
+			ext.len()
+		);
+
+		Ok(result)
 	}
 }
 
 /// Decode a compact length prefix from SCALE-encoded data.
-/// Returns (length_value, remaining_bytes).
 fn decode_compact_len(data: &[u8]) -> Option<(u32, &[u8])> {
 	if data.is_empty() {
 		return None;
@@ -180,12 +338,10 @@ fn decode_compact_len(data: &[u8]) -> Option<(u32, &[u8])> {
 
 	match mode {
 		0b00 => {
-			// Single byte mode: 6 bits of data
 			let len = (first_byte >> 2) as u32;
 			Some((len, &data[1..]))
 		},
 		0b01 => {
-			// Two byte mode: 14 bits of data
 			if data.len() < 2 {
 				return None;
 			}
@@ -193,24 +349,14 @@ fn decode_compact_len(data: &[u8]) -> Option<(u32, &[u8])> {
 			Some((len, &data[2..]))
 		},
 		0b10 => {
-			// Four byte mode: 30 bits of data
 			if data.len() < 4 {
 				return None;
 			}
 			let len = u32::from_le_bytes([data[0], data[1], data[2], data[3]]) >> 2;
 			Some((len, &data[4..]))
 		},
-		0b11 => {
-			// Big integer mode (not typically used for extrinsic lengths)
-			None
-		},
 		_ => None,
 	}
-}
-
-/// Encode a u32 as a compact length prefix.
-fn encode_compact_len(value: u32) -> Vec<u8> {
-	Compact(value).encode()
 }
 
 #[async_trait]
@@ -224,21 +370,19 @@ impl InherentProvider for ParachainInherent {
 		parent: &Block,
 		_executor: &RuntimeExecutor,
 	) -> Result<Vec<Vec<u8>>, BlockBuilderError> {
-		// Check if ParachainSystem pallet exists in metadata.
-		// If not, this is a relay chain or standalone chain - gracefully skip.
+		// Check if ParachainSystem pallet exists in metadata
 		let metadata = parent.metadata().await?;
 
 		let pallet = match metadata.pallet_by_name(strings::metadata::PALLET_NAME) {
 			Some(p) => p,
 			None => {
-				// No ParachainSystem pallet - this is not a parachain runtime
+				// No ParachainSystem pallet - not a parachain runtime
 				return Ok(vec![]);
 			},
 		};
 
 		let pallet_index = pallet.index();
 
-		// Get the call index for setValidationData
 		let call_variant = pallet
 			.call_variant_by_name(strings::metadata::SET_VALIDATION_DATA_CALL_NAME)
 			.ok_or_else(|| BlockBuilderError::InherentProvider {
@@ -258,57 +402,44 @@ impl InherentProvider for ParachainInherent {
 		);
 		eprintln!("[ParachainInherent] Parent block has {} extrinsics", parent.extrinsics.len());
 
-		// Read the last relay chain block number from storage
-		let last_relay_block = Self::read_last_relay_chain_block_number(parent).await;
-		eprintln!(
-			"[ParachainInherent] lastRelayChainBlockNumber from storage: {:?}",
-			last_relay_block
-		);
+		// Read the parachain ID from storage
+		let para_id = Self::read_parachain_id(parent).await.ok_or_else(|| {
+			BlockBuilderError::InherentProvider {
+				provider: self.identifier().to_string(),
+				message: "Failed to read ParachainId from storage".to_string(),
+			}
+		})?;
+		eprintln!("[ParachainInherent] ParachainId from storage: {}", para_id);
 
 		// Find the setValidationData extrinsic in the parent block
 		let validation_ext =
 			Self::find_validation_data_extrinsic(&parent.extrinsics, pallet_index, call_index);
 
-		match (validation_ext, last_relay_block) {
-			(Some(ext), Some(relay_block)) => {
+		match validation_ext {
+			Some(ext) => {
 				eprintln!(
 					"[ParachainInherent] Found setValidationData extrinsic ({} bytes)",
 					ext.len()
 				);
 
-				// Patch the relay parent number (increment by 1)
-				match Self::patch_relay_parent_number(ext, relay_block, 1) {
-					Some(patched) => {
-						eprintln!(
-							"[ParachainInherent] Patched extrinsic ({} bytes)",
-							patched.len()
-						);
-						Ok(vec![patched])
-					},
-					None => {
-						eprintln!(
-							"[ParachainInherent] Failed to find relay block {} in extrinsic",
-							relay_block
-						);
-						// Can't patch - return empty and let block building fail with clear error
-						Ok(vec![])
-					},
-				}
-			},
-			(Some(ext), None) => {
+				// The para head is the parent block's header.
+				// We inject this into the relay chain proof at Paras::Heads(para_id)
+				// so the parachain runtime's validation check finds our block.
 				eprintln!(
-					"[ParachainInherent] Found extrinsic but no storage value, using original"
+					"[ParachainInherent] Parent block header: {} bytes, hash=0x{}",
+					parent.header.len(),
+					hex::encode(blake2_256(&parent.header))
 				);
-				// No storage value but have extrinsic - try using it as-is
-				Ok(vec![ext.clone()])
+
+				// Process the inherent: update proof with our para head
+				let processed = self.process_inherent(ext, para_id, &parent.header)?;
+
+				Ok(vec![processed])
 			},
-			(None, _) => {
+			None => {
 				eprintln!(
 					"[ParachainInherent] No setValidationData extrinsic found in parent block"
 				);
-				// No validation data in parent - this might be the first block after fork
-				// For now, return empty and let the timestamp inherent try without it
-				// This will likely fail, but provides a clear error message
 				Ok(vec![])
 			},
 		}
@@ -320,18 +451,6 @@ mod tests {
 	use super::*;
 
 	#[test]
-	fn default_creates_provider_without_para_id() {
-		let provider = ParachainInherent::default();
-		assert!(provider.para_id.is_none());
-	}
-
-	#[test]
-	fn with_para_id_sets_para_id() {
-		let provider = ParachainInherent::with_para_id(1000);
-		assert_eq!(provider.para_id, Some(1000));
-	}
-
-	#[test]
 	fn identifier_returns_parachain_system() {
 		let provider = ParachainInherent::default();
 		assert_eq!(provider.identifier(), strings::IDENTIFIER);
@@ -339,7 +458,6 @@ mod tests {
 
 	#[test]
 	fn decode_compact_len_single_byte() {
-		// 6 << 2 = 24 (0x18) encodes length 6 in single-byte mode
 		let data = [0x18, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06];
 		let (len, remainder) = decode_compact_len(&data).unwrap();
 		assert_eq!(len, 6);
@@ -348,27 +466,19 @@ mod tests {
 
 	#[test]
 	fn decode_compact_len_two_byte() {
-		// 100 << 2 | 0b01 = 0x191 encodes length 100 in two-byte mode
-		let data = [0x91, 0x01, 0x00, 0x00]; // LE encoding
+		let data = [0x91, 0x01, 0x00, 0x00];
 		let (len, remainder) = decode_compact_len(&data).unwrap();
 		assert_eq!(len, 100);
 		assert_eq!(remainder.len(), 2);
 	}
 
 	#[test]
-	fn encode_compact_len_single_byte() {
-		let encoded = encode_compact_len(6);
-		assert_eq!(encoded, vec![0x18]); // 6 << 2 = 24
-	}
-
-	#[test]
 	fn find_validation_data_extrinsic_finds_matching() {
-		// Create a mock extrinsic: compact_len + version + pallet + call + data
-		let mut ext = encode_compact_len(10); // length prefix
-		ext.push(EXTRINSIC_FORMAT_VERSION); // version
-		ext.push(51); // pallet index
-		ext.push(0); // call index
-		ext.extend([0u8; 7]); // padding to reach length
+		let mut ext = Compact(10u32).encode();
+		ext.push(EXTRINSIC_FORMAT_VERSION_V4);
+		ext.push(51);
+		ext.push(0);
+		ext.extend([0u8; 7]);
 
 		let extrinsics = vec![ext.clone()];
 		let result = ParachainInherent::find_validation_data_extrinsic(&extrinsics, 51, 0);
@@ -376,16 +486,33 @@ mod tests {
 	}
 
 	#[test]
-	fn find_validation_data_extrinsic_ignores_non_matching() {
-		// Create a mock extrinsic with different pallet/call
-		let mut ext = encode_compact_len(5);
-		ext.push(EXTRINSIC_FORMAT_VERSION);
-		ext.push(10); // different pallet
-		ext.push(5); // different call
-		ext.extend([0u8; 2]);
+	fn relay_chain_state_proof_roundtrip() {
+		let mut nodes = BTreeSet::new();
+		nodes.insert(vec![1, 2, 3]);
+		nodes.insert(vec![4, 5, 6]);
 
-		let extrinsics = vec![ext];
-		let result = ParachainInherent::find_validation_data_extrinsic(&extrinsics, 51, 0);
-		assert!(result.is_none());
+		let proof = RelayChainStateProof { trie_nodes: nodes.clone() };
+		let encoded = proof.encode();
+		let decoded = RelayChainStateProof::decode(&mut &encoded[..]).unwrap();
+
+		assert_eq!(decoded.trie_nodes, nodes);
+	}
+
+	#[test]
+	fn persisted_validation_data_roundtrip() {
+		let data = PersistedValidationData {
+			parent_head: vec![1, 2, 3, 4],
+			relay_parent_number: 12345,
+			relay_parent_storage_root: [0xab; 32],
+			max_pov_size: 5_000_000,
+		};
+
+		let encoded = data.encode();
+		let decoded = PersistedValidationData::decode(&mut &encoded[..]).unwrap();
+
+		assert_eq!(decoded.parent_head, vec![1, 2, 3, 4]);
+		assert_eq!(decoded.relay_parent_number, 12345);
+		assert_eq!(decoded.relay_parent_storage_root, [0xab; 32]);
+		assert_eq!(decoded.max_pov_size, 5_000_000);
 	}
 }

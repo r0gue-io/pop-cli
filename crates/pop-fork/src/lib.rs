@@ -77,7 +77,7 @@ pub use block::{Block, BlockForkPoint};
 pub use blockchain::{Blockchain, BlockchainError, BlockchainEvent, ChainType};
 pub use builder::{
 	ApplyExtrinsicResult, BlockBuilder, ConsensusEngineId, DigestItem, consensus_engine,
-	create_next_header,
+	create_next_header, create_next_header_with_slot,
 };
 pub use cache::{PrefixScanProgress, StorageCache};
 pub use error::{
@@ -88,7 +88,9 @@ pub use executor::{
 	ExecutorConfig, RuntimeCallResult, RuntimeExecutor, RuntimeLog, RuntimeVersion,
 	SignatureMockMode,
 };
-pub use inherent::{InherentProvider, ParachainInherent, TimestampInherent, default_providers};
+pub use inherent::{
+	InherentProvider, ParachainInherent, TimestampInherent, default_providers,
+};
 pub use local::LocalStorageLayer;
 pub use models::BlockRow;
 pub use remote::RemoteStorageLayer;

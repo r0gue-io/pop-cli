@@ -51,7 +51,7 @@
 use crate::{
 	Block, BlockBuilder, BlockBuilderError, BlockError, BlockForkPoint, CacheError, ExecutorConfig,
 	ExecutorError, ForkRpcClient, InherentProvider, RuntimeExecutor, StorageCache,
-	create_next_header, default_providers,
+	create_next_header, create_next_header_with_slot, default_providers,
 };
 use scale::Encode;
 use std::{path::Path, sync::Arc};
@@ -622,8 +622,8 @@ impl Blockchain {
 		let executor =
 			RuntimeExecutor::with_config(runtime_code, None, self.executor_config.clone())?;
 
-		// Create header for new block
-		let header = create_next_header(&head, vec![]);
+		// Create header for new block with automatic slot digest injection
+		let header = create_next_header_with_slot(&head, &executor, vec![]).await?;
 
 		// Convert Arc providers to Box for BlockBuilder
 		let providers: Vec<Box<dyn InherentProvider>> = self

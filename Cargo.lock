@@ -9334,11 +9334,13 @@ dependencies = [
  "serde_json",
  "smoldot 0.21.0",
  "sp-core",
+ "sp-trie",
  "subxt 0.44.2",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "tokio-test",
+ "trie-db",
  "url",
 ]
 

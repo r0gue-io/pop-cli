@@ -55,7 +55,8 @@
 //! ```
 
 use crate::{
-	Block, BlockBuilderError, RuntimeCallResult, RuntimeExecutor, inherent::InherentProvider,
+	Block, BlockBuilderError, RuntimeCallResult, RuntimeExecutor,
+	inherent::{InherentProvider, relay::{PARA_INHERENT_PALLET, para_inherent_included_key}},
 	strings::builder::runtime_api,
 };
 use scale::{Decode, Encode};
@@ -238,6 +239,23 @@ impl BlockBuilder {
 			})?;
 		eprintln!("[BlockBuilder] Core_initialize_block OK");
 
+		// Print runtime logs if any
+		if !result.logs.is_empty() {
+			eprintln!("[BlockBuilder] Runtime logs from initialize:");
+			for log in &result.logs {
+				let level = match log.level {
+					Some(0) => "ERROR",
+					Some(1) => "WARN",
+					Some(2) => "INFO",
+					Some(3) => "DEBUG",
+					Some(4) => "TRACE",
+					_ => "LOG",
+				};
+				let target = log.target.as_deref().unwrap_or("runtime");
+				eprintln!("  [{level}] {target}: {}", log.message);
+			}
+		}
+
 		// Apply storage changes
 		self.apply_storage_diff(&result.storage_diff)?;
 
@@ -302,17 +320,105 @@ impl BlockBuilder {
 					);
 					e
 				})?;
-				eprintln!("[BlockBuilder] Inherent {i} from {} OK", provider.identifier());
+				// Check dispatch result - format: Result<Result<(), DispatchError>, TransactionValidityError>
+				// First byte: 0x00 = Ok (applied), 0x01 = Err (transaction invalid)
+				// If Ok, second byte: 0x00 = dispatch success, 0x01 = dispatch error
+				let dispatch_ok = match (result.output.first(), result.output.get(1)) {
+					(Some(0x00), Some(0x00)) => {
+						eprintln!("[BlockBuilder] Inherent {i} from {} OK (dispatch success)", provider.identifier());
+						true
+					},
+					(Some(0x00), Some(0x01)) => {
+						eprintln!(
+							"[BlockBuilder] Inherent {i} from {} DISPATCH FAILED: {:?}",
+							provider.identifier(),
+							hex::encode(&result.output)
+						);
+						false
+					},
+					(Some(0x01), _) => {
+						eprintln!(
+							"[BlockBuilder] Inherent {i} from {} INVALID: {:?}",
+							provider.identifier(),
+							hex::encode(&result.output)
+						);
+						false
+					},
+					_ => {
+						eprintln!(
+							"[BlockBuilder] Inherent {i} from {} UNKNOWN RESULT: {:?}",
+							provider.identifier(),
+							hex::encode(&result.output)
+						);
+						false
+					},
+				};
 
-				// Inherents should always succeed - apply storage changes
+				// Print runtime logs if any
+				if !result.logs.is_empty() {
+					eprintln!("[BlockBuilder] Runtime logs from inherent {i}:");
+					for log in &result.logs {
+						let level = match log.level {
+							Some(0) => "ERROR",
+							Some(1) => "WARN",
+							Some(2) => "INFO",
+							Some(3) => "DEBUG",
+							Some(4) => "TRACE",
+							_ => "LOG",
+						};
+						let target = log.target.as_deref().unwrap_or("runtime");
+						eprintln!("  [{level}] {target}: {}", log.message);
+					}
+				}
+
+				// For inherents, dispatch failures are fatal
+				if !dispatch_ok {
+					return Err(BlockBuilderError::InherentProvider {
+						provider: provider.identifier().to_string(),
+						message: format!(
+							"Inherent dispatch failed: {}",
+							hex::encode(&result.output)
+						),
+					});
+				}
+
+				// Apply storage changes
 				self.apply_storage_diff(&result.storage_diff)?;
 				self.extrinsics.push(inherent.clone());
 				results.push(result);
 			}
 		}
 
+		// Mock relay chain storage if needed
+		self.mock_relay_chain_inherent().await?;
+
 		self.phase = BuilderPhase::InherentsApplied;
 		Ok(results)
+	}
+
+	/// Mock the `ParaInherent::Included` storage for relay chain runtimes.
+	///
+	/// Relay chains require `ParaInherent::Included` to be set every block,
+	/// otherwise `on_finalize` panics. Instead of constructing a valid
+	/// `paras_inherent.enter` extrinsic, we directly set the storage.
+	///
+	/// This is a no-op for non-relay chains (chains without `ParaInherent` pallet).
+	async fn mock_relay_chain_inherent(&self) -> Result<(), BlockBuilderError> {
+		let metadata = self.parent.metadata().await?;
+
+		// Check if this is a relay chain (has ParaInherent pallet)
+		if metadata.pallet_by_name(PARA_INHERENT_PALLET).is_none() {
+			return Ok(());
+		}
+
+		eprintln!("[BlockBuilder] Detected relay chain - mocking ParaInherent::Included storage");
+
+		// Set ParaInherent::Included to Some(())
+		// The value is () which encodes to empty bytes, but FRAME stores Some(()) as existing key
+		let key = para_inherent_included_key();
+		self.storage().set_batch(&[(&key, Some(&[][..]))])?;
+
+		Ok(())
 	}
 
 	/// Apply a user extrinsic to the block.
@@ -412,6 +518,23 @@ impl BlockBuilder {
 				e
 			})?;
 		eprintln!("[BlockBuilder] BlockBuilder_finalize_block OK");
+
+		// Print runtime logs if any
+		if !result.logs.is_empty() {
+			eprintln!("[BlockBuilder] Runtime logs from finalize:");
+			for log in &result.logs {
+				let level = match log.level {
+					Some(0) => "ERROR",
+					Some(1) => "WARN",
+					Some(2) => "INFO",
+					Some(3) => "DEBUG",
+					Some(4) => "TRACE",
+					_ => "LOG",
+				};
+				let target = log.target.as_deref().unwrap_or("runtime");
+				eprintln!("  [{level}] {target}: {}", log.message);
+			}
+		}
 
 		// Apply final storage changes
 		self.apply_storage_diff(&result.storage_diff)?;
@@ -598,6 +721,148 @@ pub fn create_next_header(parent: &Block, digest_items: Vec<DigestItem>) -> Vec<
 		digest: digest_items,
 	};
 	header.encode()
+}
+
+/// Default slot duration for relay chains (6 seconds).
+const DEFAULT_RELAY_SLOT_DURATION_MS: u64 = 6_000;
+
+/// Default slot duration for parachains (12 seconds).
+const DEFAULT_PARA_SLOT_DURATION_MS: u64 = 12_000;
+
+/// Create a header for the next block with automatic slot digest injection.
+///
+/// This function automatically detects the consensus type (Aura/Babe) and
+/// injects the appropriate slot digest into the header. The slot is calculated
+/// based on the parent block's timestamp and slot duration.
+///
+/// # Arguments
+///
+/// * `parent` - The parent block to build upon
+/// * `executor` - Runtime executor for calling runtime APIs
+/// * `additional_digest_items` - Additional digest items to include (e.g., seal)
+///
+/// # Returns
+///
+/// Encoded header bytes ready for `BlockBuilder::new()`.
+///
+/// # Slot Calculation
+///
+/// The slot is calculated as:
+/// ```text
+/// next_timestamp = current_timestamp + slot_duration
+/// next_slot = next_timestamp / slot_duration
+/// ```
+///
+/// # Consensus Detection
+///
+/// The function detects the consensus type by checking runtime metadata:
+/// - If `Aura` pallet exists → inject `PreRuntime(*b"aura", slot)`
+/// - If `Babe` pallet exists → inject `PreRuntime(*b"BABE", slot)`
+/// - Otherwise → no slot injection
+///
+/// # Example
+///
+/// ```ignore
+/// use pop_fork::{create_next_header_with_slot, Block, RuntimeExecutor};
+///
+/// // Create header with automatic slot detection and injection
+/// let header = create_next_header_with_slot(&parent, &executor, vec![]).await?;
+/// let builder = BlockBuilder::new(parent_block, executor, header, providers);
+/// ```
+pub async fn create_next_header_with_slot(
+	parent: &Block,
+	executor: &RuntimeExecutor,
+	additional_digest_items: Vec<DigestItem>,
+) -> Result<Vec<u8>, BlockBuilderError> {
+	use crate::inherent::{
+		TimestampInherent,
+		slot::{
+			ConsensusType, calculate_next_slot, detect_consensus_type,
+			encode_aura_slot, encode_babe_predigest,
+		},
+	};
+
+	let metadata = parent.metadata().await?;
+	let storage = parent.storage();
+
+	// Detect consensus type from metadata
+	let consensus_type = detect_consensus_type(&metadata);
+
+	// Build digest items
+	let mut digest_items = Vec::new();
+
+	// Check if caller already provided a PreRuntime digest for this consensus
+	let has_preruntime = additional_digest_items.iter().any(|item| match item {
+		DigestItem::PreRuntime(engine, _) => {
+			(consensus_type == ConsensusType::Aura && *engine == consensus_engine::AURA)
+				|| (consensus_type == ConsensusType::Babe && *engine == consensus_engine::BABE)
+		},
+		_ => false,
+	});
+
+	// Inject slot digest if needed
+	if !has_preruntime && consensus_type != ConsensusType::Unknown {
+		// Get slot duration - use parachain default for Aura (most common),
+		// relay default for Babe
+		let default_duration = match consensus_type {
+			ConsensusType::Aura => DEFAULT_PARA_SLOT_DURATION_MS,
+			ConsensusType::Babe => DEFAULT_RELAY_SLOT_DURATION_MS,
+			ConsensusType::Unknown => DEFAULT_RELAY_SLOT_DURATION_MS,
+		};
+
+		let slot_duration = TimestampInherent::get_slot_duration_from_runtime(
+			executor,
+			storage,
+			&metadata,
+			default_duration,
+		)
+		.await;
+
+		// Read current timestamp from storage
+		let timestamp_key = TimestampInherent::timestamp_now_key();
+		let current_timestamp = match storage.get(parent.number, &timestamp_key).await? {
+			Some(value) if value.value.is_some() => {
+				let bytes = value.value.as_ref().expect("checked above");
+				u64::decode(&mut bytes.as_slice()).unwrap_or(0)
+			},
+			_ => {
+				// Genesis or early block: use system time as fallback
+				std::time::SystemTime::now()
+					.duration_since(std::time::UNIX_EPOCH)
+					.map(|d| d.as_millis() as u64)
+					.unwrap_or(0)
+			},
+		};
+
+		// Calculate next slot
+		let next_slot = calculate_next_slot(current_timestamp, slot_duration);
+
+		eprintln!(
+			"[BlockBuilder] Auto-injecting slot digest: consensus={:?}, slot={}, \
+			 current_timestamp={}, slot_duration={}",
+			consensus_type, next_slot, current_timestamp, slot_duration
+		);
+
+		// Create the appropriate PreRuntime digest
+		// Aura: just the slot encoded as u64
+		// Babe: a PreDigest::SecondaryPlain struct with authority_index and slot
+		let (engine, slot_bytes) = match consensus_type {
+			ConsensusType::Aura => (consensus_engine::AURA, encode_aura_slot(next_slot)),
+			ConsensusType::Babe => {
+				// Use authority_index 0 for forked execution (we're not a real validator)
+				(consensus_engine::BABE, encode_babe_predigest(next_slot, 0))
+			},
+			ConsensusType::Unknown => unreachable!("checked above"),
+		};
+
+		digest_items.push(DigestItem::PreRuntime(engine, slot_bytes));
+	}
+
+	// Add caller-provided digest items
+	digest_items.extend(additional_digest_items);
+
+	// Create and encode header using the existing function
+	Ok(create_next_header(parent, digest_items))
 }
 
 #[cfg(test)]
