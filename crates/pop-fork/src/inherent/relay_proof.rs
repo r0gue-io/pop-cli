@@ -173,11 +173,6 @@ where
 			TrieDBMutBuilder::<RelayLayout>::from_existing(&mut db, &mut root_hash).build();
 
 		for (key, value) in updates {
-			eprintln!(
-				"[RelayProof] Updating key 0x{}... with {} bytes",
-				hex::encode(&key[..8.min(key.len())]),
-				value.len()
-			);
 			trie.insert(key, &value)
 				.map_err(|e| ProofError::TrieError(format!("Failed to insert: {:?}", e)))?;
 		}
@@ -188,8 +183,6 @@ where
 
 	// Extract the new proof from the modified database
 	let new_proof = extract_proof_from_db(&db);
-
-	eprintln!("[RelayProof] New storage root: 0x{}", hex::encode(root_hash));
 
 	Ok((root_hash.into(), new_proof))
 }

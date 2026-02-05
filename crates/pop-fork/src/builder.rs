@@ -62,6 +62,7 @@ use crate::{
 	},
 	strings::builder::runtime_api,
 };
+use log::{error, info};
 use scale::{Decode, Encode};
 use subxt::{Metadata, config::substrate::H256};
 
@@ -231,33 +232,16 @@ impl BlockBuilder {
 		}
 
 		// Call Core_initialize_block with the header
-		eprintln!("[BlockBuilder] Calling Core_initialize_block...");
+		info!("[BlockBuilder] Calling Core_initialize_block...");
 		let result = self
 			.executor
 			.call(runtime_api::CORE_INITIALIZE_BLOCK, &self.header, self.storage())
 			.await
 			.map_err(|e| {
-				eprintln!("[BlockBuilder] Core_initialize_block FAILED: {e}");
+				error!("[BlockBuilder] Core_initialize_block FAILED: {e}");
 				e
 			})?;
-		eprintln!("[BlockBuilder] Core_initialize_block OK");
-
-		// Print runtime logs if any
-		if !result.logs.is_empty() {
-			eprintln!("[BlockBuilder] Runtime logs from initialize:");
-			for log in &result.logs {
-				let level = match log.level {
-					Some(0) => "ERROR",
-					Some(1) => "WARN",
-					Some(2) => "INFO",
-					Some(3) => "DEBUG",
-					Some(4) => "TRACE",
-					_ => "LOG",
-				};
-				let target = log.target.as_deref().unwrap_or("runtime");
-				eprintln!("  [{level}] {target}: {}", log.message);
-			}
-		}
+		info!("[BlockBuilder] Core_initialize_block OK");
 
 		// Apply storage changes
 		self.apply_storage_diff(&result.storage_diff)?;
@@ -295,29 +279,19 @@ impl BlockBuilder {
 
 		// Collect inherents from all providers
 		for provider in &self.inherent_providers {
-			eprintln!("[BlockBuilder] Getting inherents from provider: {}", provider.identifier());
+			info!("[BlockBuilder] Getting inherents from provider: {}", provider.identifier());
 			let inherents = provider.provide(&self.parent, &self.executor).await.map_err(|e| {
-				eprintln!("[BlockBuilder] Provider {} FAILED: {e}", provider.identifier());
+				error!("[BlockBuilder] Provider {} FAILED: {e}", provider.identifier());
 				BlockBuilderError::InherentProvider {
 					provider: provider.identifier().to_string(),
 					message: e.to_string(),
 				}
 			})?;
-			eprintln!(
-				"[BlockBuilder] Provider {} returned {} inherents",
-				provider.identifier(),
-				inherents.len()
-			);
 
 			// Apply each inherent
 			for (i, inherent) in inherents.iter().enumerate() {
-				eprintln!(
-					"[BlockBuilder] Applying inherent {i} from {} ({} bytes)...",
-					provider.identifier(),
-					inherent.len()
-				);
 				let result = self.call_apply_extrinsic(inherent).await.map_err(|e| {
-					eprintln!(
+					error!(
 						"[BlockBuilder] Inherent {i} from {} FAILED: {e}",
 						provider.identifier()
 					);
@@ -329,14 +303,14 @@ impl BlockBuilder {
 				// dispatch error
 				let dispatch_ok = match (result.output.first(), result.output.get(1)) {
 					(Some(0x00), Some(0x00)) => {
-						eprintln!(
+						info!(
 							"[BlockBuilder] Inherent {i} from {} OK (dispatch success)",
 							provider.identifier()
 						);
 						true
 					},
 					(Some(0x00), Some(0x01)) => {
-						eprintln!(
+						error!(
 							"[BlockBuilder] Inherent {i} from {} DISPATCH FAILED: {:?}",
 							provider.identifier(),
 							hex::encode(&result.output)
@@ -344,39 +318,15 @@ impl BlockBuilder {
 						false
 					},
 					(Some(0x01), _) => {
-						eprintln!(
+						error!(
 							"[BlockBuilder] Inherent {i} from {} INVALID: {:?}",
 							provider.identifier(),
 							hex::encode(&result.output)
 						);
 						false
 					},
-					_ => {
-						eprintln!(
-							"[BlockBuilder] Inherent {i} from {} UNKNOWN RESULT: {:?}",
-							provider.identifier(),
-							hex::encode(&result.output)
-						);
-						false
-					},
+					_ => false,
 				};
-
-				// Print runtime logs if any
-				if !result.logs.is_empty() {
-					eprintln!("[BlockBuilder] Runtime logs from inherent {i}:");
-					for log in &result.logs {
-						let level = match log.level {
-							Some(0) => "ERROR",
-							Some(1) => "WARN",
-							Some(2) => "INFO",
-							Some(3) => "DEBUG",
-							Some(4) => "TRACE",
-							_ => "LOG",
-						};
-						let target = log.target.as_deref().unwrap_or("runtime");
-						eprintln!("  [{level}] {target}: {}", log.message);
-					}
-				}
 
 				// For inherents, dispatch failures are fatal
 				if !dispatch_ok {
@@ -417,8 +367,6 @@ impl BlockBuilder {
 		if metadata.pallet_by_name(PARA_INHERENT_PALLET).is_none() {
 			return Ok(());
 		}
-
-		eprintln!("[BlockBuilder] Detected relay chain - mocking ParaInherent::Included storage");
 
 		// Set ParaInherent::Included to Some(())
 		// The value is () which encodes to empty bytes, but FRAME stores Some(()) as existing key
@@ -515,33 +463,16 @@ impl BlockBuilder {
 		}
 
 		// Call BlockBuilder_finalize_block
-		eprintln!("[BlockBuilder] Calling BlockBuilder_finalize_block...");
+		info!("[BlockBuilder] Calling BlockBuilder_finalize_block...");
 		let result = self
 			.executor
 			.call(runtime_api::BLOCK_BUILDER_FINALIZE_BLOCK, &[], self.storage())
 			.await
 			.map_err(|e| {
-				eprintln!("[BlockBuilder] BlockBuilder_finalize_block FAILED: {e}");
+				error!("[BlockBuilder] BlockBuilder_finalize_block FAILED: {e}");
 				e
 			})?;
-		eprintln!("[BlockBuilder] BlockBuilder_finalize_block OK");
-
-		// Print runtime logs if any
-		if !result.logs.is_empty() {
-			eprintln!("[BlockBuilder] Runtime logs from finalize:");
-			for log in &result.logs {
-				let level = match log.level {
-					Some(0) => "ERROR",
-					Some(1) => "WARN",
-					Some(2) => "INFO",
-					Some(3) => "DEBUG",
-					Some(4) => "TRACE",
-					_ => "LOG",
-				};
-				let target = log.target.as_deref().unwrap_or("runtime");
-				eprintln!("  [{level}] {target}: {}", log.message);
-			}
-		}
+		info!("[BlockBuilder] BlockBuilder_finalize_block OK");
 
 		// Apply final storage changes
 		self.apply_storage_diff(&result.storage_diff)?;
@@ -842,12 +773,6 @@ pub async fn create_next_header_with_slot(
 
 		// Calculate next slot
 		let next_slot = calculate_next_slot(current_timestamp, slot_duration);
-
-		eprintln!(
-			"[BlockBuilder] Auto-injecting slot digest: consensus={:?}, slot={}, \
-			 current_timestamp={}, slot_duration={}",
-			consensus_type, next_slot, current_timestamp, slot_duration
-		);
 
 		// Create the appropriate PreRuntime digest
 		// Aura: just the slot encoded as u64

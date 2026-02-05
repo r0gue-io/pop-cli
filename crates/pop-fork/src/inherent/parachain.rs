@@ -39,6 +39,7 @@ use crate::{
 	strings::{executor::magic_signature, inherent::parachain as strings},
 };
 use async_trait::async_trait;
+use log::warn;
 use scale::{Compact, Decode, Encode};
 use sp_core::blake2_256;
 use sp_trie::StorageProof;
@@ -209,9 +210,8 @@ impl ParachainInherent {
 		pallet_index: u8,
 		call_index: u8,
 	) -> Option<&Vec<u8>> {
-		for (i, ext) in extrinsics.iter().enumerate() {
+		for ext in extrinsics.iter() {
 			let Some((_len, remainder)) = decode_compact_len(ext) else {
-				eprintln!("[ParachainInherent] ext[{}]: failed to decode compact length", i);
 				continue;
 			};
 
@@ -225,10 +225,6 @@ impl ParachainInherent {
 				version == EXTRINSIC_FORMAT_VERSION_V4 || version == EXTRINSIC_FORMAT_VERSION_V5;
 
 			if !is_valid_version {
-				eprintln!(
-					"[ParachainInherent] ext[{}]: version {} not recognized (expected 4 or 5)",
-					i, version
-				);
 				continue;
 			}
 
@@ -236,10 +232,6 @@ impl ParachainInherent {
 				remainder[1] == pallet_index &&
 				remainder[2] == call_index
 			{
-				eprintln!(
-					"[ParachainInherent] ext[{}]: MATCH! pallet={}, call={}, version={}",
-					i, pallet_index, call_index, version
-				);
 				return Some(ext);
 			}
 		}
@@ -306,8 +298,6 @@ impl ParachainInherent {
 			return descendants;
 		}
 
-		eprintln!("[ParachainInherent] Processing {} relay parent descendants", descendants.len());
-
 		// 1. Update first header's state_root to match the new storage root
 		descendants[0].state_root = new_storage_root;
 		descendants[0].replace_seal_with_magic();
@@ -351,15 +341,6 @@ impl ParachainInherent {
 		let collator_peer_id = parsed.collator_peer_id;
 		let remaining = parsed.remaining;
 
-		eprintln!(
-			"[ParachainInherent] Decoded: relay_parent_number={}, storage_root=0x{}, proof_nodes={}, descendants={}, remaining={}",
-			validation_data.relay_parent_number,
-			hex::encode(validation_data.relay_parent_storage_root),
-			relay_chain_state.trie_nodes.len(),
-			relay_parent_descendants.len(),
-			remaining.len()
-		);
-
 		// Convert to sp_trie::StorageProof for manipulation
 		let proof: StorageProof = relay_chain_state.into();
 
@@ -381,16 +362,8 @@ impl ParachainInherent {
 		// Increment relay slot to match the parachain's expected timing
 		let new_relay_slot = current_relay_slot.saturating_add(RELAY_SLOTS_PER_PARA_BLOCK);
 
-		eprintln!("[ParachainInherent] Relay slot: {} -> {}", current_relay_slot, new_relay_slot);
-
 		// Construct the Paras::Heads(para_id) key
 		let heads_key = relay_proof::paras_heads_key(para_id);
-
-		eprintln!(
-			"[ParachainInherent] Updating Paras::Heads({}) with {} bytes",
-			para_id,
-			para_head.len()
-		);
 
 		// The value is the HeadData which is just the encoded header wrapped in a Vec
 		let head_data = para_head.to_vec().encode();
@@ -413,8 +386,6 @@ impl ParachainInherent {
 
 		// Update validation data with new storage root
 		validation_data.relay_parent_storage_root = new_root;
-
-		eprintln!("[ParachainInherent] Updated storage_root=0x{}", hex::encode(new_root));
 
 		// Process relay parent descendants to match the new storage root
 		// This is required for chains with RELAY_PARENT_OFFSET > 0 (e.g., AssetHub-Paseo)
@@ -440,12 +411,6 @@ impl ParachainInherent {
 		// Encode with compact length prefix
 		let mut result = Compact(new_body.len() as u32).encode();
 		result.extend(new_body);
-
-		eprintln!(
-			"[ParachainInherent] Re-encoded extrinsic: {} bytes (was {} bytes)",
-			result.len(),
-			ext.len()
-		);
 
 		Ok(result)
 	}
@@ -520,12 +485,6 @@ impl InherentProvider for ParachainInherent {
 
 		let call_index = call_variant.index;
 
-		eprintln!(
-			"[ParachainInherent] Looking for setValidationData: pallet={}, call={}",
-			pallet_index, call_index
-		);
-		eprintln!("[ParachainInherent] Parent block has {} extrinsics", parent.extrinsics.len());
-
 		// Read the parachain ID from storage
 		let para_id = Self::read_parachain_id(parent).await.ok_or_else(|| {
 			BlockBuilderError::InherentProvider {
@@ -533,7 +492,6 @@ impl InherentProvider for ParachainInherent {
 				message: "Failed to read ParachainId from storage".to_string(),
 			}
 		})?;
-		eprintln!("[ParachainInherent] ParachainId from storage: {}", para_id);
 
 		// Find the setValidationData extrinsic in the parent block
 		let validation_ext =
@@ -541,27 +499,13 @@ impl InherentProvider for ParachainInherent {
 
 		match validation_ext {
 			Some(ext) => {
-				eprintln!(
-					"[ParachainInherent] Found setValidationData extrinsic ({} bytes)",
-					ext.len()
-				);
-
-				// The para head is the parent block's header.
-				// We inject this into the relay chain proof at Paras::Heads(para_id)
-				// so the parachain runtime's validation check finds our block.
-				eprintln!(
-					"[ParachainInherent] Parent block header: {} bytes, hash=0x{}",
-					parent.header.len(),
-					hex::encode(blake2_256(&parent.header))
-				);
-
 				// Process the inherent: update proof with our para head
 				let processed = self.process_inherent(ext, para_id, &parent.header)?;
 
 				Ok(vec![processed])
 			},
 			None => {
-				eprintln!(
+				warn!(
 					"[ParachainInherent] No setValidationData extrinsic found in parent block"
 				);
 				Ok(vec![])
