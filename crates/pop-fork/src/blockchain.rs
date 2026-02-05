@@ -50,10 +50,10 @@
 
 use crate::{
 	Block, BlockBuilder, BlockBuilderError, BlockError, BlockForkPoint, CacheError, ExecutorConfig,
-	ExecutorError, InherentProvider, RuntimeExecutor, StorageCache,
+	ExecutorError, ForkRpcClient, InherentProvider, RuntimeExecutor, StorageCache,
 	builder::ApplyExtrinsicResult,
 	create_next_header_with_slot, default_providers,
-	strings::txpool::{runtime_api, transaction_source}, ForkRpcClient
+	strings::txpool::{runtime_api, transaction_source},
 };
 use scale::Decode;
 use std::{path::Path, sync::Arc};
