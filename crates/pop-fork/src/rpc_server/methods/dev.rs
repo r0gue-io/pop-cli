@@ -60,16 +60,16 @@ impl DevApiServer for DevApi {
 		})?;
 
 		// Build a new block with the pending transactions
-		let block = self
+		let result = self
 			.blockchain
 			.build_block(pending_txs)
 			.await
 			.map_err(|e| RpcServerError::Internal(format!("Failed to build block: {e}")))?;
 
 		Ok(NewBlockResult {
-			hash: HexString::from_bytes(block.hash.as_bytes()).into(),
-			number: block.number,
-			extrinsics_count: block.extrinsics.len(),
+			hash: HexString::from_bytes(result.block.hash.as_bytes()).into(),
+			number: result.block.number,
+			extrinsics_count: result.block.extrinsics.len(),
 		})
 	}
 }

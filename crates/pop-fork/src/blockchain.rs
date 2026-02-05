@@ -51,15 +51,150 @@
 use crate::{
 	Block, BlockBuilder, BlockBuilderError, BlockError, BlockForkPoint, CacheError, ExecutorConfig,
 	ExecutorError, ForkRpcClient, InherentProvider, RuntimeExecutor, StorageCache,
+	builder::ApplyExtrinsicResult,
 	create_next_header_with_slot, default_providers,
+	strings::txpool::{runtime_api, transaction_source},
 };
-use scale::Encode;
+use scale::{Decode, Encode};
 use std::{path::Path, sync::Arc};
 use subxt::config::substrate::H256;
 use tokio::sync::{RwLock, broadcast};
 use url::Url;
 
 pub type BlockBody = Vec<Vec<u8>>;
+
+// Transaction validity types for decoding TaggedTransactionQueue_validate_transaction results.
+
+/// Result of transaction validation.
+///
+/// Mirrors `sp_runtime::transaction_validity::TransactionValidity`.
+#[derive(Debug, Clone, Decode)]
+pub enum TransactionValidity {
+	/// Transaction is valid.
+	#[codec(index = 0)]
+	Ok(ValidTransaction),
+	/// Transaction is invalid.
+	#[codec(index = 1)]
+	Err(TransactionValidityError),
+}
+
+/// Information about a valid transaction.
+#[derive(Debug, Clone, Decode)]
+pub struct ValidTransaction {
+	/// Priority of the transaction (higher = more likely to be included).
+	pub priority: u64,
+	/// Transaction dependencies (tags this tx requires).
+	pub requires: Vec<Vec<u8>>,
+	/// Tags this transaction provides.
+	pub provides: Vec<Vec<u8>>,
+	/// Longevity - how long this tx is valid (in blocks).
+	pub longevity: u64,
+	/// Whether this transaction should be propagated.
+	pub propagate: bool,
+}
+
+/// Error when transaction validation fails.
+#[derive(Debug, Clone, Decode)]
+pub enum TransactionValidityError {
+	/// Transaction is invalid (won't ever be valid).
+	#[codec(index = 0)]
+	Invalid(InvalidTransaction),
+	/// Transaction validity is unknown (might become valid).
+	#[codec(index = 1)]
+	Unknown(UnknownTransaction),
+}
+
+/// Reasons a transaction is invalid.
+#[derive(Debug, Clone, Decode)]
+pub enum InvalidTransaction {
+	/// General call failure.
+	#[codec(index = 0)]
+	Call,
+	/// Payment failed (can't pay fees).
+	#[codec(index = 1)]
+	Payment,
+	/// Future transaction (nonce too high).
+	#[codec(index = 2)]
+	Future,
+	/// Stale transaction (nonce too low).
+	#[codec(index = 3)]
+	Stale,
+	/// Bad mandatory inherent.
+	#[codec(index = 4)]
+	BadMandatory,
+	/// Mandatory dispatch error.
+	#[codec(index = 5)]
+	MandatoryDispatch,
+	/// Bad signature.
+	#[codec(index = 6)]
+	BadSigner,
+	/// Custom error (runtime-specific).
+	#[codec(index = 7)]
+	Custom(u8),
+}
+
+/// Reasons transaction validity is unknown.
+#[derive(Debug, Clone, Decode)]
+pub enum UnknownTransaction {
+	/// Can't lookup validity (dependencies missing).
+	#[codec(index = 0)]
+	CannotLookup,
+	/// No unsigned validation handler.
+	#[codec(index = 1)]
+	NoUnsignedValidator,
+	/// Custom unknown error.
+	#[codec(index = 2)]
+	Custom(u8),
+}
+
+impl TransactionValidityError {
+	/// Get a human-readable reason for the error.
+	pub fn reason(&self) -> String {
+		match self {
+			Self::Invalid(inv) => match inv {
+				InvalidTransaction::Call => "Call failed".into(),
+				InvalidTransaction::Payment => "Insufficient funds for fees".into(),
+				InvalidTransaction::Future => "Nonce too high".into(),
+				InvalidTransaction::Stale => "Nonce too low (already used)".into(),
+				InvalidTransaction::BadMandatory => "Bad mandatory inherent".into(),
+				InvalidTransaction::MandatoryDispatch => "Mandatory dispatch failed".into(),
+				InvalidTransaction::BadSigner => "Invalid signature".into(),
+				InvalidTransaction::Custom(code) => format!("Custom error: {code}"),
+			},
+			Self::Unknown(unk) => match unk {
+				UnknownTransaction::CannotLookup => "Cannot lookup validity".into(),
+				UnknownTransaction::NoUnsignedValidator => "No unsigned validator".into(),
+				UnknownTransaction::Custom(code) => format!("Custom unknown: {code}"),
+			},
+		}
+	}
+
+	/// Check if this is an "unknown" error (might become valid later).
+	pub fn is_unknown(&self) -> bool {
+		matches!(self, Self::Unknown(_))
+	}
+}
+
+/// Result of building a block, including information about extrinsic processing.
+#[derive(Debug, Clone)]
+pub struct BuildBlockResult {
+	/// The newly built block.
+	pub block: Block,
+	/// Extrinsics that were successfully included.
+	pub included: Vec<Vec<u8>>,
+	/// Extrinsics that failed during apply and were dropped.
+	pub failed: Vec<FailedExtrinsic>,
+}
+
+/// An extrinsic that failed during block building.
+#[derive(Debug, Clone)]
+pub struct FailedExtrinsic {
+	/// The raw extrinsic bytes.
+	pub extrinsic: Vec<u8>,
+	/// Reason for failure.
+	pub reason: String,
+}
+
 /// Capacity for the blockchain event broadcast channel.
 const EVENT_CHANNEL_CAPACITY: usize = 256;
 
@@ -603,16 +738,21 @@ impl Blockchain {
 	///
 	/// # Returns
 	///
-	/// The newly created block.
+	/// A [`BuildBlockResult`] containing the newly created block and information
+	/// about which extrinsics were successfully included vs which failed.
 	///
 	/// # Example
 	///
 	/// ```ignore
 	/// let extrinsic = /* create signed extrinsic */;
-	/// let block = blockchain.build_block(vec![extrinsic]).await?;
-	/// println!("New block: #{} ({:?})", block.number, block.hash);
+	/// let result = blockchain.build_block(vec![extrinsic]).await?;
+	/// println!("New block: #{} ({:?})", result.block.number, result.block.hash);
+	/// println!("Included: {}, Failed: {}", result.included.len(), result.failed.len());
 	/// ```
-	pub async fn build_block(&self, extrinsics: BlockBody) -> Result<Block, BlockchainError> {
+	pub async fn build_block(
+		&self,
+		extrinsics: BlockBody,
+	) -> Result<BuildBlockResult, BlockchainError> {
 		let mut head = self.head.write().await;
 
 		// Get runtime code from current head
@@ -641,9 +781,20 @@ impl Blockchain {
 		// Apply inherents
 		builder.apply_inherents().await?;
 
+		// Track included and failed extrinsics
+		let mut included = Vec::new();
+		let mut failed = Vec::new();
+
 		// Apply user extrinsics
 		for extrinsic in extrinsics {
-			builder.apply_extrinsic(extrinsic).await?;
+			match builder.apply_extrinsic(extrinsic.clone()).await? {
+				ApplyExtrinsicResult::Success { .. } => {
+					included.push(extrinsic);
+				},
+				ApplyExtrinsicResult::DispatchFailed { error } => {
+					failed.push(FailedExtrinsic { extrinsic, reason: error });
+				},
+			}
 		}
 
 		// Finalize and get new block
@@ -668,7 +819,7 @@ impl Blockchain {
 			modified_keys,
 		});
 
-		Ok(new_block)
+		Ok(BuildBlockResult { block: new_block, included, failed })
 	}
 
 	/// Build an empty block (just inherents, no user extrinsics).
@@ -680,7 +831,7 @@ impl Blockchain {
 	///
 	/// The newly created block.
 	pub async fn build_empty_block(&self) -> Result<Block, BlockchainError> {
-		self.build_block(vec![]).await
+		self.build_block(vec![]).await.map(|result| result.block)
 	}
 
 	/// Execute a runtime call at the current head.
@@ -821,6 +972,72 @@ impl Blockchain {
 			RuntimeExecutor::with_config(runtime_code, None, self.executor_config.clone())?;
 		let result = executor.call(method, args, block.storage()).await?;
 		Ok(Some(result.output))
+	}
+
+	/// Validate an extrinsic before pool submission.
+	///
+	/// Calls `TaggedTransactionQueue_validate_transaction` runtime API to check
+	/// if the extrinsic is valid for inclusion in a future block.
+	///
+	/// # Arguments
+	///
+	/// * `extrinsic` - The encoded extrinsic to validate
+	///
+	/// # Returns
+	///
+	/// * `Ok(ValidTransaction)` - Transaction is valid with priority/dependency info
+	/// * `Err(TransactionValidityError)` - Transaction is invalid or unknown
+	///
+	/// # Example
+	///
+	/// ```ignore
+	/// match blockchain.validate_extrinsic(&extrinsic_bytes).await {
+	///     Ok(valid) => println!("Valid with priority {}", valid.priority),
+	///     Err(TransactionValidityError::Invalid(inv)) => {
+	///         println!("Invalid: {:?}", inv);
+	///     }
+	///     Err(TransactionValidityError::Unknown(unk)) => {
+	///         println!("Unknown validity: {:?}", unk);
+	///     }
+	/// }
+	/// ```
+	pub async fn validate_extrinsic(
+		&self,
+		extrinsic: &[u8],
+	) -> Result<ValidTransaction, TransactionValidityError> {
+		let head = self.head.read().await;
+
+		// Build args: (source, extrinsic, block_hash)
+		// source = External (0x02) - transaction comes from outside
+		let mut args = Vec::with_capacity(1 + extrinsic.len() + 32);
+		args.push(transaction_source::EXTERNAL);
+		args.extend(extrinsic);
+		args.extend(head.hash.as_bytes());
+
+		// Get runtime code and create executor
+		let runtime_code = head
+			.runtime_code()
+			.await
+			.map_err(|_| TransactionValidityError::Unknown(UnknownTransaction::CannotLookup))?;
+
+		let executor =
+			RuntimeExecutor::with_config(runtime_code, None, self.executor_config.clone())
+				.map_err(|_| TransactionValidityError::Unknown(UnknownTransaction::CannotLookup))?;
+
+		// Call runtime API
+		let result = executor
+			.call(runtime_api::TAGGED_TRANSACTION_QUEUE_VALIDATE, &args, head.storage())
+			.await
+			.map_err(|_| TransactionValidityError::Unknown(UnknownTransaction::CannotLookup))?;
+
+		// Decode result
+		let validity = TransactionValidity::decode(&mut result.output.as_slice())
+			.map_err(|_| TransactionValidityError::Unknown(UnknownTransaction::CannotLookup))?;
+
+		match validity {
+			TransactionValidity::Ok(valid) => Ok(valid),
+			TransactionValidity::Err(err) => Err(err),
+		}
 	}
 
 	/// Find a block by hash in fork history, or create a mocked block for historical execution.
@@ -1302,10 +1519,12 @@ mod tests {
 			let extrinsic = build_mock_signed_extrinsic_v4(&call_data);
 
 			// Build a block with the transfer extrinsic
-			let new_block = blockchain
+			let result = blockchain
 				.build_block(vec![extrinsic])
 				.await
 				.expect("Failed to build block with transfer");
+
+			let new_block = result.block;
 
 			// Verify block was created
 			assert_eq!(new_block.number, head_number_before + 1);
@@ -1901,6 +2120,231 @@ mod tests {
 				number_after,
 				head_number + 1
 			);
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn validate_extrinsic_accepts_valid_transfer() {
+			use crate::{ExecutorConfig, SignatureMockMode};
+			use scale::{Compact, Encode};
+
+			let ctx = create_test_context().await;
+			let config = ExecutorConfig {
+				signature_mock: SignatureMockMode::AlwaysValid,
+				..Default::default()
+			};
+			let blockchain = Blockchain::fork_with_config(&ctx.endpoint, None, None, config)
+				.await
+				.expect("Failed to fork blockchain");
+
+			// Build a valid transfer extrinsic
+			let head = blockchain.head().await;
+			let metadata = head.metadata().await.expect("Failed to get metadata");
+
+			let balances_pallet = metadata.pallet_by_name("Balances").expect("Balances pallet");
+			let pallet_index = balances_pallet.index();
+			let transfer_call = balances_pallet
+				.call_variant_by_name("transfer_keep_alive")
+				.expect("transfer_keep_alive");
+			let call_index = transfer_call.index;
+
+			let mut call_data = vec![pallet_index, call_index];
+			call_data.push(0x00); // MultiAddress::Id
+			call_data.extend(BOB);
+			call_data.extend(Compact(TRANSFER_AMOUNT).encode());
+
+			let extrinsic = build_mock_signed_extrinsic_v4(&call_data);
+
+			// Validate should succeed
+			let result = blockchain.validate_extrinsic(&extrinsic).await;
+			assert!(result.is_ok(), "Valid extrinsic should pass validation: {:?}", result);
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn validate_extrinsic_rejects_garbage() {
+			let ctx = create_test_context().await;
+			let blockchain =
+				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+
+			// Submit garbage bytes
+			let garbage = vec![0xde, 0xad, 0xbe, 0xef];
+
+			let result = blockchain.validate_extrinsic(&garbage).await;
+			assert!(result.is_err(), "Garbage should fail validation");
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn build_block_result_tracks_included_extrinsics() {
+			use crate::{ExecutorConfig, SignatureMockMode};
+			use scale::{Compact, Encode};
+
+			let ctx = create_test_context().await;
+			let config = ExecutorConfig {
+				signature_mock: SignatureMockMode::AlwaysValid,
+				..Default::default()
+			};
+			let blockchain = Blockchain::fork_with_config(&ctx.endpoint, None, None, config)
+				.await
+				.expect("Failed to fork");
+
+			// Build a valid transfer extrinsic
+			let head = blockchain.head().await;
+			let metadata = head.metadata().await.expect("Failed to get metadata");
+
+			let balances_pallet = metadata.pallet_by_name("Balances").expect("Balances pallet");
+			let pallet_index = balances_pallet.index();
+			let transfer_call = balances_pallet
+				.call_variant_by_name("transfer_keep_alive")
+				.expect("transfer_keep_alive");
+			let call_index = transfer_call.index;
+
+			let mut call_data = vec![pallet_index, call_index];
+			call_data.push(0x00); // MultiAddress::Id
+			call_data.extend(BOB);
+			call_data.extend(Compact(TRANSFER_AMOUNT).encode());
+
+			let extrinsic = build_mock_signed_extrinsic_v4(&call_data);
+
+			let result = blockchain
+				.build_block(vec![extrinsic.clone()])
+				.await
+				.expect("Failed to build block");
+
+			assert_eq!(result.included.len(), 1, "Should have 1 included extrinsic");
+			assert!(result.failed.is_empty(), "Should have no failed extrinsics");
+			assert_eq!(result.included[0], extrinsic);
+		}
+
+		#[tokio::test(flavor = "multi_thread")]
+		async fn build_block_result_tracks_failed_extrinsics() {
+			use crate::{ExecutorConfig, SignatureMockMode};
+			use scale::{Compact, Encode};
+
+			let ctx = create_test_context().await;
+			let config = ExecutorConfig {
+				signature_mock: SignatureMockMode::AlwaysValid,
+				..Default::default()
+			};
+			let blockchain = Blockchain::fork_with_config(&ctx.endpoint, None, None, config)
+				.await
+				.expect("Failed to fork");
+
+			// Build an extrinsic that will fail at dispatch time - transfer more than available.
+			// Use a random account with no funds to trigger InsufficientBalance.
+			let head = blockchain.head().await;
+			let metadata = head.metadata().await.expect("Failed to get metadata");
+
+			let balances_pallet = metadata.pallet_by_name("Balances").expect("Balances pallet");
+			let pallet_index = balances_pallet.index();
+			let transfer_call = balances_pallet
+				.call_variant_by_name("transfer_keep_alive")
+				.expect("transfer_keep_alive");
+			let call_index = transfer_call.index;
+
+			// Use a "random" account that has no funds as the sender.
+			// The extrinsic is structurally valid but will fail dispatch due to lack of funds.
+			let unfunded_account: [u8; 32] = [0x99; 32];
+			let recipient = BOB;
+			let amount: u128 = 1_000_000_000_000_000; // Large amount that unfunded account can't pay
+
+			let mut call_data = vec![pallet_index, call_index];
+			call_data.push(0x00); // MultiAddress::Id
+			call_data.extend(recipient);
+			call_data.extend(Compact(amount).encode());
+
+			// Build extrinsic from unfunded account
+			let extrinsic = {
+				let mut inner = Vec::new();
+				inner.push(0x84); // Version: signed (0x80) + v4 (0x04)
+				inner.push(0x00); // MultiAddress::Id variant
+				inner.extend(unfunded_account);
+				inner.extend([0u8; 64]); // Dummy signature (works with AlwaysValid)
+				inner.push(0x00); // CheckMortality: immortal
+				inner.extend(Compact(0u64).encode()); // CheckNonce
+				inner.extend(Compact(0u128).encode()); // ChargeTransactionPayment
+				inner.push(0x00); // EthSetOrigin: None
+				inner.extend(&call_data);
+				let mut final_ext = Compact(inner.len() as u32).encode();
+				final_ext.extend(inner);
+				final_ext
+			};
+
+			let result = blockchain
+				.build_block(vec![extrinsic.clone()])
+				.await
+				.expect("Build should succeed even with failed extrinsics");
+
+			// The extrinsic should fail at dispatch (InsufficientBalance) and be in the failed list
+			assert!(
+				result.failed.len() == 1,
+				"Failed extrinsic should be tracked. Included: {}, Failed: {}",
+				result.included.len(),
+				result.failed.len()
+			);
+			assert!(result.included.is_empty(), "Failed extrinsic should not be in included list");
+			assert_eq!(result.failed[0].extrinsic, extrinsic);
+		}
+	}
+
+	#[test]
+	fn transaction_validity_error_reason_returns_correct_strings() {
+		let stale = TransactionValidityError::Invalid(InvalidTransaction::Stale);
+		assert_eq!(stale.reason(), "Nonce too low (already used)");
+
+		let payment = TransactionValidityError::Invalid(InvalidTransaction::Payment);
+		assert_eq!(payment.reason(), "Insufficient funds for fees");
+
+		let unknown = TransactionValidityError::Unknown(UnknownTransaction::CannotLookup);
+		assert_eq!(unknown.reason(), "Cannot lookup validity");
+	}
+
+	#[test]
+	fn transaction_validity_error_is_unknown_distinguishes_types() {
+		let invalid = TransactionValidityError::Invalid(InvalidTransaction::Stale);
+		assert!(!invalid.is_unknown());
+
+		let unknown = TransactionValidityError::Unknown(UnknownTransaction::CannotLookup);
+		assert!(unknown.is_unknown());
+	}
+
+	#[test]
+	fn transaction_validity_types_can_be_decoded() {
+		use scale::Decode;
+
+		// Valid transaction result (index 0)
+		let valid_bytes = [
+			0x00, // Ok variant
+			0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // priority: 1
+			0x00, // requires: empty vec
+			0x00, // provides: empty vec
+			0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // longevity: 64
+			0x01, // propagate: true
+		];
+		let validity = TransactionValidity::decode(&mut valid_bytes.as_slice())
+			.expect("Should decode valid transaction");
+		match validity {
+			TransactionValidity::Ok(valid) => {
+				assert_eq!(valid.priority, 1);
+				assert!(valid.requires.is_empty());
+				assert!(valid.provides.is_empty());
+				assert_eq!(valid.longevity, 64);
+				assert!(valid.propagate);
+			},
+			TransactionValidity::Err(_) => panic!("Expected Ok variant"),
+		}
+
+		// Invalid transaction result (index 1) with Stale (index 3)
+		let invalid_bytes = [
+			0x01, // Err variant
+			0x00, // Invalid variant
+			0x03, // Stale
+		];
+		let validity = TransactionValidity::decode(&mut invalid_bytes.as_slice())
+			.expect("Should decode invalid transaction");
+		match validity {
+			TransactionValidity::Ok(_) => panic!("Expected Err variant"),
+			TransactionValidity::Err(err) => {
+				assert_eq!(err.reason(), "Nonce too low (already used)");
+			},
 		}
 	}
 }

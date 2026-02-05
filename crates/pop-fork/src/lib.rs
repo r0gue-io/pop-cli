@@ -74,7 +74,11 @@ mod strings;
 mod txpool;
 
 pub use block::{Block, BlockForkPoint};
-pub use blockchain::{Blockchain, BlockchainError, BlockchainEvent, ChainType};
+pub use blockchain::{
+	Blockchain, BlockchainError, BlockchainEvent, BuildBlockResult, ChainType, FailedExtrinsic,
+	InvalidTransaction, TransactionValidity, TransactionValidityError, UnknownTransaction,
+	ValidTransaction,
+};
 pub use builder::{
 	ApplyExtrinsicResult, BlockBuilder, ConsensusEngineId, DigestItem, consensus_engine,
 	create_next_header, create_next_header_with_slot,

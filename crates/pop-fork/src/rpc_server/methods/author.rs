@@ -61,10 +61,22 @@ impl AuthorApiServer for AuthorApi {
 	async fn submit_extrinsic(&self, extrinsic: String) -> RpcResult<String> {
 		let ext_bytes = parse_hex_bytes(&extrinsic, "extrinsic")?;
 
-		// Calculate hash before submitting
+		// Calculate hash before validating (for return value)
 		let hash = H256::from(sp_core::blake2_256(&ext_bytes));
 
-		// Submit to TxPool
+		// Validate extrinsic BEFORE adding to pool
+		if let Err(err) = self.blockchain.validate_extrinsic(&ext_bytes).await {
+			let reason = err.reason();
+			let data = None; // Could encode the full error in future
+
+			if err.is_unknown() {
+				return Err(RpcServerError::UnknownTransaction { reason, data }.into());
+			} else {
+				return Err(RpcServerError::InvalidTransaction { reason, data }.into());
+			}
+		}
+
+		// Submit to TxPool (already validated)
 		self.txpool
 			.submit(ext_bytes)
 			.map_err(|e| RpcServerError::Internal(format!("Failed to submit extrinsic: {e}")))?;
@@ -74,10 +86,16 @@ impl AuthorApiServer for AuthorApi {
 			RpcServerError::Internal(format!("Failed to drain transaction pool: {e}"))
 		})?;
 
-		self.blockchain
+		let result = self
+			.blockchain
 			.build_block(pending_txs)
 			.await
 			.map_err(|e| RpcServerError::Internal(format!("Failed to build block: {e}")))?;
+
+		// Log any extrinsics that failed during dispatch (rare after validation)
+		for failed in &result.failed {
+			eprintln!("[AuthorApi] Extrinsic failed dispatch after validation: {}", failed.reason);
+		}
 
 		Ok(HexString::from_bytes(hash.as_bytes()).into())
 	}
@@ -101,10 +119,19 @@ impl AuthorApiServer for AuthorApi {
 			},
 		};
 
+		// Validate BEFORE sending "ready" status
+		if let Err(err) = self.blockchain.validate_extrinsic(&ext_bytes).await {
+			let msg = jsonrpsee::SubscriptionMessage::from_json(
+				&serde_json::json!({"invalid": err.reason()}),
+			)?;
+			let _ = sink.send(msg).await;
+			return Ok(());
+		}
+
 		// Calculate hash
 		let _hash = H256::from(sp_core::blake2_256(&ext_bytes));
 
-		// Send "ready" status
+		// Send "ready" status (only after validation passes)
 		let msg = jsonrpsee::SubscriptionMessage::from_json(&serde_json::json!({"ready": null}))?;
 		let _ = sink.send(msg).await;
 
@@ -134,8 +161,18 @@ impl AuthorApiServer for AuthorApi {
 		};
 
 		match self.blockchain.build_block(pending_txs).await {
-			Ok(block) => {
-				let block_hex = format!("0x{}", hex::encode(block.hash.as_bytes()));
+			Ok(result) => {
+				// Check if our extrinsic failed during dispatch
+				// (in instant mode with single tx, if failed list is non-empty, our tx failed)
+				if !result.failed.is_empty() {
+					let msg = jsonrpsee::SubscriptionMessage::from_json(
+						&serde_json::json!({"invalid": result.failed[0].reason}),
+					)?;
+					let _ = sink.send(msg).await;
+					return Ok(());
+				}
+
+				let block_hex = format!("0x{}", hex::encode(result.block.hash.as_bytes()));
 
 				// Send "inBlock" status
 				let msg = jsonrpsee::SubscriptionMessage::from_json(
@@ -490,5 +527,90 @@ mod tests {
 		// Block should have been built
 		let new_block_number = ctx.blockchain.head_number().await;
 		assert_eq!(new_block_number, initial_block_number + 1, "Block should have been built");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn author_submit_extrinsic_rejects_garbage_with_error_code() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		// Submit garbage bytes
+		let garbage_hex = "0xdeadbeef";
+
+		let result: Result<String, _> =
+			client.request("author_submitExtrinsic", rpc_params![garbage_hex]).await;
+
+		assert!(result.is_err(), "Garbage should be rejected");
+
+		// Verify we get an error (the specific code depends on how the runtime rejects it)
+		let err = result.unwrap_err();
+		let err_str = err.to_string();
+		// Error should indicate invalid transaction
+		assert!(
+			err_str.contains("1010") ||
+				err_str.contains("1011") ||
+				err_str.contains("invalid") ||
+				err_str.contains("Invalid"),
+			"Error should indicate transaction invalidity: {err_str}"
+		);
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn author_submit_extrinsic_does_not_build_block_on_validation_failure() {
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		let initial_block_number = ctx.blockchain.head_number().await;
+
+		// Submit garbage bytes
+		let garbage_hex = "0xdeadbeef";
+
+		let _result: Result<String, _> =
+			client.request("author_submitExtrinsic", rpc_params![garbage_hex]).await;
+
+		// Block number should NOT have changed (no block built for invalid tx)
+		let new_block_number = ctx.blockchain.head_number().await;
+		assert_eq!(
+			initial_block_number, new_block_number,
+			"Block should NOT be built when extrinsic validation fails"
+		);
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn author_submit_and_watch_sends_invalid_on_validation_failure() {
+		use jsonrpsee::core::client::SubscriptionClientT;
+
+		let ctx = setup_rpc_test().await;
+		let client =
+			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+
+		// Submit garbage bytes via subscription
+		let garbage_hex = "0xdeadbeef";
+
+		let mut subscription: jsonrpsee::core::client::Subscription<serde_json::Value> = client
+			.subscribe(
+				"author_submitAndWatchExtrinsic",
+				rpc_params![garbage_hex],
+				"author_unwatchExtrinsic",
+			)
+			.await
+			.expect("Failed to subscribe");
+
+		// Should receive "invalid" event (not "ready")
+		let timeout = tokio::time::Duration::from_secs(5);
+		match tokio::time::timeout(timeout, subscription.next()).await {
+			Ok(Some(Ok(event))) => {
+				assert!(
+					event.get("invalid").is_some(),
+					"First event should be 'invalid' for garbage input, got: {:?}",
+					event
+				);
+			},
+			Ok(Some(Err(e))) => panic!("Subscription error: {e}"),
+			Ok(None) => panic!("Subscription ended without events"),
+			Err(_) => panic!("Timeout waiting for subscription event"),
+		}
 	}
 }
