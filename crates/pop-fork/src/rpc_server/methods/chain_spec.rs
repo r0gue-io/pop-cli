@@ -4,21 +4,11 @@
 //!
 //! These methods return immutable chain specification data that never changes
 //! during the fork's lifetime. Values are fetched lazily on first call and
-//! cached in static memory.
+//! cached per-blockchain instance.
 
-use crate::{
-	Blockchain,
-	rpc::ForkRpcClient,
-	rpc_server::{RpcServerError, types::HexString},
-};
+use crate::{Blockchain, rpc_server::RpcServerError};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
-use std::sync::{Arc, OnceLock};
-
-/// Static cache for genesis hash (shared with archive.rs).
-pub static GENESIS_HASH: OnceLock<String> = OnceLock::new();
-
-/// Static cache for chain properties.
-pub static CHAIN_PROPERTIES: OnceLock<Option<serde_json::Value>> = OnceLock::new();
+use std::sync::Arc;
 
 /// chainSpec RPC methods (v1 spec).
 ///
@@ -66,40 +56,13 @@ impl ChainSpecApiServer for ChainSpecApi {
 	}
 
 	async fn genesis_hash(&self) -> RpcResult<String> {
-		// Return cached value if available
-		if let Some(hash) = GENESIS_HASH.get() {
-			return Ok(hash.clone());
-		}
-
-		// Fetch genesis hash (block 0)
-		match self.blockchain.block_hash_at(0).await {
-			Ok(Some(hash)) => {
-				let formatted: String = HexString::from_bytes(hash.as_bytes()).into();
-				Ok(GENESIS_HASH.get_or_init(|| formatted).clone())
-			},
-			Ok(None) =>
-				Err(RpcServerError::BlockNotFound("Genesis block not found".to_string()).into()),
-			Err(e) =>
-				Err(RpcServerError::Internal(format!("Failed to fetch genesis hash: {e}")).into()),
-		}
+		self.blockchain.genesis_hash().await.map_err(|e| {
+			RpcServerError::Internal(format!("Failed to fetch genesis hash: {e}")).into()
+		})
 	}
 
 	async fn properties(&self) -> RpcResult<Option<serde_json::Value>> {
-		// Return cached value if available
-		if let Some(props) = CHAIN_PROPERTIES.get() {
-			return Ok(props.clone());
-		}
-
-		// Fetch chain properties from upstream
-		let props = match ForkRpcClient::connect(self.blockchain.endpoint()).await {
-			Ok(client) => match client.system_properties().await {
-				Ok(system_props) => serde_json::to_value(system_props).ok(),
-				Err(_) => None,
-			},
-			Err(_) => None,
-		};
-
-		Ok(CHAIN_PROPERTIES.get_or_init(|| props).clone())
+		Ok(self.blockchain.chain_properties().await)
 	}
 }
 

@@ -4,11 +4,14 @@ use crate::{cli::traits::*, style::style};
 use anyhow::Result;
 use clap::{Args, Subcommand};
 use serde::Serialize;
+use serde_json::Value;
 use std::{
-	fs::{read_dir, remove_file},
-	path::PathBuf,
+	fs::{read_dir, remove_dir_all, remove_file},
+	io::IsTerminal,
+	path::{Path, PathBuf},
 	process::Command as StdCommand,
 };
+use time::format_description::well_known::Rfc3339;
 
 #[derive(Args, Serialize)]
 #[command(args_conflicts_with_subcommands = true)]
@@ -26,6 +29,9 @@ pub(crate) enum Command {
 	/// Remove cached artifacts.
 	#[clap(alias = "c")]
 	Cache(CleanCommandArgs),
+	/// Remove running network(s).
+	#[clap(alias = "net")]
+	Network(CleanNetworkCommandArgs),
 }
 
 #[derive(Args, Serialize)]
@@ -36,6 +42,29 @@ pub struct CleanCommandArgs {
 	/// Pass one or more process IDs to remove artifacts for specific processes.
 	#[arg(short, long, num_args = 1..)]
 	pub(crate) pid: Option<Vec<String>>,
+}
+
+#[derive(Args, Serialize)]
+pub struct CleanNetworkCommandArgs {
+	/// Stop all running networks without prompting.
+	#[arg(short, long)]
+	pub(crate) all: bool,
+	/// Path to the network base directory or zombie.json.
+	#[arg(value_name = "PATH")]
+	pub(crate) path: Option<PathBuf>,
+	/// Keep the network state on disk after shutdown (default: remove state).
+	#[arg(long)]
+	pub(crate) keep_state: bool,
+}
+
+#[cfg(feature = "chain")]
+async fn destroy_network(zombie_json: &Path) -> Result<()> {
+	pop_chains::up::destroy_network(zombie_json).await.map_err(Into::into)
+}
+
+#[cfg(not(feature = "chain"))]
+async fn destroy_network(_zombie_json: &Path) -> Result<()> {
+	anyhow::bail!("network cleanup requires the `chain` feature")
 }
 
 /// Removes cached artifacts.
@@ -132,6 +161,178 @@ impl<CLI: Cli> CleanCacheCommand<'_, CLI> {
 	}
 }
 
+/// Stops a running network and optionally removes its state.
+pub(crate) struct CleanNetworkCommand<'a, CLI: Cli> {
+	/// The cli to be used.
+	pub(crate) cli: &'a mut CLI,
+	/// Whether to stop all running networks without prompting.
+	pub(crate) all: bool,
+	/// Path to the network base directory or zombie.json.
+	pub(crate) path: Option<PathBuf>,
+	/// Whether to keep the network state on disk.
+	pub(crate) keep_state: bool,
+}
+
+impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
+	/// Executes the command.
+	pub(crate) async fn execute(self) -> Result<()> {
+		self.cli.intro("Remove running network")?;
+
+		let path_provided = self.path.is_some();
+		let (zombie_jsons, selection_kind) = if self.all {
+			let candidates = find_zombie_jsons()?;
+			if candidates.is_empty() {
+				self.cli.outro("ℹ️  No running networks found.")?;
+				return Ok(());
+			}
+			(candidates.into_iter().map(|c| c.path).collect(), NetworkSelection::Selected)
+		} else {
+			match self.path.as_ref() {
+				Some(path) => (vec![resolve_zombie_json_path(path)?], NetworkSelection::Specified),
+				None => {
+					let candidates = find_zombie_jsons()?;
+					if candidates.is_empty() {
+						self.cli.outro("ℹ️  No running networks found.")?;
+						return Ok(());
+					}
+					if candidates.len() == 1 {
+						(vec![candidates[0].path.clone()], NetworkSelection::AutoSingle)
+					} else {
+						let selection = {
+							let mut prompt = self
+								.cli
+								.multiselect("Select the networks to stop (type to filter):")
+								.required(false)
+								.filter_mode();
+							for candidate in &candidates {
+								let base_dir = candidate.path.parent().unwrap_or(&candidate.path);
+								let label = base_dir
+									.file_name()
+									.and_then(|f| f.to_str())
+									.unwrap_or("network");
+								let hint = format!(
+									"modified: {}",
+									candidate
+										.modified
+										.map(|t| t
+											.format(&Rfc3339)
+											.unwrap_or_else(|_| "unknown".into()))
+										.unwrap_or_else(|| "unknown".into())
+								);
+								prompt = prompt.item(candidate.path.clone(), label, hint);
+							}
+							prompt.interact()?
+						};
+						if selection.is_empty() {
+							self.cli.outro("ℹ️  No networks stopped.")?;
+							return Ok(());
+						}
+						(selection, NetworkSelection::Selected)
+					}
+				},
+			}
+		};
+
+		let count = zombie_jsons.len();
+		let single_location = if count == 1 {
+			zombie_jsons[0]
+				.parent()
+				.map(|p| p.display().to_string())
+				.unwrap_or_else(|| zombie_jsons[0].display().to_string())
+		} else {
+			String::new()
+		};
+		let confirm = match (count, selection_kind) {
+			(1, NetworkSelection::AutoSingle) => format!("Stop the network at {single_location}?"),
+			(1, NetworkSelection::Specified) =>
+				format!("Stop the specified network at {single_location}?"),
+			(1, NetworkSelection::Selected) => "Stop the selected network?".to_string(),
+			_ => format!("Stop the {} selected networks?", count),
+		};
+		if !self.all &&
+			!path_provided &&
+			std::io::stdin().is_terminal() &&
+			!self.cli.confirm(confirm).initial_value(true).interact()?
+		{
+			self.cli.outro("ℹ️  No networks stopped.")?;
+			return Ok(());
+		}
+
+		let mut failures = 0;
+		for zombie_json in &zombie_jsons {
+			let base_dir = zombie_json
+				.parent()
+				.ok_or_else(|| anyhow::anyhow!("invalid zombie.json path"))?
+				.to_path_buf();
+			if let Err(e) = destroy_network(zombie_json).await {
+				let error_message = e.to_string();
+				if should_fallback_to_process_cleanup(&error_message) {
+					self.cli.warning(format!(
+						"⚠️  Falling back to process cleanup for attached network at {}",
+						base_dir.display()
+					))?;
+					let pids = read_pids_from_zombie_json(zombie_json)?;
+					if pids.is_empty() {
+						self.cli.warning(format!(
+							"ℹ️  Network already stopped at {}",
+							base_dir.display()
+						))?;
+					} else {
+						for pid in pids {
+							kill_process(&pid)?;
+						}
+					}
+				} else if is_already_stopped_error(&error_message) {
+					self.cli.warning(format!(
+						"ℹ️  Network already stopped at {}",
+						base_dir.display()
+					))?;
+				} else {
+					failures += 1;
+					self.cli.warning(format!(
+						"🚫  Failed to stop network at {}: {e}",
+						base_dir.display()
+					))?;
+					continue;
+				}
+			}
+
+			if self.keep_state {
+				if let Err(e) = mark_cleared(&base_dir) {
+					self.cli.warning(format!(
+						"🚫  Failed to mark network as cleared at {}: {e}",
+						base_dir.display()
+					))?;
+				}
+				self.cli
+					.info(format!("ℹ️  Network stopped. State kept at {}", base_dir.display()))?;
+				continue;
+			}
+
+			if let Err(e) = remove_dir_all(&base_dir) {
+				self.cli.warning(format!(
+					"🚫  Failed to remove network state at {}: {e}",
+					base_dir.display()
+				))?;
+				failures += 1;
+			}
+		}
+
+		if failures > 0 {
+			self.cli.warning(format!(
+				"⚠️  Completed with {} failure{}.",
+				failures,
+				if failures == 1 { "" } else { "s" }
+			))?;
+		} else if self.keep_state {
+			self.cli.outro("ℹ️  Networks stopped. State kept.")?;
+		} else {
+			self.cli.outro("ℹ️  Networks stopped and state removed")?;
+		}
+		Ok(())
+	}
+}
+
 /// Returns the contents of the specified path.
 fn contents(path: &PathBuf) -> Result<Vec<(String, PathBuf, u64)>> {
 	let mut contents: Vec<_> = read_dir(path)?
@@ -148,6 +349,132 @@ fn contents(path: &PathBuf) -> Result<Vec<(String, PathBuf, u64)>> {
 		.collect();
 	contents.sort_by(|(a, _, _), (b, _, _)| a.cmp(b));
 	Ok(contents)
+}
+
+fn resolve_zombie_json_path(path: &Path) -> Result<PathBuf> {
+	if path.is_file() {
+		if path.file_name().and_then(|f| f.to_str()) == Some("zombie.json") {
+			return Ok(path.to_path_buf());
+		}
+		anyhow::bail!("Expected a zombie.json file at {}", path.display());
+	}
+
+	if path.is_dir() {
+		let candidate = path.join("zombie.json");
+		if candidate.exists() {
+			return Ok(candidate);
+		}
+		anyhow::bail!("No zombie.json found in {}", path.display());
+	}
+
+	anyhow::bail!("Invalid path: {}", path.display())
+}
+
+fn mark_cleared(base_dir: &Path) -> Result<()> {
+	let cleared = base_dir.join(".CLEARED");
+	std::fs::write(cleared, "")?;
+	Ok(())
+}
+
+fn should_fallback_to_process_cleanup(message: &str) -> bool {
+	message.contains("Cannot abort a recreated/attached node") ||
+		message.contains("not connected") ||
+		message.contains("Provider error")
+}
+
+fn is_already_stopped_error(message: &str) -> bool {
+	message.contains("ProcessIdRetrievalFailed") ||
+		message.contains("no process was attached") ||
+		message.contains("ESRCH") ||
+		message.contains("No such process")
+}
+
+fn read_pids_from_zombie_json(path: &Path) -> Result<Vec<String>> {
+	let contents = std::fs::read_to_string(path)?;
+	let value: Value = serde_json::from_str(&contents)?;
+	let mut pids = Vec::new();
+	collect_pids(&value, &mut pids);
+	pids.sort();
+	pids.dedup();
+	Ok(pids)
+}
+
+fn collect_pids(value: &Value, pids: &mut Vec<String>) {
+	match value {
+		Value::Object(map) =>
+			for (key, value) in map {
+				if key == "pid" || key == "process" {
+					match value {
+						Value::Number(number) => push_pid(number.to_string(), pids),
+						Value::String(pid) => push_pid(pid.to_string(), pids),
+						_ => {},
+					}
+				}
+				collect_pids(value, pids);
+			},
+		Value::Array(items) =>
+			for item in items {
+				collect_pids(item, pids);
+			},
+		_ => {},
+	}
+}
+
+fn push_pid(pid: String, pids: &mut Vec<String>) {
+	if pid.parse::<u32>().is_ok() {
+		pids.push(pid);
+	}
+}
+
+struct ZombieJsonCandidate {
+	path: PathBuf,
+	modified: Option<time::OffsetDateTime>,
+}
+
+fn find_zombie_jsons() -> Result<Vec<ZombieJsonCandidate>> {
+	let temp_dir = std::env::temp_dir();
+	let pattern = regex::Regex::new(
+		r"^zombie-[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+	)
+	.expect("expected valid regex");
+	let mut candidates = Vec::new();
+	for entry in read_dir(&temp_dir)? {
+		let entry = match entry {
+			Ok(entry) => entry,
+			Err(_) => continue,
+		};
+		let path = entry.path();
+		if !path.is_dir() {
+			continue;
+		}
+		let name = entry.file_name();
+		let name = match name.to_str() {
+			Some(name) => name,
+			None => continue,
+		};
+		if !pattern.is_match(name) {
+			continue;
+		}
+		if path.join(".CLEARED").exists() {
+			continue;
+		}
+		let zombie_json = path.join("zombie.json");
+		if zombie_json.exists() {
+			let modified = zombie_json
+				.metadata()
+				.and_then(|m| m.modified())
+				.ok()
+				.map(time::OffsetDateTime::from);
+			candidates.push(ZombieJsonCandidate { path: zombie_json, modified });
+		}
+	}
+	candidates.sort_by(|a, b| match (a.modified, b.modified) {
+		(Some(a), Some(b)) => b.cmp(&a),
+		(Some(_), None) => std::cmp::Ordering::Less,
+		(None, Some(_)) => std::cmp::Ordering::Greater,
+		(None, None) => b.path.cmp(&a.path),
+	});
+	Ok(candidates)
 }
 
 /// Kills running nodes.
@@ -184,7 +511,7 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 		};
 
 		if processes.is_empty() {
-			self.cli.outro("ℹ️ No running nodes found.")?;
+			self.cli.outro("ℹ️  No running nodes found.")?;
 			return Ok(());
 		}
 
@@ -210,7 +537,7 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 
 			if !invalid_pids.is_empty() {
 				self.cli.outro_cancel(format!(
-					"🚫 Invalid PID(s): {}. No processes killed.",
+					"🚫  Invalid PID(s): {}. No processes killed.",
 					invalid_pids.iter().map(|p| p.as_str()).collect::<Vec<_>>().join(", ")
 				))?;
 				return Ok(());
@@ -233,7 +560,7 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 			};
 
 			if selected.is_empty() {
-				self.cli.outro("ℹ️ No processes killed")?;
+				self.cli.outro("ℹ️  No processes killed")?;
 				return Ok(());
 			}
 
@@ -246,7 +573,7 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 				),
 			};
 			if !self.cli.confirm(prompt).interact()? {
-				self.cli.outro("ℹ️ No processes killed")?;
+				self.cli.outro("ℹ️  No processes killed")?;
 				return Ok(());
 			}
 
@@ -264,10 +591,17 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 			}
 		}
 
-		self.cli.outro(format!("ℹ️ {} processes killed", pids.len()))?;
+		self.cli.outro(format!("ℹ️  {} processes killed", pids.len()))?;
 
 		Ok(())
 	}
+}
+
+#[derive(Clone, Copy)]
+enum NetworkSelection {
+	AutoSingle,
+	Selected,
+	Specified,
 }
 
 /// Returns a list of (process_name, PID, ports) for ink-node and eth-rpc processes.
@@ -322,7 +656,16 @@ fn get_node_processes() -> Result<Vec<(String, String, String)>> {
 
 /// Kills a process by PID.
 fn kill_process(pid: &str) -> Result<()> {
-	StdCommand::new("kill").arg("-9").arg(pid).output()?;
+	let output = StdCommand::new("kill").arg("-9").arg(pid).output()?;
+	if !output.status.success() {
+		let stderr = String::from_utf8_lossy(&output.stderr);
+		let stdout = String::from_utf8_lossy(&output.stdout);
+		let message = if stderr.is_empty() { stdout.to_string() } else { stderr.to_string() };
+		if is_already_stopped_error(message.trim()) {
+			return Ok(());
+		}
+		anyhow::bail!("failed to kill process {pid}: {message}");
+	}
 	Ok(())
 }
 
@@ -526,10 +869,112 @@ mod tests {
 	}
 
 	#[test]
+	fn resolve_zombie_json_path_accepts_file() -> Result<()> {
+		let temp = tempfile::tempdir()?;
+		let zombie_json = temp.path().join("zombie.json");
+		std::fs::write(&zombie_json, "{}")?;
+
+		let resolved = resolve_zombie_json_path(&zombie_json)?;
+		assert_eq!(resolved, zombie_json);
+		Ok(())
+	}
+
+	#[test]
+	fn resolve_zombie_json_path_accepts_dir() -> Result<()> {
+		let temp = tempfile::tempdir()?;
+		let zombie_json = temp.path().join("zombie.json");
+		std::fs::write(&zombie_json, "{}")?;
+
+		let resolved = resolve_zombie_json_path(temp.path())?;
+		assert_eq!(resolved, zombie_json);
+		Ok(())
+	}
+
+	#[test]
+	fn resolve_zombie_json_path_rejects_missing() -> Result<()> {
+		let temp = tempfile::tempdir()?;
+		let result = resolve_zombie_json_path(temp.path());
+		assert!(result.is_err());
+		Ok(())
+	}
+
+	#[test]
+	fn read_pids_from_zombie_json_collects_pids() -> Result<()> {
+		let temp = tempfile::tempdir()?;
+		let zombie_json = temp.path().join("zombie.json");
+		std::fs::write(
+			&zombie_json,
+			r#"
+			{
+				"nodes": [
+					{ "name": "alice", "pid": 1234 },
+					{ "name": "bob", "pid": "5678" },
+					{ "name": "charlie", "process": 9012 }
+				],
+				"other": { "nested": { "pid": 9999, "process": "3456" } }
+			}
+			"#,
+		)?;
+
+		let mut pids = read_pids_from_zombie_json(&zombie_json)?;
+		pids.sort();
+		assert_eq!(pids, vec!["1234", "3456", "5678", "9012", "9999"]);
+		Ok(())
+	}
+
+	#[test]
+	fn find_zombie_jsons_skips_cleared() -> Result<()> {
+		let temp_dir = std::env::temp_dir().join("zombie-00000000-0000-0000-0000-000000000000");
+		std::fs::create_dir_all(&temp_dir)?;
+		std::fs::write(temp_dir.join("zombie.json"), "{}")?;
+		std::fs::write(temp_dir.join(".CLEARED"), "")?;
+
+		let candidates = find_zombie_jsons()?;
+		assert!(!candidates.iter().any(|c| c.path.starts_with(&temp_dir)));
+		std::fs::remove_dir_all(&temp_dir)?;
+		Ok(())
+	}
+
+	#[test]
+	fn already_stopped_error_detects_esrch() {
+		let message = "Failed to kill attached process 1234: ESRCH: No such process";
+		assert!(is_already_stopped_error(message));
+	}
+
+	#[test]
+	fn fallback_cleanup_detects_provider_error() {
+		let message = "Orchestrator error: Provider error";
+		assert!(should_fallback_to_process_cleanup(message));
+	}
+
+	#[test]
+	fn read_pids_from_zombie_json_ignores_non_numeric_process() -> Result<()> {
+		let temp = tempfile::tempdir()?;
+		let zombie_json = temp.path().join("zombie.json");
+		std::fs::write(
+			&zombie_json,
+			r#"
+			{
+				"nodes": [
+					{ "name": "alice", "pid": 1234 },
+					{ "name": "bob", "process": "polkadot" },
+					{ "name": "charlie", "process": "5678" }
+				]
+			}
+			"#,
+		)?;
+
+		let mut pids = read_pids_from_zombie_json(&zombie_json)?;
+		pids.sort();
+		assert_eq!(pids, vec!["1234", "5678"]);
+		Ok(())
+	}
+
+	#[test]
 	fn clean_nodes_handles_no_processes() -> Result<()> {
 		let mut cli = MockCli::new()
 			.expect_intro("Remove running nodes")
-			.expect_outro("ℹ️ No running nodes found.");
+			.expect_outro("ℹ️  No running nodes found.");
 
 		let cmd = CleanNodesCommand {
 			cli: &mut cli,
@@ -567,7 +1012,7 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_intro("Remove running nodes")
 			.expect_info(format!("Killing the following processes...\n {list} \n"))
-			.expect_outro("ℹ️ 2 processes killed");
+			.expect_outro("ℹ️  2 processes killed");
 
 		let killed: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
 		let killed2 = killed.clone();
@@ -600,7 +1045,7 @@ mod tests {
 				Some(items),
 				None,
 			)
-			.expect_outro("ℹ️ No processes killed");
+			.expect_outro("ℹ️  No processes killed");
 
 		let cmd = CleanNodesCommand {
 			cli: &mut cli,
@@ -621,7 +1066,7 @@ mod tests {
 			.expect_intro("Remove running nodes")
 			.expect_multiselect("Select the processes you wish to kill:", None, true, None, None)
 			.expect_confirm("Are you sure you want to kill the selected process?", false)
-			.expect_outro("ℹ️ No processes killed");
+			.expect_outro("ℹ️  No processes killed");
 
 		let cmd = CleanNodesCommand {
 			cli: &mut cli,
@@ -647,7 +1092,7 @@ mod tests {
 			.expect_intro("Remove running nodes")
 			.expect_multiselect("Select the processes you wish to kill:", None, true, None, None)
 			.expect_confirm("Are you sure you want to kill the 3 selected processes?", true)
-			.expect_outro("ℹ️ 3 processes killed");
+			.expect_outro("ℹ️  3 processes killed");
 
 		let killed: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
 		let killed2 = killed.clone();
@@ -681,7 +1126,7 @@ mod tests {
 
 		let mut cli = MockCli::new()
 			.expect_intro("Remove running nodes")
-			.expect_outro("ℹ️ 1 processes killed");
+			.expect_outro("ℹ️  1 processes killed");
 
 		let killed: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
 		let killed2 = killed.clone();
@@ -708,7 +1153,7 @@ mod tests {
 
 		let mut cli = MockCli::new()
 			.expect_intro("Remove running nodes")
-			.expect_outro_cancel("🚫 Invalid PID(s): 222, 333. No processes killed.");
+			.expect_outro_cancel("🚫  Invalid PID(s): 222, 333. No processes killed.");
 
 		let cmd = CleanNodesCommand {
 			cli: &mut cli,

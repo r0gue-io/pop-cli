@@ -55,10 +55,10 @@ use crate::{
 	create_next_header_with_slot, default_providers,
 	strings::txpool::{runtime_api, transaction_source},
 };
-use scale::{Decode, Encode};
+use scale::Decode;
 use std::{path::Path, sync::Arc};
 use subxt::config::substrate::H256;
-use tokio::sync::{RwLock, broadcast};
+use tokio::sync::{OnceCell, RwLock, broadcast};
 use url::Url;
 
 pub type BlockBody = Vec<Vec<u8>>;
@@ -316,14 +316,30 @@ pub struct Blockchain {
 	/// Executor configuration for runtime calls.
 	executor_config: ExecutorConfig,
 
-	/// RPC endpoint URL for fetching remote data.
-	endpoint: Url,
+	/// Remote storage layer for fetching data from the live chain.
+	///
+	/// This maintains a persistent connection to the RPC endpoint and is shared
+	/// across all blocks. All remote queries (storage, blocks, headers) go through
+	/// this layer, ensuring connection reuse.
+	remote: crate::RemoteStorageLayer,
 
 	/// Event broadcaster for subscription notifications.
 	///
 	/// Subscriptions receive events through receivers obtained via
 	/// [`subscribe_events`](Blockchain::subscribe_events).
 	event_tx: broadcast::Sender<BlockchainEvent>,
+
+	/// Cached genesis hash (lazily initialized per-instance).
+	///
+	/// This cache is instance-specific, ensuring each forked chain maintains
+	/// its own genesis hash even when multiple forks run in the same process.
+	genesis_hash_cache: OnceCell<String>,
+
+	/// Cached chain properties (lazily initialized per-instance).
+	///
+	/// This cache is instance-specific, ensuring each forked chain maintains
+	/// its own properties even when multiple forks run in the same process.
+	chain_properties_cache: OnceCell<Option<serde_json::Value>>,
 }
 
 impl Blockchain {
@@ -460,6 +476,9 @@ impl Blockchain {
 		// Create event broadcast channel
 		let (event_tx, _) = broadcast::channel(EVENT_CHANNEL_CAPACITY);
 
+		// Get the remote storage layer from the fork block (shares same RPC connection)
+		let remote = fork_block.storage().remote().clone();
+
 		Ok(Arc::new(Self {
 			head: RwLock::new(fork_block),
 			inherent_providers,
@@ -468,8 +487,10 @@ impl Blockchain {
 			fork_point_hash,
 			fork_point_number,
 			executor_config,
-			endpoint: endpoint.clone(),
+			remote,
 			event_tx,
+			genesis_hash_cache: OnceCell::new(),
+			chain_properties_cache: OnceCell::new(),
 		}))
 	}
 
@@ -495,7 +516,52 @@ impl Blockchain {
 
 	/// Get the RPC endpoint URL.
 	pub fn endpoint(&self) -> &Url {
-		&self.endpoint
+		self.remote.endpoint()
+	}
+
+	/// Get the genesis hash, formatted as a hex string with "0x" prefix.
+	///
+	/// This method lazily fetches and caches the genesis hash on first call.
+	/// The cache is per-instance, so each forked chain maintains its own value
+	/// even when multiple forks run in the same process.
+	///
+	/// # Returns
+	///
+	/// The genesis hash as "0x" prefixed hex string, or an error if fetching fails.
+	pub async fn genesis_hash(&self) -> Result<String, BlockchainError> {
+		self.genesis_hash_cache
+			.get_or_try_init(|| async {
+				match self.block_hash_at(0).await? {
+					Some(hash) => Ok(format!("0x{}", hex::encode(hash.as_bytes()))),
+					None => Err(BlockchainError::Block(BlockError::RuntimeCodeNotFound)),
+				}
+			})
+			.await
+			.cloned()
+	}
+
+	/// Get the chain properties.
+	///
+	/// This method lazily fetches and caches the chain properties on first call.
+	/// The cache is per-instance, so each forked chain maintains its own value
+	/// even when multiple forks run in the same process.
+	///
+	/// # Returns
+	///
+	/// The chain properties as JSON, or `None` if not available.
+	pub async fn chain_properties(&self) -> Option<serde_json::Value> {
+		self.chain_properties_cache
+			.get_or_init(|| async {
+				match ForkRpcClient::connect(self.endpoint()).await {
+					Ok(client) => match client.system_properties().await {
+						Ok(system_props) => serde_json::to_value(system_props).ok(),
+						Err(_) => None,
+					},
+					Err(_) => None,
+				}
+			})
+			.await
+			.clone()
 	}
 
 	/// Subscribe to blockchain events.
@@ -569,18 +635,8 @@ impl Blockchain {
 			current = block.parent.as_deref();
 		}
 
-		// Not found locally or is fork point - fetch from remote RPC
-		let rpc = ForkRpcClient::connect(&self.endpoint).await.map_err(BlockError::from)?;
-
-		match rpc.block_by_hash(hash).await.map_err(BlockError::from)? {
-			Some(block) => {
-				// Convert extrinsics to raw bytes
-				let extrinsics: BlockBody =
-					block.extrinsics.into_iter().map(|ext| ext.0.to_vec()).collect();
-				Ok(Some(extrinsics))
-			},
-			None => Ok(None),
-		}
+		// Not found locally or is fork point - fetch from remote storage layer
+		Ok(self.remote.block_body(hash).await.map_err(BlockError::from)?)
 	}
 
 	/// Get block header by hash.
@@ -609,14 +665,8 @@ impl Blockchain {
 			current = block.parent.as_deref();
 		}
 
-		// Not found locally  - fetch from remote RPC
-		let rpc = ForkRpcClient::connect(&self.endpoint).await.map_err(BlockError::from)?;
-
-		// Use existing header() method - errors (block not found) are converted to None
-		match rpc.header(hash).await {
-			Ok(header) => Ok(Some(header.encode())),
-			Err(_) => Ok(None), // Block not found on remote
-		}
+		// Not found locally - fetch from remote storage layer
+		Ok(self.remote.block_header(hash).await.map_err(BlockError::from)?)
 	}
 
 	/// Get block hash by block number.
@@ -655,9 +705,8 @@ impl Blockchain {
 			current = block.parent.as_deref();
 		}
 
-		// Block number is before our fork point or not found - fetch from remote RPC
-		let rpc = ForkRpcClient::connect(&self.endpoint).await.map_err(BlockError::from)?;
-		Ok(rpc.block_hash_at(block_number).await.map_err(BlockError::from)?)
+		// Block number is before our fork point or not found - fetch from remote storage layer
+		Ok(self.remote.block_hash_by_number(block_number).await.map_err(BlockError::from)?)
 	}
 
 	/// Get block number by block hash.
@@ -684,12 +733,9 @@ impl Blockchain {
 			current = block.parent.as_deref();
 		}
 
-		// Not found locally - check if it exists on remote chain
-		let rpc = ForkRpcClient::connect(&self.endpoint).await.map_err(BlockError::from)?;
-		match rpc.block_by_hash(hash).await.map_err(BlockError::from)? {
-			Some(block) => Ok(Some(block.header.number)),
-			None => Ok(None),
-		}
+		// Not found locally - check if it exists on remote chain via storage layer
+		// This now uses the persistent SQLite cache before hitting RPC
+		Ok(self.remote.block_number_by_hash(hash).await.map_err(BlockError::from)?)
 	}
 
 	/// Get parent hash of a block by its hash.
@@ -716,12 +762,8 @@ impl Blockchain {
 			current = block.parent.as_deref();
 		}
 
-		// Not found locally - check if it exists on remote chain
-		let rpc = ForkRpcClient::connect(&self.endpoint).await.map_err(BlockError::from)?;
-		match rpc.block_by_hash(hash).await.map_err(BlockError::from)? {
-			Some(block) => Ok(Some(block.header.parent_hash)),
-			None => Ok(None),
-		}
+		// Not found locally - check if it exists on remote chain via storage layer
+		Ok(self.remote.parent_hash(hash).await.map_err(BlockError::from)?)
 	}
 
 	/// Build a new block with the given extrinsics.
@@ -753,17 +795,21 @@ impl Blockchain {
 		&self,
 		extrinsics: BlockBody,
 	) -> Result<BuildBlockResult, BlockchainError> {
-		let mut head = self.head.write().await;
+		// PHASE 1: Prepare (read lock only) - get state needed for building
+		let (parent_block, runtime_code, parent_hash) = {
+			let head = self.head.read().await;
+			let runtime_code = head.runtime_code().await?;
+			let parent_hash = head.hash;
+			(head.clone(), runtime_code, parent_hash)
+		}; // Read lock released here
 
-		// Get runtime code from current head
-		let runtime_code = head.runtime_code().await?;
-
+		// PHASE 2: Build (no lock held) - allows concurrent reads
 		// Create executor with current runtime and configured settings
 		let executor =
 			RuntimeExecutor::with_config(runtime_code, None, self.executor_config.clone())?;
 
 		// Create header for new block with automatic slot digest injection
-		let header = create_next_header_with_slot(&head, &executor, vec![]).await?;
+		let header = create_next_header_with_slot(&parent_block, &executor, vec![]).await?;
 
 		// Convert Arc providers to Box for BlockBuilder
 		let providers: Vec<Box<dyn InherentProvider>> = self
@@ -773,7 +819,7 @@ impl Blockchain {
 			.collect();
 
 		// Create block builder
-		let mut builder = BlockBuilder::new(head.clone(), executor, header, providers);
+		let mut builder = BlockBuilder::new(parent_block, executor, header, providers);
 
 		// Initialize block
 		builder.initialize().await?;
@@ -800,17 +846,24 @@ impl Blockchain {
 		// Finalize and get new block
 		let new_block = builder.finalize().await?;
 
-		// Update head
-		*head = new_block.clone();
+		// PHASE 3: Commit (brief write lock) - update head
+		{
+			let mut head = self.head.write().await;
+			// Verify parent hasn't changed (optimistic concurrency check)
+			if head.hash != parent_hash {
+				return Err(BlockchainError::Block(BlockError::ConcurrentBlockBuild));
+			}
+			*head = new_block.clone();
+		} // Write lock released here before event emission
 
-		// Get modified keys from storage diff and emit event
+		// Get modified keys from storage diff
 		let modified_keys: Vec<Vec<u8>> = new_block
 			.storage()
 			.diff()
 			.map(|diff| diff.into_iter().map(|(k, _)| k).collect())
 			.unwrap_or_default();
 
-		// Emit event (ignore errors - no subscribers is OK)
+		// Emit event AFTER releasing lock (ignore errors - no subscribers is OK)
 		let _ = self.event_tx.send(BlockchainEvent::NewBlock {
 			hash: new_block.hash,
 			number: new_block.number,
@@ -1009,6 +1062,8 @@ impl Blockchain {
 
 		// Build args: (source, extrinsic, block_hash)
 		// source = External (0x02) - transaction comes from outside
+		// Note: Raw concatenation matches how the runtime expects the input.
+		// The extrinsic is passed as-is since it already includes its SCALE encoding.
 		let mut args = Vec::with_capacity(1 + extrinsic.len() + 32);
 		args.push(transaction_source::EXTERNAL);
 		args.extend(extrinsic);
@@ -1064,16 +1119,12 @@ impl Blockchain {
 			current = block.parent.as_deref();
 		}
 
-		// Not in fork history - check if block exists on remote chain
-		let rpc = ForkRpcClient::connect(&self.endpoint).await.map_err(BlockError::from)?;
-
-		let remote_block = match rpc.block_by_hash(hash).await.map_err(BlockError::from)? {
-			Some(block) => block,
-			None => return Ok(None), // Block doesn't exist anywhere
-		};
-
-		// Extract block number from header
-		let block_number = remote_block.header.number;
+		// Not in fork history - check if block exists on remote chain via storage layer
+		let block_number =
+			match self.remote.block_number_by_hash(hash).await.map_err(BlockError::from)? {
+				Some(number) => number,
+				None => return Ok(None), // Block doesn't exist anywhere
+			};
 
 		// Block exists on remote - create mocked block with real hash and number
 		// Storage layer delegates to remote for historical data
