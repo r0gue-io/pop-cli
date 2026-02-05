@@ -26,6 +26,7 @@ use jsonrpsee::{
 	PendingSubscriptionSink, SubscriptionSink,
 	core::{RpcResult, SubscriptionResult},
 	proc_macros::rpc,
+	tracing,
 };
 use scale::Decode;
 use std::{
@@ -36,7 +37,6 @@ use std::{
 	},
 };
 use tokio::sync::{RwLock, broadcast, mpsc};
-use jsonrpsee::tracing;
 
 /// chainHead RPC methods (v1 spec).
 #[rpc(server, namespace = "chainHead")]
@@ -185,9 +185,7 @@ impl ChainHeadApi {
 ///
 /// Returns a flat runtime version object with apis as a HashMap,
 /// which is what papi-console expects.
-async fn get_chainhead_runtime_version(
-	blockchain: &Blockchain,
-) -> Option<ChainHeadRuntimeVersion> {
+async fn get_chainhead_runtime_version(blockchain: &Blockchain) -> Option<ChainHeadRuntimeVersion> {
 	let head_hash = blockchain.head_hash().await;
 
 	let result = blockchain
@@ -271,11 +269,8 @@ impl ChainHeadApiServer for ChainHeadApi {
 
 		// Build initialized event
 		// Use flat runtime format for papi compatibility (not wrapped in ValidRuntime)
-		let runtime_version = if with_runtime {
-			get_chainhead_runtime_version(&self.blockchain).await
-		} else {
-			None
-		};
+		let runtime_version =
+			if with_runtime { get_chainhead_runtime_version(&self.blockchain).await } else { None };
 
 		// Log before building event (values are moved)
 		tracing::debug!(
@@ -297,6 +292,25 @@ impl ChainHeadApiServer for ChainHeadApi {
 
 		// Send initialized event
 		if !send_event(&sink, &initialized).await {
+			self.state.remove_subscription(&sub_id).await;
+			return Ok(());
+		}
+
+		// Send bestBlockChanged event immediately after initialized
+		// This is critical for papi-console compatibility - it expects both events together
+		let finalized_hash_hex_for_best: String =
+			HexString::from_bytes(finalized_hash.as_bytes()).into();
+		let best_block_changed = ChainHeadEvent::BestBlockChanged(BestBlockChangedEvent {
+			best_block_hash: finalized_hash_hex_for_best.clone(),
+		});
+
+		tracing::debug!(
+			sub_id = %sub_id,
+			best_block_hash = %finalized_hash_hex_for_best,
+			"chainHead_v1_follow: sending bestBlockChanged event"
+		);
+
+		if !send_event(&sink, &best_block_changed).await {
 			self.state.remove_subscription(&sub_id).await;
 			return Ok(());
 		}
@@ -746,7 +760,20 @@ mod tests {
 		// Should have finalized block hashes
 		let hashes = event.get("finalizedBlockHashes").and_then(|v| v.as_array());
 		assert!(hashes.is_some());
-		assert!(!hashes.unwrap().is_empty());
+		let hashes = hashes.unwrap();
+		assert!(!hashes.is_empty());
+		let finalized_hash = hashes[0].as_str().unwrap();
+
+		// Should receive bestBlockChanged event immediately after initialized
+		// This is critical for papi-console compatibility
+		let best_event =
+			sub.next().await.expect("Should receive event").expect("Event should be valid");
+		let best_event_type = best_event.get("event").and_then(|v| v.as_str());
+		assert_eq!(best_event_type, Some("bestBlockChanged"));
+
+		// Best block should match the finalized hash
+		let best_hash = best_event.get("bestBlockHash").and_then(|v| v.as_str());
+		assert_eq!(best_hash, Some(finalized_hash));
 	}
 
 	#[tokio::test(flavor = "multi_thread")]

@@ -75,9 +75,10 @@ impl AuthorApiServer for AuthorApi {
 
 		// Instant mode: submit and immediately drain txpool in one operation.
 		// This reduces lock acquisitions from 2 to 1.
-		let (hash, pending_txs) = self.txpool.submit_and_drain(ext_bytes).map_err(|e| {
-			RpcServerError::Internal(format!("Failed to submit extrinsic: {e}"))
-		})?;
+		let (hash, pending_txs) = self
+			.txpool
+			.submit_and_drain(ext_bytes)
+			.map_err(|e| RpcServerError::Internal(format!("Failed to submit extrinsic: {e}")))?;
 
 		let result = self
 			.blockchain

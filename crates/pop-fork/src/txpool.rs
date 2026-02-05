@@ -55,12 +55,12 @@ impl TxPool {
 	/// build immediately after receiving a transaction.
 	///
 	/// Returns a tuple of (extrinsic hash, all pending extrinsics including the new one).
-	pub fn submit_and_drain(&self, extrinsic: Vec<u8>) -> Result<(H256, Vec<Vec<u8>>), TxPoolError> {
+	pub fn submit_and_drain(
+		&self,
+		extrinsic: Vec<u8>,
+	) -> Result<(H256, Vec<Vec<u8>>), TxPoolError> {
 		let hash = H256::from(sp_core::blake2_256(&extrinsic));
-		let mut pending = self
-			.pending
-			.write()
-			.map_err(|err| TxPoolError::Lock(err.to_string()))?;
+		let mut pending = self.pending.write().map_err(|err| TxPoolError::Lock(err.to_string()))?;
 		pending.push(extrinsic);
 		let all = std::mem::take(&mut *pending);
 		Ok((hash, all))
