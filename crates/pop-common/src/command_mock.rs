@@ -8,6 +8,7 @@ fn exit_script(exit_code: i32) -> String {
 	format!("#!/bin/sh\nexit {}", exit_code)
 }
 
+/// Helper to build temp command shims for tests.
 pub struct CommandMock {
 	temp_dir: TempDir,
 }
@@ -19,6 +20,7 @@ impl Default for CommandMock {
 }
 
 impl CommandMock {
+	/// Return the temp directory used to host fake commands.
 	pub fn fake_path(&self) -> &Path {
 		self.temp_dir.path()
 	}

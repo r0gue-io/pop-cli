@@ -342,15 +342,15 @@ mod tests {
 		let tag_pattern = "polkadot-{version}";
 		let name = "polkadot";
 		let archive = format!("{name}-{}.tar.gz", target()?);
-		let fallback = "stable2412-4".to_string();
+		let fallback = "stable2512".to_string();
 		let contents = ["polkadot", "polkadot-execute-worker", "polkadot-prepare-worker"];
 		let temp_dir = tempdir()?;
-		for tag in [None, Some("stable2412".to_string())] {
+		for tag in [None, Some("stable2512".to_string())] {
 			let path = temp_dir
 				.path()
 				.join(tag.as_ref().map_or(name.to_string(), |t| format!("{name}-{t}")));
 			File::create(&path)?;
-			for latest in [None, Some("polkadot-stable2503".to_string())] {
+			for latest in [None, Some("polkadot-stable2512".to_string())] {
 				let mut binary = Binary::Source {
 					name: name.to_string(),
 					source: GitHub(ReleaseArchive {
