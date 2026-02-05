@@ -5,9 +5,10 @@ use clap::{Args, CommandFactory, ValueEnum};
 use clap_complete::{Shell, generate};
 use serde::Serialize;
 use std::{
+	env,
 	fs::{File, create_dir_all},
 	io,
-	io::Write,
+	io::{IsTerminal, Write},
 	path::{Path, PathBuf},
 };
 
@@ -48,6 +49,9 @@ pub(crate) struct CompletionArgs {
 	/// Shell type to generate completions for.
 	#[clap(value_enum)]
 	pub(crate) shell: Option<CompletionShell>,
+	/// Shell type to generate completions for (flag form).
+	#[clap(long = "shell", value_enum, conflicts_with = "shell")]
+	pub(crate) shell_flag: Option<CompletionShell>,
 	/// Write completions to a file instead of stdout.
 	#[clap(short, long)]
 	pub(crate) output: Option<PathBuf>,
@@ -57,14 +61,29 @@ pub(crate) struct Command;
 
 impl Command {
 	pub(crate) fn execute(args: &CompletionArgs) -> Result<()> {
-		match (args.shell, args.output.as_ref()) {
+		let shell = args.shell.or(args.shell_flag);
+		match (shell, args.output.as_ref()) {
 			(Some(shell), None) => generate_completion(shell, &mut io::stdout()),
 			(Some(shell), Some(path)) => {
 				write_completion_file(shell, path)?;
 				print_post_install(shell, path);
 				Ok(())
 			},
-			(None, _) => interactive_setup(&mut Cli),
+			(None, Some(path)) =>
+				if let Some((shell, shell_env)) = detect_shell_from_env() {
+					eprintln!(
+						"Detected shell from $SHELL ({}). If this is incorrect, rerun with --shell.",
+						shell_env
+					);
+					write_completion_file(shell, path)?;
+					print_post_install(shell, path);
+					Ok(())
+				} else if io::stdin().is_terminal() {
+					interactive_setup(&mut Cli, Some(path))
+				} else {
+					Err(anyhow!("--output requires --shell when SHELL is not set"))
+				},
+			(None, None) => interactive_setup(&mut Cli, None),
 		}
 	}
 }
@@ -84,6 +103,29 @@ fn write_completion_file(shell: CompletionShell, path: &Path) -> Result<()> {
 	generate_completion(shell, &mut file)
 }
 
+fn shell_from_env_value(value: &str) -> Option<CompletionShell> {
+	let value = value.to_ascii_lowercase();
+	if value.contains("zsh") {
+		Some(CompletionShell::Zsh)
+	} else if value.contains("bash") {
+		Some(CompletionShell::Bash)
+	} else if value.contains("fish") {
+		Some(CompletionShell::Fish)
+	} else if value.contains("elvish") {
+		Some(CompletionShell::Elvish)
+	} else if value.contains("pwsh") || value.contains("powershell") {
+		Some(CompletionShell::PowerShell)
+	} else {
+		None
+	}
+}
+
+fn detect_shell_from_env() -> Option<(CompletionShell, String)> {
+	let shell_env = env::var("SHELL").ok()?;
+	let shell = shell_from_env_value(&shell_env)?;
+	Some((shell, shell_env))
+}
+
 fn default_completion_path(shell: CompletionShell, home: &Path) -> Option<PathBuf> {
 	match shell {
 		CompletionShell::Bash => Some(home.join(".local/share/bash-completion/completions/pop")),
@@ -94,7 +136,10 @@ fn default_completion_path(shell: CompletionShell, home: &Path) -> Option<PathBu
 	}
 }
 
-fn interactive_setup(cli: &mut impl crate::cli::traits::Cli) -> Result<()> {
+fn interactive_setup(
+	cli: &mut impl crate::cli::traits::Cli,
+	output_override: Option<&Path>,
+) -> Result<()> {
 	cli.intro("Shell completion setup")?;
 
 	let shell = {
@@ -112,12 +157,16 @@ fn interactive_setup(cli: &mut impl crate::cli::traits::Cli) -> Result<()> {
 	let default_path = default_completion_path(shell, &home).unwrap_or_else(|| home.join(".pop"));
 	let default_path = default_path.to_string_lossy().to_string();
 
-	let path_input = cli
-		.input("Where should I save the completion file?")
-		.default_input(&default_path)
-		.required(true)
-		.interact()?;
-	let path = PathBuf::from(path_input.trim());
+	let path = if let Some(path) = output_override {
+		path.to_path_buf()
+	} else {
+		let path_input = cli
+			.input("Where should I save the completion file?")
+			.default_input(&default_path)
+			.required(true)
+			.interact()?;
+		PathBuf::from(path_input.trim())
+	};
 	if path.as_os_str().is_empty() {
 		return Err(anyhow!("completion output path cannot be empty"));
 	}
@@ -197,5 +246,14 @@ mod tests {
 			default_completion_path(CompletionShell::Fish, home).unwrap(),
 			home.join(".config/fish/completions/pop.fish")
 		);
+	}
+
+	#[test]
+	fn shell_from_env_value_detects_common_shells() {
+		assert_eq!(shell_from_env_value("/bin/zsh"), Some(CompletionShell::Zsh));
+		assert_eq!(shell_from_env_value("/usr/bin/bash"), Some(CompletionShell::Bash));
+		assert_eq!(shell_from_env_value("fish"), Some(CompletionShell::Fish));
+		assert_eq!(shell_from_env_value("pwsh.exe"), Some(CompletionShell::PowerShell));
+		assert_eq!(shell_from_env_value("cmd.exe"), None);
 	}
 }
