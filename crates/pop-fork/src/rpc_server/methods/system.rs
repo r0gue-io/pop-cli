@@ -4,9 +4,8 @@
 //!
 //! These methods provide system information for polkadot.js compatibility.
 
-use super::chain_spec::CHAIN_PROPERTIES;
 use crate::{
-	Blockchain, ForkRpcClient,
+	Blockchain,
 	rpc_server::{
 		RpcServerError,
 		types::{SyncState, SystemHealth},
@@ -102,21 +101,7 @@ impl SystemApiServer for SystemApi {
 	}
 
 	async fn properties(&self) -> RpcResult<Option<serde_json::Value>> {
-		// Return cached value if available
-		if let Some(props) = CHAIN_PROPERTIES.get() {
-			return Ok(props.clone());
-		}
-
-		// Fetch chain properties from upstream
-		let props = match ForkRpcClient::connect(self.blockchain.endpoint()).await {
-			Ok(client) => match client.system_properties().await {
-				Ok(system_props) => serde_json::to_value(system_props).ok(),
-				Err(_) => None,
-			},
-			Err(_) => None,
-		};
-
-		Ok(CHAIN_PROPERTIES.get_or_init(|| props).clone())
+		Ok(self.blockchain.chain_properties().await)
 	}
 
 	fn local_peer_id(&self) -> RpcResult<String> {

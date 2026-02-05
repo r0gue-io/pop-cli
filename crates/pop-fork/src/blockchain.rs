@@ -58,7 +58,7 @@ use crate::{
 use scale::{Decode, Encode};
 use std::{path::Path, sync::Arc};
 use subxt::config::substrate::H256;
-use tokio::sync::{RwLock, broadcast};
+use tokio::sync::{OnceCell, RwLock, broadcast};
 use url::Url;
 
 pub type BlockBody = Vec<Vec<u8>>;
@@ -324,6 +324,18 @@ pub struct Blockchain {
 	/// Subscriptions receive events through receivers obtained via
 	/// [`subscribe_events`](Blockchain::subscribe_events).
 	event_tx: broadcast::Sender<BlockchainEvent>,
+
+	/// Cached genesis hash (lazily initialized per-instance).
+	///
+	/// This cache is instance-specific, ensuring each forked chain maintains
+	/// its own genesis hash even when multiple forks run in the same process.
+	genesis_hash_cache: OnceCell<String>,
+
+	/// Cached chain properties (lazily initialized per-instance).
+	///
+	/// This cache is instance-specific, ensuring each forked chain maintains
+	/// its own properties even when multiple forks run in the same process.
+	chain_properties_cache: OnceCell<Option<serde_json::Value>>,
 }
 
 impl Blockchain {
@@ -470,6 +482,8 @@ impl Blockchain {
 			executor_config,
 			endpoint: endpoint.clone(),
 			event_tx,
+			genesis_hash_cache: OnceCell::new(),
+			chain_properties_cache: OnceCell::new(),
 		}))
 	}
 
@@ -496,6 +510,51 @@ impl Blockchain {
 	/// Get the RPC endpoint URL.
 	pub fn endpoint(&self) -> &Url {
 		&self.endpoint
+	}
+
+	/// Get the genesis hash, formatted as a hex string with "0x" prefix.
+	///
+	/// This method lazily fetches and caches the genesis hash on first call.
+	/// The cache is per-instance, so each forked chain maintains its own value
+	/// even when multiple forks run in the same process.
+	///
+	/// # Returns
+	///
+	/// The genesis hash as "0x" prefixed hex string, or an error if fetching fails.
+	pub async fn genesis_hash(&self) -> Result<String, BlockchainError> {
+		self.genesis_hash_cache
+			.get_or_try_init(|| async {
+				match self.block_hash_at(0).await? {
+					Some(hash) => Ok(format!("0x{}", hex::encode(hash.as_bytes()))),
+					None => Err(BlockchainError::Block(BlockError::RuntimeCodeNotFound)),
+				}
+			})
+			.await
+			.cloned()
+	}
+
+	/// Get the chain properties.
+	///
+	/// This method lazily fetches and caches the chain properties on first call.
+	/// The cache is per-instance, so each forked chain maintains its own value
+	/// even when multiple forks run in the same process.
+	///
+	/// # Returns
+	///
+	/// The chain properties as JSON, or `None` if not available.
+	pub async fn chain_properties(&self) -> Option<serde_json::Value> {
+		self.chain_properties_cache
+			.get_or_init(|| async {
+				match ForkRpcClient::connect(&self.endpoint).await {
+					Ok(client) => match client.system_properties().await {
+						Ok(system_props) => serde_json::to_value(system_props).ok(),
+						Err(_) => None,
+					},
+					Err(_) => None,
+				}
+			})
+			.await
+			.clone()
 	}
 
 	/// Subscribe to blockchain events.
