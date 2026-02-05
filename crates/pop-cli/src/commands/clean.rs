@@ -270,11 +270,11 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 	}
 }
 
-/// Returns a list of (process_name, PID, ports) for ink-node and eth-rpc processes.
+/// Returns a list of (process_name, PID, ports) for ink-node, eth-rpc, and pop-fork processes.
 fn get_node_processes() -> Result<Vec<(String, String, String)>> {
 	let mut processes = Vec::new();
 
-	// Process types to check
+	// Process types to check by exact name
 	let process_names = ["ink-node", "eth-rpc"];
 
 	for process_name in &process_names {
@@ -288,36 +288,68 @@ fn get_node_processes() -> Result<Vec<(String, String, String)>> {
 		let pids = String::from_utf8_lossy(&pgrep_output.stdout);
 
 		for pid in pids.lines().filter(|l| !l.is_empty()) {
-			// Get ports for this PID using lsof
-			let lsof_output = StdCommand::new("lsof")
-				.args(["-Pan", "-p", pid, "-i", "TCP", "-s", "TCP:LISTEN"])
-				.output()?;
-
-			if !lsof_output.status.success() {
-				continue;
-			}
-
-			let lsof_lines = String::from_utf8_lossy(&lsof_output.stdout);
-			let mut ports = Vec::new();
-
-			for line in lsof_lines.lines().skip(1) {
-				if line.contains("127.0.0.1") {
-					let parts: Vec<&str> = line.split_whitespace().collect();
-					if let Some(addr) = parts.get(8) &&
-						let Some(port) = addr.split(':').next_back()
-					{
-						ports.push(port.to_string());
-					}
-				}
-			}
-
-			if !ports.is_empty() {
-				processes.push((process_name.to_string(), pid.to_string(), ports.join(", ")));
+			if let Some(ports) = get_listening_ports(pid) {
+				processes.push((process_name.to_string(), pid.to_string(), ports));
 			}
 		}
 	}
 
+	// Also check for pop-fork processes (identified by "fork --serve" in command line)
+	processes.extend(get_fork_processes()?);
+
 	Ok(processes)
+}
+
+/// Returns a list of (process_name, PID, ports) for detached pop-fork processes.
+fn get_fork_processes() -> Result<Vec<(String, String, String)>> {
+	let mut processes = Vec::new();
+
+	// Find processes running "fork ... --serve" in command line.
+	// Using [f]ork pattern to prevent pgrep from matching itself - the bracket notation
+	// matches 'fork' in process args but not '[f]ork' in pgrep's own command line.
+	let pgrep_output = StdCommand::new("pgrep").args(["-f", "[f]ork.*--serve"]).output()?;
+
+	if !pgrep_output.status.success() {
+		return Ok(processes);
+	}
+
+	let pids = String::from_utf8_lossy(&pgrep_output.stdout);
+
+	for pid in pids.lines().filter(|l| !l.is_empty()) {
+		// Include process even if no ports detected (might be starting up or lsof can't see them)
+		let ports = get_listening_ports(pid).unwrap_or_else(|| "N/A".to_string());
+		processes.push(("pop-fork".to_string(), pid.to_string(), ports));
+	}
+
+	Ok(processes)
+}
+
+/// Get listening ports for a given PID using lsof.
+fn get_listening_ports(pid: &str) -> Option<String> {
+	let lsof_output = StdCommand::new("lsof")
+		.args(["-Pan", "-p", pid, "-i", "TCP", "-s", "TCP:LISTEN"])
+		.output()
+		.ok()?;
+
+	if !lsof_output.status.success() {
+		return None;
+	}
+
+	let lsof_lines = String::from_utf8_lossy(&lsof_output.stdout);
+	let mut ports = Vec::new();
+
+	for line in lsof_lines.lines().skip(1) {
+		if line.contains("127.0.0.1") {
+			let parts: Vec<&str> = line.split_whitespace().collect();
+			if let Some(addr) = parts.get(8) &&
+				let Some(port) = addr.split(':').next_back()
+			{
+				ports.push(port.to_string());
+			}
+		}
+	}
+
+	if ports.is_empty() { None } else { Some(ports.join(", ")) }
 }
 
 /// Kills a process by PID.
