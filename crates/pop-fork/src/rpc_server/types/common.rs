@@ -129,7 +129,8 @@ pub struct RuntimeVersion {
 	pub transaction_version: u32,
 	/// State version.
 	pub state_version: u8,
-	/// Supported APIs.
+	/// Supported APIs as array of [api_id, version] tuples.
+	/// polkadot-js expects: [["0xdf6acb689907609b", 4], ...]
 	#[serde(default)]
 	pub apis: Vec<(String, u32)>,
 }
@@ -209,11 +210,37 @@ pub struct InitializedEvent {
 	/// Finalized block hashes.
 	pub finalized_block_hashes: Vec<String>,
 	/// Finalized block runtime (if requested).
+	/// This is a flat runtime object for papi compatibility (not wrapped in ValidRuntime).
 	#[serde(skip_serializing_if = "Option::is_none")]
-	pub finalized_block_runtime: Option<RuntimeEvent>,
+	pub finalized_block_runtime: Option<ChainHeadRuntimeVersion>,
 }
 
-/// Runtime event for chainHead.
+/// Runtime version for chainHead RPC methods.
+///
+/// This differs from `RuntimeVersion` in that:
+/// - It's a flat object (not wrapped in `{ type: "valid", spec: {...} }`)
+/// - The `apis` field is a HashMap (JSON object) instead of Vec (JSON array)
+///
+/// papi-console expects: `{ specName, implName, ..., apis: { "0x...": 1 } }`
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ChainHeadRuntimeVersion {
+	/// Spec name (e.g., "polkadot").
+	pub spec_name: String,
+	/// Implementation name.
+	pub impl_name: String,
+	/// Spec version.
+	pub spec_version: u32,
+	/// Implementation version.
+	pub impl_version: u32,
+	/// Transaction version.
+	pub transaction_version: u32,
+	/// Supported APIs as a map from hex-encoded API ID to version.
+	#[serde(default)]
+	pub apis: HashMap<String, u32>,
+}
+
+/// Runtime event for chainHead (kept for newBlock events which may need it).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum RuntimeEvent {

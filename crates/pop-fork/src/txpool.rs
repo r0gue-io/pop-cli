@@ -48,6 +48,24 @@ impl TxPool {
 		))
 	}
 
+	/// Submit an extrinsic and immediately drain all pending extrinsics.
+	///
+	/// This combines `submit` and `drain` into a single lock acquisition,
+	/// which is more efficient for instant-mode block building where we
+	/// build immediately after receiving a transaction.
+	///
+	/// Returns a tuple of (extrinsic hash, all pending extrinsics including the new one).
+	pub fn submit_and_drain(&self, extrinsic: Vec<u8>) -> Result<(H256, Vec<Vec<u8>>), TxPoolError> {
+		let hash = H256::from(sp_core::blake2_256(&extrinsic));
+		let mut pending = self
+			.pending
+			.write()
+			.map_err(|err| TxPoolError::Lock(err.to_string()))?;
+		pending.push(extrinsic);
+		let all = std::mem::take(&mut *pending);
+		Ok((hash, all))
+	}
+
 	/// Get a clone of all pending extrinsics without removing them.
 	pub fn pending(&self) -> Result<Vec<Vec<u8>>, TxPoolError> {
 		Ok(self.pending.read().map_err(|err| TxPoolError::Lock(err.to_string()))?.clone())
@@ -102,5 +120,21 @@ mod tests {
 
 		assert_eq!(pending, vec![vec![1, 2], vec![3, 4]]);
 		assert_eq!(pool.len().unwrap(), 2);
+	}
+
+	#[test]
+	fn submit_and_drain_returns_hash_and_all_pending() {
+		let pool = TxPool::new();
+		pool.submit(vec![1]).unwrap();
+		pool.submit(vec![2]).unwrap();
+
+		let new_extrinsic = vec![3, 4, 5];
+		let expected_hash = H256::from(sp_core::blake2_256(&new_extrinsic));
+
+		let (hash, drained) = pool.submit_and_drain(new_extrinsic).unwrap();
+
+		assert_eq!(hash, expected_hash);
+		assert_eq!(drained, vec![vec![1], vec![2], vec![3, 4, 5]]);
+		assert!(pool.is_empty().unwrap());
 	}
 }

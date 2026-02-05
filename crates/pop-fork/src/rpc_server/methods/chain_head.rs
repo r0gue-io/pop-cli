@@ -15,9 +15,9 @@ use crate::{
 	rpc_server::{
 		RpcServerError, parse_block_hash, parse_hex_bytes,
 		types::{
-			BestBlockChangedEvent, ChainHeadEvent, FinalizedEvent, HexString, InitializedEvent,
-			MethodResponse, NewBlockEvent, OperationEvent, OperationResult, RuntimeEvent,
-			RuntimeVersion, StorageQueryItem, StorageQueryType, StorageResultItem, ValidRuntime,
+			BestBlockChangedEvent, ChainHeadEvent, ChainHeadRuntimeVersion, FinalizedEvent,
+			HexString, InitializedEvent, MethodResponse, NewBlockEvent, OperationEvent,
+			OperationResult, StorageQueryItem, StorageQueryType, StorageResultItem,
 		},
 	},
 	strings::rpc_server::{chain_head, runtime_api},
@@ -36,6 +36,7 @@ use std::{
 	},
 };
 use tokio::sync::{RwLock, broadcast, mpsc};
+use jsonrpsee::tracing;
 
 /// chainHead RPC methods (v1 spec).
 #[rpc(server, namespace = "chainHead")]
@@ -180,8 +181,13 @@ impl ChainHeadApi {
 	}
 }
 
-/// Get runtime version from blockchain.
-async fn get_runtime_version(blockchain: &Blockchain) -> Option<RuntimeVersion> {
+/// Get runtime version from blockchain for chainHead RPC.
+///
+/// Returns a flat runtime version object with apis as a HashMap,
+/// which is what papi-console expects.
+async fn get_chainhead_runtime_version(
+	blockchain: &Blockchain,
+) -> Option<ChainHeadRuntimeVersion> {
 	let head_hash = blockchain.head_hash().await;
 
 	let result = blockchain
@@ -193,24 +199,22 @@ async fn get_runtime_version(blockchain: &Blockchain) -> Option<RuntimeVersion> 
 	struct ScaleRuntimeVersion {
 		spec_name: String,
 		impl_name: String,
-		authoring_version: u32,
+		_authoring_version: u32,
 		spec_version: u32,
 		impl_version: u32,
 		apis: Vec<([u8; 8], u32)>,
 		transaction_version: u32,
-		state_version: u8,
+		_state_version: u8,
 	}
 
 	let version = ScaleRuntimeVersion::decode(&mut result.as_slice()).ok()?;
 
-	Some(RuntimeVersion {
+	Some(ChainHeadRuntimeVersion {
 		spec_name: version.spec_name,
 		impl_name: version.impl_name,
-		authoring_version: version.authoring_version,
 		spec_version: version.spec_version,
 		impl_version: version.impl_version,
 		transaction_version: version.transaction_version,
-		state_version: version.state_version,
 		apis: version
 			.apis
 			.into_iter()
@@ -266,18 +270,30 @@ impl ChainHeadApiServer for ChainHeadApi {
 		let finalized_hash_hex = HexString::from_bytes(finalized_hash.as_bytes()).into();
 
 		// Build initialized event
-		let runtime_event = if with_runtime {
-			get_runtime_version(&self.blockchain)
-				.await
-				.map(|spec| RuntimeEvent::Valid(ValidRuntime { spec }))
+		// Use flat runtime format for papi compatibility (not wrapped in ValidRuntime)
+		let runtime_version = if with_runtime {
+			get_chainhead_runtime_version(&self.blockchain).await
 		} else {
 			None
 		};
 
+		// Log before building event (values are moved)
+		tracing::debug!(
+			sub_id = %sub_id,
+			finalized_hash = %finalized_hash_hex,
+			has_runtime = runtime_version.is_some(),
+			"chainHead_v1_follow: sending initialized event"
+		);
+
 		let initialized = ChainHeadEvent::Initialized(InitializedEvent {
 			finalized_block_hashes: vec![finalized_hash_hex],
-			finalized_block_runtime: runtime_event,
+			finalized_block_runtime: runtime_version,
 		});
+
+		// Log the exact JSON being sent for debugging
+		if let Ok(json) = serde_json::to_string_pretty(&initialized) {
+			tracing::debug!(json = %json, "chainHead_v1_follow: initialized event JSON");
+		}
 
 		// Send initialized event
 		if !send_event(&sink, &initialized).await {
@@ -450,18 +466,46 @@ impl ChainHeadApiServer for ChainHeadApi {
 		let op_id = operation_id.clone();
 		let handle_clone = Arc::clone(&handle);
 
+		let function_clone = function.clone();
 		tokio::spawn(async move {
-			let event = match blockchain.call_at_block(block_hash, &function, &params).await {
+			tracing::debug!(
+				op_id = %op_id,
+				block = %format!("0x{}", hex::encode(block_hash.as_bytes())),
+				function = %function_clone,
+				params_len = params.len(),
+				"chainHead_v1_call: executing runtime call"
+			);
+			let event = match blockchain.call_at_block(block_hash, &function_clone, &params).await {
 				Ok(Some(result)) => {
+					tracing::debug!(
+						op_id = %op_id,
+						function = %function_clone,
+						result_len = result.len(),
+						"chainHead_v1_call: success"
+					);
 					let output: String = HexString::from_bytes(&result).into();
 					OperationEvent::OperationCallDone { operation_id: op_id, output }
 				},
-				Ok(None) => OperationEvent::OperationError {
-					operation_id: op_id,
-					error: "Call returned no result".to_string(),
+				Ok(None) => {
+					tracing::warn!(
+						op_id = %op_id,
+						function = %function_clone,
+						"chainHead_v1_call: no result"
+					);
+					OperationEvent::OperationError {
+						operation_id: op_id,
+						error: "Call returned no result".to_string(),
+					}
 				},
-				Err(e) =>
-					OperationEvent::OperationError { operation_id: op_id, error: e.to_string() },
+				Err(e) => {
+					tracing::error!(
+						op_id = %op_id,
+						function = %function_clone,
+						error = %e,
+						"chainHead_v1_call: failed"
+					);
+					OperationEvent::OperationError { operation_id: op_id, error: e.to_string() }
+				},
 			};
 
 			let _ = event_tx.send(event);
@@ -495,6 +539,15 @@ impl ChainHeadApiServer for ChainHeadApi {
 
 		// Parse block hash
 		let block_hash = parse_block_hash(&hash)?;
+
+		// Log storage query
+		let keys_summary: Vec<_> = items.iter().map(|i| i.key.as_str()).collect();
+		tracing::debug!(
+			op_id = %operation_id,
+			block = %hash,
+			keys = ?keys_summary,
+			"chainHead_v1_storage: querying storage"
+		);
 
 		// Get block number for storage queries
 		let block_number = self
@@ -558,6 +611,19 @@ impl ChainHeadApiServer for ChainHeadApi {
 						});
 					},
 				}
+			}
+
+			// Log results summary
+			for item in &result_items {
+				let has_value = item.value.is_some();
+				let has_hash = item.hash.is_some();
+				tracing::debug!(
+					op_id = %op_id,
+					key = %item.key,
+					has_value = has_value,
+					has_hash = has_hash,
+					"chainHead_v1_storage: result item"
+				);
 			}
 
 			// Send storage items if any

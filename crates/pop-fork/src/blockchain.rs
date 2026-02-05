@@ -753,17 +753,21 @@ impl Blockchain {
 		&self,
 		extrinsics: BlockBody,
 	) -> Result<BuildBlockResult, BlockchainError> {
-		let mut head = self.head.write().await;
+		// PHASE 1: Prepare (read lock only) - get state needed for building
+		let (parent_block, runtime_code, parent_hash) = {
+			let head = self.head.read().await;
+			let runtime_code = head.runtime_code().await?;
+			let parent_hash = head.hash;
+			(head.clone(), runtime_code, parent_hash)
+		}; // Read lock released here
 
-		// Get runtime code from current head
-		let runtime_code = head.runtime_code().await?;
-
+		// PHASE 2: Build (no lock held) - allows concurrent reads
 		// Create executor with current runtime and configured settings
 		let executor =
 			RuntimeExecutor::with_config(runtime_code, None, self.executor_config.clone())?;
 
 		// Create header for new block with automatic slot digest injection
-		let header = create_next_header_with_slot(&head, &executor, vec![]).await?;
+		let header = create_next_header_with_slot(&parent_block, &executor, vec![]).await?;
 
 		// Convert Arc providers to Box for BlockBuilder
 		let providers: Vec<Box<dyn InherentProvider>> = self
@@ -773,7 +777,7 @@ impl Blockchain {
 			.collect();
 
 		// Create block builder
-		let mut builder = BlockBuilder::new(head.clone(), executor, header, providers);
+		let mut builder = BlockBuilder::new(parent_block, executor, header, providers);
 
 		// Initialize block
 		builder.initialize().await?;
@@ -800,17 +804,24 @@ impl Blockchain {
 		// Finalize and get new block
 		let new_block = builder.finalize().await?;
 
-		// Update head
-		*head = new_block.clone();
+		// PHASE 3: Commit (brief write lock) - update head
+		{
+			let mut head = self.head.write().await;
+			// Verify parent hasn't changed (optimistic concurrency check)
+			if head.hash != parent_hash {
+				return Err(BlockchainError::Block(BlockError::ConcurrentBlockBuild));
+			}
+			*head = new_block.clone();
+		} // Write lock released here before event emission
 
-		// Get modified keys from storage diff and emit event
+		// Get modified keys from storage diff
 		let modified_keys: Vec<Vec<u8>> = new_block
 			.storage()
 			.diff()
 			.map(|diff| diff.into_iter().map(|(k, _)| k).collect())
 			.unwrap_or_default();
 
-		// Emit event (ignore errors - no subscribers is OK)
+		// Emit event AFTER releasing lock (ignore errors - no subscribers is OK)
 		let _ = self.event_tx.send(BlockchainEvent::NewBlock {
 			hash: new_block.hash,
 			number: new_block.number,
@@ -1009,6 +1020,8 @@ impl Blockchain {
 
 		// Build args: (source, extrinsic, block_hash)
 		// source = External (0x02) - transaction comes from outside
+		// Note: Raw concatenation matches how the runtime expects the input.
+		// The extrinsic is passed as-is since it already includes its SCALE encoding.
 		let mut args = Vec::with_capacity(1 + extrinsic.len() + 32);
 		args.push(transaction_source::EXTERNAL);
 		args.extend(extrinsic);

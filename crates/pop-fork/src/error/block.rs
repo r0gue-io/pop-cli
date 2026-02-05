@@ -30,4 +30,8 @@ pub enum BlockError {
 	/// Runtime code not found in storage.
 	#[error("Runtime code not found in storage")]
 	RuntimeCodeNotFound,
+
+	/// Concurrent block build detected - parent block changed during build.
+	#[error("Concurrent block build detected: parent block changed during building")]
+	ConcurrentBlockBuild,
 }
