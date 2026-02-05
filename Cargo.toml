@@ -86,7 +86,7 @@ cumulus-client-cli = { version = "0.26.0", default-features = false }
 
 # benchmarking
 cumulus-primitives-proof-size-hostfunction = "0.15.0"
-frame-benchmarking-cli = { version = "51.0.0", default-features = false }
+frame-benchmarking-cli = { version = "53.0.0", default-features = false }
 sc-chain-spec = { version = "46.0.0", default-features = false }
 sp-runtime = { version = "44.0.0", default-features = false }
 sp-statement-store = "23.0.0"
@@ -119,4 +119,5 @@ diesel_migrations = { version = "2.3.1", default-features = false }
 async-trait = "0.1"
 smoldot = { version = "0.21.0", default-features = false, features = ["std"] }
 trie-db = { version = "0.30", default-features = false }
+
 
