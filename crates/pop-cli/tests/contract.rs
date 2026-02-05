@@ -13,7 +13,7 @@ use pop_contracts::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::{path::Path, time::Duration};
+use std::{path::Path, process::Command, time::Duration};
 use strum::VariantArray;
 use subxt::{
 	Metadata, OnlineClient, SubstrateConfig, backend::rpc::RpcClient,
@@ -292,8 +292,21 @@ async fn contract_lifecycle() -> Result<()> {
 	Ok(())
 }
 
+fn docker_available() -> bool {
+	Command::new("docker")
+		.arg("info")
+		.output()
+		.map(|output| output.status.success())
+		.unwrap_or(false)
+}
+
 #[tokio::test]
 async fn verifiable_contract_lifecycle() -> Result<()> {
+	if !docker_available() {
+		eprintln!("Skipping verifiable_contract_lifecycle: Docker is not available.");
+		return Ok(());
+	}
+
 	let endpoint_port = resolve_port(None);
 	let default_endpoint: &str = &format!("ws://127.0.0.1:{}", endpoint_port);
 
