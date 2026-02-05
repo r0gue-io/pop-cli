@@ -505,9 +505,7 @@ impl InherentProvider for ParachainInherent {
 				Ok(vec![processed])
 			},
 			None => {
-				warn!(
-					"[ParachainInherent] No setValidationData extrinsic found in parent block"
-				);
+				warn!("[ParachainInherent] No setValidationData extrinsic found in parent block");
 				Ok(vec![])
 			},
 		}

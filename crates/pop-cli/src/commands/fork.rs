@@ -86,7 +86,7 @@ impl Command {
 			} else {
 				SignatureMockMode::MagicSignature
 			},
-            max_log_level: args.log_level as u32,
+			max_log_level: args.log_level as u32,
 			..Default::default()
 		};
 
