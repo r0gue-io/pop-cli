@@ -40,8 +40,9 @@ impl Docker {
 			.spawn()
 		{
 			Ok(c) => c,
-			Err(err) if err.kind() == std::io::ErrorKind::NotFound =>
-				return Ok(Docker::NotInstalled),
+			Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+				return Ok(Docker::NotInstalled);
+			},
 			Err(err) => return Err(Error::Docker(err.to_string())),
 		};
 

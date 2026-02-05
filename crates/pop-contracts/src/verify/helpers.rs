@@ -117,7 +117,7 @@ pub(super) fn verify_polkavm_code_hash_against_build_result(
 	{
 		artifacts
 	} else {
-		return Err(Error::ContractMetadata("The metadata for the workspace contract does not contain a contract binary, therefore we are unable to verify the contract.".to_owned()))
+		return Err(Error::ContractMetadata("The metadata for the workspace contract does not contain a contract binary, therefore we are unable to verify the contract.".to_owned()));
 	};
 
 	let file = File::open(&built_contract_path.dest_bundle)?;
@@ -217,11 +217,12 @@ pub(super) async fn get_deployed_polkavm_code_hash(
 	let account_info = AccountInfo::decode(&mut &storage_value[..]).map_err(|_| Error::Verification("`pop` cannot find contract information for the provided contract address. Verification aborted.".to_owned()))?;
 	let code_hash = match account_info.account_type {
 		AccountType::Contract(ContractInfo { code_hash, .. }) => code_hash,
-		_ =>
+		_ => {
 			return Err(Error::Verification(
 				"The provided address doesn't belong to a contract. Verification aborted."
 					.to_owned(),
-			)),
+			));
+		},
 	};
 
 	Ok(code_hash)

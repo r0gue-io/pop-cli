@@ -99,6 +99,7 @@ console = { version = "0.15", default-features = false }
 os_info = { version = "3", default-features = false }
 strum = { version = "0.26", default-features = false }
 strum_macros = { version = "0.26", default-features = false }
+time = { version = "0.3", default-features = false, features = ["std", "formatting"] }
 
 # wallet-integration
 axum = { version = "0.7.9", default-features = false, features = ["http1", "json", "tokio"] }
