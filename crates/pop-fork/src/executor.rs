@@ -374,7 +374,9 @@ impl RuntimeExecutor {
 						let none_placeholder: Option<(Once<[u8; 0]>, TrieEntryVersion)> = None;
 						match value {
 							// A local shared value can be empty, just flagging that a key was
-							// manually deleted. Some(()) is encoded as empty bytes, so we need to distinguish where we return an empty existing key and a non-existent key
+							// manually deleted. Some(()) is encoded as empty bytes, so we need to
+							// distinguish where we return an empty existing key and a non-existent
+							// key
 							Some(value) if value.value.is_some() => req.inject_value(Some((
 								iter::once(ArcLocalSharedValue(value)),
 								TrieEntryVersion::V1,
@@ -494,28 +496,16 @@ impl RuntimeExecutor {
 					use smoldot::executor::host::LogEmitInfo;
 
 					let log = match req.info() {
-						LogEmitInfo::Num(v) => {
-							eprintln!("[Executor] LogEmit::Num: {}", v);
-							RuntimeLog { message: format!("{}", v), level: None, target: None }
-						},
-						LogEmitInfo::Utf8(v) => {
-							eprintln!("[Executor] LogEmit::Utf8: {}", v);
-							RuntimeLog { message: v.to_string(), level: None, target: None }
-						},
-						LogEmitInfo::Hex(v) => {
-							eprintln!("[Executor] LogEmit::Hex: {}", v);
-							RuntimeLog { message: v.to_string(), level: None, target: None }
-						},
-						LogEmitInfo::Log { log_level, target, message } => {
-							eprintln!(
-								"[Executor] LogEmit::Log [{}] {}: {}",
-								log_level, target, message
-							);
-							RuntimeLog {
-								message: message.to_string(),
-								level: Some(log_level),
-								target: Some(target.to_string()),
-							}
+						LogEmitInfo::Num(v) =>
+							RuntimeLog { message: format!("{}", v), level: None, target: None },
+						LogEmitInfo::Utf8(v) =>
+							RuntimeLog { message: v.to_string(), level: None, target: None },
+						LogEmitInfo::Hex(v) =>
+							RuntimeLog { message: v.to_string(), level: None, target: None },
+						LogEmitInfo::Log { log_level, target, message } => RuntimeLog {
+							message: message.to_string(),
+							level: Some(log_level),
+							target: Some(target.to_string()),
 						},
 					};
 					logs.push(log);

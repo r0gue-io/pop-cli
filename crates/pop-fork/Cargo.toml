@@ -15,6 +15,9 @@ diesel.workspace = true
 diesel-async.workspace = true
 diesel_migrations.workspace = true
 
+# Logging
+log.workspace = true
+
 # From workspace
 bytes.workspace = true
 hex.workspace = true
