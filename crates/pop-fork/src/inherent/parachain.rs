@@ -518,7 +518,7 @@ mod tests {
 
 	#[test]
 	fn identifier_returns_parachain_system() {
-		let provider = ParachainInherent::default();
+		let provider = ParachainInherent;
 		assert_eq!(provider.identifier(), strings::IDENTIFIER);
 	}
 
