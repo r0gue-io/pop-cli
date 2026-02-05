@@ -25,7 +25,7 @@ pub(super) enum BenchmarkingCli {
 		Repository = "https://github.com/r0gue-io/polkadot",
 		Binary = "frame-omni-bencher",
 		TagPattern = "polkadot-{version}",
-		Fallback = "stable2503-7"
+		Fallback = "stable2512"
 	))]
 	OmniBencher,
 }
@@ -81,7 +81,7 @@ mod tests {
 	async fn omni_bencher_generator_works() -> Result<(), Error> {
 		let temp_dir = tempdir()?;
 		let temp_dir_path = temp_dir.path().to_path_buf();
-		let version = "polkadot-stable2412-4";
+		let version = "polkadot-stable2512";
 		let binary = omni_bencher_generator(temp_dir_path.clone(), Some(version)).await?;
 		assert!(matches!(binary, Binary::Source { name: _, source, cache }
 				if source == Source::GitHub(ReleaseArchive {
@@ -91,7 +91,7 @@ mod tests {
 					tag_pattern: Some("polkadot-{version}".into()),
 					prerelease: false,
 					version_comparator: sort_by_latest_stable_version,
-					fallback: "stable2503-7".to_string(),
+					fallback: "stable2512".to_string(),
 					archive: format!("frame-omni-bencher-{}.tar.gz", target()?),
 					contents: ["frame-omni-bencher"].map(|b| ArchiveFileSpec::new(b.into(), Some(b.into()), true)).to_vec(),
 					latest: binary.latest().map(|l| l.to_string()),

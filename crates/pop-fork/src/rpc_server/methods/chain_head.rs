@@ -526,46 +526,18 @@ impl ChainHeadApiServer for ChainHeadApi {
 		let op_id = operation_id.clone();
 		let handle_clone = Arc::clone(&handle);
 
-		let function_clone = function.clone();
 		tokio::spawn(async move {
-			tracing::debug!(
-				op_id = %op_id,
-				block = %format!("0x{}", hex::encode(block_hash.as_bytes())),
-				function = %function_clone,
-				params_len = params.len(),
-				"chainHead_v1_call: executing runtime call"
-			);
-			let event = match blockchain.call_at_block(block_hash, &function_clone, &params).await {
+			let event = match blockchain.call_at_block(block_hash, &function, &params).await {
 				Ok(Some(result)) => {
-					tracing::debug!(
-						op_id = %op_id,
-						function = %function_clone,
-						result_len = result.len(),
-						"chainHead_v1_call: success"
-					);
 					let output: String = HexString::from_bytes(&result).into();
 					OperationEvent::OperationCallDone { operation_id: op_id, output }
 				},
-				Ok(None) => {
-					tracing::warn!(
-						op_id = %op_id,
-						function = %function_clone,
-						"chainHead_v1_call: no result"
-					);
-					OperationEvent::OperationError {
-						operation_id: op_id,
-						error: "Call returned no result".to_string(),
-					}
+				Ok(None) => OperationEvent::OperationError {
+					operation_id: op_id,
+					error: "Call returned no result".to_string(),
 				},
-				Err(e) => {
-					tracing::error!(
-						op_id = %op_id,
-						function = %function_clone,
-						error = %e,
-						"chainHead_v1_call: failed"
-					);
-					OperationEvent::OperationError { operation_id: op_id, error: e.to_string() }
-				},
+				Err(e) =>
+					OperationEvent::OperationError { operation_id: op_id, error: e.to_string() },
 			};
 
 			let _ = event_tx.send(event);
@@ -599,15 +571,6 @@ impl ChainHeadApiServer for ChainHeadApi {
 
 		// Parse block hash
 		let block_hash = parse_block_hash(&hash)?;
-
-		// Log storage query
-		let keys_summary: Vec<_> = items.iter().map(|i| i.key.as_str()).collect();
-		tracing::debug!(
-			op_id = %operation_id,
-			block = %hash,
-			keys = ?keys_summary,
-			"chainHead_v1_storage: querying storage"
-		);
 
 		// Get block number for storage queries
 		let block_number = self
@@ -671,19 +634,6 @@ impl ChainHeadApiServer for ChainHeadApi {
 						});
 					},
 				}
-			}
-
-			// Log results summary
-			for item in &result_items {
-				let has_value = item.value.is_some();
-				let has_hash = item.hash.is_some();
-				tracing::debug!(
-					op_id = %op_id,
-					key = %item.key,
-					has_value = has_value,
-					has_hash = has_hash,
-					"chainHead_v1_storage: result item"
-				);
 			}
 
 			// Send storage items if any

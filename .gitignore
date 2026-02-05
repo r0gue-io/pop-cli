@@ -22,3 +22,12 @@ vendor/
 
 # Diesel
 .diesel_lock
+arch/src/
+arch/pkg/
+arch/*.pkg.tar*
+arch/*.tar.gz
+arch/*.log
+arch/cargo-home/
+arch/.SRCINFO
+
+vendor/

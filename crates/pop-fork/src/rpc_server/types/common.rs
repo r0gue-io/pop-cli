@@ -129,8 +129,7 @@ pub struct RuntimeVersion {
 	pub transaction_version: u32,
 	/// State version.
 	pub state_version: u8,
-	/// Supported APIs as array of [api_id, version] tuples.
-	/// polkadot-js expects: [["0xdf6acb689907609b", 4], ...]
+	/// Supported APIs.
 	#[serde(default)]
 	pub apis: Vec<(String, u32)>,
 }

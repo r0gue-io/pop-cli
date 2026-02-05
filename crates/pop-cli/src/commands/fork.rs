@@ -2,7 +2,7 @@
 
 use crate::cli::{self};
 use anyhow::Result;
-use clap::Args;
+use clap::{Args, ValueEnum};
 use pop_fork::{
 	Blockchain, ExecutorConfig, SignatureMockMode, TxPool,
 	rpc_server::{ForkRpcServer, RpcServerConfig},
@@ -10,6 +10,38 @@ use pop_fork::{
 use serde::Serialize;
 use std::{path::PathBuf, sync::Arc};
 use url::Url;
+
+/// Log level for fork command output.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, ValueEnum, Serialize)]
+pub enum LogLevel {
+	/// Disable all logging.
+	Off,
+	/// Error level only.
+	Error,
+	/// Warnings and errors.
+	Warn,
+	/// Informational messages (default).
+	#[default]
+	Info,
+	/// Debug messages.
+	Debug,
+	/// Trace messages.
+	Trace,
+}
+
+impl LogLevel {
+	/// Convert to log::LevelFilter.
+	pub fn to_level_filter(self) -> log::LevelFilter {
+		match self {
+			LogLevel::Off => log::LevelFilter::Off,
+			LogLevel::Error => log::LevelFilter::Error,
+			LogLevel::Warn => log::LevelFilter::Warn,
+			LogLevel::Info => log::LevelFilter::Info,
+			LogLevel::Debug => log::LevelFilter::Debug,
+			LogLevel::Trace => log::LevelFilter::Trace,
+		}
+	}
+}
 
 /// Arguments for the fork command.
 #[derive(Args, Clone, Default, Serialize)]
@@ -30,6 +62,10 @@ pub(crate) struct ForkArgs {
 	/// Use this for maximum flexibility when testing.
 	#[arg(long = "mock-all-signatures")]
 	pub mock_all_signatures: bool,
+
+	/// Log level for internal block building operations.
+	#[arg(long = "log-level", value_enum, default_value = "info")]
+	pub log_level: LogLevel,
 }
 
 pub(crate) struct Command;
@@ -50,6 +86,7 @@ impl Command {
 			} else {
 				SignatureMockMode::MagicSignature
 			},
+			max_log_level: args.log_level as u32,
 			..Default::default()
 		};
 

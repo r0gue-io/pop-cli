@@ -29,6 +29,7 @@ console.workspace = true
 dirs.workspace = true
 duct.workspace = true
 env_logger.workspace = true
+log.workspace = true
 os_info.workspace = true
 psvm.workspace = true
 reqwest.workspace = true

@@ -105,7 +105,7 @@ async fn fork_and_transfer_balance() -> Result<()> {
 	let fork_port = 18545u16; // Use high port to avoid conflicts
 	let mut fork_cmd = pop(
 		temp_dir,
-		["fork", "-e", source_url, "--port", &fork_port.to_string(), "--mock-signatures"],
+		["fork", "-e", source_url, "--port", &fork_port.to_string(), "--mock-all-signatures"],
 	);
 	let _fork_process = TestChildProcess(fork_cmd.spawn()?);
 
