@@ -275,6 +275,10 @@ impl InherentProvider for TimestampInherent {
 		// Calculate new timestamp
 		let new_timestamp = current_timestamp.saturating_add(slot_duration);
 
+		log::info!(
+			"[Timestamp] current_timestamp={current_timestamp}, slot_duration={slot_duration}, new_timestamp={new_timestamp}"
+		);
+
 		// Encode the timestamp.set call with dynamic indices
 		let call = Self::encode_timestamp_set_call(pallet_index, call_index, new_timestamp);
 

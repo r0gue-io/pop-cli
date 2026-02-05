@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::error::{LocalStorageError, RpcClientError};
+use crate::error::{LocalStorageError, RemoteStorageError, RpcClientError};
 use subxt::config::substrate::H256;
 use thiserror::Error;
 
@@ -14,6 +14,10 @@ pub enum BlockError {
 	/// Storage layer error.
 	#[error("Storage error: {0}")]
 	Storage(#[from] LocalStorageError),
+
+	/// Remote storage layer error.
+	#[error("Remote storage error: {0}")]
+	RemoteStorage(#[from] RemoteStorageError),
 
 	/// Block not found at the specified hash.
 	#[error("Block not found: {0:?}")]
@@ -30,4 +34,8 @@ pub enum BlockError {
 	/// Runtime code not found in storage.
 	#[error("Runtime code not found in storage")]
 	RuntimeCodeNotFound,
+
+	/// Concurrent block build detected - parent block changed during build.
+	#[error("Concurrent block build detected: parent block changed during building")]
+	ConcurrentBlockBuild,
 }
