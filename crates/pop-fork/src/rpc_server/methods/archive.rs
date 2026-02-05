@@ -233,10 +233,9 @@ impl ArchiveApiServer for ArchiveApi {
 	}
 
 	async fn genesis_hash(&self) -> RpcResult<String> {
-		self.blockchain
-			.genesis_hash()
-			.await
-			.map_err(|e| RpcServerError::Internal(format!("Failed to fetch genesis hash: {e}")).into())
+		self.blockchain.genesis_hash().await.map_err(|e| {
+			RpcServerError::Internal(format!("Failed to fetch genesis hash: {e}")).into()
+		})
 	}
 
 	async fn storage_diff(
