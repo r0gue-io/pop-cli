@@ -45,13 +45,17 @@ pub(crate) struct NewBlockRow<'a> {
 	pub header: &'a [u8],
 }
 
-/// Block row for query results (uses owned data)
+/// Block row for query results (uses owned data).
 #[derive(Queryable, Selectable, Clone, Debug)]
 #[diesel(table_name = blocks)]
 pub struct BlockRow {
+	/// Block hash (32 bytes).
 	pub hash: Vec<u8>,
+	/// Block number.
 	pub number: i64,
+	/// Parent block hash (32 bytes).
 	pub parent_hash: Vec<u8>,
+	/// SCALE-encoded block header.
 	pub header: Vec<u8>,
 }
 

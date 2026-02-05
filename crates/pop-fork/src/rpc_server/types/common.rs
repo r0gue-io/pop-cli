@@ -245,8 +245,11 @@ pub struct ChainHeadRuntimeVersion {
 pub enum RuntimeEvent {
 	/// Valid runtime.
 	Valid(ValidRuntime),
-	/// Invalid runtime.
-	Invalid { error: String },
+	/// Invalid runtime with error message.
+	Invalid {
+		/// Error description.
+		error: String,
+	},
 }
 
 /// Valid runtime info.
@@ -304,8 +307,11 @@ pub struct MethodResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "result", rename_all = "camelCase")]
 pub enum OperationResult {
-	/// Operation started.
-	Started { operation_id: String },
+	/// Operation started successfully.
+	Started {
+		/// Unique identifier for tracking this operation.
+		operation_id: String,
+	},
 	/// Limit reached.
 	LimitReached,
 }
