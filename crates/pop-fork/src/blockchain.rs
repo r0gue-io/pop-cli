@@ -53,7 +53,7 @@ use crate::{
 	ExecutorError, InherentProvider, RuntimeExecutor, StorageCache,
 	builder::ApplyExtrinsicResult,
 	create_next_header_with_slot, default_providers,
-	strings::txpool::{runtime_api, transaction_source},
+	strings::txpool::{runtime_api, transaction_source}, ForkRpcClient
 };
 use scale::Decode;
 use std::{path::Path, sync::Arc};
@@ -552,7 +552,7 @@ impl Blockchain {
 	pub async fn chain_properties(&self) -> Option<serde_json::Value> {
 		self.chain_properties_cache
 			.get_or_init(|| async {
-				match ForkRpcClient::connect(&self.endpoint).await {
+				match ForkRpcClient::connect(&self.endpoint()).await {
 					Ok(client) => match client.system_properties().await {
 						Ok(system_props) => serde_json::to_value(system_props).ok(),
 						Err(_) => None,
