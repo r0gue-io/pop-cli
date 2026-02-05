@@ -188,6 +188,13 @@ impl LocalStorageLayer {
 		self.latest_block_number
 	}
 
+	/// Get a reference to the underlying storage cache.
+	///
+	/// This provides access to the cache for operations like clearing local storage.
+	pub fn cache(&self) -> &crate::StorageCache {
+		self.parent.cache()
+	}
+
 	/// Get the metadata valid at a specific block number.
 	///
 	/// For blocks at or after the fork point, returns metadata from the local version tree.

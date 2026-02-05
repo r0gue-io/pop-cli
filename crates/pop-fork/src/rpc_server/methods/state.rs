@@ -5,14 +5,21 @@
 //! These methods provide state-related operations for polkadot.js compatibility.
 
 use crate::{
-	Blockchain,
+	Blockchain, BlockchainEvent,
 	rpc_server::{
 		RpcServerError, parse_block_hash, parse_hex_bytes,
-		types::{HexString, RuntimeVersion},
+		types::{HexString, RuntimeVersion, StorageChangeSet},
 	},
+	strings::rpc_server::{runtime_api, storage},
 };
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+use jsonrpsee::{
+	PendingSubscriptionSink,
+	core::{RpcResult, SubscriptionResult},
+	proc_macros::rpc,
+};
+use scale::Decode;
 use std::sync::Arc;
+use tokio::sync::broadcast;
 
 /// Legacy state RPC methods.
 #[rpc(server, namespace = "state")]
@@ -32,6 +39,40 @@ pub trait StateApi {
 	/// Get the runtime version.
 	#[method(name = "getRuntimeVersion")]
 	async fn get_runtime_version(&self, at: Option<String>) -> RpcResult<RuntimeVersion>;
+
+	/// Get storage keys with pagination.
+	#[method(name = "getKeysPaged")]
+	async fn get_keys_paged(
+		&self,
+		prefix: Option<String>,
+		count: u32,
+		start_key: Option<String>,
+		at: Option<String>,
+	) -> RpcResult<Vec<String>>;
+
+	/// Call a runtime API method.
+	///
+	/// Returns the hex-encoded result of the runtime call.
+	#[method(name = "call")]
+	async fn call(&self, method: String, data: String, at: Option<String>) -> RpcResult<String>;
+
+	/// Subscribe to runtime version changes.
+	#[subscription(name = "subscribeRuntimeVersion" => "runtimeVersion", unsubscribe = "unsubscribeRuntimeVersion", item = RuntimeVersion)]
+	async fn subscribe_runtime_version(&self) -> SubscriptionResult;
+
+	/// Subscribe to storage changes.
+	#[subscription(name = "subscribeStorage" => "storage", unsubscribe = "unsubscribeStorage", item = StorageChangeSet)]
+	async fn subscribe_storage(&self, keys: Option<Vec<String>>) -> SubscriptionResult;
+
+	/// Query storage values at a specific block.
+	///
+	/// Returns a list of storage change sets with the values for each key.
+	#[method(name = "queryStorageAt")]
+	async fn query_storage_at(
+		&self,
+		keys: Vec<String>,
+		at: Option<String>,
+	) -> RpcResult<Vec<StorageChangeSet>>;
 }
 
 /// Implementation of legacy state RPC methods.
@@ -80,8 +121,16 @@ impl StateApiServer for StateApi {
 			None => self.blockchain.head().await.hash,
 		};
 		// Fetch real metadata via runtime call
-		match self.blockchain.call_at_block(block_hash, "Metadata_metadata", &[]).await {
-			Ok(Some(result)) => Ok(HexString::from_bytes(&result).into()),
+		// The runtime returns SCALE-encoded Vec<u8>, so we need to decode it
+		// to strip the compact length prefix
+		match self.blockchain.call_at_block(block_hash, runtime_api::METADATA, &[]).await {
+			Ok(Some(result)) => {
+				// Decode SCALE Vec<u8> to get raw metadata bytes
+				let metadata_bytes: Vec<u8> = Decode::decode(&mut &result[..]).map_err(|e| {
+					RpcServerError::Internal(format!("Failed to decode metadata: {}", e))
+				})?;
+				Ok(HexString::from_bytes(&metadata_bytes).into())
+			},
 			_ => Err(RpcServerError::Internal("Failed to get metadata".to_string()).into()),
 		}
 	}
@@ -92,13 +141,11 @@ impl StateApiServer for StateApi {
 			None => self.blockchain.head().await.hash,
 		};
 		// Fetch runtime version via Core_version call and decode
-		match self.blockchain.call_at_block(block_hash, "Core_version", &[]).await {
+		match self.blockchain.call_at_block(block_hash, runtime_api::CORE_VERSION, &[]).await {
 			Ok(Some(result)) => {
 				// Decode the SCALE-encoded RuntimeVersion
 				// Format: spec_name, impl_name, authoring_version, spec_version, impl_version,
 				//         apis (Vec<([u8;8], u32)>), transaction_version, state_version
-				use scale::Decode;
-
 				#[derive(Decode)]
 				struct ScaleRuntimeVersion {
 					spec_name: String,
@@ -131,6 +178,268 @@ impl StateApiServer for StateApi {
 			},
 			_ => Err(RpcServerError::Internal("Failed to get runtime version".to_string()).into()),
 		}
+	}
+
+	async fn get_keys_paged(
+		&self,
+		_prefix: Option<String>,
+		_count: u32,
+		_start_key: Option<String>,
+		_at: Option<String>,
+	) -> RpcResult<Vec<String>> {
+		// Mock implementation - return empty list
+		// Full implementation would require iterating storage keys which is complex
+		Ok(vec![])
+	}
+
+	async fn call(&self, method: String, data: String, at: Option<String>) -> RpcResult<String> {
+		let block_hash = match at {
+			Some(hash) => parse_block_hash(&hash)?,
+			None => self.blockchain.head().await.hash,
+		};
+		let params = parse_hex_bytes(&data, "data")?;
+
+		match self.blockchain.call_at_block(block_hash, &method, &params).await {
+			Ok(Some(result)) => Ok(HexString::from_bytes(&result).into()),
+			Ok(None) => Err(RpcServerError::Internal("Call returned no result".to_string()).into()),
+			Err(e) => Err(RpcServerError::Internal(format!("Runtime call failed: {}", e)).into()),
+		}
+	}
+
+	async fn query_storage_at(
+		&self,
+		keys: Vec<String>,
+		at: Option<String>,
+	) -> RpcResult<Vec<StorageChangeSet>> {
+		// Resolve block
+		let (block_number, block_hash) = match at {
+			Some(ref hash) => {
+				let parsed = parse_block_hash(hash)?;
+				let num = self
+					.blockchain
+					.block_number_by_hash(parsed)
+					.await
+					.map_err(|_| {
+						RpcServerError::InvalidParam(format!("Invalid block hash: {}", hash))
+					})?
+					.ok_or_else(|| {
+						RpcServerError::InvalidParam(format!("Block not found: {}", hash))
+					})?;
+				(num, parsed)
+			},
+			None => {
+				let head = self.blockchain.head().await;
+				(head.number, head.hash)
+			},
+		};
+
+		// Query each key
+		let mut changes = Vec::new();
+		for key in keys {
+			let key_bytes = parse_hex_bytes(&key, "key")?;
+			let value = match self.blockchain.storage_at(block_number, &key_bytes).await {
+				Ok(Some(v)) => Some(HexString::from_bytes(&v).into()),
+				Ok(None) => None,
+				Err(_) => None,
+			};
+			changes.push((key, value));
+		}
+
+		// Return as single change set for the queried block
+		Ok(vec![StorageChangeSet {
+			block: HexString::from_bytes(block_hash.as_bytes()).into(),
+			changes,
+		}])
+	}
+
+	async fn subscribe_runtime_version(
+		&self,
+		pending: PendingSubscriptionSink,
+	) -> SubscriptionResult {
+		let sink = pending.accept().await?;
+		let blockchain = Arc::clone(&self.blockchain);
+
+		// Get current runtime version and send it immediately
+		let current_version = self.get_runtime_version(None).await.ok();
+		if let Some(ref version) = current_version {
+			let _ = sink.send(jsonrpsee::SubscriptionMessage::from_json(version)?).await;
+		}
+
+		// Subscribe to blockchain events to detect runtime upgrades
+		let mut receiver = blockchain.subscribe_events();
+
+		// The `:code` storage key indicates a runtime upgrade
+		let code_key = storage::RUNTIME_CODE_KEY.to_vec();
+
+		tokio::spawn(async move {
+			let mut last_spec_version = current_version.map(|v| v.spec_version);
+
+			loop {
+				tokio::select! {
+					biased;
+
+					_ = sink.closed() => break,
+
+					event = receiver.recv() => {
+						match event {
+							Ok(BlockchainEvent::NewBlock { modified_keys, hash, .. }) => {
+								// Check if :code was modified (runtime upgrade)
+								let runtime_changed = modified_keys.contains(&code_key);
+
+								if runtime_changed {
+									// Fetch new runtime version
+									if let Ok(Some(result)) = blockchain.call_at_block(hash, runtime_api::CORE_VERSION, &[]).await {
+										#[derive(Decode)]
+										struct ScaleRuntimeVersion {
+											spec_name: String,
+											impl_name: String,
+											authoring_version: u32,
+											spec_version: u32,
+											impl_version: u32,
+											apis: Vec<([u8; 8], u32)>,
+											transaction_version: u32,
+											state_version: u8,
+										}
+
+										if let Ok(version) = ScaleRuntimeVersion::decode(&mut result.as_slice()) {
+											// Only notify if spec_version changed
+											if last_spec_version != Some(version.spec_version) {
+												last_spec_version = Some(version.spec_version);
+
+												let rt_version = RuntimeVersion {
+													spec_name: version.spec_name,
+													impl_name: version.impl_name,
+													authoring_version: version.authoring_version,
+													spec_version: version.spec_version,
+													impl_version: version.impl_version,
+													transaction_version: version.transaction_version,
+													state_version: version.state_version,
+													apis: version.apis.into_iter()
+														.map(|(id, ver)| (format!("0x{}", hex::encode(id)), ver))
+														.collect(),
+												};
+
+												let msg = match jsonrpsee::SubscriptionMessage::from_json(&rt_version) {
+													Ok(m) => m,
+													Err(_) => continue,
+												};
+												if sink.send(msg).await.is_err() {
+													break;
+												}
+											}
+										}
+									}
+								}
+							}
+							Err(broadcast::error::RecvError::Lagged(_)) => continue,
+							Err(broadcast::error::RecvError::Closed) => break,
+						}
+					}
+				}
+			}
+		});
+
+		Ok(())
+	}
+
+	async fn subscribe_storage(
+		&self,
+		pending: PendingSubscriptionSink,
+		keys: Option<Vec<String>>,
+	) -> SubscriptionResult {
+		let sink = pending.accept().await?;
+		let blockchain = Arc::clone(&self.blockchain);
+
+		// Parse subscribed keys from hex to bytes
+		let subscribed_keys: Vec<Vec<u8>> = keys
+			.clone()
+			.unwrap_or_default()
+			.iter()
+			.filter_map(|k| hex::decode(k.trim_start_matches("0x")).ok())
+			.collect();
+
+		// Also keep original hex keys for response formatting
+		let subscribed_keys_hex: Vec<String> = keys.unwrap_or_default();
+
+		// Send initial values
+		let head_hash = blockchain.head_hash().await;
+		let block_hex = format!("0x{}", hex::encode(head_hash.as_bytes()));
+
+		let mut changes = Vec::new();
+		for (i, key_bytes) in subscribed_keys.iter().enumerate() {
+			let value = blockchain
+				.storage(key_bytes)
+				.await
+				.ok()
+				.flatten()
+				.map(|v| format!("0x{}", hex::encode(v)));
+			let key_hex = subscribed_keys_hex.get(i).cloned().unwrap_or_default();
+			changes.push((key_hex, value));
+		}
+
+		let change_set = StorageChangeSet { block: block_hex, changes };
+		let _ = sink.send(jsonrpsee::SubscriptionMessage::from_json(&change_set)?).await;
+
+		// If no keys to watch, just wait for close
+		if subscribed_keys.is_empty() {
+			sink.closed().await;
+			return Ok(());
+		}
+
+		// Subscribe to blockchain events
+		let mut receiver = blockchain.subscribe_events();
+
+		tokio::spawn(async move {
+			loop {
+				tokio::select! {
+					biased;
+
+					_ = sink.closed() => break,
+
+					event = receiver.recv() => {
+						match event {
+							Ok(BlockchainEvent::NewBlock { hash, modified_keys, .. }) => {
+								// Filter to keys we're watching that were modified
+								let affected_indices: Vec<usize> = subscribed_keys.iter()
+									.enumerate()
+									.filter(|(_, k)| modified_keys.iter().any(|mk| mk == *k))
+									.map(|(i, _)| i)
+									.collect();
+
+								if affected_indices.is_empty() {
+									continue;
+								}
+
+								// Fetch new values for affected keys
+								let block_hex = format!("0x{}", hex::encode(hash.as_bytes()));
+								let mut changes = Vec::new();
+
+								for i in affected_indices {
+									let key_hex = subscribed_keys_hex.get(i).cloned().unwrap_or_default();
+									let key_bytes = &subscribed_keys[i];
+									let value = blockchain.storage(key_bytes).await.ok().flatten()
+										.map(|v| format!("0x{}", hex::encode(v)));
+									changes.push((key_hex, value));
+								}
+
+								let change_set = StorageChangeSet { block: block_hex, changes };
+								let msg = match jsonrpsee::SubscriptionMessage::from_json(&change_set) {
+									Ok(m) => m,
+									Err(_) => continue,
+								};
+								if sink.send(msg).await.is_err() {
+									break;
+								}
+							}
+							Err(broadcast::error::RecvError::Lagged(_)) => continue,
+							Err(broadcast::error::RecvError::Closed) => break,
+						}
+					}
+				}
+			}
+		});
+
+		Ok(())
 	}
 }
 
@@ -265,6 +574,12 @@ mod tests {
 		assert!(result.starts_with("0x"), "Metadata should be hex encoded");
 		// Metadata is large, just check it's substantial
 		assert!(result.len() > 1000, "Metadata should be substantial in size");
+		// Verify metadata magic number "meta" (0x6d657461) is at the start
+		assert!(
+			result.starts_with("0x6d657461"),
+			"Metadata should start with magic number 'meta' (0x6d657461), got: {}",
+			&result[..20.min(result.len())]
+		);
 	}
 
 	#[tokio::test(flavor = "multi_thread")]

@@ -21,4 +21,7 @@ pub mod magic_signature {
 
 	/// Padding byte used to fill the rest of a magic signature.
 	pub const PADDING: u8 = 0xcd;
+
+	/// Size of an sr25519 signature in bytes.
+	pub const SR25519_SIZE: usize = 64;
 }

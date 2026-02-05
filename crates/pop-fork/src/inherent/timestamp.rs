@@ -93,7 +93,13 @@ impl TimestampInherent {
 	}
 
 	/// Compute the storage key for `Timestamp::Now`.
-	fn timestamp_now_key() -> Vec<u8> {
+	///
+	/// The key is constructed as: `twox_128("Timestamp") ++ twox_128("Now")`
+	///
+	/// # Returns
+	///
+	/// A 32-byte storage key.
+	pub fn timestamp_now_key() -> Vec<u8> {
 		let pallet_hash = sp_core::twox_128(strings::storage_keys::PALLET_NAME);
 		let storage_hash = sp_core::twox_128(strings::storage_keys::NOW);
 		[pallet_hash.as_slice(), storage_hash.as_slice()].concat()
@@ -128,11 +134,22 @@ impl TimestampInherent {
 
 	/// Get slot duration from the runtime, falling back to the provided default.
 	///
-	/// Detection order:
+	/// This function uses a three-tier detection mechanism:
 	/// 1. `AuraApi_slot_duration` runtime API (Aura-based chains)
 	/// 2. `Babe::ExpectedBlockTime` metadata constant (Babe-based chains)
-	/// 3. Fallback to configured default
-	async fn get_slot_duration_from_runtime(
+	/// 3. Fallback to the provided default value
+	///
+	/// # Arguments
+	///
+	/// * `executor` - Runtime executor for calling runtime APIs
+	/// * `storage` - Storage layer for state access
+	/// * `metadata` - Runtime metadata for constant lookup
+	/// * `fallback` - Default slot duration if detection fails (in milliseconds)
+	///
+	/// # Returns
+	///
+	/// The slot duration in milliseconds.
+	pub async fn get_slot_duration_from_runtime(
 		executor: &RuntimeExecutor,
 		storage: &crate::LocalStorageLayer,
 		metadata: &Metadata,

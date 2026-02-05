@@ -61,8 +61,30 @@ pub mod parachain {
 		pub const PALLET_NAME: &str = "ParachainSystem";
 
 		/// Call name for the `set_validation_data` function.
-		/// Reserved for future use when full parachain inherent is implemented.
-		#[allow(dead_code)]
 		pub const SET_VALIDATION_DATA_CALL_NAME: &str = "set_validation_data";
+	}
+
+	/// Storage key components for parachain info.
+	pub mod storage_keys {
+		/// Pallet name for computing the storage key prefix.
+		pub const PARACHAIN_INFO_PALLET: &[u8] = b"ParachainInfo";
+
+		/// Storage item name for the parachain ID.
+		pub const PARACHAIN_ID: &[u8] = b"ParachainId";
+	}
+}
+
+/// String constants for relay chain inherent mocking.
+pub mod relay {
+	/// Pallet name for ParaInherent (relay chain parachains inherent).
+	pub const PARA_INHERENT_PALLET: &str = "ParaInherent";
+
+	/// Storage key components for relay chain storage.
+	pub mod storage_keys {
+		/// Pallet name for computing the storage key prefix.
+		pub const PARA_INHERENT_PALLET: &[u8] = b"ParaInherent";
+
+		/// Storage item name for the Included flag.
+		pub const INCLUDED: &[u8] = b"Included";
 	}
 }

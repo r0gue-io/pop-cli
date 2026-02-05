@@ -19,12 +19,12 @@
 //! │                    InherentProvider Trait                       │
 //! └─────────────────────────────────────────────────────────────────┘
 //!                                │
-//!                 ┌──────────────┼──────────────┐
-//!                 ▼              ▼              ▼
-//!          ┌──────────┐   ┌──────────┐   ┌──────────┐
-//!          │Timestamp │   │Parachain │   │  Future  │
-//!          │ Inherent │   │ Inherent │   │Providers │
-//!          └──────────┘   └──────────┘   └──────────┘
+//!          ┌─────────────────────┼─────────────────────┐
+//!          ▼                     ▼                     ▼
+//!    ┌──────────┐          ┌──────────┐          ┌──────────┐
+//!    │Timestamp │          │Parachain │          │RelayChain│
+//!    │ Inherent │          │ Inherent │          │ Inherent │
+//!    └──────────┘          └──────────┘          └──────────┘
 //! ```
 //!
 //! # Implementing a Provider
@@ -55,9 +55,21 @@
 //! ```
 
 mod parachain;
+pub mod relay;
+mod relay_proof;
+pub mod slot;
 mod timestamp;
 
 pub use parachain::ParachainInherent;
+pub use relay::{PARA_INHERENT_PALLET, para_inherent_included_key};
+pub use relay_proof::{
+	CURRENT_SLOT_KEY, ProofError, modify_proof, paras_heads_key, read_from_proof,
+	read_raw_from_proof,
+};
+pub use slot::{
+	ConsensusType, aura_current_slot_key, babe_current_slot_key, calculate_next_slot,
+	detect_consensus_type, encode_aura_slot, encode_babe_predigest,
+};
 pub use timestamp::TimestampInherent;
 
 use crate::{Block, BlockBuilderError, RuntimeExecutor};
@@ -136,11 +148,15 @@ pub fn default_providers(is_parachain: bool) -> Vec<Box<dyn InherentProvider>> {
 		TimestampInherent::default_relay()
 	};
 
-	let mut providers: Vec<Box<dyn InherentProvider>> = vec![Box::new(timestamp)];
-
+	// For parachains, setValidationData MUST be applied BEFORE timestamp.
+	// The validation data sets up the relay chain state that timestamp pallet
+	// uses for time validation checks.
+	//
+	// For relay chains, the ParaInherent::Included storage is mocked automatically
+	// by BlockBuilder::apply_inherents() - no provider needed.
 	if is_parachain {
-		providers.push(Box::new(ParachainInherent::new()));
+		vec![Box::new(ParachainInherent::new()), Box::new(timestamp)]
+	} else {
+		vec![Box::new(timestamp)]
 	}
-
-	providers
 }

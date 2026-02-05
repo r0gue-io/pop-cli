@@ -23,6 +23,12 @@ pub enum StorageQueryType {
 	Value,
 	/// Get hash of value.
 	Hash,
+	/// Get closest descendant Merkle value.
+	ClosestDescendantMerkleValue,
+	/// Get all descendants' values.
+	DescendantsValues,
+	/// Get all descendants' hashes.
+	DescendantsHashes,
 }
 
 /// archive_v1_storage result.

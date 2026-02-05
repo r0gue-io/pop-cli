@@ -190,4 +190,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cargo nextest run --locked --no-default-features --features "chain,integration-tests" --test chain --test metadata --no-fail-fast --nocapture --status-level all
+          cargo nextest run --locked --no-default-features --features "chain,integration-tests" --test chain --test metadata --test fork --no-fail-fast --nocapture --status-level all

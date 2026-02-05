@@ -51,14 +51,15 @@ tracing-subscriber = { version = "0.3.19", default-features = false }
 
 # networking
 reqwest = { version = "0.12", default-features = false, features = ["default-tls", "json", "multipart", "stream"] }
-tokio = { version = "1.0", default-features = false, features = ["macros", "process", "rt-multi-thread", "net", "signal"] }
+tokio = { version = "1.0", default-features = false, features = ["macros", "process", "rt-multi-thread", "net", "signal", "sync"] }
 url = "2.5.4"
 
 # contracts
 subxt-signer = { version = "0.44.0", default-features = false, features = ["subxt", "sr25519"] }
 subxt = { version = "0.44.0", default-features = false }
 ink_env = { version = "6.0.0-beta.1", features = ["unstable-hostfn"] }
-sp-core= { version = "38.0.0", default-features = false }
+sp-core = { version = "38.0.0", default-features = false }
+sp-trie = { version = "41.0.0", default-features = false }
 sp-weights = { version = "33.0.0", default-features = false }
 scale = { package = "parity-scale-codec", version = "3.7.5", features = ["derive"] }
 scale-info = { version = "2.11.6", default-features = false, features = ["derive"] }
@@ -85,7 +86,7 @@ cumulus-client-cli = { version = "0.26.0", default-features = false }
 
 # benchmarking
 cumulus-primitives-proof-size-hostfunction = "0.15.0"
-frame-benchmarking-cli = { version = "51.0.0", default-features = false }
+frame-benchmarking-cli = { version = "53.0.0", default-features = false }
 sc-chain-spec = { version = "46.0.0", default-features = false }
 sp-runtime = { version = "44.0.0", default-features = false }
 sp-statement-store = "23.0.0"
@@ -117,3 +118,6 @@ diesel_migrations = { version = "2.3.1", default-features = false }
 # executor
 async-trait = "0.1"
 smoldot = { version = "0.21.0", default-features = false, features = ["std"] }
+trie-db = { version = "0.30", default-features = false }
+
+
