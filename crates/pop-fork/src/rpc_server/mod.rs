@@ -35,7 +35,7 @@ pub fn parse_block_hash(hex: &str) -> Result<H256, RpcServerError> {
 	let bytes = hex::decode(hex.trim_start_matches("0x"))
 		.map_err(|e| RpcServerError::InvalidParam(format!("Invalid hex hash: {e}")))?;
 	if bytes.len() != 32 {
-		return Err(RpcServerError::Internal("Invalid block hash length."));
+		return Err(RpcServerError::Internal("Invalid block hash length.".to_string()));
 	}
 	Ok(H256::from_slice(&bytes))
 }
