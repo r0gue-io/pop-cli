@@ -397,56 +397,20 @@ impl ArchiveApiServer for ArchiveApi {
 mod tests {
 	use super::*;
 	use crate::{
-		ExecutorConfig, TxPool,
-		rpc_server::{
-			ForkRpcServer, RpcServerConfig,
-			types::{ArchiveCallResult, ArchiveStorageResult},
-		},
+		rpc_server::types::{ArchiveCallResult, ArchiveStorageResult},
+		testing::TestContext,
 	};
 	use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
-	use pop_common::test_env::TestNode;
-	use url::Url;
-
-	/// Test context holding spawned node and RPC server.
-	struct RpcTestContext {
-		#[allow(dead_code)]
-		node: TestNode,
-		#[allow(dead_code)]
-		server: ForkRpcServer,
-		ws_url: String,
-		blockchain: Arc<Blockchain>,
-	}
-
-	/// Creates a test context with spawned node and RPC server.
-	async fn setup_rpc_test() -> RpcTestContext {
-		setup_rpc_test_with_config(ExecutorConfig::default()).await
-	}
-
-	/// Creates a test context with custom executor config.
-	async fn setup_rpc_test_with_config(config: ExecutorConfig) -> RpcTestContext {
-		let node = TestNode::spawn().await.expect("Failed to spawn test node");
-		let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
-
-		let blockchain = Blockchain::fork_with_config(&endpoint, None, None, config)
-			.await
-			.expect("Failed to fork blockchain");
-		let txpool = Arc::new(TxPool::new());
-
-		let server = ForkRpcServer::start(blockchain.clone(), txpool, RpcServerConfig::default())
-			.await
-			.expect("Failed to start RPC server");
-
-		let ws_url = server.ws_url();
-		RpcTestContext { node, server, ws_url, blockchain }
-	}
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_finalized_height_returns_correct_value() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
-		let expected_block_height = ctx.blockchain.head_number().await;
+		let expected_block_height = ctx.blockchain().head_number().await;
 
 		let height: u32 = client
 			.request("archive_v1_finalizedHeight", rpc_params![])
@@ -457,7 +421,7 @@ mod tests {
 		assert_eq!(height, expected_block_height);
 
 		// Create a new block
-		ctx.blockchain.build_empty_block().await.unwrap();
+		ctx.blockchain().build_empty_block().await.unwrap();
 
 		let height: u32 = client
 			.request("archive_v1_finalizedHeight", rpc_params![])
@@ -469,9 +433,11 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_genesis_hash_returns_valid_hash() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		let hash: String = client
 			.request("archive_v1_genesisHash", rpc_params![])
@@ -484,7 +450,7 @@ mod tests {
 
 		// Hash should match the actual genesis hash (block 0)
 		let expected_hash = ctx
-			.blockchain
+			.blockchain()
 			.block_hash_at(0)
 			.await
 			.expect("Failed to get genesis hash")
@@ -495,14 +461,16 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_hash_by_height_returns_hash_at_different_heights() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
-		let block_1 = ctx.blockchain.build_empty_block().await.unwrap();
-		let block_2 = ctx.blockchain.build_empty_block().await.unwrap();
+		let block_1 = ctx.blockchain().build_empty_block().await.unwrap();
+		let block_2 = ctx.blockchain().build_empty_block().await.unwrap();
 
-		let fork_height = ctx.blockchain.fork_point_number();
+		let fork_height = ctx.blockchain().fork_point_number();
 
 		// Get hash at fork point height
 		let result: Option<Vec<String>> = client
@@ -515,7 +483,7 @@ mod tests {
 		assert!(result[0].starts_with("0x"), "Hash should start with 0x");
 
 		// Hash should match fork point
-		let expected = format!("0x{}", hex::encode(ctx.blockchain.fork_point().as_bytes()));
+		let expected = format!("0x{}", hex::encode(ctx.blockchain().fork_point().as_bytes()));
 		assert_eq!(result[0], expected);
 
 		// Get hash at further heights
@@ -560,9 +528,11 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_hash_by_height_returns_none_for_unknown_height() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Query a height that doesn't exist (very high number)
 		let result: Option<Vec<String>> = client
@@ -575,14 +545,16 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_header_returns_header_for_head_hash() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Build a block so we have a locally-built header
-		ctx.blockchain.build_empty_block().await.unwrap();
+		ctx.blockchain().build_empty_block().await.unwrap();
 
-		let head_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
+		let head_hash = format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
 
 		let header: Option<String> = client
 			.request("archive_v1_header", rpc_params![head_hash])
@@ -596,9 +568,11 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_header_returns_none_for_unknown_hash() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Use a made-up hash
 		let unknown_hash = "0x0000000000000000000000000000000000000000000000000000000000000001";
@@ -613,11 +587,13 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_header_returns_header_for_fork_point() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
-		let fork_point_hash = format!("0x{}", hex::encode(ctx.blockchain.fork_point().0));
+		let fork_point_hash = format!("0x{}", hex::encode(ctx.blockchain().fork_point().0));
 
 		let header: Option<String> = client
 			.request("archive_v1_header", rpc_params![fork_point_hash])
@@ -631,13 +607,15 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_header_returns_header_for_parent_block() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Build two blocks
-		let block1 = ctx.blockchain.build_empty_block().await.unwrap();
-		let _block2 = ctx.blockchain.build_empty_block().await.unwrap();
+		let block1 = ctx.blockchain().build_empty_block().await.unwrap();
+		let _block2 = ctx.blockchain().build_empty_block().await.unwrap();
 
 		let block1_hash = format!("0x{}", hex::encode(block1.hash.as_bytes()));
 
@@ -653,14 +631,16 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_header_is_idempotent_over_finalized_blocks() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Build a few blocks
-		ctx.blockchain.build_empty_block().await.unwrap();
-		ctx.blockchain.build_empty_block().await.unwrap();
-		ctx.blockchain.build_empty_block().await.unwrap();
+		ctx.blockchain().build_empty_block().await.unwrap();
+		ctx.blockchain().build_empty_block().await.unwrap();
+		ctx.blockchain().build_empty_block().await.unwrap();
 
 		let height: u32 = client
 			.request("archive_v1_finalizedHeight", rpc_params![])
@@ -689,11 +669,13 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_body_returns_extrinsics_for_valid_hashes() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
-		let fork_point_hash = format!("0x{}", hex::encode(ctx.blockchain.fork_point().0));
+		let fork_point_hash = format!("0x{}", hex::encode(ctx.blockchain().fork_point().0));
 
 		let fork_point_body: Option<Vec<String>> = client
 			.request("archive_v1_body", rpc_params![fork_point_hash])
@@ -701,11 +683,11 @@ mod tests {
 			.expect("RPC call failed");
 
 		// Build a few blocks
-		ctx.blockchain.build_empty_block().await.unwrap();
-		ctx.blockchain.build_empty_block().await.unwrap();
-		ctx.blockchain.build_empty_block().await.unwrap();
+		ctx.blockchain().build_empty_block().await.unwrap();
+		ctx.blockchain().build_empty_block().await.unwrap();
+		ctx.blockchain().build_empty_block().await.unwrap();
 
-		let head_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
+		let head_hash = format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
 
 		let body: Option<Vec<String>> = client
 			.request("archive_v1_body", rpc_params![head_hash])
@@ -719,14 +701,16 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_body_is_idempotent_over_finalized_blocks() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Build a few blocks
-		ctx.blockchain.build_empty_block().await.unwrap();
-		ctx.blockchain.build_empty_block().await.unwrap();
-		ctx.blockchain.build_empty_block().await.unwrap();
+		ctx.blockchain().build_empty_block().await.unwrap();
+		ctx.blockchain().build_empty_block().await.unwrap();
+		ctx.blockchain().build_empty_block().await.unwrap();
 
 		let height: u32 = client
 			.request("archive_v1_finalizedHeight", rpc_params![])
@@ -755,9 +739,11 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_body_returns_none_for_unknown_hash() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		let unknown_hash = "0x0000000000000000000000000000000000000000000000000000000000000001";
 
@@ -771,11 +757,13 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_call_executes_runtime_api() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
-		let head_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
+		let head_hash = format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
 
 		// Call Core_version with empty parameters
 		let result: Option<serde_json::Value> = client
@@ -795,11 +783,13 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_call_returns_error_for_invalid_function() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
-		let head_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
+		let head_hash = format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
 
 		// Call a non-existent function
 		let result: Option<serde_json::Value> = client
@@ -817,9 +807,11 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_call_returns_null_for_unknown_block() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Use a made-up hash that doesn't exist
 		let unknown_hash = "0x0000000000000000000000000000000000000000000000000000000000000001";
@@ -835,17 +827,19 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_call_executes_at_specific_block() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Get fork point hash
-		let fork_hash = format!("0x{}", hex::encode(ctx.blockchain.fork_point().as_bytes()));
+		let fork_hash = format!("0x{}", hex::encode(ctx.blockchain().fork_point().as_bytes()));
 
 		// Build a new block so we have multiple blocks
-		ctx.blockchain.build_empty_block().await.unwrap();
+		ctx.blockchain().build_empty_block().await.unwrap();
 
-		let head_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
+		let head_hash = format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
 
 		// Both calls should succeed since both blocks exist
 		let result_at_fork: Option<serde_json::Value> = client
@@ -871,9 +865,11 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_call_rejects_invalid_hex_hash() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Pass invalid hex for hash - this should return a JSON-RPC error
 		let result: Result<Option<serde_json::Value>, _> = client
@@ -885,11 +881,13 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_returns_value_for_existing_key() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
-		let head_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
+		let head_hash = format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
 
 		// Query System::Number storage key
 		let mut key = Vec::new();
@@ -918,11 +916,13 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_returns_none_for_nonexistent_key() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
-		let head_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
+		let head_hash = format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
 
 		// Query a non-existent key
 		let key_hex = format!("0x{}", hex::encode(b"nonexistent_key_12345"));
@@ -948,9 +948,11 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_header_rejects_invalid_hex() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Pass invalid hex
 		let result: Result<Option<String>, _> =
@@ -961,11 +963,13 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_call_rejects_invalid_hex_parameters() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
-		let head_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
+		let head_hash = format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
 
 		// Pass invalid hex for call_parameters
 		let result: Result<Option<serde_json::Value>, _> = client
@@ -984,12 +988,14 @@ mod tests {
 	async fn archive_call_does_not_persist_storage_changes() {
 		use crate::{DigestItem, consensus_engine, create_next_header};
 
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Get head block info
-		let head = ctx.blockchain.head().await;
+		let head = ctx.blockchain().head().await;
 		let head_hash = format!("0x{}", hex::encode(head.hash.as_bytes()));
 		let head_number = head.number;
 
@@ -1000,7 +1006,7 @@ mod tests {
 
 		// Query System::Number BEFORE
 		let number_before = ctx
-			.blockchain
+			.blockchain()
 			.storage(&system_number_key)
 			.await
 			.expect("Failed to get System::Number")
@@ -1028,7 +1034,7 @@ mod tests {
 
 		// Query System::Number AFTER - should be UNCHANGED
 		let number_after = ctx
-			.blockchain
+			.blockchain()
 			.storage(&system_number_key)
 			.await
 			.expect("Failed to get System::Number after")
@@ -1048,11 +1054,13 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_returns_hash_when_requested() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
-		let head_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
+		let head_hash = format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
 
 		// Query System::Number storage key with hash type
 		let mut key = Vec::new();
@@ -1085,17 +1093,21 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_queries_at_specific_block() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Build a block to change state
-		ctx.blockchain.build_empty_block().await.unwrap();
-		let block1_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
+		ctx.blockchain().build_empty_block().await.unwrap();
+		let block1_hash =
+			format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
 
 		// Build another block
-		ctx.blockchain.build_empty_block().await.unwrap();
-		let block2_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
+		ctx.blockchain().build_empty_block().await.unwrap();
+		let block2_hash =
+			format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
 
 		// Query System::Number at both blocks
 		let mut key = Vec::new();
@@ -1132,9 +1144,11 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_returns_error_for_unknown_block() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		let unknown_hash = "0x0000000000000000000000000000000000000000000000000000000000000001";
 		let items = vec![serde_json::json!({ "key": "0x1234", "type": "value" })];
@@ -1157,22 +1171,24 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_diff_detects_modified_value() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Create a test key
 		let test_key = b"test_storage_diff_key";
 		let test_key_hex = format!("0x{}", hex::encode(test_key));
 
 		// Set initial value and build first block
-		ctx.blockchain.set_storage_for_testing(test_key, Some(b"value1")).await;
-		let block1 = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		ctx.blockchain().set_storage_for_testing(test_key, Some(b"value1")).await;
+		let block1 = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
 		let block1_hash = format!("0x{}", hex::encode(block1.hash.as_bytes()));
 
 		// Set modified value and build second block
-		ctx.blockchain.set_storage_for_testing(test_key, Some(b"value2")).await;
-		let block2 = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		ctx.blockchain().set_storage_for_testing(test_key, Some(b"value2")).await;
+		let block2 = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
 		let block2_hash = format!("0x{}", hex::encode(block2.hash.as_bytes()));
 
 		// Query storage diff
@@ -1204,21 +1220,25 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_diff_returns_empty_for_unchanged_keys() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Create a test key with value that won't change
 		let test_key = b"test_unchanged_key";
 		let test_key_hex = format!("0x{}", hex::encode(test_key));
 
 		// Set value and build first block
-		ctx.blockchain.set_storage_for_testing(test_key, Some(b"constant_value")).await;
-		let block1 = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		ctx.blockchain()
+			.set_storage_for_testing(test_key, Some(b"constant_value"))
+			.await;
+		let block1 = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
 		let block1_hash = format!("0x{}", hex::encode(block1.hash.as_bytes()));
 
 		// Build second block without changing the value
-		let block2 = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		let block2 = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
 		let block2_hash = format!("0x{}", hex::encode(block2.hash.as_bytes()));
 
 		// Query storage diff
@@ -1243,19 +1263,21 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_diff_returns_added_for_new_key() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Build first block without the key
-		let block1 = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		let block1 = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
 		let block1_hash = format!("0x{}", hex::encode(block1.hash.as_bytes()));
 
 		// Add a new key and build second block
 		let test_key = b"test_added_key";
 		let test_key_hex = format!("0x{}", hex::encode(test_key));
-		ctx.blockchain.set_storage_for_testing(test_key, Some(b"new_value")).await;
-		let block2 = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		ctx.blockchain().set_storage_for_testing(test_key, Some(b"new_value")).await;
+		let block2 = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
 		let block2_hash = format!("0x{}", hex::encode(block2.hash.as_bytes()));
 
 		// Query storage diff
@@ -1287,20 +1309,24 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_diff_returns_deleted_for_removed_key() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Add a key and build first block
 		let test_key = b"test_deleted_key";
 		let test_key_hex = format!("0x{}", hex::encode(test_key));
-		ctx.blockchain.set_storage_for_testing(test_key, Some(b"will_be_deleted")).await;
-		let block1 = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		ctx.blockchain()
+			.set_storage_for_testing(test_key, Some(b"will_be_deleted"))
+			.await;
+		let block1 = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
 		let block1_hash = format!("0x{}", hex::encode(block1.hash.as_bytes()));
 
 		// Delete the key and build second block
-		ctx.blockchain.set_storage_for_testing(test_key, None).await;
-		let block2 = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		ctx.blockchain().set_storage_for_testing(test_key, None).await;
+		let block2 = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
 		let block2_hash = format!("0x{}", hex::encode(block2.hash.as_bytes()));
 
 		// Query storage diff
@@ -1329,23 +1355,25 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_diff_returns_hash_when_requested() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Create a test key
 		let test_key = b"test_hash_key";
 		let test_key_hex = format!("0x{}", hex::encode(test_key));
 
 		// Set initial value and build first block
-		ctx.blockchain.set_storage_for_testing(test_key, Some(b"value1")).await;
-		let block1 = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		ctx.blockchain().set_storage_for_testing(test_key, Some(b"value1")).await;
+		let block1 = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
 		let block1_hash = format!("0x{}", hex::encode(block1.hash.as_bytes()));
 
 		// Set modified value and build second block
 		let new_value = b"value2";
-		ctx.blockchain.set_storage_for_testing(test_key, Some(new_value)).await;
-		let block2 = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		ctx.blockchain().set_storage_for_testing(test_key, Some(new_value)).await;
+		let block2 = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
 		let block2_hash = format!("0x{}", hex::encode(block2.hash.as_bytes()));
 
 		// Query storage diff with hash returnType
@@ -1375,12 +1403,15 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_diff_returns_error_for_unknown_hash() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		let unknown_hash = "0x0000000000000000000000000000000000000000000000000000000000000001";
-		let valid_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
+		let valid_hash =
+			format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
 		let items = vec![serde_json::json!({ "key": "0x1234", "returnType": "value" })];
 
 		let result: ArchiveStorageDiffResult = client
@@ -1401,11 +1432,14 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_diff_returns_error_for_unknown_previous_hash() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
-		let valid_hash = format!("0x{}", hex::encode(ctx.blockchain.head_hash().await.as_bytes()));
+		let valid_hash =
+			format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
 		let unknown_hash = "0x0000000000000000000000000000000000000000000000000000000000000001";
 		let items = vec![serde_json::json!({ "key": "0x1234", "returnType": "value" })];
 
@@ -1427,22 +1461,25 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_diff_uses_parent_when_previous_hash_omitted() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Create a test key
 		let test_key = b"test_parent_key";
 		let test_key_hex = format!("0x{}", hex::encode(test_key));
 
 		// Set initial value and build first block (parent)
-		ctx.blockchain.set_storage_for_testing(test_key, Some(b"parent_value")).await;
-		ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		ctx.blockchain().set_storage_for_testing(test_key, Some(b"parent_value")).await;
+		ctx.blockchain().build_empty_block().await.expect("Failed to build block");
 
 		// Set modified value and build second block (child)
-		ctx.blockchain.set_storage_for_testing(test_key, Some(b"child_value")).await;
+		ctx.blockchain().set_storage_for_testing(test_key, Some(b"child_value")).await;
 
-		let child_block = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		let child_block =
+			ctx.blockchain().build_empty_block().await.expect("Failed to build block");
 		let child_hash = format!("0x{}", hex::encode(child_block.hash.as_bytes()));
 
 		// Query storage diff without previous_hash (should use parent)
@@ -1475,9 +1512,11 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn archive_storage_diff_handles_multiple_items() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Create test keys
 		let added_key = b"test_multi_added";
@@ -1486,18 +1525,18 @@ mod tests {
 		let unchanged_key = b"test_multi_unchanged";
 
 		// Set up initial state for block 1
-		ctx.blockchain.set_storage_for_testing(modified_key, Some(b"old_value")).await;
-		ctx.blockchain.set_storage_for_testing(deleted_key, Some(b"to_delete")).await;
-		ctx.blockchain.set_storage_for_testing(unchanged_key, Some(b"constant")).await;
-		let block1 = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		ctx.blockchain().set_storage_for_testing(modified_key, Some(b"old_value")).await;
+		ctx.blockchain().set_storage_for_testing(deleted_key, Some(b"to_delete")).await;
+		ctx.blockchain().set_storage_for_testing(unchanged_key, Some(b"constant")).await;
+		let block1 = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
 		let block1_hash = format!("0x{}", hex::encode(block1.hash.as_bytes()));
 
 		// Modify state for block 2
-		ctx.blockchain.set_storage_for_testing(added_key, Some(b"new_key")).await;
-		ctx.blockchain.set_storage_for_testing(modified_key, Some(b"new_value")).await;
-		ctx.blockchain.set_storage_for_testing(deleted_key, None).await;
+		ctx.blockchain().set_storage_for_testing(added_key, Some(b"new_key")).await;
+		ctx.blockchain().set_storage_for_testing(modified_key, Some(b"new_value")).await;
+		ctx.blockchain().set_storage_for_testing(deleted_key, None).await;
 		// unchanged_key stays the same
-		let block2 = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		let block2 = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
 		let block2_hash = format!("0x{}", hex::encode(block2.hash.as_bytes()));
 
 		// Query storage diff for all keys

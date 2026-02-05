@@ -73,6 +73,9 @@ mod schema;
 mod strings;
 mod txpool;
 
+#[cfg(test)]
+pub mod testing;
+
 pub use block::{Block, BlockForkPoint};
 pub use blockchain::{
 	Blockchain, BlockchainError, BlockchainEvent, BuildBlockResult, ChainType, FailedExtrinsic,

@@ -211,53 +211,25 @@ impl ChainApiServer for ChainApi {
 
 #[cfg(test)]
 mod tests {
-	use super::*;
 	use crate::{
-		TxPool,
-		rpc_server::{ForkRpcServer, RpcServerConfig},
+		rpc_server::types::{RpcHeader, SignedBlock},
+		testing::TestContext,
 	};
 	use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
-	use pop_common::test_env::TestNode;
-	use url::Url;
-
-	/// Test context holding spawned node and RPC server.
-	struct RpcTestContext {
-		#[allow(dead_code)]
-		node: TestNode,
-		#[allow(dead_code)]
-		server: ForkRpcServer,
-		ws_url: String,
-		blockchain: Arc<Blockchain>,
-	}
-
-	/// Creates a test context with spawned node and RPC server.
-	async fn setup_rpc_test() -> RpcTestContext {
-		let node = TestNode::spawn().await.expect("Failed to spawn test node");
-		let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
-
-		let blockchain =
-			Blockchain::fork(&endpoint, None).await.expect("Failed to fork blockchain");
-		let txpool = Arc::new(TxPool::new());
-
-		let server = ForkRpcServer::start(blockchain.clone(), txpool, RpcServerConfig::default())
-			.await
-			.expect("Failed to start RPC server");
-
-		let ws_url = server.ws_url();
-		RpcTestContext { node, server, ws_url, blockchain }
-	}
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_get_block_hash_returns_head_hash() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Build a block so we have something beyond fork point
-		ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		ctx.blockchain().build_empty_block().await.expect("Failed to build block");
 
-		let head_number = ctx.blockchain.head_number().await;
-		let expected_hash = ctx.blockchain.head_hash().await;
+		let head_number = ctx.blockchain().head_number().await;
+		let expected_hash = ctx.blockchain().head_hash().await;
 
 		// Query with explicit block number
 		let hash: Option<String> = client
@@ -273,11 +245,13 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_get_block_hash_returns_none_hash() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
-		let expected_hash = ctx.blockchain.head_hash().await;
+		let expected_hash = ctx.blockchain().head_hash().await;
 
 		// Query without block number (should return head)
 		let hash: Option<String> = client
@@ -291,16 +265,18 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_get_block_hash_returns_fork_point_hash() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
-		let fork_point_number = ctx.blockchain.fork_point_number();
-		let expected_hash = ctx.blockchain.fork_point();
+		let fork_point_number = ctx.blockchain().fork_point_number();
+		let expected_hash = ctx.blockchain().fork_point();
 
-		ctx.blockchain.build_empty_block().await.unwrap();
-		ctx.blockchain.build_empty_block().await.unwrap();
-		ctx.blockchain.build_empty_block().await.unwrap();
+		ctx.blockchain().build_empty_block().await.unwrap();
+		ctx.blockchain().build_empty_block().await.unwrap();
+		ctx.blockchain().build_empty_block().await.unwrap();
 
 		let hash: Option<String> = client
 			.request("chain_getBlockHash", rpc_params![fork_point_number])
@@ -313,15 +289,17 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_get_block_hash_returns_historical_hash() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
-		let fork_point_number = ctx.blockchain.fork_point_number();
+		let fork_point_number = ctx.blockchain().fork_point_number();
 
-		ctx.blockchain.build_empty_block().await.unwrap();
-		ctx.blockchain.build_empty_block().await.unwrap();
-		ctx.blockchain.build_empty_block().await.unwrap();
+		ctx.blockchain().build_empty_block().await.unwrap();
+		ctx.blockchain().build_empty_block().await.unwrap();
+		ctx.blockchain().build_empty_block().await.unwrap();
 
 		// Only test if fork point is > 0 (has blocks before it)
 		if fork_point_number > 0 {
@@ -341,12 +319,14 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_get_header_returns_valid_header() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Build a block
-		let block = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		let block = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
 		let hash = format!("0x{}", hex::encode(block.hash.as_bytes()));
 
 		let header: Option<RpcHeader> = client
@@ -364,12 +344,14 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_get_header_returns_head_when_no_hash() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Build a block
-		let block = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		let block = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
 
 		// Query without hash (should return head)
 		let header: Option<RpcHeader> =
@@ -381,11 +363,13 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_get_header_for_fork_point() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
-		let fork_point_hash = ctx.blockchain.fork_point();
+		let fork_point_hash = ctx.blockchain().fork_point();
 		let hash = format!("0x{}", hex::encode(fork_point_hash.as_bytes()));
 
 		let header: Option<RpcHeader> = client
@@ -394,17 +378,19 @@ mod tests {
 			.expect("RPC call failed");
 
 		assert!(header.is_some(), "Should return header for fork point");
-		assert_eq!(header.unwrap().number, format!("0x{:x}", ctx.blockchain.fork_point_number()));
+		assert_eq!(header.unwrap().number, format!("0x{:x}", ctx.blockchain().fork_point_number()));
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_get_block_returns_full_block() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Build a block
-		let block = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		let block = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
 		let hash = format!("0x{}", hex::encode(block.hash.as_bytes()));
 
 		let signed_block: Option<SignedBlock> = client
@@ -435,12 +421,14 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_get_block_returns_head_when_no_hash() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Build a block
-		let block = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		let block = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
 
 		// Query without hash
 		let signed_block: Option<SignedBlock> =
@@ -460,11 +448,13 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_get_finalized_head_returns_head_hash() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
-		let expected_hash = ctx.blockchain.head_hash().await;
+		let expected_hash = ctx.blockchain().head_hash().await;
 
 		let hash: String = client
 			.request("chain_getFinalizedHead", rpc_params![])
@@ -477,9 +467,11 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_get_finalized_head_updates_after_block() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		let hash_before: String = client
 			.request("chain_getFinalizedHead", rpc_params![])
@@ -487,7 +479,7 @@ mod tests {
 			.expect("RPC call failed");
 
 		// Build a new block
-		let new_block = ctx.blockchain.build_empty_block().await.expect("Failed to build block");
+		let new_block = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
 
 		let hash_after: String = client
 			.request("chain_getFinalizedHead", rpc_params![])

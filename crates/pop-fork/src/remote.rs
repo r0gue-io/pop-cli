@@ -401,50 +401,17 @@ mod tests {
 	/// These tests are run sequentially via nextest configuration to avoid
 	/// concurrent node downloads causing race conditions.
 	mod sequential {
-		use super::*;
-		use pop_common::test_env::TestNode;
+		use crate::testing::{
+			TestContext,
+			constants::{SYSTEM_NUMBER_KEY, SYSTEM_PALLET_PREFIX, SYSTEM_PARENT_HASH_KEY},
+		};
 		use std::time::Duration;
-		use url::Url;
-
-		// Well-known storage keys for testing.
-		// These are derived from twox128 hashes of pallet and storage item names.
-
-		/// System::Number storage key: twox128("System") ++ twox128("Number")
-		const SYSTEM_NUMBER_KEY: &str =
-			"26aa394eea5630e07c48ae0c9558cef702a5c1b19ab7a04f536c519aca4983ac";
-
-		/// System::ParentHash storage key: twox128("System") ++ twox128("ParentHash")
-		const SYSTEM_PARENT_HASH_KEY: &str =
-			"26aa394eea5630e07c48ae0c9558cef734abf5cb34d6244378cddbf18e849d96";
-
-		/// System pallet prefix: twox128("System")
-		const SYSTEM_PALLET_PREFIX: &str = "26aa394eea5630e07c48ae0c9558cef7";
-
-		/// Helper struct to hold the test node and layer together.
-		/// This ensures the node stays alive for the duration of the test.
-		struct TestContext {
-			#[allow(dead_code)]
-			node: TestNode,
-			layer: RemoteStorageLayer,
-			block_hash: H256,
-		}
-
-		async fn create_test_context() -> TestContext {
-			let node = TestNode::spawn().await.expect("Failed to spawn test node");
-			let endpoint: Url = node.ws_url().parse().unwrap();
-			let rpc = ForkRpcClient::connect(&endpoint).await.unwrap();
-			let cache = StorageCache::in_memory().await.unwrap();
-			let block_hash = rpc.finalized_head().await.unwrap();
-			let layer = RemoteStorageLayer::new(rpc, cache);
-
-			TestContext { node, layer, block_hash }
-		}
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn get_fetches_and_caches() {
-			let ctx = create_test_context().await;
-			let layer = &ctx.layer;
-			let block_hash = ctx.block_hash;
+			let ctx = TestContext::for_remote().await;
+			let layer = ctx.remote();
+			let block_hash = ctx.block_hash();
 
 			let key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 
@@ -464,9 +431,9 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn get_caches_empty_values() {
-			let ctx = create_test_context().await;
-			let layer = &ctx.layer;
-			let block_hash = ctx.block_hash;
+			let ctx = TestContext::for_remote().await;
+			let layer = ctx.remote();
+			let block_hash = ctx.block_hash();
 
 			// Use a key that definitely doesn't exist
 			let nonexistent_key = b"this_key_definitely_does_not_exist_12345";
@@ -482,9 +449,9 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn get_batch_fetches_mixed() {
-			let ctx = create_test_context().await;
-			let layer = &ctx.layer;
-			let block_hash = ctx.block_hash;
+			let ctx = TestContext::for_remote().await;
+			let layer = ctx.remote();
+			let block_hash = ctx.block_hash();
 
 			let key1 = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 			let key2 = hex::decode(SYSTEM_PARENT_HASH_KEY).unwrap();
@@ -508,9 +475,9 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn get_batch_uses_cache() {
-			let ctx = create_test_context().await;
-			let layer = &ctx.layer;
-			let block_hash = ctx.block_hash;
+			let ctx = TestContext::for_remote().await;
+			let layer = ctx.remote();
+			let block_hash = ctx.block_hash();
 
 			let key1 = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 			let key2 = hex::decode(SYSTEM_PARENT_HASH_KEY).unwrap();
@@ -529,9 +496,9 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn prefetch_prefix() {
-			let ctx = create_test_context().await;
-			let layer = &ctx.layer;
-			let block_hash = ctx.block_hash;
+			let ctx = TestContext::for_remote().await;
+			let layer = ctx.remote();
+			let block_hash = ctx.block_hash();
 
 			let prefix = hex::decode(SYSTEM_PALLET_PREFIX).unwrap();
 
@@ -548,9 +515,9 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn layer_is_cloneable() {
-			let ctx = create_test_context().await;
-			let layer = &ctx.layer;
-			let block_hash = ctx.block_hash;
+			let ctx = TestContext::for_remote().await;
+			let layer = ctx.remote();
+			let block_hash = ctx.block_hash();
 
 			// Clone the layer
 			let layer2 = layer.clone();
@@ -566,9 +533,9 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn accessor_methods() {
-			let ctx = create_test_context().await;
-			let layer = &ctx.layer;
-			let block_hash = ctx.block_hash;
+			let ctx = TestContext::for_remote().await;
+			let layer = ctx.remote();
+			let block_hash = ctx.block_hash();
 
 			// Test accessor methods
 			assert!(!block_hash.is_zero());
@@ -578,8 +545,8 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn fetch_and_cache_block_by_number_caches_block() {
-			let ctx = create_test_context().await;
-			let layer = &ctx.layer;
+			let ctx = TestContext::for_remote().await;
+			let layer = ctx.remote();
 
 			// Get finalized block number
 			let finalized_hash = layer.rpc().finalized_head().await.unwrap();
@@ -614,8 +581,8 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn fetch_and_cache_block_by_number_non_existent() {
-			let ctx = create_test_context().await;
-			let layer = &ctx.layer;
+			let ctx = TestContext::for_remote().await;
+			let layer = ctx.remote();
 
 			// Try to fetch a block that doesn't exist
 			let non_existent_number = u32::MAX;
@@ -630,8 +597,8 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn fetch_and_cache_block_by_number_multiple_blocks() {
-			let ctx = create_test_context().await;
-			let layer = &ctx.layer;
+			let ctx = TestContext::for_remote().await;
+			let layer = ctx.remote();
 
 			// Wait for some blocks to be finalized
 			std::thread::sleep(Duration::from_secs(30));
@@ -658,8 +625,8 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn fetch_and_cache_block_by_number_idempotent() {
-			let ctx = create_test_context().await;
-			let layer = &ctx.layer;
+			let ctx = TestContext::for_remote().await;
+			let layer = ctx.remote();
 
 			let block_number = 0u32;
 
@@ -678,8 +645,8 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn fetch_and_cache_block_by_number_verifies_parent_chain() {
-			let ctx = create_test_context().await;
-			let layer = &ctx.layer;
+			let ctx = TestContext::for_remote().await;
+			let layer = ctx.remote();
 
 			// Wait for some blocks to be finalized
 			std::thread::sleep(Duration::from_secs(30));

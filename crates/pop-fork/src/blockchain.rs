@@ -1153,80 +1153,16 @@ mod tests {
 	/// block building, storage queries, and runtime calls.
 	mod sequential {
 		use super::*;
-		use pop_common::test_env::TestNode;
-
-		/// Test context holding a spawned test node and blockchain instance.
-		struct BlockchainTestContext {
-			#[allow(dead_code)]
-			node: TestNode,
-			endpoint: Url,
-		}
-
-		/// Creates a test context with a spawned local node.
-		async fn create_test_context() -> BlockchainTestContext {
-			let node = TestNode::spawn().await.expect("Failed to spawn test node");
-			let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
-			BlockchainTestContext { node, endpoint }
-		}
-
-		/// Transfer amount: 100 units (with 12 decimals)
-		const TRANSFER_AMOUNT: u128 = 100_000_000_000_000;
-
-		/// Well-known dev account: Alice
-		const ALICE: [u8; 32] = [
-			0xd4, 0x35, 0x93, 0xc7, 0x15, 0xfd, 0xd3, 0x1c, 0x61, 0x14, 0x1a, 0xbd, 0x04, 0xa9,
-			0x9f, 0xd6, 0x82, 0x2c, 0x85, 0x58, 0x85, 0x4c, 0xcd, 0xe3, 0x9a, 0x56, 0x84, 0xe7,
-			0xa5, 0x6d, 0xa2, 0x7d,
-		];
-
-		/// Well-known dev account: Bob
-		const BOB: [u8; 32] = [
-			0x8e, 0xaf, 0x04, 0x15, 0x16, 0x87, 0x73, 0x63, 0x26, 0xc9, 0xfe, 0xa1, 0x7e, 0x25,
-			0xfc, 0x52, 0x87, 0x61, 0x36, 0x93, 0xc9, 0x12, 0x90, 0x9c, 0xb2, 0x26, 0xaa, 0x47,
-			0x94, 0xf2, 0x6a, 0x48,
-		];
-
-		/// Compute Blake2_128Concat storage key for System::Account.
-		fn account_storage_key(account: &[u8; 32]) -> Vec<u8> {
-			let mut key = Vec::new();
-			key.extend(sp_core::twox_128(b"System"));
-			key.extend(sp_core::twox_128(b"Account"));
-			key.extend(sp_core::blake2_128(account));
-			key.extend(account);
-			key
-		}
-
-		/// Decode AccountInfo and extract free balance.
-		fn decode_free_balance(data: &[u8]) -> u128 {
-			const ACCOUNT_DATA_OFFSET: usize = 16;
-			u128::from_le_bytes(
-				data[ACCOUNT_DATA_OFFSET..ACCOUNT_DATA_OFFSET + 16]
-					.try_into()
-					.expect("need 16 bytes for u128"),
-			)
-		}
-
-		/// Build a mock V4 signed extrinsic with dummy signature (from Alice).
-		fn build_mock_signed_extrinsic_v4(call_data: &[u8]) -> Vec<u8> {
-			use scale::{Compact, Encode};
-			let mut inner = Vec::new();
-			inner.push(0x84); // Version: signed (0x80) + v4 (0x04)
-			inner.push(0x00); // MultiAddress::Id variant
-			inner.extend(ALICE);
-			inner.extend([0u8; 64]); // Dummy signature (works with AlwaysValid)
-			inner.push(0x00); // CheckMortality: immortal
-			inner.extend(Compact(0u64).encode()); // CheckNonce
-			inner.extend(Compact(0u128).encode()); // ChargeTransactionPayment
-			inner.push(0x00); // EthSetOrigin: None
-			inner.extend(call_data);
-			let mut extrinsic = Compact(inner.len() as u32).encode();
-			extrinsic.extend(inner);
-			extrinsic
-		}
+		use crate::testing::{
+			TestContext,
+			accounts::{ALICE, BOB},
+			constants::TRANSFER_AMOUNT,
+			helpers::{account_storage_key, build_mock_signed_extrinsic_v4, decode_free_balance},
+		};
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn fork_creates_blockchain_with_correct_fork_point() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1242,7 +1178,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn fork_at_creates_blockchain_at_specific_block() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			// First fork to get the current block number
 			let blockchain =
@@ -1269,7 +1205,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn fork_at_with_invalid_block_number_fails() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let result = Blockchain::fork_at(&ctx.endpoint, None, Some(u32::MAX.into())).await;
 
@@ -1278,7 +1214,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn fork_detects_relay_chain_type() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1289,7 +1225,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn fork_retrieves_chain_name() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1300,7 +1236,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn build_empty_block_advances_chain() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1325,7 +1261,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn build_multiple_empty_blocks_creates_chain() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1345,7 +1281,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn storage_returns_value_for_existing_key() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1365,7 +1301,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn storage_returns_none_for_nonexistent_key() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1379,7 +1315,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn storage_at_queries_specific_block() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1407,7 +1343,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn call_executes_runtime_api() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1422,7 +1358,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn head_returns_current_block() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1435,7 +1371,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn head_updates_after_building_block() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1467,7 +1403,7 @@ mod tests {
 			use crate::{ExecutorConfig, SignatureMockMode};
 			use scale::{Compact, Encode};
 
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			// Fork with signature mocking enabled
 			let config = ExecutorConfig {
@@ -1565,7 +1501,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn block_body_returns_extrinsics_for_head() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1584,7 +1520,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn block_body_returns_extrinsics_for_parent_block() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1603,7 +1539,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn block_body_returns_extrinsics_for_fork_point_from_remote() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1621,7 +1557,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn block_body_returns_none_for_unknown_hash() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1637,7 +1573,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn block_header_returns_header_for_head() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1657,7 +1593,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn block_header_returns_header_for_different_blocks() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1682,7 +1618,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn block_header_returns_header_for_fork_point() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1702,7 +1638,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn block_header_returns_none_for_unknown_hash() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1720,7 +1656,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn block_header_returns_header_for_historical_block() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1749,7 +1685,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn block_hash_at_returns_hash_for_head() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1767,7 +1703,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn block_hash_at_returns_hash_for_parent_block() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1786,7 +1722,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn block_hash_at_returns_hash_for_fork_point() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1806,7 +1742,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn block_hash_at_returns_hash_for_block_before_fork_point() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1826,7 +1762,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn block_hash_at_returns_none_for_future_block() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1844,7 +1780,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn block_number_by_hash_returns_number_for_head() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1863,7 +1799,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn block_number_by_hash_returns_number_for_parent() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1883,7 +1819,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn block_number_by_hash_returns_number_for_fork_point() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1901,7 +1837,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn block_number_by_hash_returns_none_for_unknown() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1917,7 +1853,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn block_number_by_hash_returns_number_for_historical_block() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1942,7 +1878,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn call_at_block_executes_at_head() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1965,7 +1901,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn call_at_block_executes_at_fork_point() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -1988,7 +1924,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn call_at_block_executes_at_parent_block() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -2009,7 +1945,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn call_at_block_returns_none_for_unknown_hash() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -2027,7 +1963,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn call_at_block_executes_at_historical_block() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -2063,7 +1999,7 @@ mod tests {
 		async fn call_at_block_does_not_persist_storage() {
 			use crate::{DigestItem, consensus_engine, create_next_header};
 
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -2127,7 +2063,7 @@ mod tests {
 			use crate::{ExecutorConfig, SignatureMockMode};
 			use scale::{Compact, Encode};
 
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 			let config = ExecutorConfig {
 				signature_mock: SignatureMockMode::AlwaysValid,
 				..Default::default()
@@ -2161,7 +2097,7 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn validate_extrinsic_rejects_garbage() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 			let blockchain =
 				Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
 
@@ -2177,7 +2113,7 @@ mod tests {
 			use crate::{ExecutorConfig, SignatureMockMode};
 			use scale::{Compact, Encode};
 
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 			let config = ExecutorConfig {
 				signature_mock: SignatureMockMode::AlwaysValid,
 				..Default::default()
@@ -2219,7 +2155,7 @@ mod tests {
 			use crate::{ExecutorConfig, SignatureMockMode};
 			use scale::{Compact, Encode};
 
-			let ctx = create_test_context().await;
+			let ctx = TestContext::minimal().await;
 			let config = ExecutorConfig {
 				signature_mock: SignatureMockMode::AlwaysValid,
 				..Default::default()

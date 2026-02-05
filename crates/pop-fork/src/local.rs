@@ -851,76 +851,40 @@ impl LocalStorageLayer {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{ForkRpcClient, RemoteStorageLayer, StorageCache};
-	use pop_common::test_env::TestNode;
+	use crate::testing::{
+		TestContext,
+		constants::{SYSTEM_NUMBER_KEY, SYSTEM_PALLET_PREFIX, SYSTEM_PARENT_HASH_KEY},
+	};
 	use std::time::Duration;
 	use subxt::ext::codec::Decode;
-	use url::Url;
-
-	/// System::Number storage key: twox128("System") ++ twox128("Number")
-	const SYSTEM_NUMBER_KEY: &str =
-		"26aa394eea5630e07c48ae0c9558cef702a5c1b19ab7a04f536c519aca4983ac";
-
-	/// System::ParentHash storage key: twox128("System") ++ twox128("ParentHash")
-	const SYSTEM_PARENT_HASH_KEY: &str =
-		"26aa394eea5630e07c48ae0c9558cef734abf5cb34d6244378cddbf18e849d96";
-
-	/// System pallet prefix: twox128("System")
-	const SYSTEM_PALLET_PREFIX: &str = "26aa394eea5630e07c48ae0c9558cef7";
-
-	/// Helper struct to hold the test node and layers together.
-	struct TestContext {
-		#[allow(dead_code)]
-		node: TestNode,
-		remote: RemoteStorageLayer,
-		block_hash: H256,
-		block_number: u32,
-		metadata: Metadata,
-	}
-
-	async fn create_test_context() -> TestContext {
-		let node = TestNode::spawn().await.expect("Failed to spawn test node");
-		let endpoint: Url = node.ws_url().parse().unwrap();
-		let rpc = ForkRpcClient::connect(&endpoint).await.unwrap();
-		let block_hash = rpc.finalized_head().await.unwrap();
-		let header = rpc.header(block_hash).await.unwrap();
-		let block_number = header.number;
-		let cache = StorageCache::in_memory().await.unwrap();
-		let remote = RemoteStorageLayer::new(rpc.clone(), cache);
-		let metadata_bytes = rpc.metadata(block_hash).await.unwrap();
-		let metadata =
-			Metadata::decode(&mut metadata_bytes.as_slice()).expect("Failed to decode metadata");
-
-		TestContext { node, remote, block_hash, block_number, metadata }
-	}
 
 	/// Helper to create a LocalStorageLayer with proper block hash and number
 	fn create_layer(ctx: &TestContext) -> LocalStorageLayer {
 		LocalStorageLayer::new(
-			ctx.remote.clone(),
-			ctx.block_number,
-			ctx.block_hash,
-			ctx.metadata.clone(),
+			ctx.remote().clone(),
+			ctx.block_number(),
+			ctx.block_hash(),
+			ctx.metadata().clone(),
 		)
 	}
 
 	// Tests for new()
 	#[tokio::test(flavor = "multi_thread")]
 	async fn new_creates_empty_layer() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		// Verify empty modifications
 		let diff = layer.diff().unwrap();
 		assert_eq!(diff.len(), 0, "New layer should have no modifications");
-		assert_eq!(layer.first_forked_block_number, ctx.block_number);
-		assert_eq!(layer.latest_block_number, ctx.block_number + 1);
+		assert_eq!(layer.first_forked_block_number, ctx.block_number());
+		assert_eq!(layer.latest_block_number, ctx.block_number() + 1);
 	}
 
 	// Tests for get()
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_returns_local_modification() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let mut layer = create_layer(&ctx);
 		let block = layer.get_latest_block_number();
 
@@ -956,7 +920,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_non_existent_block_returns_none() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		// Query a block that doesn't exist
@@ -969,7 +933,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_returns_none_for_deleted_prefix_if_exact_key_not_found() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 		let block = layer.get_latest_block_number();
 
@@ -988,7 +952,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_returns_some_for_deleted_prefix_if_exact_key_found_after_deletion() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 		let block = layer.get_latest_block_number();
 
@@ -1014,7 +978,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_falls_back_to_parent() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 		let block = layer.get_latest_block_number();
 
@@ -1022,12 +986,12 @@ mod tests {
 
 		// Get without local modification - should fetch from parent
 		let result = layer.get(block, &key).await.unwrap().unwrap().value.clone().unwrap();
-		assert_eq!(u32::decode(&mut &result[..]).unwrap(), ctx.block_number);
+		assert_eq!(u32::decode(&mut &result[..]).unwrap(), ctx.block_number());
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_local_overrides_parent() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 		let block = layer.get_latest_block_number();
 
@@ -1036,7 +1000,7 @@ mod tests {
 
 		// Get parent value first
 		let parent_value = layer.get(block, &key).await.unwrap().unwrap().value.clone().unwrap();
-		assert_eq!(u32::decode(&mut &parent_value[..]).unwrap(), ctx.block_number);
+		assert_eq!(u32::decode(&mut &parent_value[..]).unwrap(), ctx.block_number());
 
 		// Set local value
 		layer.set(&key, Some(local_value)).unwrap();
@@ -1054,7 +1018,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_returns_none_for_nonexistent_key() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 		let block = layer.get_latest_block_number();
 
@@ -1067,7 +1031,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_retrieves_modified_value_from_fork_history() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let mut layer = create_layer(&ctx);
 
 		let key = b"modified_key";
@@ -1120,7 +1084,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_retrieves_unmodified_value_from_remote_at_past_forked_block() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let mut layer = create_layer(&ctx);
 
 		let unmodified_key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
@@ -1137,37 +1101,37 @@ mod tests {
 		assert!(result.is_some(),);
 
 		// Verify we get the same value as querying at first_forked_block directly
-		let remote_value = layer.get(ctx.block_number, &unmodified_key).await.unwrap();
+		let remote_value = layer.get(ctx.block_number(), &unmodified_key).await.unwrap();
 		assert_eq!(result, remote_value,);
 	}
 
 	// Tests for get_block (via get/get_batch for historical blocks)
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_historical_block() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		// Query a block that's not in cache (fork point)
-		let block_number = ctx.block_number;
+		let block_number = ctx.block_number();
 		let key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 
 		// Verify block is not in cache initially
-		let cached_before = ctx.remote.cache().get_block_by_number(block_number).await.unwrap();
+		let cached_before = ctx.remote().cache().get_block_by_number(block_number).await.unwrap();
 		assert!(cached_before.is_none());
 
 		// Get storage from historical block
 		let result = layer.get(block_number, &key).await.unwrap().unwrap().value.clone().unwrap();
-		assert_eq!(u32::decode(&mut &result[..]).unwrap(), ctx.block_number);
+		assert_eq!(u32::decode(&mut &result[..]).unwrap(), ctx.block_number());
 
 		// Cached after
-		let cached_before = ctx.remote.cache().get_block_by_number(block_number).await.unwrap();
+		let cached_before = ctx.remote().cache().get_block_by_number(block_number).await.unwrap();
 		assert!(cached_before.is_some());
 	}
 
 	// Tests for set()
 	#[tokio::test(flavor = "multi_thread")]
 	async fn set_stores_value() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 		let block = layer.get_latest_block_number();
 
@@ -1189,7 +1153,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn set_overwrites_previous_value() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 		let block = layer.get_latest_block_number();
 
@@ -1208,16 +1172,16 @@ mod tests {
 	// Tests for get_batch()
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_batch_empty_keys() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
-		let results = layer.get_batch(ctx.block_number, &[]).await.unwrap();
+		let results = layer.get_batch(ctx.block_number(), &[]).await.unwrap();
 		assert_eq!(results.len(), 0);
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_batch_returns_local_modifications() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 		let block = layer.get_latest_block_number();
 
@@ -1236,7 +1200,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_batch_returns_none_for_deleted_prefix() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 		let block = layer.get_latest_block_number();
 
@@ -1253,7 +1217,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_batch_falls_back_to_parent() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 		let block = layer.get_latest_block_number();
 
@@ -1267,7 +1231,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_batch_local_overrides_parent() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 		let block = layer.get_latest_block_number();
 
@@ -1288,7 +1252,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_batch_mixed_sources() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 		let block = layer.get_latest_block_number();
 
@@ -1312,7 +1276,7 @@ mod tests {
 		);
 		assert_eq!(
 			u32::decode(&mut &results[1].as_ref().unwrap().value.as_ref().unwrap()[..]).unwrap(),
-			ctx.block_number
+			ctx.block_number()
 		); // from parent
 		assert!(results[2].as_ref().map(|v| v.value.is_none()).unwrap_or(false)); // deleted (has SharedValue with value: None)
 		assert!(results[3].is_none()); // nonexistent
@@ -1320,7 +1284,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_batch_maintains_order() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 		let block = layer.get_latest_block_number();
 
@@ -1344,7 +1308,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_batch_retrieves_modified_value_from_fork_history() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let mut layer = create_layer(&ctx);
 
 		let key1 = b"modified_key1";
@@ -1426,7 +1390,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_batch_retrieves_unmodified_value_from_remote_at_past_forked_block() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let mut layer = create_layer(&ctx);
 
 		let unmodified_key1 = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
@@ -1448,7 +1412,10 @@ mod tests {
 
 		// Verify we get the same values as querying at first_forked_block directly
 		let remote_values = layer
-			.get_batch(ctx.block_number, &[unmodified_key1.as_slice(), unmodified_key2.as_slice()])
+			.get_batch(
+				ctx.block_number(),
+				&[unmodified_key1.as_slice(), unmodified_key2.as_slice()],
+			)
 			.await
 			.unwrap();
 		assert_eq!(results[0], remote_values[0]);
@@ -1457,14 +1424,14 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_batch_historical_block() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		// Wait for some blocks to be finalized
 		std::thread::sleep(Duration::from_secs(30));
 
 		// Query a block that's not in cache
-		let block_number = ctx.block_number;
+		let block_number = ctx.block_number();
 		let key1 = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 		let key2 = hex::decode(SYSTEM_PARENT_HASH_KEY).unwrap();
 		let key3 = b"non_existent_key";
@@ -1484,7 +1451,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_batch_non_existent_block_returns_none() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		// Query a block that doesn't exist
@@ -1499,7 +1466,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn get_batch_mixed_block_scenarios() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let mut layer = create_layer(&ctx);
 
 		// Test multiple scenarios:
@@ -1526,7 +1493,7 @@ mod tests {
 		);
 
 		// Get from historical block (should fetch and cache block)
-		let historical_block = ctx.block_number;
+		let historical_block = ctx.block_number();
 		let results2 = layer
 			.get(historical_block, key2.as_slice())
 			.await
@@ -1568,7 +1535,7 @@ mod tests {
 	// Tests for set_batch()
 	#[tokio::test(flavor = "multi_thread")]
 	async fn set_batch_empty_entries() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		layer.set_batch(&[]).unwrap();
@@ -1579,7 +1546,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn set_batch_stores_multiple_values() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		let key1 = b"key1";
@@ -1599,7 +1566,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn set_batch_with_deletions() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 		let block = layer.get_latest_block_number();
 
@@ -1617,7 +1584,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn set_batch_overwrites_previous_values() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 		let block = layer.get_latest_block_number();
 
@@ -1634,7 +1601,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn set_batch_duplicate_keys_last_wins() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 		let block = layer.get_latest_block_number();
 
@@ -1652,7 +1619,7 @@ mod tests {
 	// Tests for delete_prefix()
 	#[tokio::test(flavor = "multi_thread")]
 	async fn delete_prefix_removes_matching_keys() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		let prefix = b"prefix_";
@@ -1676,7 +1643,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn delete_prefix_blocks_parent_reads() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 		let block = layer.get_latest_block_number();
 
@@ -1697,7 +1664,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn delete_prefix_adds_to_deleted_prefixes() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		let prefix = b"prefix_";
@@ -1710,7 +1677,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn delete_prefix_with_empty_prefix() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		let key1 = b"key1";
@@ -1730,7 +1697,7 @@ mod tests {
 	// Tests for is_deleted()
 	#[tokio::test(flavor = "multi_thread")]
 	async fn is_deleted_returns_false_initially() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		let prefix = b"prefix_";
@@ -1740,7 +1707,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn is_deleted_returns_true_after_delete() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		let prefix = b"prefix_";
@@ -1752,7 +1719,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn is_deleted_exact_match_only() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		let prefix1 = b"prefix_";
@@ -1767,7 +1734,7 @@ mod tests {
 	// Tests for diff()
 	#[tokio::test(flavor = "multi_thread")]
 	async fn diff_returns_empty_initially() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		let diff = layer.diff().unwrap();
@@ -1776,7 +1743,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn diff_returns_all_modifications() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		let key1 = b"key1";
@@ -1797,7 +1764,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn diff_includes_deletions() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		let key = b"deleted";
@@ -1813,7 +1780,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn diff_excludes_prefix_deleted_keys() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		let prefix = b"prefix_";
@@ -1830,7 +1797,7 @@ mod tests {
 	// Tests for commit()
 	#[tokio::test(flavor = "multi_thread")]
 	async fn commit_writes_to_cache() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let mut layer = create_layer(&ctx);
 
 		let block = layer.get_latest_block_number();
@@ -1846,7 +1813,7 @@ mod tests {
 
 		// Verify not in cache yet
 		assert!(
-			ctx.remote
+			ctx.remote()
 				.cache()
 				.get_local_value_at_block(key1, block)
 				.await
@@ -1854,7 +1821,7 @@ mod tests {
 				.is_none()
 		);
 		assert!(
-			ctx.remote
+			ctx.remote()
 				.cache()
 				.get_local_value_at_block(key2, block)
 				.await
@@ -1866,8 +1833,8 @@ mod tests {
 		layer.commit().await.unwrap();
 
 		// Verify now in cache at the block_number it was committed to
-		let cached1 = ctx.remote.cache().get_local_value_at_block(key1, block).await.unwrap();
-		let cached2 = ctx.remote.cache().get_local_value_at_block(key2, block).await.unwrap();
+		let cached1 = ctx.remote().cache().get_local_value_at_block(key1, block).await.unwrap();
+		let cached2 = ctx.remote().cache().get_local_value_at_block(key2, block).await.unwrap();
 
 		assert_eq!(cached1, Some(Some(value1.to_vec())));
 		assert_eq!(cached2, Some(Some(value2.to_vec())));
@@ -1875,7 +1842,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn commit_preserves_modifications() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let mut layer = create_layer(&ctx);
 
 		let block = layer.get_latest_block_number();
@@ -1899,7 +1866,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn commit_with_deletions() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let mut layer = create_layer(&ctx);
 		let block = layer.get_latest_block_number();
 
@@ -1915,8 +1882,8 @@ mod tests {
 		layer.commit().await.unwrap();
 
 		// Both should be in cache
-		let cached1 = ctx.remote.cache().get_local_value_at_block(key1, block).await.unwrap();
-		let cached2 = ctx.remote.cache().get_local_value_at_block(key2, block).await.unwrap();
+		let cached1 = ctx.remote().cache().get_local_value_at_block(key1, block).await.unwrap();
+		let cached2 = ctx.remote().cache().get_local_value_at_block(key2, block).await.unwrap();
 
 		assert_eq!(cached1, Some(Some(value.to_vec())));
 		assert_eq!(cached2, Some(None)); // Cached as deletion (row exists with NULL value)
@@ -1924,7 +1891,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn commit_empty_modifications() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let mut layer = create_layer(&ctx);
 
 		// Commit with no modifications should succeed
@@ -1934,7 +1901,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn commit_multiple_times() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let mut layer = create_layer(&ctx);
 		let block = layer.get_latest_block_number();
 
@@ -1949,8 +1916,8 @@ mod tests {
 		layer.commit().await.unwrap();
 
 		// Both block numbers should find the value in cache
-		let cached1 = ctx.remote.cache().get_local_value_at_block(key, block).await.unwrap();
-		let cached2 = ctx.remote.cache().get_local_value_at_block(key, block + 1).await.unwrap();
+		let cached1 = ctx.remote().cache().get_local_value_at_block(key, block).await.unwrap();
+		let cached2 = ctx.remote().cache().get_local_value_at_block(key, block + 1).await.unwrap();
 
 		assert_eq!(cached1, Some(Some(value.to_vec())));
 		assert_eq!(cached2, Some(Some(value.to_vec())));
@@ -1958,7 +1925,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn commit_validity_ranges_work_properly() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let mut layer = create_layer(&ctx);
 
 		let key = b"validity_test_key";
@@ -1971,13 +1938,13 @@ mod tests {
 		layer.commit().await.unwrap();
 
 		// Verify key was created in local_keys
-		let key_row = ctx.remote.cache().get_local_key(key).await.unwrap();
+		let key_row = ctx.remote().cache().get_local_key(key).await.unwrap();
 		assert!(key_row.is_some());
 		let key_id = key_row.unwrap().id;
 
 		// Verify value1 is valid from block_n onwards
 		assert_eq!(
-			ctx.remote.cache().get_local_value_at_block(key, block_n).await.unwrap(),
+			ctx.remote().cache().get_local_value_at_block(key, block_n).await.unwrap(),
 			Some(Some(value1.to_vec()))
 		);
 
@@ -1987,11 +1954,11 @@ mod tests {
 
 		// Value1 should still be valid at blocks N+1 and N+2
 		assert_eq!(
-			ctx.remote.cache().get_local_value_at_block(key, block_n + 1).await.unwrap(),
+			ctx.remote().cache().get_local_value_at_block(key, block_n + 1).await.unwrap(),
 			Some(Some(value1.to_vec()))
 		);
 		assert_eq!(
-			ctx.remote.cache().get_local_value_at_block(key, block_n + 2).await.unwrap(),
+			ctx.remote().cache().get_local_value_at_block(key, block_n + 2).await.unwrap(),
 			Some(Some(value1.to_vec()))
 		);
 
@@ -2003,19 +1970,19 @@ mod tests {
 		// - value1 should be valid from block_n to block_n_plus_3 (exclusive)
 		// - value2 should be valid from block_n_plus_3 onwards
 		assert_eq!(
-			ctx.remote.cache().get_local_value_at_block(key, block_n).await.unwrap(),
+			ctx.remote().cache().get_local_value_at_block(key, block_n).await.unwrap(),
 			Some(Some(value1.to_vec())),
 		);
 		assert_eq!(
-			ctx.remote.cache().get_local_value_at_block(key, block_n + 2).await.unwrap(),
+			ctx.remote().cache().get_local_value_at_block(key, block_n + 2).await.unwrap(),
 			Some(Some(value1.to_vec())),
 		);
 		assert_eq!(
-			ctx.remote.cache().get_local_value_at_block(key, block_n + 3).await.unwrap(),
+			ctx.remote().cache().get_local_value_at_block(key, block_n + 3).await.unwrap(),
 			Some(None),
 		);
 		assert_eq!(
-			ctx.remote
+			ctx.remote()
 				.cache()
 				.get_local_value_at_block(key, block_n + 3 + 10)
 				.await
@@ -2029,20 +1996,20 @@ mod tests {
 
 		// Verify all three validity ranges
 		assert_eq!(
-			ctx.remote.cache().get_local_value_at_block(key, block_n).await.unwrap(),
+			ctx.remote().cache().get_local_value_at_block(key, block_n).await.unwrap(),
 			Some(Some(value1.to_vec()))
 		);
 		assert_eq!(
-			ctx.remote.cache().get_local_value_at_block(key, block_n + 3).await.unwrap(),
+			ctx.remote().cache().get_local_value_at_block(key, block_n + 3).await.unwrap(),
 			Some(None)
 		);
 		assert_eq!(
-			ctx.remote.cache().get_local_value_at_block(key, block_n + 4).await.unwrap(),
+			ctx.remote().cache().get_local_value_at_block(key, block_n + 4).await.unwrap(),
 			Some(Some(value2.to_vec()))
 		);
 
 		// Key ID should remain the same throughout
-		let key_row_after = ctx.remote.cache().get_local_key(key).await.unwrap();
+		let key_row_after = ctx.remote().cache().get_local_key(key).await.unwrap();
 		assert_eq!(key_row_after.unwrap().id, key_id);
 	}
 
@@ -2051,7 +2018,7 @@ mod tests {
 		use crate::schema::local_values::{self, columns as lvc};
 		use diesel::prelude::*;
 		use diesel_async::RunQueryDsl;
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let mut layer = create_layer(&ctx);
 		let cache_clone = layer.parent.cache().clone();
 
@@ -2131,7 +2098,7 @@ mod tests {
 	// Tests for next_key()
 	#[tokio::test(flavor = "multi_thread")]
 	async fn next_key_returns_next_key_from_parent() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		let prefix = hex::decode(SYSTEM_PALLET_PREFIX).unwrap();
@@ -2154,7 +2121,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn next_key_returns_none_when_no_more_keys() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		// Use a prefix that doesn't exist
@@ -2166,7 +2133,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn next_key_skips_deleted_prefix() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		let prefix = hex::decode(SYSTEM_PALLET_PREFIX).unwrap();
@@ -2190,7 +2157,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn next_key_skips_multiple_deleted_keys() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		let prefix = hex::decode(SYSTEM_PALLET_PREFIX).unwrap();
@@ -2216,7 +2183,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn next_key_returns_none_when_all_remaining_deleted() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		let prefix = hex::decode(SYSTEM_PALLET_PREFIX).unwrap();
@@ -2231,7 +2198,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn next_key_with_empty_prefix() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		// Empty prefix should match all keys
@@ -2241,7 +2208,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn next_key_with_nonexistent_prefix() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		let nonexistent_prefix = b"this_prefix_definitely_does_not_exist_xyz";
@@ -2252,38 +2219,38 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn metadata_at_returns_metadata_for_future_blocks() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		// Metadata registered at fork point should be valid for future blocks too
-		let future_block = ctx.block_number + 100;
+		let future_block = ctx.block_number() + 100;
 		let metadata = layer.metadata_at(future_block).await.unwrap();
 		assert!(metadata.pallets().count() > 0, "Metadata should be valid for future blocks");
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn metadata_at_fetches_from_remote_for_pre_fork_blocks() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		// For blocks before fork point, metadata should be fetched from remote
-		if ctx.block_number > 0 {
-			let metadata = layer.metadata_at(ctx.block_number - 1).await.unwrap();
+		if ctx.block_number() > 0 {
+			let metadata = layer.metadata_at(ctx.block_number() - 1).await.unwrap();
 			assert!(metadata.pallets().count() > 0, "Should fetch metadata from remote");
 		}
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn register_metadata_version_adds_new_version() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		// Register a new metadata version at a future block
-		let new_block = ctx.block_number + 10;
-		layer.register_metadata_version(new_block, ctx.metadata.clone()).unwrap();
+		let new_block = ctx.block_number() + 10;
+		layer.register_metadata_version(new_block, ctx.metadata().clone()).unwrap();
 
 		// Both versions should be accessible
-		let old_metadata = layer.metadata_at(ctx.block_number).await.unwrap();
+		let old_metadata = layer.metadata_at(ctx.block_number()).await.unwrap();
 		let new_metadata = layer.metadata_at(new_block).await.unwrap();
 
 		assert!(old_metadata.pallets().count() > 0);
@@ -2292,12 +2259,12 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn register_metadata_version_respects_block_boundaries() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		// Register new metadata at block X+5
-		let upgrade_block = ctx.block_number + 5;
-		layer.register_metadata_version(upgrade_block, ctx.metadata.clone()).unwrap();
+		let upgrade_block = ctx.block_number() + 5;
+		layer.register_metadata_version(upgrade_block, ctx.metadata().clone()).unwrap();
 
 		// Blocks before upgrade should get original metadata
 		// Blocks at or after upgrade should get new metadata
@@ -2314,17 +2281,17 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn has_code_changed_at_returns_false_when_no_code_modified() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		// No modifications made, should return false
-		let result = layer.has_code_changed_at(ctx.block_number).unwrap();
+		let result = layer.has_code_changed_at(ctx.block_number()).unwrap();
 		assert!(!result, "Should return false when no code was modified");
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn has_code_changed_at_returns_false_for_non_code_modifications() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		// Modify a non-code key
@@ -2337,7 +2304,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn has_code_changed_at_returns_true_when_code_modified() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		// Modify the :code key
@@ -2351,7 +2318,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn has_code_changed_at_returns_false_for_different_block() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
 
 		// Modify the :code key at current block
@@ -2370,7 +2337,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn has_code_changed_at_tracks_modification_block_correctly() {
-		let ctx = create_test_context().await;
+		let ctx = TestContext::for_local().await;
 		let mut layer = create_layer(&ctx);
 
 		let code_key = sp_core::storage::well_known_keys::CODE;

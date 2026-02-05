@@ -622,45 +622,14 @@ impl ChainHeadApiServer for ChainHeadApi {
 
 #[cfg(test)]
 mod tests {
-	use super::*;
-	use crate::{
-		TxPool,
-		rpc_server::{ForkRpcServer, RpcServerConfig},
-	};
+
+	use crate::testing::TestContext;
 	use jsonrpsee::{core::client::SubscriptionClientT, rpc_params, ws_client::WsClientBuilder};
-	use pop_common::test_env::TestNode;
-	use url::Url;
-
-	/// Test context holding spawned node and RPC server.
-	struct RpcTestContext {
-		#[allow(dead_code)]
-		node: TestNode,
-		#[allow(dead_code)]
-		server: ForkRpcServer,
-		ws_url: String,
-	}
-
-	/// Creates a test context with spawned node and RPC server.
-	async fn setup_rpc_test() -> RpcTestContext {
-		let node = TestNode::spawn().await.expect("Failed to spawn test node");
-		let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
-
-		let blockchain =
-			Blockchain::fork(&endpoint, None).await.expect("Failed to fork blockchain");
-		let txpool = Arc::new(TxPool::new());
-
-		let server = ForkRpcServer::start(blockchain, txpool, RpcServerConfig::default())
-			.await
-			.expect("Failed to start RPC server");
-
-		let ws_url = server.ws_url();
-		RpcTestContext { node, server, ws_url }
-	}
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn follow_returns_subscription_and_initialized_event() {
-		let ctx = setup_rpc_test().await;
-		let client = WsClientBuilder::default().build(&ctx.ws_url).await.unwrap();
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default().build(&ctx.ws_url()).await.unwrap();
 
 		// Subscribe to chain head
 		let mut sub = client
@@ -685,8 +654,8 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn header_returns_header_for_valid_subscription() {
-		let ctx = setup_rpc_test().await;
-		let client = WsClientBuilder::default().build(&ctx.ws_url).await.unwrap();
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default().build(&ctx.ws_url()).await.unwrap();
 
 		// Subscribe first
 		let mut sub = client
@@ -710,8 +679,8 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn invalid_subscription_returns_error() {
-		let ctx = setup_rpc_test().await;
-		let client = WsClientBuilder::default().build(&ctx.ws_url).await.unwrap();
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default().build(&ctx.ws_url()).await.unwrap();
 
 		use jsonrpsee::core::client::ClientT;
 

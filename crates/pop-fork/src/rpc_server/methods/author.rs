@@ -212,98 +212,15 @@ mod tests {
 	use super::*;
 	use crate::{
 		ExecutorConfig, SignatureMockMode,
-		rpc_server::{ForkRpcServer, RpcServerConfig},
+		testing::{
+			TestContext,
+			accounts::{ALICE, BOB},
+			constants::TRANSFER_AMOUNT,
+			helpers::{account_storage_key, build_mock_signed_extrinsic_v4, decode_free_balance},
+		},
 	};
 	use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
-	use pop_common::test_env::TestNode;
 	use scale::{Compact, Encode};
-	use url::Url;
-
-	/// Test context holding spawned node and RPC server.
-	struct RpcTestContext {
-		#[allow(dead_code)]
-		node: TestNode,
-		#[allow(dead_code)]
-		server: ForkRpcServer,
-		ws_url: String,
-		blockchain: Arc<Blockchain>,
-	}
-
-	/// Well-known dev account: Alice
-	const ALICE: [u8; 32] = [
-		0xd4, 0x35, 0x93, 0xc7, 0x15, 0xfd, 0xd3, 0x1c, 0x61, 0x14, 0x1a, 0xbd, 0x04, 0xa9, 0x9f,
-		0xd6, 0x82, 0x2c, 0x85, 0x58, 0x85, 0x4c, 0xcd, 0xe3, 0x9a, 0x56, 0x84, 0xe7, 0xa5, 0x6d,
-		0xa2, 0x7d,
-	];
-
-	/// Well-known dev account: Bob
-	const BOB: [u8; 32] = [
-		0x8e, 0xaf, 0x04, 0x15, 0x16, 0x87, 0x73, 0x63, 0x26, 0xc9, 0xfe, 0xa1, 0x7e, 0x25, 0xfc,
-		0x52, 0x87, 0x61, 0x36, 0x93, 0xc9, 0x12, 0x90, 0x9c, 0xb2, 0x26, 0xaa, 0x47, 0x94, 0xf2,
-		0x6a, 0x48,
-	];
-
-	/// Transfer amount: 100 units (with 12 decimals)
-	const TRANSFER_AMOUNT: u128 = 100_000_000_000_000;
-
-	async fn setup_rpc_test() -> RpcTestContext {
-		setup_rpc_test_with_config(ExecutorConfig::default()).await
-	}
-
-	/// Creates a test context with custom executor config.
-	async fn setup_rpc_test_with_config(config: ExecutorConfig) -> RpcTestContext {
-		let node = TestNode::spawn().await.expect("Failed to spawn test node");
-		let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
-
-		let blockchain = Blockchain::fork_with_config(&endpoint, None, None, config)
-			.await
-			.expect("Failed to fork blockchain");
-		let txpool = Arc::new(TxPool::new());
-
-		let server = ForkRpcServer::start(blockchain.clone(), txpool, RpcServerConfig::default())
-			.await
-			.expect("Failed to start RPC server");
-
-		let ws_url = server.ws_url();
-		RpcTestContext { node, server, ws_url, blockchain }
-	}
-
-	/// Build a mock V4 signed extrinsic with dummy signature (from Alice).
-	fn build_mock_signed_extrinsic_v4(call_data: &[u8]) -> Vec<u8> {
-		let mut inner = Vec::new();
-		inner.push(0x84); // Version: signed (0x80) + v4 (0x04)
-		inner.push(0x00); // MultiAddress::Id variant
-		inner.extend(ALICE);
-		inner.extend([0u8; 64]); // Dummy signature (works with AlwaysValid)
-		inner.push(0x00); // CheckMortality: immortal
-		inner.extend(Compact(0u64).encode()); // CheckNonce
-		inner.extend(Compact(0u128).encode()); // ChargeTransactionPayment
-		inner.push(0x00); // EthSetOrigin: None
-		inner.extend(call_data);
-		let mut extrinsic = Compact(inner.len() as u32).encode();
-		extrinsic.extend(inner);
-		extrinsic
-	}
-
-	/// Compute Blake2_128Concat storage key for System::Account.
-	fn account_storage_key(account: &[u8; 32]) -> Vec<u8> {
-		let mut key = Vec::new();
-		key.extend(sp_core::twox_128(b"System"));
-		key.extend(sp_core::twox_128(b"Account"));
-		key.extend(sp_core::blake2_128(account));
-		key.extend(account);
-		key
-	}
-
-	/// Decode AccountInfo and extract free balance.
-	fn decode_free_balance(data: &[u8]) -> u128 {
-		const ACCOUNT_DATA_OFFSET: usize = 16;
-		u128::from_le_bytes(
-			data[ACCOUNT_DATA_OFFSET..ACCOUNT_DATA_OFFSET + 16]
-				.try_into()
-				.expect("need 16 bytes for u128"),
-		)
-	}
 
 	/// Build call data for Balances.transfer_keep_alive using metadata.
 	async fn build_transfer_call_data(blockchain: &Blockchain) -> Vec<u8> {
@@ -329,16 +246,18 @@ mod tests {
 	async fn author_submit_extrinsic_builds_block_immediately() {
 		let config =
 			ExecutorConfig { signature_mock: SignatureMockMode::AlwaysValid, ..Default::default() };
-		let ctx = setup_rpc_test_with_config(config).await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server_with_config(config).await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
-		let initial_block_number = ctx.blockchain.head_number().await;
+		let initial_block_number = ctx.blockchain().head_number().await;
 
 		// Get storage key for Alice
 		let alice_key = account_storage_key(&ALICE);
 		let alice_balance_before = ctx
-			.blockchain
+			.blockchain()
 			.storage(&alice_key)
 			.await
 			.expect("Failed to get Alice balance")
@@ -346,7 +265,7 @@ mod tests {
 			.expect("Alice should have a balance");
 
 		// Build a transfer extrinsic using metadata for correct pallet/call indices
-		let call_data = build_transfer_call_data(&ctx.blockchain).await;
+		let call_data = build_transfer_call_data(ctx.blockchain()).await;
 
 		let extrinsic = build_mock_signed_extrinsic_v4(&call_data);
 		let ext_hex = format!("0x{}", hex::encode(&extrinsic));
@@ -362,10 +281,10 @@ mod tests {
 		assert_eq!(hash.len(), 66, "Hash should be 0x + 64 hex chars");
 
 		// Block should have been built immediately
-		let new_block_number = ctx.blockchain.head_number().await;
+		let new_block_number = ctx.blockchain().head_number().await;
 
 		let alice_balance_after = ctx
-			.blockchain
+			.blockchain()
 			.storage(&alice_key)
 			.await
 			.expect("Failed to get Alice balance after")
@@ -384,12 +303,14 @@ mod tests {
 	async fn author_pending_extrinsics_empty_after_submit() {
 		let config =
 			ExecutorConfig { signature_mock: SignatureMockMode::AlwaysValid, ..Default::default() };
-		let ctx = setup_rpc_test_with_config(config).await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server_with_config(config).await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Build and submit an extrinsic using metadata for correct pallet/call indices
-		let call_data = build_transfer_call_data(&ctx.blockchain).await;
+		let call_data = build_transfer_call_data(ctx.blockchain()).await;
 
 		let extrinsic = build_mock_signed_extrinsic_v4(&call_data);
 		let ext_hex = format!("0x{}", hex::encode(&extrinsic));
@@ -416,12 +337,14 @@ mod tests {
 	async fn author_submit_extrinsic_returns_correct_hash() {
 		let config =
 			ExecutorConfig { signature_mock: SignatureMockMode::AlwaysValid, ..Default::default() };
-		let ctx = setup_rpc_test_with_config(config).await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server_with_config(config).await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Build a transfer extrinsic using metadata for correct pallet/call indices
-		let call_data = build_transfer_call_data(&ctx.blockchain).await;
+		let call_data = build_transfer_call_data(ctx.blockchain()).await;
 
 		let extrinsic = build_mock_signed_extrinsic_v4(&call_data);
 		let expected_hash = H256::from(sp_core::blake2_256(&extrinsic));
@@ -439,9 +362,11 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn author_submit_extrinsic_invalid_hex() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Submit invalid hex
 		let result: Result<String, _> =
@@ -456,14 +381,16 @@ mod tests {
 
 		let config =
 			ExecutorConfig { signature_mock: SignatureMockMode::AlwaysValid, ..Default::default() };
-		let ctx = setup_rpc_test_with_config(config).await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server_with_config(config).await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
-		let initial_block_number = ctx.blockchain.head_number().await;
+		let initial_block_number = ctx.blockchain().head_number().await;
 
 		// Build a valid extrinsic using metadata for correct pallet/call indices
-		let call_data = build_transfer_call_data(&ctx.blockchain).await;
+		let call_data = build_transfer_call_data(ctx.blockchain()).await;
 		let extrinsic = build_mock_signed_extrinsic_v4(&call_data);
 		let ext_hex = format!("0x{}", hex::encode(&extrinsic));
 
@@ -525,15 +452,17 @@ mod tests {
 		assert!(finalized_event.is_some(), "Should have 'finalized' event");
 
 		// Block should have been built
-		let new_block_number = ctx.blockchain.head_number().await;
+		let new_block_number = ctx.blockchain().head_number().await;
 		assert_eq!(new_block_number, initial_block_number + 1, "Block should have been built");
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn author_submit_extrinsic_rejects_garbage_with_error_code() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Submit garbage bytes
 		let garbage_hex = "0xdeadbeef";
@@ -558,11 +487,13 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn author_submit_extrinsic_does_not_build_block_on_validation_failure() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
-		let initial_block_number = ctx.blockchain.head_number().await;
+		let initial_block_number = ctx.blockchain().head_number().await;
 
 		// Submit garbage bytes
 		let garbage_hex = "0xdeadbeef";
@@ -571,7 +502,7 @@ mod tests {
 			client.request("author_submitExtrinsic", rpc_params![garbage_hex]).await;
 
 		// Block number should NOT have changed (no block built for invalid tx)
-		let new_block_number = ctx.blockchain.head_number().await;
+		let new_block_number = ctx.blockchain().head_number().await;
 		assert_eq!(
 			initial_block_number, new_block_number,
 			"Block should NOT be built when extrinsic validation fails"
@@ -582,9 +513,11 @@ mod tests {
 	async fn author_submit_and_watch_sends_invalid_on_validation_failure() {
 		use jsonrpsee::core::client::SubscriptionClientT;
 
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Submit garbage bytes via subscription
 		let garbage_hex = "0xdeadbeef";
