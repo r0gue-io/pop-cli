@@ -91,7 +91,9 @@ pub struct Block {
 
 /// Handy type to allow specifying both number and hash as the fork point.
 pub enum BlockForkPoint {
+	/// Fork at a specific block number.
 	Number(u32),
+	/// Fork at a specific block hash.
 	Hash(H256),
 }
 

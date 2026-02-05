@@ -96,6 +96,11 @@ impl RemoteStorageLayer {
 		&self.cache
 	}
 
+	/// Get the RPC endpoint URL this layer is connected to.
+	pub fn endpoint(&self) -> &url::Url {
+		self.rpc.endpoint()
+	}
+
 	/// Get a storage value, fetching from RPC if not cached.
 	///
 	/// # Returns
@@ -373,6 +378,141 @@ impl RemoteStorageLayer {
 		// Fetch just 1 key after the current key
 		let keys = self.rpc.storage_keys_paged(prefix, 1, Some(key), block_hash).await?;
 		Ok(keys.into_iter().next())
+	}
+
+	// ============================================================================
+	// Block and header fetching methods
+	// ============================================================================
+	// These methods provide access to block data from the remote chain,
+	// allowing Blockchain to delegate remote queries without directly
+	// interfacing with ForkRpcClient.
+
+	/// Get block body (extrinsics) by hash from the remote chain.
+	///
+	/// # Returns
+	/// * `Ok(Some(extrinsics))` - Block found, returns list of encoded extrinsics
+	/// * `Ok(None)` - Block not found
+	pub async fn block_body(&self, hash: H256) -> Result<Option<Vec<Vec<u8>>>, RemoteStorageError> {
+		match self.rpc.block_by_hash(hash).await? {
+			Some(block) => {
+				let extrinsics = block.extrinsics.into_iter().map(|ext| ext.0.to_vec()).collect();
+				Ok(Some(extrinsics))
+			},
+			None => Ok(None),
+		}
+	}
+
+	/// Get block header by hash from the remote chain.
+	///
+	/// # Returns
+	/// * `Ok(Some(header_bytes))` - Encoded header bytes
+	/// * `Ok(None)` - Block not found
+	pub async fn block_header(&self, hash: H256) -> Result<Option<Vec<u8>>, RemoteStorageError> {
+		match self.rpc.header(hash).await {
+			Ok(header) => Ok(Some(header.encode())),
+			Err(_) => Ok(None),
+		}
+	}
+
+	/// Get block hash by block number from the remote chain.
+	///
+	/// # Returns
+	/// * `Ok(Some(hash))` - Block hash at the given number
+	/// * `Ok(None)` - Block number not found
+	pub async fn block_hash_by_number(
+		&self,
+		block_number: u32,
+	) -> Result<Option<H256>, RemoteStorageError> {
+		Ok(self.rpc.block_hash_at(block_number).await?)
+	}
+
+	/// Get block number by hash from the remote chain.
+	///
+	/// This method checks the persistent SQLite cache first before hitting RPC.
+	/// Results are cached for future lookups.
+	///
+	/// # Returns
+	/// * `Ok(Some(number))` - Block number for the given hash
+	/// * `Ok(None)` - Block not found
+	pub async fn block_number_by_hash(
+		&self,
+		hash: H256,
+	) -> Result<Option<u32>, RemoteStorageError> {
+		// Check cache first
+		if let Some(block) = self.cache.get_block(hash).await? {
+			return Ok(Some(block.number as u32));
+		}
+
+		// Fetch from RPC
+		match self.rpc.block_by_hash(hash).await? {
+			Some(block) => {
+				let number = block.header.number;
+				let parent_hash = block.header.parent_hash;
+				let header_encoded = block.header.encode();
+
+				// Cache for future lookups
+				self.cache.cache_block(hash, number, parent_hash, &header_encoded).await?;
+
+				Ok(Some(number))
+			},
+			None => Ok(None),
+		}
+	}
+
+	/// Get parent hash of a block from the remote chain.
+	///
+	/// This method checks the persistent SQLite cache first before hitting RPC.
+	/// Results are cached for future lookups.
+	///
+	/// # Returns
+	/// * `Ok(Some(parent_hash))` - Parent hash of the block
+	/// * `Ok(None)` - Block not found
+	pub async fn parent_hash(&self, hash: H256) -> Result<Option<H256>, RemoteStorageError> {
+		// Check cache first
+		if let Some(block) = self.cache.get_block(hash).await? {
+			let parent_hash = H256::from_slice(&block.parent_hash);
+			return Ok(Some(parent_hash));
+		}
+
+		// Fetch from RPC
+		match self.rpc.block_by_hash(hash).await? {
+			Some(block) => {
+				let number = block.header.number;
+				let parent_hash = block.header.parent_hash;
+				let header_encoded = block.header.encode();
+
+				// Cache for future lookups
+				self.cache.cache_block(hash, number, parent_hash, &header_encoded).await?;
+
+				Ok(Some(parent_hash))
+			},
+			None => Ok(None),
+		}
+	}
+
+	/// Get full block data (hash and block) by number from the remote chain.
+	///
+	/// # Returns
+	/// * `Ok(Some((hash, block)))` - Block found
+	/// * `Ok(None)` - Block number not found
+	pub async fn block_by_number(
+		&self,
+		block_number: u32,
+	) -> Result<
+		Option<(H256, subxt::backend::legacy::rpc_methods::Block<subxt::SubstrateConfig>)>,
+		RemoteStorageError,
+	> {
+		Ok(self.rpc.block_by_number(block_number).await?)
+	}
+
+	/// Get the latest finalized block hash from the remote chain.
+	pub async fn finalized_head(&self) -> Result<H256, RemoteStorageError> {
+		Ok(self.rpc.finalized_head().await?)
+	}
+
+	/// Get metadata bytes at a specific block from the remote chain.
+	pub async fn metadata(&self, block_hash: H256) -> Result<Vec<u8>, RemoteStorageError> {
+		Ok(self.rpc.metadata(block_hash).await?)
 	}
 }
 

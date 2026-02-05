@@ -15,9 +15,9 @@ use crate::{
 	rpc_server::{
 		RpcServerError, parse_block_hash, parse_hex_bytes,
 		types::{
-			BestBlockChangedEvent, ChainHeadEvent, FinalizedEvent, HexString, InitializedEvent,
-			MethodResponse, NewBlockEvent, OperationEvent, OperationResult, RuntimeEvent,
-			RuntimeVersion, StorageQueryItem, StorageQueryType, StorageResultItem, ValidRuntime,
+			BestBlockChangedEvent, ChainHeadEvent, ChainHeadRuntimeVersion, FinalizedEvent,
+			HexString, InitializedEvent, MethodResponse, NewBlockEvent, OperationEvent,
+			OperationResult, StorageQueryItem, StorageQueryType, StorageResultItem,
 		},
 	},
 	strings::rpc_server::{chain_head, runtime_api},
@@ -26,6 +26,7 @@ use jsonrpsee::{
 	PendingSubscriptionSink, SubscriptionSink,
 	core::{RpcResult, SubscriptionResult},
 	proc_macros::rpc,
+	tracing,
 };
 use scale::Decode;
 use std::{
@@ -180,8 +181,11 @@ impl ChainHeadApi {
 	}
 }
 
-/// Get runtime version from blockchain.
-async fn get_runtime_version(blockchain: &Blockchain) -> Option<RuntimeVersion> {
+/// Get runtime version from blockchain for chainHead RPC.
+///
+/// Returns a flat runtime version object with apis as a HashMap,
+/// which is what papi-console expects.
+async fn get_chainhead_runtime_version(blockchain: &Blockchain) -> Option<ChainHeadRuntimeVersion> {
 	let head_hash = blockchain.head_hash().await;
 
 	let result = blockchain
@@ -193,24 +197,22 @@ async fn get_runtime_version(blockchain: &Blockchain) -> Option<RuntimeVersion> 
 	struct ScaleRuntimeVersion {
 		spec_name: String,
 		impl_name: String,
-		authoring_version: u32,
+		_authoring_version: u32,
 		spec_version: u32,
 		impl_version: u32,
 		apis: Vec<([u8; 8], u32)>,
 		transaction_version: u32,
-		state_version: u8,
+		_state_version: u8,
 	}
 
 	let version = ScaleRuntimeVersion::decode(&mut result.as_slice()).ok()?;
 
-	Some(RuntimeVersion {
+	Some(ChainHeadRuntimeVersion {
 		spec_name: version.spec_name,
 		impl_name: version.impl_name,
-		authoring_version: version.authoring_version,
 		spec_version: version.spec_version,
 		impl_version: version.impl_version,
 		transaction_version: version.transaction_version,
-		state_version: version.state_version,
 		apis: version
 			.apis
 			.into_iter()
@@ -266,21 +268,95 @@ impl ChainHeadApiServer for ChainHeadApi {
 		let finalized_hash_hex = HexString::from_bytes(finalized_hash.as_bytes()).into();
 
 		// Build initialized event
-		let runtime_event = if with_runtime {
-			get_runtime_version(&self.blockchain)
-				.await
-				.map(|spec| RuntimeEvent::Valid(ValidRuntime { spec }))
-		} else {
-			None
-		};
+		// Use flat runtime format for papi compatibility (not wrapped in ValidRuntime)
+		let runtime_version =
+			if with_runtime { get_chainhead_runtime_version(&self.blockchain).await } else { None };
+
+		// Log before building event (values are moved)
+		tracing::debug!(
+			sub_id = %sub_id,
+			finalized_hash = %finalized_hash_hex,
+			has_runtime = runtime_version.is_some(),
+			"chainHead_v1_follow: sending initialized event"
+		);
 
 		let initialized = ChainHeadEvent::Initialized(InitializedEvent {
 			finalized_block_hashes: vec![finalized_hash_hex],
-			finalized_block_runtime: runtime_event,
+			finalized_block_runtime: runtime_version,
 		});
+
+		// Log the exact JSON being sent for debugging
+		if let Ok(json) = serde_json::to_string_pretty(&initialized) {
+			tracing::debug!(json = %json, "chainHead_v1_follow: initialized event JSON");
+		}
 
 		// Send initialized event
 		if !send_event(&sink, &initialized).await {
+			self.state.remove_subscription(&sub_id).await;
+			return Ok(());
+		}
+
+		// Get parent hash for the fork point block to send newBlock event
+		// This is critical for papi-console explorer - it needs newBlock events to populate
+		// the block list, not just initialized/bestBlockChanged
+		let finalized_hash_hex_for_new: String =
+			HexString::from_bytes(finalized_hash.as_bytes()).into();
+		let parent_hash = self.blockchain.block_parent_hash(finalized_hash).await.ok().flatten();
+		let parent_hash_hex: String = parent_hash
+			.map(|h| HexString::from_bytes(h.as_bytes()).into())
+			.unwrap_or_else(|| {
+				// Genesis block has itself as parent in some representations
+				finalized_hash_hex_for_new.clone()
+			});
+
+		// Send newBlock event for the fork point block
+		let new_block = ChainHeadEvent::NewBlock(NewBlockEvent {
+			block_hash: finalized_hash_hex_for_new.clone(),
+			parent_block_hash: parent_hash_hex,
+			new_runtime: None,
+		});
+
+		tracing::debug!(
+			sub_id = %sub_id,
+			block_hash = %finalized_hash_hex_for_new,
+			"chainHead_v1_follow: sending newBlock event for fork point"
+		);
+
+		if !send_event(&sink, &new_block).await {
+			self.state.remove_subscription(&sub_id).await;
+			return Ok(());
+		}
+
+		// Send bestBlockChanged event after newBlock
+		let best_block_changed = ChainHeadEvent::BestBlockChanged(BestBlockChangedEvent {
+			best_block_hash: finalized_hash_hex_for_new.clone(),
+		});
+
+		tracing::debug!(
+			sub_id = %sub_id,
+			best_block_hash = %finalized_hash_hex_for_new,
+			"chainHead_v1_follow: sending bestBlockChanged event"
+		);
+
+		if !send_event(&sink, &best_block_changed).await {
+			self.state.remove_subscription(&sub_id).await;
+			return Ok(());
+		}
+
+		// Send finalized event for the fork point block
+		// This completes the event sequence: initialized → newBlock → bestBlockChanged → finalized
+		let finalized_event = ChainHeadEvent::Finalized(FinalizedEvent {
+			finalized_block_hashes: vec![finalized_hash_hex_for_new.clone()],
+			pruned_block_hashes: vec![],
+		});
+
+		tracing::debug!(
+			sub_id = %sub_id,
+			finalized_hash = %finalized_hash_hex_for_new,
+			"chainHead_v1_follow: sending finalized event for fork point"
+		);
+
+		if !send_event(&sink, &finalized_event).await {
 			self.state.remove_subscription(&sub_id).await;
 			return Ok(());
 		}
@@ -680,7 +756,44 @@ mod tests {
 		// Should have finalized block hashes
 		let hashes = event.get("finalizedBlockHashes").and_then(|v| v.as_array());
 		assert!(hashes.is_some());
-		assert!(!hashes.unwrap().is_empty());
+		let hashes = hashes.unwrap();
+		assert!(!hashes.is_empty());
+		let finalized_hash = hashes[0].as_str().unwrap();
+
+		// Should receive newBlock event for the fork point block
+		// This is critical for papi-console explorer - it needs newBlock events to populate blocks
+		let new_block_event =
+			sub.next().await.expect("Should receive event").expect("Event should be valid");
+		let new_block_event_type = new_block_event.get("event").and_then(|v| v.as_str());
+		assert_eq!(new_block_event_type, Some("newBlock"));
+
+		// newBlock should have the same hash as the finalized block
+		let new_block_hash = new_block_event.get("blockHash").and_then(|v| v.as_str());
+		assert_eq!(new_block_hash, Some(finalized_hash));
+
+		// Should receive bestBlockChanged event after newBlock
+		let best_event =
+			sub.next().await.expect("Should receive event").expect("Event should be valid");
+		let best_event_type = best_event.get("event").and_then(|v| v.as_str());
+		assert_eq!(best_event_type, Some("bestBlockChanged"));
+
+		// Best block should match the finalized hash
+		let best_hash = best_event.get("bestBlockHash").and_then(|v| v.as_str());
+		assert_eq!(best_hash, Some(finalized_hash));
+
+		// Should receive finalized event for the fork point block
+		let finalized_event =
+			sub.next().await.expect("Should receive event").expect("Event should be valid");
+		let finalized_event_type = finalized_event.get("event").and_then(|v| v.as_str());
+		assert_eq!(finalized_event_type, Some("finalized"));
+
+		// Finalized event should contain the fork point hash
+		let finalized_hashes = finalized_event
+			.get("finalizedBlockHashes")
+			.and_then(|v| v.as_array())
+			.expect("Should have finalizedBlockHashes");
+		assert!(!finalized_hashes.is_empty());
+		assert_eq!(finalized_hashes[0].as_str(), Some(finalized_hash));
 	}
 
 	#[tokio::test(flavor = "multi_thread")]

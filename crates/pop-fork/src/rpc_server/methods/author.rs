@@ -61,9 +61,6 @@ impl AuthorApiServer for AuthorApi {
 	async fn submit_extrinsic(&self, extrinsic: String) -> RpcResult<String> {
 		let ext_bytes = parse_hex_bytes(&extrinsic, "extrinsic")?;
 
-		// Calculate hash before validating (for return value)
-		let hash = H256::from(sp_core::blake2_256(&ext_bytes));
-
 		// Validate extrinsic BEFORE adding to pool
 		if let Err(err) = self.blockchain.validate_extrinsic(&ext_bytes).await {
 			let reason = err.reason();
@@ -76,15 +73,12 @@ impl AuthorApiServer for AuthorApi {
 			}
 		}
 
-		// Submit to TxPool (already validated)
-		self.txpool
-			.submit(ext_bytes)
+		// Instant mode: submit and immediately drain txpool in one operation.
+		// This reduces lock acquisitions from 2 to 1.
+		let (hash, pending_txs) = self
+			.txpool
+			.submit_and_drain(ext_bytes)
 			.map_err(|e| RpcServerError::Internal(format!("Failed to submit extrinsic: {e}")))?;
-
-		// Instant mode: immediately drain txpool and build block.
-		let pending_txs = self.txpool.drain().map_err(|e| {
-			RpcServerError::Internal(format!("Failed to drain transaction pool: {e}"))
-		})?;
 
 		let result = self
 			.blockchain

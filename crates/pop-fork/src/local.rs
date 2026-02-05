@@ -195,6 +195,15 @@ impl LocalStorageLayer {
 		self.parent.cache()
 	}
 
+	/// Get the underlying remote storage layer.
+	///
+	/// This provides access to the remote layer for operations that need to
+	/// fetch data directly from the remote chain (e.g., block headers, bodies).
+	/// The remote layer maintains a persistent connection to the RPC endpoint.
+	pub fn remote(&self) -> &crate::RemoteStorageLayer {
+		&self.parent
+	}
+
 	/// Get the metadata valid at a specific block number.
 	///
 	/// For blocks at or after the fork point, returns metadata from the local version tree.

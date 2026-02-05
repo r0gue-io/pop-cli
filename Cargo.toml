@@ -121,4 +121,3 @@ async-trait = "0.1"
 smoldot = { version = "0.21.0", default-features = false, features = ["std"] }
 trie-db = { version = "0.30", default-features = false }
 
-
