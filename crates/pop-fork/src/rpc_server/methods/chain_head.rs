@@ -296,21 +296,67 @@ impl ChainHeadApiServer for ChainHeadApi {
 			return Ok(());
 		}
 
-		// Send bestBlockChanged event immediately after initialized
-		// This is critical for papi-console compatibility - it expects both events together
-		let finalized_hash_hex_for_best: String =
+		// Get parent hash for the fork point block to send newBlock event
+		// This is critical for papi-console explorer - it needs newBlock events to populate
+		// the block list, not just initialized/bestBlockChanged
+		let finalized_hash_hex_for_new: String =
 			HexString::from_bytes(finalized_hash.as_bytes()).into();
-		let best_block_changed = ChainHeadEvent::BestBlockChanged(BestBlockChangedEvent {
-			best_block_hash: finalized_hash_hex_for_best.clone(),
+		let parent_hash = self.blockchain.block_parent_hash(finalized_hash).await.ok().flatten();
+		let parent_hash_hex: String = parent_hash
+			.map(|h| HexString::from_bytes(h.as_bytes()).into())
+			.unwrap_or_else(|| {
+				// Genesis block has itself as parent in some representations
+				finalized_hash_hex_for_new.clone()
+			});
+
+		// Send newBlock event for the fork point block
+		let new_block = ChainHeadEvent::NewBlock(NewBlockEvent {
+			block_hash: finalized_hash_hex_for_new.clone(),
+			parent_block_hash: parent_hash_hex,
+			new_runtime: None,
 		});
 
 		tracing::debug!(
 			sub_id = %sub_id,
-			best_block_hash = %finalized_hash_hex_for_best,
+			block_hash = %finalized_hash_hex_for_new,
+			"chainHead_v1_follow: sending newBlock event for fork point"
+		);
+
+		if !send_event(&sink, &new_block).await {
+			self.state.remove_subscription(&sub_id).await;
+			return Ok(());
+		}
+
+		// Send bestBlockChanged event after newBlock
+		let best_block_changed = ChainHeadEvent::BestBlockChanged(BestBlockChangedEvent {
+			best_block_hash: finalized_hash_hex_for_new.clone(),
+		});
+
+		tracing::debug!(
+			sub_id = %sub_id,
+			best_block_hash = %finalized_hash_hex_for_new,
 			"chainHead_v1_follow: sending bestBlockChanged event"
 		);
 
 		if !send_event(&sink, &best_block_changed).await {
+			self.state.remove_subscription(&sub_id).await;
+			return Ok(());
+		}
+
+		// Send finalized event for the fork point block
+		// This completes the event sequence: initialized → newBlock → bestBlockChanged → finalized
+		let finalized_event = ChainHeadEvent::Finalized(FinalizedEvent {
+			finalized_block_hashes: vec![finalized_hash_hex_for_new.clone()],
+			pruned_block_hashes: vec![],
+		});
+
+		tracing::debug!(
+			sub_id = %sub_id,
+			finalized_hash = %finalized_hash_hex_for_new,
+			"chainHead_v1_follow: sending finalized event for fork point"
+		);
+
+		if !send_event(&sink, &finalized_event).await {
 			self.state.remove_subscription(&sub_id).await;
 			return Ok(());
 		}
@@ -764,8 +810,18 @@ mod tests {
 		assert!(!hashes.is_empty());
 		let finalized_hash = hashes[0].as_str().unwrap();
 
-		// Should receive bestBlockChanged event immediately after initialized
-		// This is critical for papi-console compatibility
+		// Should receive newBlock event for the fork point block
+		// This is critical for papi-console explorer - it needs newBlock events to populate blocks
+		let new_block_event =
+			sub.next().await.expect("Should receive event").expect("Event should be valid");
+		let new_block_event_type = new_block_event.get("event").and_then(|v| v.as_str());
+		assert_eq!(new_block_event_type, Some("newBlock"));
+
+		// newBlock should have the same hash as the finalized block
+		let new_block_hash = new_block_event.get("blockHash").and_then(|v| v.as_str());
+		assert_eq!(new_block_hash, Some(finalized_hash));
+
+		// Should receive bestBlockChanged event after newBlock
 		let best_event =
 			sub.next().await.expect("Should receive event").expect("Event should be valid");
 		let best_event_type = best_event.get("event").and_then(|v| v.as_str());
@@ -774,6 +830,20 @@ mod tests {
 		// Best block should match the finalized hash
 		let best_hash = best_event.get("bestBlockHash").and_then(|v| v.as_str());
 		assert_eq!(best_hash, Some(finalized_hash));
+
+		// Should receive finalized event for the fork point block
+		let finalized_event =
+			sub.next().await.expect("Should receive event").expect("Event should be valid");
+		let finalized_event_type = finalized_event.get("event").and_then(|v| v.as_str());
+		assert_eq!(finalized_event_type, Some("finalized"));
+
+		// Finalized event should contain the fork point hash
+		let finalized_hashes = finalized_event
+			.get("finalizedBlockHashes")
+			.and_then(|v| v.as_array())
+			.expect("Should have finalizedBlockHashes");
+		assert!(!finalized_hashes.is_empty());
+		assert_eq!(finalized_hashes[0].as_str(), Some(finalized_hash));
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
