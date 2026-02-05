@@ -64,6 +64,7 @@ use crate::{
 };
 use log::{error, info};
 use scale::{Decode, Encode};
+use sp_core::blake2_256;
 use subxt::{Metadata, config::substrate::H256};
 
 /// Phase of the block building process.
@@ -242,6 +243,11 @@ impl BlockBuilder {
 				e
 			})?;
 		info!("[BlockBuilder] Core_initialize_block OK");
+		info!(
+			"[BlockBuilder] Building block on top of #{} (0x{}...)",
+			self.parent.number,
+			hex::encode(&self.parent.hash.0[..4])
+		);
 
 		// Apply storage changes
 		self.apply_storage_diff(&result.storage_diff)?;
@@ -417,6 +423,12 @@ impl BlockBuilder {
 			// Success - apply storage changes
 			let storage_changes = result.storage_diff.len();
 			self.apply_storage_diff(&result.storage_diff)?;
+			let ext_hash = blake2_256(&extrinsic);
+			info!(
+				"[BlockBuilder] Extrinsic 0x{}...{} included in block",
+				hex::encode(&ext_hash[..4]),
+				hex::encode(&ext_hash[28..])
+			);
 			self.extrinsics.push(extrinsic);
 			Ok(ApplyExtrinsicResult::Success { storage_changes })
 		} else {
