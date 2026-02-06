@@ -445,64 +445,20 @@ impl StateApiServer for StateApi {
 
 #[cfg(test)]
 mod tests {
-	use super::*;
+
 	use crate::{
-		TxPool,
-		rpc_server::{ForkRpcServer, RpcServerConfig, types::RuntimeVersion},
+		rpc_server::types::RuntimeVersion,
+		testing::{TestContext, accounts::ALICE, helpers::account_storage_key},
 	};
 	use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
-	use pop_common::test_env::TestNode;
-	use url::Url;
-
-	/// Test context holding spawned node and RPC server.
-	struct RpcTestContext {
-		#[allow(dead_code)]
-		node: TestNode,
-		#[allow(dead_code)]
-		server: ForkRpcServer,
-		ws_url: String,
-		blockchain: Arc<Blockchain>,
-	}
-
-	/// Creates a test context with spawned node and RPC server.
-	async fn setup_rpc_test() -> RpcTestContext {
-		let node = TestNode::spawn().await.expect("Failed to spawn test node");
-		let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
-
-		let blockchain =
-			Blockchain::fork(&endpoint, None).await.expect("Failed to fork blockchain");
-		let txpool = Arc::new(TxPool::new());
-
-		let server = ForkRpcServer::start(blockchain.clone(), txpool, RpcServerConfig::default())
-			.await
-			.expect("Failed to start RPC server");
-
-		let ws_url = server.ws_url();
-		RpcTestContext { node, server, ws_url, blockchain }
-	}
-
-	/// Build storage key for System::Account (to test storage queries).
-	fn account_storage_key(account: &[u8; 32]) -> Vec<u8> {
-		let mut key = Vec::new();
-		key.extend(sp_core::twox_128(b"System"));
-		key.extend(sp_core::twox_128(b"Account"));
-		key.extend(sp_core::blake2_128(account));
-		key.extend(account);
-		key
-	}
-
-	/// Well-known dev account: Alice
-	const ALICE: [u8; 32] = [
-		0xd4, 0x35, 0x93, 0xc7, 0x15, 0xfd, 0xd3, 0x1c, 0x61, 0x14, 0x1a, 0xbd, 0x04, 0xa9, 0x9f,
-		0xd6, 0x82, 0x2c, 0x85, 0x58, 0x85, 0x4c, 0xcd, 0xe3, 0x9a, 0x56, 0x84, 0xe7, 0xa5, 0x6d,
-		0xa2, 0x7d,
-	];
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn state_get_storage_returns_value() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Query Alice's account storage (should exist on dev chain)
 		let key = account_storage_key(&ALICE);
@@ -521,12 +477,14 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn state_get_storage_at_block_hash() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
-		let block = ctx.blockchain.build_empty_block().await.unwrap();
-		ctx.blockchain.build_empty_block().await.unwrap();
+		let block = ctx.blockchain().build_empty_block().await.unwrap();
+		ctx.blockchain().build_empty_block().await.unwrap();
 
 		// Get current head hash
 		let block_hash_hex = format!("0x{}", hex::encode(block.hash.as_bytes()));
@@ -545,9 +503,11 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn state_get_storage_returns_none_for_nonexistent_key() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Query a nonexistent storage key
 		let fake_key = "0x0000000000000000000000000000000000000000000000000000000000000000";
@@ -562,9 +522,11 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn state_get_metadata_returns_metadata() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		let result: String = client
 			.request("state_getMetadata", rpc_params![])
@@ -584,12 +546,14 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn state_get_metadata_at_block_hash() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Get current head hash
-		let head_hash = ctx.blockchain.head_hash().await;
+		let head_hash = ctx.blockchain().head_hash().await;
 		let head_hash_hex = format!("0x{}", hex::encode(head_hash.as_bytes()));
 
 		let result: String = client
@@ -603,9 +567,11 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn state_get_runtime_version_returns_version() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		let result: RuntimeVersion = client
 			.request("state_getRuntimeVersion", rpc_params![])
@@ -620,12 +586,14 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn state_get_runtime_version_at_block_hash() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		// Get current head hash
-		let head_hash = ctx.blockchain.head_hash().await;
+		let head_hash = ctx.blockchain().head_hash().await;
 		let head_hash_hex = format!("0x{}", hex::encode(head_hash.as_bytes()));
 
 		let result: RuntimeVersion = client
@@ -639,9 +607,11 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn state_get_storage_invalid_hex_returns_error() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		let result: Result<Option<String>, _> =
 			client.request("state_getStorage", rpc_params!["not_valid_hex"]).await;
@@ -651,9 +621,11 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn state_get_storage_invalid_block_hash_returns_error() {
-		let ctx = setup_rpc_test().await;
-		let client =
-			WsClientBuilder::default().build(&ctx.ws_url).await.expect("Failed to connect");
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
 		let key = account_storage_key(&ALICE);
 		let key_hex = format!("0x{}", hex::encode(&key));

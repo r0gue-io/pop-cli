@@ -344,43 +344,22 @@ mod tests {
 	/// concurrent node downloads causing race conditions.
 	mod sequential {
 		use super::*;
-		use crate::StorageCache;
-		use pop_common::test_env::TestNode;
-
-		/// Helper struct to hold the test node and context together.
-		struct TestContext {
-			#[allow(dead_code)]
-			node: TestNode,
-			endpoint: Url,
-			cache: StorageCache,
-			block_hash: H256,
-			block_number: u32,
-			rpc: ForkRpcClient,
-		}
-
-		async fn create_test_context() -> TestContext {
-			let node = TestNode::spawn().await.expect("Failed to spawn test node");
-			let endpoint: Url = node.ws_url().parse().unwrap();
-			let rpc = ForkRpcClient::connect(&endpoint).await.unwrap();
-			let block_hash = rpc.finalized_head().await.unwrap();
-			let header = rpc.header(block_hash).await.unwrap();
-			let block_number = header.number;
-			let cache = StorageCache::in_memory().await.unwrap();
-			TestContext { node, endpoint, cache, block_hash, block_number, rpc }
-		}
+		use crate::testing::TestContext;
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn fork_point_with_hash_creates_block_with_correct_metadata() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::for_storage().await;
 
-			let expected_parent_hash = ctx.rpc.header(ctx.block_hash).await.unwrap().parent_hash;
+			let expected_parent_hash =
+				ctx.rpc().header(ctx.block_hash()).await.unwrap().parent_hash;
 
-			let block = Block::fork_point(&ctx.endpoint, ctx.cache, ctx.block_hash.into())
-				.await
-				.unwrap();
+			let block =
+				Block::fork_point(&ctx.endpoint, ctx.cache().clone(), ctx.block_hash().into())
+					.await
+					.unwrap();
 
-			assert_eq!(block.number, ctx.block_number);
-			assert_eq!(block.hash, ctx.block_hash);
+			assert_eq!(block.number, ctx.block_number());
+			assert_eq!(block.hash, ctx.block_hash());
 			assert_eq!(block.parent_hash, expected_parent_hash);
 			assert!(!block.header.is_empty());
 			// Note: extrinsics may or may not be empty depending on the block
@@ -389,11 +368,12 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn fork_point_with_non_existent_hash_returns_error() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::for_storage().await;
 			let non_existent_hash = H256::from([0xde; 32]);
 
 			let result =
-				Block::fork_point(&ctx.endpoint, ctx.cache, non_existent_hash.into()).await;
+				Block::fork_point(&ctx.endpoint, ctx.cache().clone(), non_existent_hash.into())
+					.await;
 
 			assert!(
 				matches!(result, Err(BlockError::BlockHashNotFound(h)) if h == non_existent_hash)
@@ -402,15 +382,17 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn fork_point_with_number_creates_block_with_correct_metadata() {
-			let ctx = create_test_context().await;
-			let expected_parent_hash = ctx.rpc.header(ctx.block_hash).await.unwrap().parent_hash;
+			let ctx = TestContext::for_storage().await;
+			let expected_parent_hash =
+				ctx.rpc().header(ctx.block_hash()).await.unwrap().parent_hash;
 
-			let block = Block::fork_point(&ctx.endpoint, ctx.cache, ctx.block_number.into())
-				.await
-				.unwrap();
+			let block =
+				Block::fork_point(&ctx.endpoint, ctx.cache().clone(), ctx.block_number().into())
+					.await
+					.unwrap();
 
-			assert_eq!(block.number, ctx.block_number);
-			assert_eq!(block.hash, ctx.block_hash);
+			assert_eq!(block.number, ctx.block_number());
+			assert_eq!(block.hash, ctx.block_hash());
 			assert_eq!(block.parent_hash, expected_parent_hash);
 			assert!(!block.header.is_empty());
 			// Note: extrinsics may or may not be empty depending on the block
@@ -419,11 +401,12 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn fork_point_with_non_existent_number_returns_error() {
-			let ctx = create_test_context().await;
+			let ctx = TestContext::for_storage().await;
 			let non_existent_number = u32::MAX;
 
 			let result =
-				Block::fork_point(&ctx.endpoint, ctx.cache, non_existent_number.into()).await;
+				Block::fork_point(&ctx.endpoint, ctx.cache().clone(), non_existent_number.into())
+					.await;
 
 			assert!(
 				matches!(result, Err(BlockError::BlockNumberNotFound(n)) if n == non_existent_number)
@@ -432,10 +415,11 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn child_creates_block_with_correct_metadata() {
-			let ctx = create_test_context().await;
-			let mut parent = Block::fork_point(&ctx.endpoint, ctx.cache, ctx.block_hash.into())
-				.await
-				.unwrap();
+			let ctx = TestContext::for_storage().await;
+			let mut parent =
+				Block::fork_point(&ctx.endpoint, ctx.cache().clone(), ctx.block_hash().into())
+					.await
+					.unwrap();
 
 			let child_hash = H256::from([0x42; 32]);
 			let child_header = vec![1, 2, 3, 4];
@@ -469,10 +453,11 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn child_commits_parent_storage() {
-			let ctx = create_test_context().await;
-			let mut parent = Block::fork_point(&ctx.endpoint, ctx.cache, ctx.block_hash.into())
-				.await
-				.unwrap();
+			let ctx = TestContext::for_storage().await;
+			let mut parent =
+				Block::fork_point(&ctx.endpoint, ctx.cache().clone(), ctx.block_hash().into())
+					.await
+					.unwrap();
 
 			let key = b"committed_key";
 			let value = b"committed_value";
@@ -496,10 +481,11 @@ mod tests {
 
 		#[tokio::test(flavor = "multi_thread")]
 		async fn child_storage_inherits_parent_modifications() {
-			let ctx = create_test_context().await;
-			let mut parent = Block::fork_point(&ctx.endpoint, ctx.cache, ctx.block_hash.into())
-				.await
-				.unwrap();
+			let ctx = TestContext::for_storage().await;
+			let mut parent =
+				Block::fork_point(&ctx.endpoint, ctx.cache().clone(), ctx.block_hash().into())
+					.await
+					.unwrap();
 
 			let key = b"inherited_key";
 			let value = b"inherited_value";
