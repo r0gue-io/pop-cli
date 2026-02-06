@@ -90,12 +90,15 @@ impl Zombienet {
 		)
 		.await?;
 		let parachains = match parachains {
-			Some(parachains) => Some(
-				parachains
-					.iter()
-					.map(|url| Repository::parse(url))
-					.collect::<Result<Vec<_>, _>>()?,
-			),
+			Some(parachains) => {
+				let mut repos = Vec::new();
+				for parachain in parachains {
+					if parachain.contains("://") {
+						repos.push(Repository::parse(parachain)?);
+					}
+				}
+				(!repos.is_empty()).then_some(repos)
+			},
 			None => None,
 		};
 		let parachains = Self::parachains(
@@ -1082,6 +1085,34 @@ default_command = "./bin-stable2512/polkadot"
 						if *tag == Some(format!("polkadot-{RELAY_BINARY_VERSION}"))
 					)
 			));
+			assert!(zombienet.parachains.is_empty());
+			Ok(())
+		}
+
+		#[tokio::test]
+		async fn new_accepts_parachain_names_without_repo_urls() -> Result<()> {
+			let temp_dir = tempdir()?;
+			let cache = PathBuf::from(temp_dir.path());
+			let config = Builder::new().suffix(".toml").tempfile()?;
+			writeln!(
+				config.as_file(),
+				r#"
+[relaychain]
+chain = "paseo-local"
+"#
+			)?;
+
+			let zombienet = Zombienet::new(
+				&cache,
+				config.path().try_into()?,
+				Some(RELAY_BINARY_VERSION),
+				None,
+				None,
+				None,
+				Some(&vec!["asset-hub".to_string(), "coretime".to_string()]),
+			)
+			.await?;
+
 			assert!(zombienet.parachains.is_empty());
 			Ok(())
 		}
