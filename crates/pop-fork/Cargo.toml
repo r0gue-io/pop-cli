@@ -1,0 +1,51 @@
+[package]
+name = "pop-fork"
+description = "Library for forking live Substrate chains."
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# Fork-specific
+async-trait.workspace = true
+bb8.workspace = true
+diesel.workspace = true
+diesel-async.workspace = true
+diesel_migrations.workspace = true
+
+# Logging
+log.workspace = true
+
+# From workspace
+bytes.workspace = true
+hex.workspace = true
+scale.workspace = true
+sp-core.workspace = true
+sp-trie.workspace = true
+subxt.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+trie-db.workspace = true
+url.workspace = true
+
+# Executor
+smoldot.workspace = true
+
+# RPC Server
+futures.workspace = true
+jsonrpsee.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+# Pop
+pop-common = { path = "../pop-common", version = "0.12.1" }
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio-test.workspace = true
+scale.workspace = true
+
+[features]
+integration-tests = []
