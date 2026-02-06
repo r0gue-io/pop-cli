@@ -2,14 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.12.1] - 2025-11-15
-
-### 🐛 Fixes
-
-- Call txs feedback after inclusion (#755)
-- Ask to execute deployment of contract in interactive flow (#759)
-
-## [0.12.0] - 2025-11-14
+## [0.13.0] - 2026-02-06
 
 ### 🚀 Features
 
@@ -23,11 +16,41 @@ All notable changes to this project will be documented in this file.
 - Improve eth conversion (#742)
 - Remove `--dry-run` from pop call (#744)
 - Bump zombienet version to 0.4.3 (#751)
-- Ask chain in pop up (#754)
+- Ask chain in pop-up (#754)
+- Use in-house polkadot-sdk version fetching (#775)
+- Pass more flags to call command after deploying contract (#776)
+- Remove salt from pop up contract (#781)
+- Clean running processes (#780)
+- Validate contract input (#784)
+- Upgrade psvm to 0.3.1 (#792)
+- Display ink-node url (#801)
+- Query mappings in contracts (#779)
+- Allow dev to specify the package manager in frontend templates (#802)
+- Build detects sol abi (#808)
+- Build debian package (#817)
+- Chain metadata (#818)
+- Detect running docker on runtime deterministic builds (#811)
+- Allow to clean ink-node by specifying a list of ports (#874)
+- Introduce a flake for nixOS users (#777)
+- List templates (#880)
+- Add ci for contracts (#878)
+- Require signer for pop up when skipping confirmation (#884)
+- Deploy local node (#882)
+- Allow building contracts in workspace (#860)
+- Add configuration for cargo-binstall (#891)
+- Upload to ubuntu ppa (#886)
+- Install pkg-config in ubuntu (#879)
+- Limit to 40 the maximum list length (#893)
+- Display commands (#881)
+- Upgrade rust version to 1.93 (#865)
+- Contract verification (#797)
+- Pacman (#910)
+- Add network cleanup and metadata output (#909)
+- Pop-fork (#920)
+- Add shell completion command (#912)
 
 ### 🐛 Fixes
 
-- Release workflow in ubuntu aarch64 (#709)
 - Telemetry data field (#719)
 - Chain & contract manual interaction (#712)
 - Remove chain spec generator for newer versions of templates (#727)
@@ -38,22 +61,48 @@ All notable changes to this project will be documented in this file.
 - Add the assets precompile example (#749)
 - Allow mcp to fetch the contract address upon deployment (#750)
 - Remove --manual-weight flag (#752)
-- tx always wait for finalization (#753)
+- *(contracts)* Tx always wait for finalization (#753)
+- Call txs feedback after inclusion (#755)
+- Ask to execute deployment of contract in interactive flow (#759)
+- Parachain_lifecycle integration test (#778)
+- Test compilation issues without default features (#774)
+- Display full contract event (#782)
+- Do not delete ink-node logs if detached (#786)
+- Bug to deploy contract with salt (#787)
+- Terminate local node after deployment (#791)
+- *(telemetry)* Allow website_id endpoint to be overridden from hardcoded constants. (#809)
+- Skip storage deposit estimation when using wallet signing (#816)
+- Allow both --path and -p (#859)
+- Add timeout for docker info (#861)
+- Default to pop call chain (#877)
+- Network selection index (#892)
+- Make pop new naming consistent (#814)
+- Vec for calling chains (#907)
+- Handle parachain names in up network (#925)
 
 ### 🚜 Refactor
 
 - Spawn ink-node with --tmp file (#715)
 - Remove return types from commands (#726)
+- Hide sensitive info (#798)
+- Remove the code to receive the contract address from wallet signing portal (#813)
+- Remove comments for local debugging in integration tests (#866)
+- Allow multiple pids to be provided (#888)
+- Find available random port if needed (#887)
+- Rename rollup <-> chain (#883)
 
 ### ⚙️ Miscellaneous Tasks
 
-- Release0.11.0 (#707)
 - Bump rustilities (#716)
 - Update passet-hub spec (#718)
 - *(passet-hub)* Update spec (#736)
 - Update ink! dependencies to beta.1 (#745)
+- Prepare release v0.12.0 (#756)
+- Update to 0.12.1 (#760)
+- Add tests partitions (#852)
+- Shared cache (#864)
 
-## [0.11.0] - 2025-11-03
+## [0.11.0] - 2025-11-04
 
 ### 🚀 Features
 
@@ -83,6 +132,7 @@ All notable changes to this project will be documented in this file.
 - Add is-relay field to `pop build spec` (#693)
 - Pop call with composite types (#696)
 - StripPrefixError contract and pallet creation (#702)
+- Release workflow in ubuntu aarch64 (#709)
 
 ### 🚜 Refactor
 
@@ -94,6 +144,7 @@ All notable changes to this project will be documented in this file.
 - *(ci)* Mark coverage status project and patch as informational only (#662)
 - Publish on homebrew (#666)
 - Lint PR title (#698)
+- Release0.11.0 (#707)
 
 ## [0.10.0] - 2025-10-01
 
@@ -130,7 +181,7 @@ All notable changes to this project will be documented in this file.
 
 - Move some tests to integration tests (#649)
 
-### ⚙ Miscellaneous Tasks
+### ⚙️ Miscellaneous Tasks
 
 - Remove sp-weights from the list of dependencies (#599)
 - Improve the hashing command (#603)
@@ -140,8 +191,9 @@ All notable changes to this project will be documented in this file.
 - Several improvements (#648)
 - `pop build spec` improvements (#640)
 - Update packages to be installed (#644)
+- Release 0.10.0 (#652)
 
-## [0.9.0] - 2025-08-01
+## [0.9.0] - 2025-08-29
 
 ### 🚀 Features
 
@@ -169,7 +221,7 @@ All notable changes to this project will be documented in this file.
 ### ⚙️ Miscellaneous Tasks
 
 - Optimize polkavm contract jobs (#540)
-- Bump version
+- Release0.9.0 (#581)
 
 ### Build
 
@@ -178,21 +230,22 @@ All notable changes to this project will be documented in this file.
 ## [0.8.1] - 2025-05-13
 
 ### 🐛 Fixes
-- Fixed template fetching for ink! v5 contracts by pointing to the correct branch.
 
-## [0.8.0] - 2025-05-07
+- Template fetching for ink! v5 contracts by pointing to the correct branch (#537)
+
+## [0.8.0] - 2025-05-08
 
 ### 🚀 Features
 
 - `pop build runtime` and `pop build --deterministic` (#510)
-- Add experimental hashing command (#517)
-- *(contracts)* Revive compatibility with feature flag (#500)
+- Hashing (#517)
+- Revive compatibility with feature flag (#500)
 
 ### 🐛 Fixes
 
 - Benchmarking logger (#513)
 - Wrap github rest api access in an apiclient (#530)
-- *(bench)* Separate runtime binary path and runtime path (#531)
+- Separate runtime binary path and runtime path (#531)
 
 ### 📚 Documentation
 
@@ -204,20 +257,17 @@ All notable changes to this project will be documented in this file.
 
 ### ⚙️ Miscellaneous Tasks
 
-- Source remote binary if version does not match (#516)
+- Source remote binary if version not matches (#516)
 - Update required version of the frame-omni-bencher binary (#527)
+- Update init to use latest rust-cache action (#533)
+- Enable concurrency controls (#532)
+- Release v0.8.0 (#536)
 
 ### Build
 
 - *(deps)* Eliminate unnecessary dependencies (#520)
 
-### Removed
-
-- Removed deprecated `pop test contract`, functionality is now covered by `pop test`.
-- Removed deprecated `pop up contract`, functionality is now covered by `pop up`.
-- Removed deprecated `pop test parachain`, functionality is now covered by `pop up`.
-
-## [0.7.0] - 2025-04-02
+## [0.7.0] - 2025-04-03
 
 ### 🚀 Features
 
@@ -230,6 +280,7 @@ All notable changes to this project will be documented in this file.
 - Build with try-runtime feature enabled (#476)
 - Integration with deployment provider (#459)
 - Try-runtime feature (#496)
+- Canonical command names (#497)
 
 ### 🐛 Fixes
 
@@ -256,7 +307,7 @@ All notable changes to this project will be documented in this file.
 - Update cargo-deny-action@v2 (#439)
 - Resolve unmaintained crate & clippy warnings (#454)
 - Fix typo (#474)
-- Bump versions
+- Release v0.7.0 (#508)
 
 ### Build
 
@@ -267,39 +318,41 @@ All notable changes to this project will be documented in this file.
 
 ### 🚀 Features
 
-- Wallet integration (#371)
-- Guide user to call a chain (#316)
-- Guide user to call a contract (#306)
-- Output events after calling a chain (#372)
-- Add remark action (#387)
-
-### 🐛 Fixes
-
-- Build spec experience (#331)
-- HRMP channels (#278)
-
-### 🚜 Refactor
-
-- Ensure short args consistency (#386)
-- Bump fallback versions (#393)
-
-### ⚙️ Miscellaneous Tasks
-
-- Bump zombienet version to `v0.2.18` (#352)
-- Set msrv (#385)
-- Replace rococo to paseo name (#333)
-- Replace codeowners (#388)
-
-### Build
-
-- *(deps)* Remove unused dependencies (#369)
-
-## [0.5.0] - 2024-11-08
-
-### 🚀 Features
-
 - Include OpenZeppelinEVM template
 - Instantiate_openzeppelin_template
+- Guide user for calling a contract
+- Get metadata contract from the contract path
+- Prompt to have another call and skip questions for queries
+- Parse types of parameters and display it to the user in the placeholder
+- Dev mode to skip certain user prompts
+- Pop call parachain prototype
+- Dispaly arguments of extrinsic
+- Parse all values for extrinsic/storage
+- Call parachain ui
+- Add option to include params from command line
+- Display specific use cases to the user
+- Add Purchase on-demand coretime use cases
+- Guide user to call a contract (#306)
+- Guide user for calling a contract
+- Get metadata contract from the contract path
+- Prompt to have another call and skip questions for queries
+- Parse types of parameters and display it to the user in the placeholder
+- Dev mode to skip certain user prompts
+- Pop call parachain prototype
+- Dispaly arguments of extrinsic
+- Parse all values for extrinsic/storage
+- Call parachain ui
+- Add option to include params from command line
+- Display specific use cases to the user
+- Add Purchase on-demand coretime use cases
+- Repeat call only if using guide UI
+- Submit extrinsic from call_data (#348)
+- Parse files when the argument values are very big (#363)
+- Flag sudo to wrap extrinsic (#349)
+- Events call parachain
+- Guide user to call a parachain (#316)
+- *(call-parachain)* Add remark action (#387)
+- Wallet integration (#371)
 
 ### 🐛 Fixes
 
@@ -311,11 +364,186 @@ All notable changes to this project will be documented in this file.
 - Include support for v2.0.1 in generic template
 - Deprecate template instantiation
 - Clippy
+- Apply feedback
+- Fix todos and refactor
+- Unit test
+- Build contract if has not been built
+- Automatically add some or none to Option argument
+- Renaming and clean code
+- Parse user inputs for Option arguments in constructor (#335)
+- Issue with delimiter
+- Calls working
+- Tests
+- Various fixes
+- Error message not supported for complex types
+- Format_type
+- Clippy warnings
+- Resolve rebase issues
+- Apply feedback
+- Fix todos and refactor
+- Unit test
+- Build contract if has not been built
+- Automatically add some or none to Option argument
+- Renaming and clean code
+- Parse user inputs for Option arguments in constructor (#335)
+- Issue with delimiter
+- Logo doesn't show in README
+- Calls working
+- Tests
+- Various fixes
+- Error message not supported for complex types
+- Format_type
+- Parse user inputs for Option arguments (#332)
+- Solve conflicts and unit tests (#359)
+- Clippy warnings
+- Clippy
+- Reset_for_new_call when extrinisc is not supported
+- Support new substrate-contracts-node structure and stabilize integration tests (#360)
+- Build with parachain features
+- Build spec experience (#331)
+- Apply feedback from auxiliar PRs, remove unnecesary clones
+- Mark all extrinsics that uses calls as parameter as unsupported
+- Spinner
+- Hrmp (#278)
 
 ### 🚜 Refactor
 
 - Move extract_template_files into common crate
 - Rename enum_variants_for_help macro
+- Refactor test and validate address input
+- Use Cli module instead of cliclack
+- Error handling for pop call
+- Display call to be executed after guide and reorder
+- When repeat call use same contract values and dont clean screen
+- Test functions, renaming and fix clippy
+- Improve devex of pop call contract
+- Use command state (#338)
+- Improve code and comments
+- Process_function_args
+- Renaming and fix comments
+- Format types (#339)
+- Structure similar to pop call contract
+- Signer in common
+- Improve messages
+- Remove unused code
+- Remove unused code
+- Various fixes
+- Various fixes
+- Clean docs and refactor code
+- Parse all the metadata again
+- Reorganize and clean metadata functions
+- Predefined actions
+- Parse all metadata, including parameters at once
+- Clean docs and move code
+- Clean the way to parse and prompt parameters
+- Refactor test and validate address input
+- Use Cli module instead of cliclack
+- Error handling for pop call
+- Display call to be executed after guide and reorder
+- When repeat call use same contract values and dont clean screen
+- Test functions, renaming and fix clippy
+- Improve devex of pop call contract
+- Use command state (#338)
+- Improve code and comments
+- Process_function_args
+- Renaming and fix comments
+- Format types (#339)
+- Structure similar to pop call contract
+- Signer in common
+- Improve messages
+- Remove unused code
+- Remove unused code
+- Various fixes
+- Various fixes
+- Clean docs and refactor code
+- Parse all the metadata again
+- Reorganize and clean metadata functions
+- Predefined actions
+- Parse all metadata, including parameters at once
+- Clean docs and move code
+- Clean the way to parse and prompt parameters
+- Separate structs
+- Various improvements
+- Only move to pop_common the needed functions
+- Improve test, docs and errors
+- Rename api with client
+- Naming and docs
+- Clean unused params
+- Use Default derive macro and define constants for test values (#366)
+- Various fixes and improvements (#367)
+- Terminology (#368)
+- Improvements (#370)
+- Rename parachain with chain as the primary command and retain parachain as an alias (#373)
+- Generic sign and submit
+- Remove unnecessary function
+- Ensure short args consistency (#386)
+- *(up)* Bump fallback versions (#393)
+
+### 📚 Documentation
+
+- Minor improvements
+- Improve docs and missing comments
+- Improve parameter documentation
+- Public modules
+- Improve documentation
+- Add comment
+
+### 🎨 Styling
+
+- Generic name
+
+### 🧪 Testing
+
+- Unit test pop-cli crate
+- Unit contracts crate
+- Refactor and improve test cases
+- Fix unit test
+- Add dry-run test
+- Refactor and add more test coverage
+- More coverage
+- Adjust tests to refactor
+- Refactor and tests
+- Update tests accordingly last changes
+- Fix unit test
+- Fix unit test
+- Add skip_confirm, move when prompt for the signer and create the integration test
+- Call parachain ui unit test
+- Pop-cli unit testing
+- Pop-common unit tests
+- Parse metadata unit tests
+- Refactor and test processing parameters
+- Comments and unit test in call functions
+- Unit test pop-cli crate
+- Unit contracts crate
+- Refactor and improve test cases
+- Fix unit test
+- Add dry-run test
+- Refactor and add more test coverage
+- More coverage
+- Adjust tests to refactor
+- Refactor and tests
+- Update tests accordingly last changes
+- Fix unit test
+- Fix unit test
+- Add skip_confirm, move when prompt for the signer and create the integration test
+- Call parachain ui unit test
+- Pop-cli unit testing
+- Pop-common unit tests
+- Parse metadata unit tests
+- Refactor and test processing parameters
+- Comments and unit test in call functions
+- Fix unit tests
+- Merge fix CI tests
+- Wait before call parachain in integration test
+- Migrate find_free_port to pop_common
+- Fix increase waiting time
+- Remove unnecesary test case
+- Sort order cli input tests
+- Remove unnecesary verbose
+- Find_free_port
+- Add missing test to sign_and_submit_extrinsic
+- Fix expect_select
+- Fix decode_call_data_works unit test
 
 ### ⚙️ Miscellaneous Tasks
 
@@ -329,6 +557,29 @@ All notable changes to this project will be documented in this file.
 - Upgrade zombienet-sdk
 - Update evm supported version
 - Fmt
+- *(v0.5.0)* Update crates version (#343)
+- Replace rococo to paseo name (#333)
+- Format
+- Reset_for_new_call fields
+- Option params not mandatory
+- Fmt
+- Merge main
+- Format
+- Merge main
+- Reset_for_new_call fields
+- Option params not mandatory
+- Fmt
+- Fix merge conflicts
+- Parser for pallet and extrinsic input names
+- Bump zombienet version to `v0.2.18` (#352)
+- Set msrv (#385)
+- Replace codeowners (#388)
+- *(wallet)* Update frontend with papi support (#395)
+- Release v0.6.0 (#394)
+
+### Build
+
+- *(deps)* Remove unused dependencies (#369)
 
 ## [0.4.0] - 2024-10-07
 
