@@ -4,7 +4,7 @@
 
 #![cfg(feature = "integration-tests")]
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use pop_chains::{
 	Error, Function, Payload, construct_extrinsic, construct_proxy_extrinsic, decode_call_data,
 	encode_call_data, field_to_param, find_callable_by_name, find_pallet_by_name,
@@ -29,8 +29,7 @@ async fn set_up_client_any(urls: &[&str]) -> Result<OnlineClient<SubstrateConfig
 		match attempt {
 			Ok(Ok(client)) => return Ok(client),
 			Ok(Err(err)) => {
-				last_error =
-					Some(anyhow::Error::new(err).context(format!("Failed to connect to {url}")));
+				last_error = Some(anyhow::anyhow!("Failed to connect to {url}: {err}"));
 			},
 			Err(_) => {
 				last_error = Some(anyhow::anyhow!("Timed out connecting to {url}"));
