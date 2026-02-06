@@ -448,7 +448,6 @@ mod tests {
 			(
 				Command::Completion(completion::CompletionArgs {
 					shell: Some(completion::CompletionShell::Bash),
-					shell_flag: None,
 					output: None,
 				}),
 				"completion",

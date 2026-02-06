@@ -17,6 +17,7 @@ use crate::cli::{
 	traits::{Confirm as _, Input as _, Select as _},
 };
 
+/// Mirror of `clap_complete::Shell` with `Serialize` for telemetry.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, ValueEnum)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum CompletionShell {
@@ -47,11 +48,8 @@ impl From<CompletionShell> for Shell {
 #[derive(Args, Serialize)]
 pub(crate) struct CompletionArgs {
 	/// Shell type to generate completions for.
-	#[clap(value_enum)]
+	#[arg(value_enum, value_name = "SHELL", index = 1, long = "shell")]
 	pub(crate) shell: Option<CompletionShell>,
-	/// Shell type to generate completions for (flag form).
-	#[clap(long = "shell", value_enum, conflicts_with = "shell")]
-	pub(crate) shell_flag: Option<CompletionShell>,
 	/// Write completions to a file instead of stdout.
 	#[clap(short, long)]
 	pub(crate) output: Option<PathBuf>,
@@ -61,8 +59,7 @@ pub(crate) struct Command;
 
 impl Command {
 	pub(crate) fn execute(args: &CompletionArgs) -> Result<()> {
-		let shell = args.shell.or(args.shell_flag);
-		match (shell, args.output.as_ref()) {
+		match (args.shell, args.output.as_ref()) {
 			(Some(shell), None) => generate_completion(shell, &mut io::stdout()),
 			(Some(shell), Some(path)) => {
 				write_completion_file(shell, path)?;
@@ -92,6 +89,7 @@ fn generate_completion(shell: CompletionShell, writer: &mut dyn Write) -> Result
 	let mut cmd = crate::Cli::command();
 	let generator: Shell = shell.into();
 	generate(generator, &mut cmd, "pop", writer);
+	writer.flush()?;
 	Ok(())
 }
 
