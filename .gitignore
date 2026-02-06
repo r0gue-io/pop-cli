@@ -18,6 +18,10 @@ debian/files
 debian/pop-cli.substvars
 debian/.debhelper
 
+vendor/
+
+# Diesel
+.diesel_lock
 arch/src/
 arch/pkg/
 arch/*.pkg.tar*
