@@ -4,21 +4,46 @@
 
 #![cfg(feature = "integration-tests")]
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use pop_chains::{
 	Error, Function, Payload, construct_extrinsic, construct_proxy_extrinsic, decode_call_data,
 	encode_call_data, field_to_param, find_callable_by_name, find_pallet_by_name,
 	parse_chain_metadata, set_up_client, sign_and_submit_extrinsic,
 };
 use pop_common::test_env::TestNode;
+use subxt::{OnlineClient, SubstrateConfig};
+use std::time::Duration;
 use url::Url;
 
 const ALICE_SURI: &str = "//Alice";
-const POLKADOT_NETWORK_URL: &str = "wss://polkadot-rpc.publicnode.com";
+const POLKADOT_NETWORK_URLS: [&str; 3] = [
+	"wss://rpc.polkadot.io",
+	"wss://polkadot-rpc.dwellir.com",
+	"wss://polkadot.api.onfinality.io/public-ws",
+];
+
+async fn set_up_client_any(urls: &[&str]) -> Result<OnlineClient<SubstrateConfig>> {
+	let mut last_error: Option<anyhow::Error> = None;
+	for url in urls {
+		let attempt = tokio::time::timeout(Duration::from_secs(30), set_up_client(url)).await;
+		match attempt {
+			Ok(Ok(client)) => return Ok(client),
+			Ok(Err(err)) => {
+				last_error = Some(anyhow::Error::new(err).context(format!(
+					"Failed to connect to {url}"
+				)));
+			},
+			Err(_) => {
+				last_error = Some(anyhow::anyhow!("Timed out connecting to {url}"));
+			},
+		}
+	}
+	Err(last_error.unwrap_or_else(|| anyhow::anyhow!("No RPC endpoints provided")))
+}
 
 #[tokio::test]
 async fn construct_proxy_extrinsic_work() -> Result<()> {
-	let client = set_up_client(POLKADOT_NETWORK_URL).await?;
+	let client = set_up_client_any(&POLKADOT_NETWORK_URLS).await?;
 	let pallets = parse_chain_metadata(&client)?;
 	let call_item = find_callable_by_name(&pallets, "System", "remark")?;
 	let remark_dispatchable = call_item.as_function().unwrap();
