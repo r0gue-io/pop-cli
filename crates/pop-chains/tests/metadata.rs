@@ -11,8 +11,8 @@ use pop_chains::{
 	parse_chain_metadata, set_up_client, sign_and_submit_extrinsic,
 };
 use pop_common::test_env::TestNode;
-use subxt::{OnlineClient, SubstrateConfig};
 use std::time::Duration;
+use subxt::{OnlineClient, SubstrateConfig};
 use url::Url;
 
 const ALICE_SURI: &str = "//Alice";
@@ -29,9 +29,8 @@ async fn set_up_client_any(urls: &[&str]) -> Result<OnlineClient<SubstrateConfig
 		match attempt {
 			Ok(Ok(client)) => return Ok(client),
 			Ok(Err(err)) => {
-				last_error = Some(anyhow::Error::new(err).context(format!(
-					"Failed to connect to {url}"
-				)));
+				last_error =
+					Some(anyhow::Error::new(err).context(format!("Failed to connect to {url}")));
 			},
 			Err(_) => {
 				last_error = Some(anyhow::anyhow!("Timed out connecting to {url}"));
