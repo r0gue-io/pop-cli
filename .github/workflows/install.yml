@@ -35,7 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install prerequisites
-        run: pacman -Syu --needed --noconfirm cmake curl git base-devel clang protobuf
+        run: pacman -Syu --needed --noconfirm cmake curl git base-devel clang protobuf sqlite
       - name: Install Rust
         run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       - name: Install Pop
@@ -53,7 +53,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install prerequisites
-        run: apt-get update && apt-get -y install build-essential cmake curl git clang protobuf-compiler
+        run: apt-get update && apt-get -y install build-essential cmake curl git clang protobuf-compiler libsqlite3-dev
       - name: Install Rust
         run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       - name: Install Pop
@@ -88,7 +88,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install prerequisites
-        run: yum update -y && yum install -y perl perl-IPC-Cmd perl-Time-HiRes perl-Time-Piece clang curl git make cmake protobuf-compiler gcc pkg-config openssl-devel
+        run: yum update -y && yum install -y perl perl-IPC-Cmd perl-Time-HiRes perl-Time-Piece clang curl git make cmake protobuf-compiler gcc pkg-config openssl-devel sqlite-devel
       - name: Install Rust
         run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       - name: Install Pop
@@ -106,7 +106,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install prerequisites
-        run: apt-get update && apt-get -y install build-essential cmake curl git clang protobuf-compiler
+        run: apt-get update && apt-get -y install build-essential cmake curl git clang protobuf-compiler libsqlite3-dev
       - name: Install Rust
         run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       - name: Install Pop
