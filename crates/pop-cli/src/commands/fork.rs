@@ -6,6 +6,7 @@ use crate::{
 };
 use anyhow::Result;
 use clap::{Args, ValueEnum};
+use console::style;
 use pop_fork::{
 	Blockchain, ExecutorConfig, SignatureMockMode, TxPool,
 	rpc_server::{ForkRpcServer, RpcServerConfig},
@@ -273,11 +274,17 @@ impl Command {
 				current_port = Some(server.addr().port() + 1);
 			}
 
+			let ws = server.ws_url();
 			cli.success(format!(
-				"Forked {} at block #{} -> {}",
+				"Forked {} at block #{} -> {ws}\n{}\n{}",
 				blockchain.chain_name(),
 				blockchain.fork_point_number(),
-				server.ws_url()
+				style(format!("  polkadot.js: https://polkadot.js.org/apps/?rpc={ws}#/explorer"))
+					.dim(),
+				style(format!(
+					"  papi:        https://dev.papi.how/explorer#networkId=custom&endpoint={ws}"
+				))
+				.dim(),
 			))?;
 
 			servers.push((blockchain.chain_name().to_string(), blockchain, server));
