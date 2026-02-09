@@ -220,11 +220,27 @@ impl StateApiServer for StateApi {
 	}
 
 	async fn call(&self, method: String, data: String, at: Option<String>) -> RpcResult<String> {
+		let params = parse_hex_bytes(&data, "data")?;
+
+		// Proxy metadata runtime API calls to the upstream RPC for performance.
+		// Metadata is derived from the runtime code (not storage state), so the upstream
+		// result is identical to local WASM execution. The upstream node's JIT-compiled
+		// runtime handles these calls orders of magnitude faster than the local interpreter.
+		if method.starts_with("Metadata_") {
+			match self.blockchain.proxy_state_call(&method, &params).await {
+				Ok(result) => return Ok(HexString::from_bytes(&result).into()),
+				Err(e) => {
+					jsonrpsee::tracing::debug!(
+						"Upstream proxy failed for {method}, falling back to local execution: {e}"
+					);
+				},
+			}
+		}
+
 		let block_hash = match at {
 			Some(hash) => parse_block_hash(&hash)?,
 			None => self.blockchain.head().await.hash,
 		};
-		let params = parse_hex_bytes(&data, "data")?;
 
 		match self.blockchain.call_at_block(block_hash, &method, &params).await {
 			Ok(Some(result)) => Ok(HexString::from_bytes(&result).into()),
@@ -276,24 +292,41 @@ impl StateApiServer for StateApi {
 			})
 			.collect::<Result<Vec<_>, jsonrpsee::types::ErrorObjectOwned>>()?;
 
-		// Query all keys in parallel
-		let futures: Vec<_> = parsed_keys
-			.iter()
-			.map(|(_, key_bytes)| self.blockchain.storage_at(block_number, key_bytes))
-			.collect();
-		let results = futures::future::join_all(futures).await;
+		// For blocks at or before the fork point, batch-fetch from the upstream in a
+		// single RPC call. This is orders of magnitude faster than per-key fetching.
+		let changes: Vec<_> = if block_number <= self.blockchain.fork_point_number() {
+			let key_refs: Vec<&[u8]> = parsed_keys.iter().map(|(_, k)| k.as_slice()).collect();
+			let values = self
+				.blockchain
+				.storage_batch_at_fork(&key_refs)
+				.await
+				.map_err(|e| RpcServerError::Storage(e.to_string()))?;
 
-		let changes: Vec<_> = parsed_keys
-			.into_iter()
-			.zip(results)
-			.map(|((key, _), result)| {
-				let value = match result {
-					Ok(Some(v)) => Some(HexString::from_bytes(&v).into()),
-					_ => None,
-				};
-				(key, value)
-			})
-			.collect();
+			parsed_keys
+				.into_iter()
+				.zip(values)
+				.map(|((key, _), value)| (key, value.map(|v| HexString::from_bytes(&v).into())))
+				.collect()
+		} else {
+			// For fork-local blocks, query each key through the local storage layer
+			let futures: Vec<_> = parsed_keys
+				.iter()
+				.map(|(_, key_bytes)| self.blockchain.storage_at(block_number, key_bytes))
+				.collect();
+			let results = futures::future::join_all(futures).await;
+
+			parsed_keys
+				.into_iter()
+				.zip(results)
+				.map(|((key, _), result)| {
+					let value = match result {
+						Ok(Some(v)) => Some(HexString::from_bytes(&v).into()),
+						_ => None,
+					};
+					(key, value)
+				})
+				.collect()
+		};
 
 		// Return as single change set for the queried block
 		Ok(vec![StorageChangeSet {

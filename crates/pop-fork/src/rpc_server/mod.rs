@@ -26,10 +26,30 @@ pub use error::{RpcServerError, error_codes};
 
 use crate::{Blockchain, TxPool};
 
-use jsonrpsee::server::{ServerBuilder, ServerHandle};
-use std::{net::SocketAddr, sync::Arc};
+use jsonrpsee::server::{
+	RandomStringIdProvider, ServerBuilder, ServerHandle,
+	middleware::rpc::{RpcServiceBuilder, RpcServiceT},
+};
+use std::{net::SocketAddr, pin::Pin, sync::Arc};
 use subxt::config::substrate::H256;
 use tokio_util::sync::CancellationToken;
+
+/// Middleware that logs every incoming JSON-RPC method call.
+#[derive(Clone)]
+struct RpcLogger<S>(S);
+
+impl<'a, S> RpcServiceT<'a> for RpcLogger<S>
+where
+	S: RpcServiceT<'a> + Send + Sync + Clone + 'static,
+{
+	type Future = Pin<Box<dyn std::future::Future<Output = jsonrpsee::MethodResponse> + Send + 'a>>;
+
+	fn call(&self, req: jsonrpsee::types::Request<'a>) -> Self::Future {
+		log::debug!("JSON-RPC --> {}", req.method_name());
+		let inner = self.0.clone();
+		Box::pin(async move { inner.call(req).await })
+	}
+}
 
 /// Parse a hex-encoded string into an H256 block hash.
 pub fn parse_block_hash(hex: &str) -> Result<H256, RpcServerError> {
@@ -107,6 +127,8 @@ impl ForkRpcServer {
 			// User specified a port - try only that one
 			let addr: SocketAddr = ([127, 0, 0, 1], port).into();
 			let server = ServerBuilder::default()
+				.set_id_provider(RandomStringIdProvider::new(16))
+				.set_rpc_middleware(RpcServiceBuilder::new().layer_fn(RpcLogger))
 				.max_connections(config.max_connections)
 				.build(addr)
 				.await
@@ -121,6 +143,8 @@ impl ForkRpcServer {
 			for port in DEFAULT_RPC_PORT..DEFAULT_RPC_PORT.saturating_add(MAX_PORT_ATTEMPTS) {
 				let addr: SocketAddr = ([127, 0, 0, 1], port).into();
 				if let Ok(server) = ServerBuilder::default()
+					.set_id_provider(RandomStringIdProvider::new(16))
+					.set_rpc_middleware(RpcServiceBuilder::new().layer_fn(RpcLogger))
 					.max_connections(config.max_connections)
 					.build(addr)
 					.await
@@ -140,6 +164,8 @@ impl ForkRpcServer {
 					let port = pop_common::resolve_port(None);
 					let addr: SocketAddr = ([127, 0, 0, 1], port).into();
 					let server = ServerBuilder::default()
+						.set_id_provider(RandomStringIdProvider::new(16))
+						.set_rpc_middleware(RpcServiceBuilder::new().layer_fn(RpcLogger))
 						.max_connections(config.max_connections)
 						.build(addr)
 						.await

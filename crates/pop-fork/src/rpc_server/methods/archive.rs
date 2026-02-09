@@ -208,8 +208,7 @@ impl ArchiveApiServer for ArchiveApi {
 							let values = futures::future::join_all(futs).await;
 							for (k, v) in keys.into_iter().zip(values) {
 								let value = match v {
-									Ok(Some(val)) =>
-										Some(HexString::from_bytes(&val).into()),
+									Ok(Some(val)) => Some(HexString::from_bytes(&val).into()),
 									_ => None,
 								};
 								results.push(ArchiveStorageItem {

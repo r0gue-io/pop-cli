@@ -14,6 +14,7 @@ pub mod methods {
 	pub const STATE_QUERY_STORAGE_AT: &str = "state_queryStorageAt";
 	pub const STATE_GET_KEYS_PAGED: &str = "state_getKeysPaged";
 	pub const STATE_GET_METADATA: &str = "state_getMetadata";
+	pub const STATE_CALL: &str = "state_call";
 	pub const SYSTEM_CHAIN: &str = "system_chain";
 	pub const SYSTEM_PROPERTIES: &str = "system_properties";
 }
