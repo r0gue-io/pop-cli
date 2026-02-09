@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::{self};
+use crate::{
+	cli::{self},
+	common::{rpc::prompt_to_select_chain_rpc, urls},
+};
 use anyhow::Result;
 use clap::{Args, ValueEnum};
 use pop_fork::{
@@ -52,7 +55,7 @@ impl LogLevel {
 #[derive(Args, Clone, Default, Serialize)]
 pub(crate) struct ForkArgs {
 	/// RPC endpoint(s) to fork from. Use multiple times for multiple chains.
-	#[arg(short = 'e', long = "endpoint", required = true)]
+	#[arg(short = 'e', long = "endpoint")]
 	pub endpoints: Vec<String>,
 
 	/// Path to persist SQLite cache. If not specified, uses in-memory cache.
@@ -85,7 +88,24 @@ pub(crate) struct ForkArgs {
 pub(crate) struct Command;
 
 impl Command {
-	pub(crate) async fn execute(args: &ForkArgs, cli: &mut impl cli::traits::Cli) -> Result<()> {
+	pub(crate) async fn execute(
+		args: &mut ForkArgs,
+		cli: &mut impl cli::traits::Cli,
+	) -> Result<()> {
+		// Prompt for endpoint if none provided (skip for --serve, which always gets endpoints
+		// from CLI args via spawn_detached).
+		if args.endpoints.is_empty() && !args.serve {
+			let url = prompt_to_select_chain_rpc(
+				"Which chain would you like to fork? (type to filter)",
+				"Type the chain RPC URL",
+				urls::LOCAL,
+				|_| true,
+				cli,
+			)
+			.await?;
+			args.endpoints.push(url.to_string());
+		}
+
 		if args.detach {
 			return Self::spawn_detached(args, cli);
 		}
@@ -326,6 +346,59 @@ impl Command {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::cli::MockCli;
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn execute_prompts_when_no_endpoints_selects_local() {
+		let mut args = ForkArgs::default();
+		let mut cli = MockCli::new().expect_select(
+			"Which chain would you like to fork? (type to filter)",
+			None,
+			true,
+			Some(vec![
+				("Local".to_string(), "Local node (ws://localhost:9944)".to_string()),
+				("Custom".to_string(), "Type the chain URL manually".to_string()),
+			]),
+			0, // select Local
+			None,
+		);
+		// execute will fail connecting, but the prompt should populate endpoints
+		let _ = Command::execute(&mut args, &mut cli).await;
+		assert_eq!(args.endpoints, vec!["ws://localhost:9944/"]);
+		cli.verify().unwrap();
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn execute_prompts_when_no_endpoints_selects_custom() {
+		let mut args = ForkArgs::default();
+		let mut cli = MockCli::new()
+			.expect_select(
+				"Which chain would you like to fork? (type to filter)",
+				None,
+				true,
+				Some(vec![
+					("Local".to_string(), "Local node (ws://localhost:9944)".to_string()),
+					("Custom".to_string(), "Type the chain URL manually".to_string()),
+				]),
+				1, // select Custom
+				None,
+			)
+			.expect_input("Type the chain RPC URL", "ws://127.0.0.1:1".to_string());
+		let _ = Command::execute(&mut args, &mut cli).await;
+		assert_eq!(args.endpoints, vec!["ws://127.0.0.1:1/"]);
+		cli.verify().unwrap();
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn execute_skips_prompt_when_endpoints_provided() {
+		let mut args =
+			ForkArgs { endpoints: vec!["ws://127.0.0.1:1".to_string()], ..Default::default() };
+		// No select expectation — prompt should not be triggered
+		let mut cli = MockCli::new();
+		let _ = Command::execute(&mut args, &mut cli).await;
+		assert_eq!(args.endpoints, vec!["ws://127.0.0.1:1".to_string()]);
+		cli.verify().unwrap();
+	}
 
 	#[test]
 	fn resolve_cache_path_single_endpoint_no_extension() {
