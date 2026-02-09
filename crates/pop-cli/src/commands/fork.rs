@@ -92,9 +92,21 @@ impl Command {
 		args: &mut ForkArgs,
 		cli: &mut impl cli::traits::Cli,
 	) -> Result<()> {
-		// Prompt for endpoint if none provided (skip for --serve, which always gets endpoints
-		// from CLI args via spawn_detached).
-		if args.endpoints.is_empty() && !args.serve {
+		// --serve is an internal flag used by spawn_detached; it always receives endpoints
+		// via CLI args, so no prompting or intro is needed.
+		if args.serve {
+			return Self::run_server(args).await;
+		}
+
+		// Show intro first so the cliclack session is set up before any prompts.
+		if args.detach {
+			cli.intro("Forking chain(s) (detached mode)")?;
+		} else {
+			cli.intro("Forking chain(s)")?;
+		}
+
+		// Prompt for endpoint if none provided.
+		if args.endpoints.is_empty() {
 			let url = prompt_to_select_chain_rpc(
 				"Which chain would you like to fork? (type to filter)",
 				"Type the chain RPC URL",
@@ -110,17 +122,11 @@ impl Command {
 			return Self::spawn_detached(args, cli);
 		}
 
-		if args.serve {
-			return Self::run_server(args).await;
-		}
-
 		Self::run_interactive(args, cli).await
 	}
 
 	/// Spawn a detached background process and return immediately.
 	fn spawn_detached(args: &ForkArgs, cli: &mut impl cli::traits::Cli) -> Result<()> {
-		cli.intro("Forking chain(s) (detached mode)")?;
-
 		// Create log file that persists after we exit
 		let log_file = NamedTempFile::new()?;
 		let log_path = log_file.path().to_path_buf();
@@ -225,8 +231,6 @@ impl Command {
 
 	/// Run interactively with CLI output (default mode).
 	async fn run_interactive(args: &ForkArgs, cli: &mut impl cli::traits::Cli) -> Result<()> {
-		cli.intro("Forking chain(s)")?;
-
 		let endpoints: Vec<Url> = args
 			.endpoints
 			.iter()
