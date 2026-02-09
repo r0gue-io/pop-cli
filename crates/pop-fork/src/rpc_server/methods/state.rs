@@ -138,48 +138,81 @@ impl StateApiServer for StateApi {
 	}
 
 	async fn get_runtime_version(&self, at: Option<String>) -> RpcResult<RuntimeVersion> {
-		let block_hash = match at {
-			Some(hash) => parse_block_hash(&hash)?,
-			None => self.blockchain.head().await.hash,
-		};
-		// Fetch runtime version via Core_version call and decode
-		match self.blockchain.call_at_block(block_hash, runtime_api::CORE_VERSION, &[]).await {
-			Ok(Some(result)) => {
-				// Decode the SCALE-encoded RuntimeVersion
-				// Format: spec_name, impl_name, authoring_version, spec_version, impl_version,
-				//         apis (Vec<([u8;8], u32)>), transaction_version, state_version
-				#[derive(Decode)]
-				struct ScaleRuntimeVersion {
-					spec_name: String,
-					impl_name: String,
-					authoring_version: u32,
-					spec_version: u32,
-					impl_version: u32,
-					apis: Vec<([u8; 8], u32)>,
-					transaction_version: u32,
-					state_version: u8,
-				}
-				let version = ScaleRuntimeVersion::decode(&mut result.as_slice()).map_err(|e| {
-					RpcServerError::Internal(format!("Failed to decode runtime version: {e}"))
-				})?;
-
-				Ok(RuntimeVersion {
-					spec_name: version.spec_name,
-					impl_name: version.impl_name,
-					authoring_version: version.authoring_version,
-					spec_version: version.spec_version,
-					impl_version: version.impl_version,
-					transaction_version: version.transaction_version,
-					state_version: version.state_version,
-					apis: version
-						.apis
-						.into_iter()
-						.map(|(id, ver)| (HexString::from_bytes(&id).into(), ver))
-						.collect(),
-				})
+		let (block_number, block_hash) = match at {
+			Some(ref hash) => {
+				let parsed = parse_block_hash(hash)?;
+				let num = self
+					.blockchain
+					.block_number_by_hash(parsed)
+					.await
+					.map_err(|_| {
+						RpcServerError::InvalidParam(format!("Invalid block hash: {hash}"))
+					})?
+					.ok_or_else(|| {
+						RpcServerError::InvalidParam(format!("Block not found: {hash}"))
+					})?;
+				(num, parsed)
 			},
-			_ => Err(RpcServerError::Internal("Failed to get runtime version".to_string()).into()),
+			None => {
+				let head = self.blockchain.head().await;
+				(head.number, head.hash)
+			},
+		};
+
+		// For blocks at or before the fork point, proxy Core_version to the upstream
+		// node. Its JIT-compiled runtime is orders of magnitude faster than the local
+		// WASM interpreter, and the result is identical since the runtime hasn't changed.
+		let result = if block_number <= self.blockchain.fork_point_number() {
+			self.blockchain.proxy_state_call(runtime_api::CORE_VERSION, &[]).await.ok()
+		} else {
+			None
+		};
+
+		// Fall back to local WASM execution for fork-local blocks or proxy failure.
+		let result = match result {
+			Some(r) => r,
+			None => self
+				.blockchain
+				.call_at_block(block_hash, runtime_api::CORE_VERSION, &[])
+				.await
+				.map_err(|e| {
+					RpcServerError::Internal(format!("Failed to get runtime version: {e}"))
+				})?
+				.ok_or_else(|| {
+					RpcServerError::Internal("Failed to get runtime version".to_string())
+				})?,
+		};
+
+		// Decode the SCALE-encoded RuntimeVersion.
+		#[derive(Decode)]
+		struct ScaleRuntimeVersion {
+			spec_name: String,
+			impl_name: String,
+			authoring_version: u32,
+			spec_version: u32,
+			impl_version: u32,
+			apis: Vec<([u8; 8], u32)>,
+			transaction_version: u32,
+			state_version: u8,
 		}
+		let version = ScaleRuntimeVersion::decode(&mut result.as_slice()).map_err(|e| {
+			RpcServerError::Internal(format!("Failed to decode runtime version: {e}"))
+		})?;
+
+		Ok(RuntimeVersion {
+			spec_name: version.spec_name,
+			impl_name: version.impl_name,
+			authoring_version: version.authoring_version,
+			spec_version: version.spec_version,
+			impl_version: version.impl_version,
+			transaction_version: version.transaction_version,
+			state_version: version.state_version,
+			apis: version
+				.apis
+				.into_iter()
+				.map(|(id, ver)| (HexString::from_bytes(&id).into(), ver))
+				.collect(),
+		})
 	}
 
 	async fn get_keys_paged(
