@@ -311,7 +311,7 @@ impl ForkRpcClient {
 			})?;
 
 		// Build a map of key -> value from the response
-		let mut changes: std::collections::HashMap<Vec<u8>, Option<Vec<u8>>> = result
+		let changes: std::collections::HashMap<Vec<u8>, Option<Vec<u8>>> = result
 			.into_iter()
 			.flat_map(|change_set| {
 				change_set.changes.into_iter().map(|(k, v)| {
@@ -322,10 +322,8 @@ impl ForkRpcClient {
 			})
 			.collect();
 
-		// Return values in the same order as input keys.
-		// Use remove() to avoid cloning potentially large storage values.
-		// Note: If duplicate keys are passed, only the first occurrence gets the value.
-		let values = keys.iter().map(|key| changes.remove(*key).flatten()).collect();
+		// Return values in the same order as input keys, preserving duplicates.
+		let values = keys.iter().map(|key| changes.get::<[u8]>(key).cloned().flatten()).collect();
 
 		Ok(values)
 	}
