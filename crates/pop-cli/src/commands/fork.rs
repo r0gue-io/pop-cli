@@ -80,7 +80,7 @@ pub(crate) struct ForkArgs {
 	pub detach: bool,
 
 	/// Internal flag: run as background server (used by detach mode).
-	#[arg(long, hide = true)]
+	#[arg(long, hide = true, requires = "endpoints")]
 	#[serde(skip)]
 	pub serve: bool,
 }
