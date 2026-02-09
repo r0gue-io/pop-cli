@@ -4,7 +4,7 @@ use crate::cli::{self};
 use anyhow::Result;
 use clap::{Args, ValueEnum};
 use pop_fork::{
-	Blockchain, ExecutorConfig, SignatureMockMode, TxPool,
+	BlockForkPoint, Blockchain, ExecutorConfig, SignatureMockMode, TxPool,
 	rpc_server::{ForkRpcServer, RpcServerConfig},
 };
 use serde::Serialize;
@@ -75,6 +75,10 @@ pub(crate) struct ForkArgs {
 	/// Run the fork in the background and return immediately.
 	#[arg(short, long)]
 	pub detach: bool,
+
+	/// Fork at a specific block number. If not specified, forks at the latest finalized block.
+	#[arg(long)]
+	pub at: Option<u32>,
 
 	/// Internal flag: run as background server (used by detach mode).
 	#[arg(long, hide = true)]
@@ -154,6 +158,8 @@ impl Command {
 			..Default::default()
 		};
 
+		let fork_point = args.at.map(BlockForkPoint::from);
+
 		let mut servers: Vec<(String, Arc<Blockchain>, ForkRpcServer)> = Vec::new();
 		let mut current_port = args.port;
 
@@ -165,7 +171,7 @@ impl Command {
 			let blockchain = Blockchain::fork_with_config(
 				endpoint,
 				cache_path.as_deref(),
-				None,
+				fork_point,
 				executor_config.clone(),
 			)
 			.await?;
@@ -223,6 +229,8 @@ impl Command {
 			..Default::default()
 		};
 
+		let fork_point = args.at.map(BlockForkPoint::from);
+
 		let mut servers: Vec<(String, Arc<Blockchain>, ForkRpcServer)> = Vec::new();
 		let mut current_port = args.port;
 
@@ -234,7 +242,7 @@ impl Command {
 			let blockchain = Blockchain::fork_with_config(
 				endpoint,
 				cache_path.as_deref(),
-				None,
+				fork_point,
 				executor_config.clone(),
 			)
 			.await?;
@@ -316,6 +324,10 @@ impl Command {
 		if args.mock_all_signatures {
 			cmd_args.push("--mock-all-signatures".to_string());
 		}
+		if let Some(at) = args.at {
+			cmd_args.push("--at".to_string());
+			cmd_args.push(at.to_string());
+		}
 		cmd_args.push("--log-level".to_string());
 		cmd_args.push(format!("{:?}", args.log_level).to_lowercase());
 		cmd_args.push("--serve".to_string());
@@ -393,6 +405,7 @@ mod tests {
 			port: Some(9000),
 			mock_all_signatures: true,
 			log_level: LogLevel::Debug,
+			at: Some(100),
 			detach: true, // Should not appear in serve args
 			serve: false,
 		};
@@ -410,11 +423,44 @@ mod tests {
 				"--port",
 				"9000",
 				"--mock-all-signatures",
+				"--at",
+				"100",
 				"--log-level",
 				"debug",
 				"--serve"
 			]
 		);
+	}
+
+	#[test]
+	fn build_serve_args_with_at() {
+		let args = ForkArgs {
+			endpoints: vec!["wss://rpc.polkadot.io".to_string()],
+			at: Some(5000),
+			..Default::default()
+		};
+		let result = Command::build_serve_args(&args);
+		assert_eq!(
+			result,
+			vec![
+				"fork",
+				"-e",
+				"wss://rpc.polkadot.io",
+				"--at",
+				"5000",
+				"--log-level",
+				"info",
+				"--serve"
+			]
+		);
+	}
+
+	#[test]
+	fn build_serve_args_without_at() {
+		let args =
+			ForkArgs { endpoints: vec!["wss://rpc.polkadot.io".to_string()], ..Default::default() };
+		let result = Command::build_serve_args(&args);
+		assert!(!result.contains(&"--at".to_string()));
 	}
 
 	#[test]

@@ -123,6 +123,17 @@ const POLKADOT_RPC_URLS: &[&str] = &[
 ];
 
 impl SupportedChains {
+	/// Maps a relay chain runtime to the corresponding supported chain.
+	pub fn from_relay(relay: &crate::up::Relay) -> Self {
+		use crate::up::Relay;
+		match relay {
+			Relay::Paseo => SupportedChains::PASEO,
+			Relay::Kusama => SupportedChains::KUSAMA,
+			Relay::Polkadot => SupportedChains::POLKADOT,
+			Relay::Westend => SupportedChains::WESTEND,
+		}
+	}
+
 	/// Selects a RPC URL for the chain.
 	pub fn get_rpc_url(&self) -> Option<String> {
 		let chain_urls = self.rpc_urls();
@@ -182,6 +193,15 @@ mod tests {
 	fn get_deploy_uri_works() {
 		let provider = DeploymentProvider::PDP;
 		assert_eq!(provider.get_deploy_uri(2000), "/api/public/v1/parachains/2000/resources");
+	}
+
+	#[test]
+	fn from_relay_mapping_works() {
+		use crate::up::Relay;
+		assert_eq!(SupportedChains::from_relay(&Relay::Paseo), SupportedChains::PASEO);
+		assert_eq!(SupportedChains::from_relay(&Relay::Kusama), SupportedChains::KUSAMA);
+		assert_eq!(SupportedChains::from_relay(&Relay::Polkadot), SupportedChains::POLKADOT);
+		assert_eq!(SupportedChains::from_relay(&Relay::Westend), SupportedChains::WESTEND);
 	}
 
 	#[test]

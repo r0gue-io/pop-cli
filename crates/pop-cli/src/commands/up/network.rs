@@ -19,11 +19,16 @@ use pop_chains::{
 	up::{NetworkConfiguration, Zombienet},
 };
 use pop_common::Status;
+use pop_fork::{
+	BlockForkPoint, Blockchain, ExecutorConfig, SignatureMockMode, TxPool,
+	rpc_server::{ForkRpcServer, RpcServerConfig},
+};
 use serde::Serialize;
 use std::{
 	collections::HashMap,
 	ffi::OsStr,
 	path::{Path, PathBuf},
+	sync::Arc,
 	time::Duration,
 };
 use tokio::time::sleep;
@@ -180,6 +185,10 @@ pub(crate) struct BuildCommand<const FILTER: u8> {
 	/// Automatically detach from the terminal and run the network in the background.
 	#[clap(short, long)]
 	detach: bool,
+	/// Fork the live chain instead of launching a local network.
+	/// Optionally specify a block number to fork at.
+	#[arg(long, num_args = 0..=1, value_name = "BLOCK")]
+	fork: Option<Option<u32>>,
 }
 
 impl<const FILTER: u8> BuildCommand<FILTER> {
@@ -189,6 +198,11 @@ impl<const FILTER: u8> BuildCommand<FILTER> {
 		relay: Relay,
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<()> {
+		// Fork mode: delegate to the fork flow instead of Zombienet.
+		if let Some(block_number) = self.fork {
+			return self.execute_fork(relay, block_number, cli).await;
+		}
+
 		cli.intro(format!("Launch a local {} network", relay.name()))?;
 
 		let mut chains = self.parachain.take();
@@ -243,8 +257,69 @@ impl<const FILTER: u8> BuildCommand<FILTER> {
 		Ok(())
 	}
 
+	/// Execute the fork flow: fork a live relay chain at a specific block or latest finalized.
+	async fn execute_fork(
+		&self,
+		relay: Relay,
+		block_number: Option<u32>,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<()> {
+		let chain_name = relay.name();
+		match block_number {
+			Some(n) => cli.intro(format!("Forking live {} at block #{}", chain_name, n))?,
+			None => cli.intro(format!("Forking live {} at latest finalized block", chain_name))?,
+		}
+
+		// Resolve RPC endpoint from known chains.
+		let supported = pop_chains::SupportedChains::from_relay(&relay);
+		let rpc_url = supported
+			.get_rpc_url()
+			.ok_or_else(|| anyhow::anyhow!("No RPC endpoint available for {}", chain_name))?;
+		let endpoint: url::Url = rpc_url.parse()?;
+
+		cli.info(format!("Connecting to {}...", endpoint))?;
+
+		let fork_point = block_number.map(BlockForkPoint::from);
+		let executor_config = ExecutorConfig {
+			signature_mock: SignatureMockMode::MagicSignature,
+			..Default::default()
+		};
+
+		let blockchain =
+			Blockchain::fork_with_config(&endpoint, None, fork_point, executor_config).await?;
+
+		let txpool = Arc::new(TxPool::new());
+		let server_config = RpcServerConfig { port: self.port, max_connections: 100 };
+		let server = ForkRpcServer::start(blockchain.clone(), txpool, server_config).await?;
+
+		cli.success(format!(
+			"Forked {} at block #{} -> {}",
+			blockchain.chain_name(),
+			blockchain.fork_point_number(),
+			server.ws_url()
+		))?;
+
+		cli.info("Press Ctrl+C to stop.")?;
+		tokio::signal::ctrl_c().await?;
+
+		cli.info("Shutting down...")?;
+		server.stop().await;
+		if let Err(e) = blockchain.clear_local_storage().await {
+			cli.warning(format!("Failed to clear local storage: {}", e))?;
+		}
+
+		cli.outro("Done.")?;
+		Ok(())
+	}
+
 	fn display(&self, relay: Relay) -> String {
 		let mut full_message = format!("pop up {}", relay.name().to_lowercase());
+		if let Some(block) = &self.fork {
+			match block {
+				Some(n) => full_message.push_str(&format!(" --fork {}", n)),
+				None => full_message.push_str(" --fork"),
+			}
+		}
 		if let Some(rc) = &self.relay_chain {
 			full_message.push_str(&format!(" --relay-chain {}", rc));
 		}
@@ -836,11 +911,24 @@ mod tests {
 			skip_confirm: true,
 			auto_remove: true,
 			detach: false,
+			fork: None,
 		};
 		assert_eq!(
 			cmd.display(Relay::Paseo),
 			"pop up paseo --relay-chain stable2503 --relay-chain-runtime v1.4.1 --system-parachain stable2503 --system-parachain-runtime v1.5.1 --port 9944 --cmd \"ls\" --verbose --skip-confirm --rm"
 		);
+	}
+
+	#[test]
+	fn build_command_display_with_fork() {
+		let cmd = BuildCommand::<0> { fork: Some(None), ..Default::default() };
+		assert_eq!(cmd.display(Relay::Paseo), "pop up paseo --fork");
+	}
+
+	#[test]
+	fn build_command_display_with_fork_at_block() {
+		let cmd = BuildCommand::<0> { fork: Some(Some(1234)), ..Default::default() };
+		assert_eq!(cmd.display(Relay::Paseo), "pop up paseo --fork 1234");
 	}
 
 	#[tokio::test]
