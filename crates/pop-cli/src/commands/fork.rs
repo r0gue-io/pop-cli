@@ -96,6 +96,9 @@ impl Command {
 		// --serve is an internal flag used by spawn_detached; it always receives endpoints
 		// via CLI args, so no prompting or intro is needed.
 		if args.serve {
+			if args.endpoints.is_empty() {
+				anyhow::bail!("--serve requires at least one --endpoint");
+			}
 			return Self::run_server(args).await;
 		}
 
@@ -408,6 +411,15 @@ mod tests {
 		let mut cli = MockCli::new();
 		let _ = Command::execute(&mut args, &mut cli).await;
 		assert_eq!(args.endpoints, vec!["ws://127.0.0.1:1".to_string()]);
+		cli.verify().unwrap();
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn execute_errors_when_serve_without_endpoints() {
+		let mut args = ForkArgs { serve: true, ..Default::default() };
+		let mut cli = MockCli::new();
+		let err = Command::execute(&mut args, &mut cli).await.unwrap_err();
+		assert!(err.to_string().contains("--serve requires at least one --endpoint"));
 		cli.verify().unwrap();
 	}
 
