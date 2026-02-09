@@ -35,4 +35,7 @@ pub enum RpcClientError {
 	/// Storage key not found (this is different from empty storage).
 	#[error("Required storage key not found: {0}")]
 	StorageNotFound(String),
+	/// Failed to decode metadata from remote chain.
+	#[error("Metadata decoding failed: {0}")]
+	MetadataDecodingFailed(String),
 }
