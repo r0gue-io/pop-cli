@@ -263,16 +263,32 @@ impl StateApiServer for StateApi {
 	async fn call(&self, method: String, data: String, at: Option<String>) -> RpcResult<String> {
 		let params = parse_hex_bytes(&data, "data")?;
 
-		let block_hash = match at {
-			Some(hash) => parse_block_hash(&hash)?,
-			None => self.blockchain.head().await.hash,
+		let (block_number, block_hash) = match at {
+			Some(ref hash) => {
+				let parsed = parse_block_hash(hash)?;
+				let num = self
+					.blockchain
+					.block_number_by_hash(parsed)
+					.await
+					.map_err(|_| {
+						RpcServerError::InvalidParam(format!("Invalid block hash: {hash}"))
+					})?
+					.ok_or_else(|| {
+						RpcServerError::InvalidParam(format!("Block not found: {hash}"))
+					})?;
+				(num, parsed)
+			},
+			None => {
+				let head = self.blockchain.head().await;
+				(head.number, head.hash)
+			},
 		};
 
-		// Proxy metadata runtime API calls to the upstream RPC for performance.
-		// Metadata is derived from the runtime code (not storage state), so the upstream
-		// result is identical to local WASM execution. The upstream node's JIT-compiled
-		// runtime handles these calls orders of magnitude faster than the local interpreter.
-		if method.starts_with("Metadata_") {
+		// Proxy metadata runtime API calls to the upstream RPC for performance,
+		// but only for blocks at or before the fork point where the runtime is
+		// guaranteed to match the upstream. Fork-local blocks may have a different
+		// runtime due to upgrades.
+		if method.starts_with("Metadata_") && block_number <= self.blockchain.fork_point_number() {
 			match self.blockchain.proxy_state_call(&method, &params, block_hash).await {
 				Ok(result) => return Ok(HexString::from_bytes(&result).into()),
 				Err(e) => {

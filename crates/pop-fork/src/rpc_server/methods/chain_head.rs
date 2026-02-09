@@ -498,21 +498,29 @@ impl ChainHeadApiServer for ChainHeadApi {
 
 		// Spawn async task
 		let blockchain = Arc::clone(&self.blockchain);
+		let fork_point = self.blockchain.fork_point_number();
 		let event_tx = handle.event_tx.clone();
 		let op_id = operation_id.clone();
 		let handle_clone = Arc::clone(&handle);
 
 		tokio::spawn(async move {
-			// Try proxy for Metadata_* calls (upstream has JIT-compiled runtime).
+			// Try proxy for Metadata_* calls to the upstream (JIT-compiled runtime),
+			// but only for blocks at or before the fork point. Fork-local blocks may
+			// have a different runtime due to upgrades.
 			let result = if function.starts_with("Metadata_") {
-				match blockchain.proxy_state_call(&function, &params, block_hash).await {
-					Ok(r) => Ok(Some(r)),
-					Err(e) => {
-						tracing::debug!(
-							"Upstream proxy failed for {function}, falling back to local: {e}"
-						);
-						blockchain.call_at_block(block_hash, &function, &params).await
-					},
+				let block_number = blockchain.block_number_by_hash(block_hash).await.ok().flatten();
+				if block_number.is_some_and(|n| n <= fork_point) {
+					match blockchain.proxy_state_call(&function, &params, block_hash).await {
+						Ok(r) => Ok(Some(r)),
+						Err(e) => {
+							tracing::debug!(
+								"Upstream proxy failed for {function}, falling back to local: {e}"
+							);
+							blockchain.call_at_block(block_hash, &function, &params).await
+						},
+					}
+				} else {
+					blockchain.call_at_block(block_hash, &function, &params).await
 				}
 			} else {
 				blockchain.call_at_block(block_hash, &function, &params).await
