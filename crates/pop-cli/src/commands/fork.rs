@@ -183,10 +183,11 @@ impl Command {
 			}
 
 			if start.elapsed() > timeout {
-				cli.warning(
-					"Timed out waiting for fork to be ready. Check the log file for details.",
-				)?;
-				return Ok(());
+				let _ = child.kill();
+				let _ = child.wait();
+				anyhow::bail!(
+					"Timed out waiting for fork to be ready. Check the log file for details."
+				);
 			}
 
 			thread::sleep(poll_interval);
