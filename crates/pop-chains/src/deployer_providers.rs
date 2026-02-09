@@ -146,7 +146,7 @@ impl SupportedChains {
 			.map(|s| s.to_string())
 	}
 	/// Returns a static list of RPC URLs for the chain.
-	fn rpc_urls(&self) -> &'static [&'static str] {
+	pub fn rpc_urls(&self) -> &'static [&'static str] {
 		match self {
 			SupportedChains::PASEO => PASEO_RPC_URLS,
 			SupportedChains::WESTEND => WESTEND_RPC_URLS,
@@ -209,6 +209,21 @@ mod tests {
 		for chain in SupportedChains::VARIANTS {
 			let rpc = chain.get_rpc_url();
 			assert!(rpc.is_some() && chain.rpc_urls().contains(&rpc.as_deref().unwrap()));
+		}
+	}
+
+	#[test]
+	fn rpc_urls_returns_valid_wss_endpoints_for_all_variants() {
+		for chain in SupportedChains::VARIANTS {
+			let urls = chain.rpc_urls();
+			assert!(!urls.is_empty(), "rpc_urls() should return at least one URL for {:?}", chain);
+			for url in urls {
+				assert!(
+					url.starts_with("wss://"),
+					"RPC URL should use wss:// scheme, got: {}",
+					url
+				);
+			}
 		}
 	}
 }

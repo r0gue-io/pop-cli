@@ -19,16 +19,11 @@ use pop_chains::{
 	up::{NetworkConfiguration, Zombienet},
 };
 use pop_common::Status;
-use pop_fork::{
-	BlockForkPoint, Blockchain, ExecutorConfig, SignatureMockMode, TxPool,
-	rpc_server::{ForkRpcServer, RpcServerConfig},
-};
 use serde::Serialize;
 use std::{
 	collections::HashMap,
 	ffi::OsStr,
 	path::{Path, PathBuf},
-	sync::Arc,
 	time::Duration,
 };
 use tokio::time::sleep;
@@ -258,58 +253,37 @@ impl<const FILTER: u8> BuildCommand<FILTER> {
 	}
 
 	/// Execute the fork flow: fork a live relay chain at a specific block or latest finalized.
+	/// Tries each available RPC endpoint, falling back to the next on failure.
 	async fn execute_fork(
 		&self,
 		relay: Relay,
 		block_number: Option<u32>,
 		cli: &mut impl cli::traits::Cli,
 	) -> anyhow::Result<()> {
-		let chain_name = relay.name();
-		match block_number {
-			Some(n) => cli.intro(format!("Forking live {} at block #{}", chain_name, n))?,
-			None => cli.intro(format!("Forking live {} at latest finalized block", chain_name))?,
-		}
-
-		// Resolve RPC endpoint from known chains.
 		let supported = pop_chains::SupportedChains::from_relay(&relay);
-		let rpc_url = supported
-			.get_rpc_url()
-			.ok_or_else(|| anyhow::anyhow!("No RPC endpoint available for {}", chain_name))?;
-		let endpoint: url::Url = rpc_url.parse()?;
+		let rpc_urls = supported.rpc_urls();
 
-		cli.info(format!("Connecting to {}...", endpoint))?;
+		let mut last_error = None;
+		for rpc_url in rpc_urls {
+			let fork_args = crate::commands::fork::ForkArgs {
+				endpoints: vec![rpc_url.to_string()],
+				port: self.port,
+				at: block_number,
+				detach: self.detach,
+				..Default::default()
+			};
 
-		let fork_point = block_number.map(BlockForkPoint::from);
-		let executor_config = ExecutorConfig {
-			signature_mock: SignatureMockMode::MagicSignature,
-			..Default::default()
-		};
-
-		let blockchain =
-			Blockchain::fork_with_config(&endpoint, None, fork_point, executor_config).await?;
-
-		let txpool = Arc::new(TxPool::new());
-		let server_config = RpcServerConfig { port: self.port, max_connections: 100 };
-		let server = ForkRpcServer::start(blockchain.clone(), txpool, server_config).await?;
-
-		cli.success(format!(
-			"Forked {} at block #{} -> {}",
-			blockchain.chain_name(),
-			blockchain.fork_point_number(),
-			server.ws_url()
-		))?;
-
-		cli.info("Press Ctrl+C to stop.")?;
-		tokio::signal::ctrl_c().await?;
-
-		cli.info("Shutting down...")?;
-		server.stop().await;
-		if let Err(e) = blockchain.clear_local_storage().await {
-			cli.warning(format!("Failed to clear local storage: {}", e))?;
+			match crate::commands::fork::Command::execute(&fork_args, cli).await {
+				Ok(()) => return Ok(()),
+				Err(e) => {
+					cli.warning(format!("{} did not respond, trying next endpoint...", rpc_url))?;
+					last_error = Some(e);
+				},
+			}
 		}
 
-		cli.outro("Done.")?;
-		Ok(())
+		Err(last_error
+			.unwrap_or_else(|| anyhow::anyhow!("No RPC endpoints available for {}", relay.name())))
 	}
 
 	fn display(&self, relay: Relay) -> String {
