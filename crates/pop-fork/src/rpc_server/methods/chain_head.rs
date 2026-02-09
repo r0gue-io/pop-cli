@@ -505,7 +505,7 @@ impl ChainHeadApiServer for ChainHeadApi {
 		tokio::spawn(async move {
 			// Try proxy for Metadata_* calls (upstream has JIT-compiled runtime).
 			let result = if function.starts_with("Metadata_") {
-				match blockchain.proxy_state_call(&function, &params).await {
+				match blockchain.proxy_state_call(&function, &params, block_hash).await {
 					Ok(r) => Ok(Some(r)),
 					Err(e) => {
 						tracing::debug!(

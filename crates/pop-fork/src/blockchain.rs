@@ -1121,24 +1121,25 @@ impl Blockchain {
 		Ok(Some(result.output))
 	}
 
-	/// Batch-fetch storage values from the upstream at the fork point.
+	/// Batch-fetch storage values from the upstream at a given block.
 	///
 	/// Uses the remote storage layer's batch fetch, which checks the cache first and
 	/// fetches only uncached keys in a single upstream RPC call. This is significantly
 	/// faster than fetching each key individually.
 	///
 	/// Automatically reconnects to the upstream if the connection has dropped.
-	pub async fn storage_batch_at_fork(
+	pub async fn storage_batch(
 		&self,
+		at: H256,
 		keys: &[&[u8]],
 	) -> Result<Vec<Option<Vec<u8>>>, BlockchainError> {
-		match self.remote.get_batch(self.fork_point_hash, keys).await {
+		match self.remote.get_batch(at, keys).await {
 			Ok(result) => Ok(result),
 			Err(first_err) => {
 				// Connection may have dropped, reconnect and retry once
 				if self.reconnect_upstream().await {
 					self.remote
-						.get_batch(self.fork_point_hash, keys)
+						.get_batch(at, keys)
 						.await
 						.map_err(|e| BlockchainError::Block(BlockError::RemoteStorage(e)))
 				} else {
@@ -1150,25 +1151,24 @@ impl Blockchain {
 
 	/// Proxy a runtime API call to the upstream RPC endpoint.
 	///
-	/// This forwards the call to the upstream node at the fork point block, which has a
+	/// This forwards the call to the upstream node at the given block, which has a
 	/// JIT-compiled runtime and handles computationally expensive calls (like metadata
 	/// generation) much faster than the local WASM interpreter.
 	///
-	/// Uses the fork point hash to ensure the upstream returns results for the same
-	/// runtime version the fork was created from. Automatically reconnects if the
-	/// upstream connection has dropped.
+	/// Automatically reconnects if the upstream connection has dropped.
 	pub async fn proxy_state_call(
 		&self,
 		method: &str,
 		args: &[u8],
+		at: H256,
 	) -> Result<Vec<u8>, BlockchainError> {
 		let rpc = self.remote.rpc();
-		match rpc.state_call(method, args, Some(self.fork_point_hash)).await {
+		match rpc.state_call(method, args, Some(at)).await {
 			Ok(result) => Ok(result),
 			Err(first_err) => {
 				// Connection may have dropped, reconnect and retry once
 				if self.reconnect_upstream().await {
-					rpc.state_call(method, args, Some(self.fork_point_hash))
+					rpc.state_call(method, args, Some(at))
 						.await
 						.map_err(|e| BlockchainError::Block(BlockError::from(e)))
 				} else {

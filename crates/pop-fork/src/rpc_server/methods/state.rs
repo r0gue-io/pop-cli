@@ -161,9 +161,12 @@ impl StateApiServer for StateApi {
 
 		// For blocks at or before the fork point, proxy Core_version to the upstream
 		// node. Its JIT-compiled runtime is orders of magnitude faster than the local
-		// WASM interpreter, and the result is identical since the runtime hasn't changed.
+		// WASM interpreter.
 		let result = if block_number <= self.blockchain.fork_point_number() {
-			self.blockchain.proxy_state_call(runtime_api::CORE_VERSION, &[]).await.ok()
+			self.blockchain
+				.proxy_state_call(runtime_api::CORE_VERSION, &[], block_hash)
+				.await
+				.ok()
 		} else {
 			None
 		};
@@ -260,12 +263,17 @@ impl StateApiServer for StateApi {
 	async fn call(&self, method: String, data: String, at: Option<String>) -> RpcResult<String> {
 		let params = parse_hex_bytes(&data, "data")?;
 
+		let block_hash = match at {
+			Some(hash) => parse_block_hash(&hash)?,
+			None => self.blockchain.head().await.hash,
+		};
+
 		// Proxy metadata runtime API calls to the upstream RPC for performance.
 		// Metadata is derived from the runtime code (not storage state), so the upstream
 		// result is identical to local WASM execution. The upstream node's JIT-compiled
 		// runtime handles these calls orders of magnitude faster than the local interpreter.
 		if method.starts_with("Metadata_") {
-			match self.blockchain.proxy_state_call(&method, &params).await {
+			match self.blockchain.proxy_state_call(&method, &params, block_hash).await {
 				Ok(result) => return Ok(HexString::from_bytes(&result).into()),
 				Err(e) => {
 					jsonrpsee::tracing::debug!(
@@ -274,11 +282,6 @@ impl StateApiServer for StateApi {
 				},
 			}
 		}
-
-		let block_hash = match at {
-			Some(hash) => parse_block_hash(&hash)?,
-			None => self.blockchain.head().await.hash,
-		};
 
 		match self.blockchain.call_at_block(block_hash, &method, &params).await {
 			Ok(Some(result)) => Ok(HexString::from_bytes(&result).into()),
@@ -336,7 +339,7 @@ impl StateApiServer for StateApi {
 			let key_refs: Vec<&[u8]> = parsed_keys.iter().map(|(_, k)| k.as_slice()).collect();
 			let values = self
 				.blockchain
-				.storage_batch_at_fork(&key_refs)
+				.storage_batch(block_hash, &key_refs)
 				.await
 				.map_err(|e| RpcServerError::Storage(e.to_string()))?;
 
