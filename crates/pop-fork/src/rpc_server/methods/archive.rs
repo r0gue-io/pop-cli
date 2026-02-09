@@ -15,7 +15,7 @@ use crate::{
 		},
 	},
 };
-use jsonrpsee::{core::RpcResult, proc_macros::rpc};
+use jsonrpsee::{core::RpcResult, proc_macros::rpc, tracing};
 use std::sync::Arc;
 
 /// New archive RPC methods (v1 spec).
@@ -189,10 +189,85 @@ impl ArchiveApiServer for ArchiveApi {
 					results.push(ArchiveStorageItem { key: item.key, value: None, hash: None });
 					continue;
 				},
-				StorageQueryType::DescendantsValues | StorageQueryType::DescendantsHashes => {
-					// Descendants queries require key enumeration which is not yet implemented.
-					// Return empty result to allow PAPI to not error out.
-					results.push(ArchiveStorageItem { key: item.key, value: None, hash: None });
+				StorageQueryType::DescendantsValues => {
+					tracing::debug!(
+						prefix = %item.key,
+						"archive_v1_storage: DescendantsValues query"
+					);
+					match self.blockchain.storage_keys_by_prefix(&key_bytes).await {
+						Ok(keys) => {
+							tracing::debug!(
+								prefix = %item.key,
+								keys_found = keys.len(),
+								"archive_v1_storage: DescendantsValues fetching values in parallel"
+							);
+							let futs: Vec<_> = keys
+								.iter()
+								.map(|k| self.blockchain.storage_at(block_number, k))
+								.collect();
+							let values = futures::future::join_all(futs).await;
+							for (k, v) in keys.into_iter().zip(values) {
+								let value = match v {
+									Ok(Some(val)) =>
+										Some(HexString::from_bytes(&val).into()),
+									_ => None,
+								};
+								results.push(ArchiveStorageItem {
+									key: HexString::from_bytes(&k).into(),
+									value,
+									hash: None,
+								});
+							}
+						},
+						Err(e) => {
+							tracing::debug!(
+								prefix = %item.key,
+								error = %e,
+								"archive_v1_storage: DescendantsValues prefix lookup failed"
+							);
+						},
+					}
+					continue;
+				},
+				StorageQueryType::DescendantsHashes => {
+					tracing::debug!(
+						prefix = %item.key,
+						"archive_v1_storage: DescendantsHashes query"
+					);
+					match self.blockchain.storage_keys_by_prefix(&key_bytes).await {
+						Ok(keys) => {
+							tracing::debug!(
+								prefix = %item.key,
+								keys_found = keys.len(),
+								"archive_v1_storage: DescendantsHashes fetching values in parallel"
+							);
+							let futs: Vec<_> = keys
+								.iter()
+								.map(|k| self.blockchain.storage_at(block_number, k))
+								.collect();
+							let values = futures::future::join_all(futs).await;
+							for (k, v) in keys.into_iter().zip(values) {
+								let hash = match v {
+									Ok(Some(val)) => Some(
+										HexString::from_bytes(&sp_core::blake2_256(&val)).into(),
+									),
+									_ => None,
+								};
+								results.push(ArchiveStorageItem {
+									key: HexString::from_bytes(&k).into(),
+									value: None,
+									hash,
+								});
+							}
+						},
+						Err(e) => {
+							tracing::debug!(
+								prefix = %item.key,
+								error = %e,
+								"archive_v1_storage: DescendantsHashes prefix lookup failed"
+							);
+						},
+					}
 					continue;
 				},
 				_ => {},

@@ -184,14 +184,39 @@ impl StateApiServer for StateApi {
 
 	async fn get_keys_paged(
 		&self,
-		_prefix: Option<String>,
-		_count: u32,
-		_start_key: Option<String>,
+		prefix: Option<String>,
+		count: u32,
+		start_key: Option<String>,
 		_at: Option<String>,
 	) -> RpcResult<Vec<String>> {
-		// Mock implementation - return empty list
-		// Full implementation would require iterating storage keys which is complex
-		Ok(vec![])
+		let prefix_bytes = match prefix {
+			Some(ref p) => parse_hex_bytes(p, "prefix")?,
+			None => vec![],
+		};
+		let start_key_bytes = match start_key {
+			Some(ref k) => Some(parse_hex_bytes(k, "start_key")?),
+			None => None,
+		};
+
+		jsonrpsee::tracing::debug!(
+			prefix = ?prefix,
+			count = count,
+			start_key = ?start_key,
+			"state_getKeysPaged: querying storage keys at fork"
+		);
+
+		let keys = self
+			.blockchain
+			.storage_keys_at_fork(&prefix_bytes, count, start_key_bytes.as_deref())
+			.await
+			.map_err(|e| RpcServerError::Storage(e.to_string()))?;
+
+		jsonrpsee::tracing::debug!(
+			keys_returned = keys.len(),
+			"state_getKeysPaged: returning keys"
+		);
+
+		Ok(keys.into_iter().map(|k| HexString::from_bytes(&k).into()).collect())
 	}
 
 	async fn call(&self, method: String, data: String, at: Option<String>) -> RpcResult<String> {
@@ -235,17 +260,40 @@ impl StateApiServer for StateApi {
 			},
 		};
 
-		// Query each key
-		let mut changes = Vec::new();
-		for key in keys {
-			let key_bytes = parse_hex_bytes(&key, "key")?;
-			let value = match self.blockchain.storage_at(block_number, &key_bytes).await {
-				Ok(Some(v)) => Some(HexString::from_bytes(&v).into()),
-				Ok(None) => None,
-				Err(_) => None,
-			};
-			changes.push((key, value));
-		}
+		jsonrpsee::tracing::debug!(
+			num_keys = keys.len(),
+			block_number = block_number,
+			"state_queryStorageAt: fetching {} keys in parallel",
+			keys.len()
+		);
+
+		// Parse all keys upfront
+		let parsed_keys: Vec<(String, Vec<u8>)> = keys
+			.into_iter()
+			.map(|key| {
+				let bytes = parse_hex_bytes(&key, "key")?;
+				Ok((key, bytes))
+			})
+			.collect::<Result<Vec<_>, jsonrpsee::types::ErrorObjectOwned>>()?;
+
+		// Query all keys in parallel
+		let futures: Vec<_> = parsed_keys
+			.iter()
+			.map(|(_, key_bytes)| self.blockchain.storage_at(block_number, key_bytes))
+			.collect();
+		let results = futures::future::join_all(futures).await;
+
+		let changes: Vec<_> = parsed_keys
+			.into_iter()
+			.zip(results)
+			.map(|((key, _), result)| {
+				let value = match result {
+					Ok(Some(v)) => Some(HexString::from_bytes(&v).into()),
+					_ => None,
+				};
+				(key, value)
+			})
+			.collect();
 
 		// Return as single change set for the queried block
 		Ok(vec![StorageChangeSet {

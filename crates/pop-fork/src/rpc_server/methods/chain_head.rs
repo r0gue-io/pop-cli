@@ -599,6 +599,10 @@ impl ChainHeadApiServer for ChainHeadApi {
 		tokio::spawn(async move {
 			let mut result_items = Vec::new();
 
+			// Separate items by query type: collect Value/Hash for parallel fetch,
+			// handle others inline.
+			let mut value_hash_items: Vec<(String, Vec<u8>, StorageQueryType)> = Vec::new();
+
 			for item in items {
 				let key_bytes = match hex::decode(item.key.trim_start_matches("0x")) {
 					Ok(b) => b,
@@ -606,43 +610,132 @@ impl ChainHeadApiServer for ChainHeadApi {
 				};
 
 				match item.query_type {
-					StorageQueryType::Value => {
-						let value = match blockchain.storage_at(block_number, &key_bytes).await {
-							Ok(Some(v)) => Some(HexString::from_bytes(&v).into()),
-							Ok(None) => None,
-							Err(_) => None,
-						};
-						result_items.push(StorageResultItem { key: item.key, value, hash: None });
-					},
-					StorageQueryType::Hash => {
-						// Get value and hash it
-						let hash = match blockchain.storage_at(block_number, &key_bytes).await {
-							Ok(Some(v)) => {
-								let hash = sp_core::blake2_256(&v);
-								Some(HexString::from_bytes(&hash).into())
-							},
-							Ok(None) => None,
-							Err(_) => None,
-						};
-						result_items.push(StorageResultItem { key: item.key, value: None, hash });
+					StorageQueryType::Value | StorageQueryType::Hash => {
+						value_hash_items.push((item.key, key_bytes, item.query_type));
 					},
 					StorageQueryType::ClosestDescendantMerkleValue => {
-						// Merkle proofs not supported in fork - return empty result
 						result_items.push(StorageResultItem {
 							key: item.key,
 							value: None,
 							hash: None,
 						});
 					},
-					StorageQueryType::DescendantsValues | StorageQueryType::DescendantsHashes => {
-						// Descendants queries require key enumeration which is not yet implemented.
-						// Return empty result to allow PAPI to not error out.
-						result_items.push(StorageResultItem {
-							key: item.key,
-							value: None,
-							hash: None,
-						});
+					StorageQueryType::DescendantsValues => {
+						tracing::debug!(
+							prefix = %item.key,
+							"chainHead_v1_storage: DescendantsValues query"
+						);
+						match blockchain.storage_keys_by_prefix(&key_bytes).await {
+							Ok(keys) => {
+								tracing::debug!(
+									prefix = %item.key,
+									keys_found = keys.len(),
+									"chainHead_v1_storage: DescendantsValues fetching values in parallel"
+								);
+								let futures: Vec<_> = keys
+									.iter()
+									.map(|k| blockchain.storage_at(block_number, k))
+									.collect();
+								let values = futures::future::join_all(futures).await;
+								for (k, v) in keys.into_iter().zip(values) {
+									let value = match v {
+										Ok(Some(val)) => Some(HexString::from_bytes(&val).into()),
+										_ => None,
+									};
+									result_items.push(StorageResultItem {
+										key: HexString::from_bytes(&k).into(),
+										value,
+										hash: None,
+									});
+								}
+							},
+							Err(e) => {
+								tracing::debug!(
+									prefix = %item.key,
+									error = %e,
+									"chainHead_v1_storage: DescendantsValues prefix lookup failed"
+								);
+							},
+						}
 					},
+					StorageQueryType::DescendantsHashes => {
+						tracing::debug!(
+							prefix = %item.key,
+							"chainHead_v1_storage: DescendantsHashes query"
+						);
+						match blockchain.storage_keys_by_prefix(&key_bytes).await {
+							Ok(keys) => {
+								tracing::debug!(
+									prefix = %item.key,
+									keys_found = keys.len(),
+									"chainHead_v1_storage: DescendantsHashes fetching values in parallel"
+								);
+								let futures: Vec<_> = keys
+									.iter()
+									.map(|k| blockchain.storage_at(block_number, k))
+									.collect();
+								let values = futures::future::join_all(futures).await;
+								for (k, v) in keys.into_iter().zip(values) {
+									let hash = match v {
+										Ok(Some(val)) => Some(
+											HexString::from_bytes(
+												&sp_core::blake2_256(&val),
+											)
+											.into(),
+										),
+										_ => None,
+									};
+									result_items.push(StorageResultItem {
+										key: HexString::from_bytes(&k).into(),
+										value: None,
+										hash,
+									});
+								}
+							},
+							Err(e) => {
+								tracing::debug!(
+									prefix = %item.key,
+									error = %e,
+									"chainHead_v1_storage: DescendantsHashes prefix lookup failed"
+								);
+							},
+						}
+					},
+				}
+			}
+
+			// Fetch Value/Hash items in parallel
+			if !value_hash_items.is_empty() {
+				tracing::debug!(
+					count = value_hash_items.len(),
+					"chainHead_v1_storage: fetching Value/Hash items in parallel"
+				);
+				let futures: Vec<_> = value_hash_items
+					.iter()
+					.map(|(_, key_bytes, _)| blockchain.storage_at(block_number, key_bytes))
+					.collect();
+				let results = futures::future::join_all(futures).await;
+
+				for ((key, _, query_type), result) in value_hash_items.into_iter().zip(results) {
+					match query_type {
+						StorageQueryType::Value => {
+							let value = match result {
+								Ok(Some(v)) => Some(HexString::from_bytes(&v).into()),
+								_ => None,
+							};
+							result_items.push(StorageResultItem { key, value, hash: None });
+						},
+						StorageQueryType::Hash => {
+							let hash = match result {
+								Ok(Some(v)) => Some(
+									HexString::from_bytes(&sp_core::blake2_256(&v)).into(),
+								),
+								_ => None,
+							};
+							result_items.push(StorageResultItem { key, value: None, hash });
+						},
+						_ => unreachable!(),
+					}
 				}
 			}
 
