@@ -749,35 +749,6 @@ mod tests {
 		cli.verify()
 	}
 
-	// Remove in v0.13.0
-	#[test]
-	#[allow(deprecated)]
-	fn configure_message_converts_deprecated_weight_flags() -> Result<()> {
-		let message = ContractFunction {
-			label: "run".into(),
-			payable: false,
-			args: vec![],
-			docs: String::new(),
-			default: false,
-			mutates: true,
-		};
-
-		let mut command = CallContractCommand {
-			gas_limit: Some(12345),
-			proof_size: Some(5000),
-			skip_confirm: true,
-			..Default::default()
-		};
-
-		let mut cli = MockCli::new();
-
-		command.configure_message(&message, &mut cli)?;
-
-		assert_eq!(command.gas_limit, Some(12345));
-		assert_eq!(command.proof_size, Some(5000));
-		cli.verify()
-	}
-
 	// This test only covers the interactive portion of the call contract command, without actually
 	// calling the contract.
 	#[tokio::test]
