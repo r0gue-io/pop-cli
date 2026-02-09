@@ -503,6 +503,58 @@ impl LocalStorageLayer {
 		}
 	}
 
+	/// Enumerate all keys matching a prefix, merging remote and local state.
+	///
+	/// This method combines keys from the remote layer (at the fork point) with
+	/// locally modified keys, producing a sorted, deduplicated list of keys that
+	/// exist at the current fork-local state.
+	///
+	/// Keys that were deleted locally (either individually via `set(key, None)`
+	/// or via `delete_prefix`) are excluded.
+	pub async fn keys_by_prefix(&self, prefix: &[u8]) -> Result<Vec<Vec<u8>>, LocalStorageError> {
+		// 1. Get remote keys at the fork point.
+		let remote_keys = self.parent.get_keys(self.first_forked_block_hash, prefix).await?;
+
+		// 2. Snapshot local modifications and deleted prefixes.
+		let modifications = self
+			.modifications
+			.read()
+			.map_err(|e| LocalStorageError::Lock(e.to_string()))?
+			.clone();
+		let deleted_prefixes = self
+			.deleted_prefixes
+			.read()
+			.map_err(|e| LocalStorageError::Lock(e.to_string()))?
+			.clone();
+
+		let is_deleted = |key: &[u8]| -> bool {
+			deleted_prefixes.iter().any(|dp| key.starts_with(dp.as_slice()))
+		};
+
+		// Helper: check if a local modification represents a deletion.
+		let is_locally_deleted = |key: &[u8]| -> bool {
+			modifications
+				.get::<[u8]>(key)
+				.and_then(|sv| sv.as_ref())
+				.is_some_and(|sv| sv.value.is_none())
+		};
+
+		// 3. Merge: start with remote keys that are not deleted.
+		let mut merged: std::collections::BTreeSet<Vec<u8>> = remote_keys
+			.into_iter()
+			.filter(|k| !is_deleted(k) && !is_locally_deleted(k))
+			.collect();
+
+		// 4. Add locally-set keys that match the prefix and have a value.
+		for (key, maybe_sv) in &modifications {
+			if key.starts_with(prefix) && maybe_sv.as_ref().is_some_and(|sv| sv.value.is_some()) {
+				merged.insert(key.clone());
+			}
+		}
+
+		Ok(merged.into_iter().collect())
+	}
+
 	/// Set a storage value locally.
 	///
 	/// # Arguments

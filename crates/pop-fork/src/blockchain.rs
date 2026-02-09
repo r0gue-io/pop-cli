@@ -938,10 +938,12 @@ impl Blockchain {
 
 	/// Get paginated storage keys matching a prefix at a given block.
 	///
-	/// Delegates to the remote RPC's `state_getKeysPaged` method, querying at
-	/// the supplied block hash. If `at` is `None`, defaults to the fork block
-	/// hash. This is used by `state_getKeysPaged` to enumerate storage keys
-	/// for polkadot.js compatibility.
+	/// If `at` is `None`, defaults to the current head block hash so that
+	/// newly created keys are visible to callers such as polkadot.js.
+	///
+	/// For fork-local blocks, the full key set is obtained by merging remote
+	/// keys (at the fork point) with local modifications, then applying
+	/// pagination. For pre-fork blocks, delegates to the upstream RPC.
 	pub async fn storage_keys_paged(
 		&self,
 		prefix: &[u8],
@@ -949,9 +951,10 @@ impl Blockchain {
 		start_key: Option<&[u8]>,
 		at: Option<H256>,
 	) -> Result<Vec<Vec<u8>>, BlockchainError> {
-		let head = self.head.read().await;
-		let storage = head.storage();
-		let block_hash = at.unwrap_or_else(|| storage.fork_block_hash());
+		let block_hash = match at {
+			Some(h) => h,
+			None => self.head_hash().await,
+		};
 		log::debug!(
 			"storage_keys_paged: prefix=0x{} count={} start_key={} at={:?}",
 			hex::encode(prefix),
@@ -961,36 +964,63 @@ impl Blockchain {
 				.unwrap_or_else(|| "None".into()),
 			block_hash,
 		);
-		let rpc = storage.remote().rpc();
-		match rpc.storage_keys_paged(prefix, count, start_key, block_hash).await {
-			Ok(keys) => {
-				log::debug!("storage_keys_paged: returned {} keys", keys.len());
-				Ok(keys)
-			},
-			Err(first_err) => {
-				// Connection may have dropped, reconnect and retry once.
-				if self.reconnect_upstream().await {
-					let keys = rpc
-						.storage_keys_paged(prefix, count, start_key, block_hash)
-						.await
-						.map_err(|e| BlockchainError::Block(BlockError::Rpc(e)))?;
-					log::debug!(
-						"storage_keys_paged: returned {} keys (after reconnect)",
-						keys.len()
-					);
+
+		let block_number = self.block_number_by_hash(block_hash).await?;
+		let is_fork_local = block_number.is_some_and(|n| n > self.fork_point_number);
+
+		if is_fork_local {
+			// Merge remote + local keys, then paginate in-memory.
+			let all_keys = {
+				let head = self.head.read().await;
+				head.storage()
+					.keys_by_prefix(prefix)
+					.await
+					.map_err(|e| BlockchainError::Block(BlockError::Storage(e)))?
+			};
+			// BTreeSet already returns sorted keys; apply start_key + count.
+			let keys: Vec<Vec<u8>> = all_keys
+				.into_iter()
+				.filter(|k| start_key.is_none_or(|sk| k.as_slice() > sk))
+				.take(count as usize)
+				.collect();
+			log::debug!("storage_keys_paged: returned {} keys (fork-local)", keys.len());
+			Ok(keys)
+		} else {
+			let head = self.head.read().await;
+			let rpc = head.storage().remote().rpc();
+			match rpc.storage_keys_paged(prefix, count, start_key, block_hash).await {
+				Ok(keys) => {
+					log::debug!("storage_keys_paged: returned {} keys", keys.len());
 					Ok(keys)
-				} else {
-					Err(BlockchainError::Block(BlockError::Rpc(first_err)))
-				}
-			},
+				},
+				Err(first_err) => {
+					drop(head);
+					if self.reconnect_upstream().await {
+						let head = self.head.read().await;
+						let rpc = head.storage().remote().rpc();
+						let keys = rpc
+							.storage_keys_paged(prefix, count, start_key, block_hash)
+							.await
+							.map_err(|e| BlockchainError::Block(BlockError::Rpc(e)))?;
+						log::debug!(
+							"storage_keys_paged: returned {} keys (after reconnect)",
+							keys.len()
+						);
+						Ok(keys)
+					} else {
+						Err(BlockchainError::Block(BlockError::Rpc(first_err)))
+					}
+				},
+			}
 		}
 	}
 
 	/// Get all storage keys matching a prefix, with prefetching.
+	/// Enumerate all storage keys matching a prefix at a given block.
 	///
-	/// Delegates to the remote storage layer's `get_keys` method, which
-	/// prefetches all keys and values under the prefix into the cache.
-	/// This is used by `DescendantsValues`/`DescendantsHashes` queries.
+	/// For pre-fork blocks, delegates to the remote RPC's `get_keys` method.
+	/// For fork-local blocks, merges remote keys (at the fork point) with local
+	/// modifications so that keys added or deleted after the fork are visible.
 	///
 	/// `at` is the block hash whose state should be scanned for keys.
 	pub async fn storage_keys_by_prefix(
@@ -1004,13 +1034,25 @@ impl Blockchain {
 			prefix.len(),
 			at,
 		);
-		let head = self.head.read().await;
-		let storage = head.storage();
-		let keys = storage
-			.remote()
-			.get_keys(at, prefix)
-			.await
-			.map_err(|e| BlockchainError::Block(BlockError::RemoteStorage(e)))?;
+
+		let block_number = self.block_number_by_hash(at).await?;
+		let is_fork_local = block_number.is_some_and(|n| n > self.fork_point_number);
+
+		let keys = if is_fork_local {
+			let head = self.head.read().await;
+			head.storage()
+				.keys_by_prefix(prefix)
+				.await
+				.map_err(|e| BlockchainError::Block(BlockError::Storage(e)))?
+		} else {
+			let head = self.head.read().await;
+			head.storage()
+				.remote()
+				.get_keys(at, prefix)
+				.await
+				.map_err(|e| BlockchainError::Block(BlockError::RemoteStorage(e)))?
+		};
+
 		log::debug!(
 			"storage_keys_by_prefix: returned {} keys for prefix=0x{}",
 			keys.len(),
