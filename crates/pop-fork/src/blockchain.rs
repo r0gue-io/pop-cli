@@ -936,6 +936,68 @@ impl Blockchain {
 		self.get_storage_value(block_number, key).await
 	}
 
+	/// Get paginated storage keys matching a prefix at the fork point.
+	///
+	/// Delegates to the remote RPC's `state_getKeysPaged` method, querying at
+	/// the fork block hash. This is used by `state_getKeysPaged` to enumerate
+	/// storage keys for polkadot.js compatibility.
+	pub async fn storage_keys_at_fork(
+		&self,
+		prefix: &[u8],
+		count: u32,
+		start_key: Option<&[u8]>,
+	) -> Result<Vec<Vec<u8>>, BlockchainError> {
+		log::debug!(
+			"storage_keys_at_fork: prefix=0x{} count={} start_key={}",
+			hex::encode(prefix),
+			count,
+			start_key
+				.map(|k| format!("0x{}", hex::encode(k)))
+				.unwrap_or_else(|| "None".into()),
+		);
+		let head = self.head.read().await;
+		let storage = head.storage();
+		let fork_hash = storage.fork_block_hash();
+		let keys = storage
+			.remote()
+			.rpc()
+			.storage_keys_paged(prefix, count, start_key, fork_hash)
+			.await
+			.map_err(|e| BlockchainError::Block(BlockError::Rpc(e)))?;
+		log::debug!("storage_keys_at_fork: returned {} keys", keys.len());
+		Ok(keys)
+	}
+
+	/// Get all storage keys matching a prefix, with prefetching.
+	///
+	/// Delegates to the remote storage layer's `get_keys` method, which
+	/// prefetches all keys and values under the prefix into the cache.
+	/// This is used by `DescendantsValues`/`DescendantsHashes` queries.
+	pub async fn storage_keys_by_prefix(
+		&self,
+		prefix: &[u8],
+	) -> Result<Vec<Vec<u8>>, BlockchainError> {
+		log::debug!(
+			"storage_keys_by_prefix: prefix=0x{} ({} bytes)",
+			hex::encode(prefix),
+			prefix.len(),
+		);
+		let head = self.head.read().await;
+		let storage = head.storage();
+		let fork_hash = storage.fork_block_hash();
+		let keys = storage
+			.remote()
+			.get_keys(fork_hash, prefix)
+			.await
+			.map_err(|e| BlockchainError::Block(BlockError::RemoteStorage(e)))?;
+		log::debug!(
+			"storage_keys_by_prefix: returned {} keys for prefix=0x{}",
+			keys.len(),
+			hex::encode(prefix)
+		);
+		Ok(keys)
+	}
+
 	/// Internal helper to query storage at a specific block number.
 	///
 	/// Accesses the shared `LocalStorageLayer` via the head block.

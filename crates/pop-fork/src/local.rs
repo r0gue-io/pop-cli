@@ -204,6 +204,14 @@ impl LocalStorageLayer {
 		&self.parent
 	}
 
+	/// Get the hash of the first forked block.
+	///
+	/// This is the block hash at which the fork was created, used for querying
+	/// storage keys on the remote chain.
+	pub fn fork_block_hash(&self) -> H256 {
+		self.first_forked_block_hash
+	}
+
 	/// Get the metadata valid at a specific block number.
 	///
 	/// For blocks at or after the fork point, returns metadata from the local version tree.
