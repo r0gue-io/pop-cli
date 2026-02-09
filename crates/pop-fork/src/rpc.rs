@@ -60,6 +60,11 @@ use subxt::{
 };
 use url::Url;
 
+/// Oldest metadata version supported.
+const METADATA_V14: u32 = 14;
+/// Most up-to-date metadata version supported.
+const METADATA_LATEST: u32 = 15;
+
 /// RPC client wrapper for fork operations.
 ///
 /// Wraps subxt's [`LegacyRpcMethods`] to provide a focused API for fetching state
@@ -316,7 +321,7 @@ impl ForkRpcClient {
 	/// Attempts to fetch and decode metadata via `state_getMetadata`. If decoding
 	/// fails (e.g., due to type registry inconsistencies in the chain's metadata),
 	/// falls back to requesting specific metadata versions via
-	/// `Metadata_metadata_at_version` runtime API (V15, then V14).
+	/// `Metadata_metadata_at_version` runtime API (latest down to V14).
 	pub async fn metadata(&self, at: H256) -> Result<Metadata, RpcClientError> {
 		let raw = self.legacy.state_get_metadata(Some(at)).await.map_err(|e| {
 			RpcClientError::RequestFailed {
@@ -330,7 +335,7 @@ impl ForkRpcClient {
 			Ok(metadata) => Ok(metadata),
 			Err(default_err) => {
 				// Try explicit version requests as fallback.
-				for version in [15u32, 14] {
+				for version in (METADATA_V14..=METADATA_LATEST).rev() {
 					if let Some(bytes) = self.metadata_at_version(version, at).await? &&
 						let Ok(metadata) = Metadata::decode(&mut bytes.as_slice())
 					{
