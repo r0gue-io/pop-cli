@@ -29,6 +29,7 @@ use crate::{Blockchain, TxPool};
 use jsonrpsee::server::{ServerBuilder, ServerHandle};
 use std::{net::SocketAddr, sync::Arc};
 use subxt::config::substrate::H256;
+use tokio_util::sync::CancellationToken;
 
 /// Parse a hex-encoded string into an H256 block hash.
 pub fn parse_block_hash(hex: &str) -> Result<H256, RpcServerError> {
@@ -81,6 +82,8 @@ pub struct ForkRpcServer {
 	handle: ServerHandle,
 	/// Address the server is bound to.
 	addr: SocketAddr,
+	/// Token to signal subscription tasks to shut down.
+	shutdown_token: CancellationToken,
 }
 
 impl ForkRpcServer {
@@ -94,8 +97,11 @@ impl ForkRpcServer {
 		txpool: Arc<TxPool>,
 		config: RpcServerConfig,
 	) -> Result<Self, RpcServerError> {
+		// Create cancellation token for graceful shutdown of subscription tasks.
+		let shutdown_token = CancellationToken::new();
+
 		// Create RPC module first (doesn't need the server)
-		let rpc_module = methods::create_rpc_module(blockchain, txpool)?;
+		let rpc_module = methods::create_rpc_module(blockchain, txpool, shutdown_token.clone())?;
 
 		let (server, addr) = if let Some(port) = config.port {
 			// User specified a port - try only that one
@@ -148,7 +154,7 @@ impl ForkRpcServer {
 
 		let handle = server.start(rpc_module);
 
-		Ok(Self { handle, addr })
+		Ok(Self { handle, addr, shutdown_token })
 	}
 
 	/// Get the address the server is bound to.
@@ -168,6 +174,8 @@ impl ForkRpcServer {
 
 	/// Stop the server gracefully.
 	pub async fn stop(self) {
+		// Cancel all subscription tasks so they exit promptly.
+		self.shutdown_token.cancel();
 		self.handle.stop().expect("Server stop should not fail");
 		self.handle.stopped().await;
 	}

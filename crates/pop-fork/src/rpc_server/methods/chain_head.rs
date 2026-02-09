@@ -37,6 +37,7 @@ use std::{
 	},
 };
 use tokio::sync::{RwLock, broadcast, mpsc};
+use tokio_util::sync::CancellationToken;
 
 /// chainHead RPC methods (v1 spec).
 #[rpc(server, namespace = "chainHead")]
@@ -172,12 +173,17 @@ impl Default for ChainHeadState {
 pub struct ChainHeadApi {
 	blockchain: Arc<Blockchain>,
 	state: Arc<ChainHeadState>,
+	shutdown_token: CancellationToken,
 }
 
 impl ChainHeadApi {
 	/// Create a new ChainHeadApi instance.
-	pub fn new(blockchain: Arc<Blockchain>, state: Arc<ChainHeadState>) -> Self {
-		Self { blockchain, state }
+	pub fn new(
+		blockchain: Arc<Blockchain>,
+		state: Arc<ChainHeadState>,
+		shutdown_token: CancellationToken,
+	) -> Self {
+		Self { blockchain, state, shutdown_token }
 	}
 }
 
@@ -365,12 +371,16 @@ impl ChainHeadApiServer for ChainHeadApi {
 		let mut blockchain_rx = self.blockchain.subscribe_events();
 		let state = Arc::clone(&self.state);
 		let sub_id_clone = sub_id.clone();
+		let token = self.shutdown_token.clone();
 
 		// Spawn task to forward events
 		tokio::spawn(async move {
 			loop {
 				tokio::select! {
 					biased;
+
+					// Server shutting down
+					_ = token.cancelled() => break,
 
 					// Client disconnected
 					_ = sink.closed() => break,

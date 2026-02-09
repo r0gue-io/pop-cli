@@ -20,6 +20,7 @@ use jsonrpsee::{
 use scale::Decode;
 use std::sync::Arc;
 use tokio::sync::broadcast;
+use tokio_util::sync::CancellationToken;
 
 /// Legacy state RPC methods.
 #[rpc(server, namespace = "state")]
@@ -78,12 +79,13 @@ pub trait StateApi {
 /// Implementation of legacy state RPC methods.
 pub struct StateApi {
 	blockchain: Arc<Blockchain>,
+	shutdown_token: CancellationToken,
 }
 
 impl StateApi {
 	/// Create a new StateApi instance.
-	pub fn new(blockchain: Arc<Blockchain>) -> Self {
-		Self { blockchain }
+	pub fn new(blockchain: Arc<Blockchain>, shutdown_token: CancellationToken) -> Self {
+		Self { blockchain, shutdown_token }
 	}
 }
 
@@ -258,6 +260,7 @@ impl StateApiServer for StateApi {
 	) -> SubscriptionResult {
 		let sink = pending.accept().await?;
 		let blockchain = Arc::clone(&self.blockchain);
+		let token = self.shutdown_token.clone();
 
 		// Get current runtime version and send it immediately
 		let current_version = self.get_runtime_version(None).await.ok();
@@ -277,6 +280,8 @@ impl StateApiServer for StateApi {
 			loop {
 				tokio::select! {
 					biased;
+
+					_ = token.cancelled() => break,
 
 					_ = sink.closed() => break,
 
@@ -388,11 +393,14 @@ impl StateApiServer for StateApi {
 
 		// Subscribe to blockchain events
 		let mut receiver = blockchain.subscribe_events();
+		let token = self.shutdown_token.clone();
 
 		tokio::spawn(async move {
 			loop {
 				tokio::select! {
 					biased;
+
+					_ = token.cancelled() => break,
 
 					_ = sink.closed() => break,
 
