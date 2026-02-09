@@ -220,7 +220,7 @@ impl StateApiServer for StateApi {
 		prefix: Option<String>,
 		count: u32,
 		start_key: Option<String>,
-		_at: Option<String>,
+		at: Option<String>,
 	) -> RpcResult<Vec<String>> {
 		let prefix_bytes = match prefix {
 			Some(ref p) => parse_hex_bytes(p, "prefix")?,
@@ -230,17 +230,22 @@ impl StateApiServer for StateApi {
 			Some(ref k) => Some(parse_hex_bytes(k, "start_key")?),
 			None => None,
 		};
+		let block_hash = match at {
+			Some(ref hash) => Some(parse_block_hash(hash)?),
+			None => None,
+		};
 
 		jsonrpsee::tracing::debug!(
 			prefix = ?prefix,
 			count = count,
 			start_key = ?start_key,
-			"state_getKeysPaged: querying storage keys at fork"
+			at = ?at,
+			"state_getKeysPaged: querying storage keys"
 		);
 
 		let keys = self
 			.blockchain
-			.storage_keys_at_fork(&prefix_bytes, count, start_key_bytes.as_deref())
+			.storage_keys_paged(&prefix_bytes, count, start_key_bytes.as_deref(), block_hash)
 			.await
 			.map_err(|e| RpcServerError::Storage(e.to_string()))?;
 

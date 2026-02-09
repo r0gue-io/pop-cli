@@ -617,7 +617,7 @@ impl ChainHeadApiServer for ChainHeadApi {
 							prefix = %item.key,
 							"chainHead_v1_storage: DescendantsValues query"
 						);
-						match blockchain.storage_keys_by_prefix(&key_bytes).await {
+						match blockchain.storage_keys_by_prefix(&key_bytes, block_hash).await {
 							Ok(keys) => {
 								tracing::debug!(
 									prefix = %item.key,
@@ -655,7 +655,7 @@ impl ChainHeadApiServer for ChainHeadApi {
 							prefix = %item.key,
 							"chainHead_v1_storage: DescendantsHashes query"
 						);
-						match blockchain.storage_keys_by_prefix(&key_bytes).await {
+						match blockchain.storage_keys_by_prefix(&key_bytes, block_hash).await {
 							Ok(keys) => {
 								tracing::debug!(
 									prefix = %item.key,
