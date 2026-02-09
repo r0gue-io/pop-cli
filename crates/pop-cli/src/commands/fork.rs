@@ -93,7 +93,7 @@ pub(crate) struct ForkArgs {
 	pub serve: bool,
 
 	/// Internal flag: path to write readiness info to (used by detach mode).
-	#[arg(long, hide = true)]
+	#[arg(long, hide = true, requires = "serve")]
 	#[serde(skip)]
 	pub ready_file: Option<PathBuf>,
 }
