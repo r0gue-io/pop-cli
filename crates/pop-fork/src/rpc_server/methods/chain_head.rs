@@ -506,8 +506,8 @@ impl ChainHeadApiServer for ChainHeadApi {
 		tokio::spawn(async move {
 			// Try proxy for Metadata_* calls to the upstream (JIT-compiled runtime),
 			// but only for blocks at or before the fork point. Fork-local blocks may
-			// have a different runtime due to upgrades.
-			let result = if function.starts_with("Metadata_") {
+			// have a different runtime due to upgrades.			
+			let result = if function.starts_with(runtime_api::METADATA_PREFIX) {
 				let block_number = blockchain.block_number_by_hash(block_hash).await.ok().flatten();
 				if block_number.is_some_and(|n| n <= fork_point) {
 					match blockchain.proxy_state_call(&function, &params, block_hash).await {

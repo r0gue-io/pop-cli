@@ -96,6 +96,9 @@ impl RpcServerConfig {
 	}
 }
 
+/// Length of the random string used for JSON-RPC subscription IDs.
+const SUBSCRIPTION_ID_LENGTH: usize = 16;
+
 /// The RPC server for a forked blockchain.
 pub struct ForkRpcServer {
 	/// Server handle for managing lifecycle.
@@ -127,7 +130,7 @@ impl ForkRpcServer {
 			// User specified a port - try only that one
 			let addr: SocketAddr = ([127, 0, 0, 1], port).into();
 			let server = ServerBuilder::default()
-				.set_id_provider(RandomStringIdProvider::new(16))
+				.set_id_provider(RandomStringIdProvider::new(SUBSCRIPTION_ID_LENGTH))
 				.set_rpc_middleware(RpcServiceBuilder::new().layer_fn(RpcLogger))
 				.max_connections(config.max_connections)
 				.build(addr)
@@ -143,7 +146,7 @@ impl ForkRpcServer {
 			for port in DEFAULT_RPC_PORT..DEFAULT_RPC_PORT.saturating_add(MAX_PORT_ATTEMPTS) {
 				let addr: SocketAddr = ([127, 0, 0, 1], port).into();
 				if let Ok(server) = ServerBuilder::default()
-					.set_id_provider(RandomStringIdProvider::new(16))
+					.set_id_provider(RandomStringIdProvider::new(SUBSCRIPTION_ID_LENGTH))
 					.set_rpc_middleware(RpcServiceBuilder::new().layer_fn(RpcLogger))
 					.max_connections(config.max_connections)
 					.build(addr)
@@ -164,7 +167,7 @@ impl ForkRpcServer {
 					let port = pop_common::resolve_port(None);
 					let addr: SocketAddr = ([127, 0, 0, 1], port).into();
 					let server = ServerBuilder::default()
-						.set_id_provider(RandomStringIdProvider::new(16))
+						.set_id_provider(RandomStringIdProvider::new(SUBSCRIPTION_ID_LENGTH))
 						.set_rpc_middleware(RpcServiceBuilder::new().layer_fn(RpcLogger))
 						.max_connections(config.max_connections)
 						.build(addr)
