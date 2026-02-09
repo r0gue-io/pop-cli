@@ -217,13 +217,10 @@ impl Command {
 		loop {
 			// Check if child process has exited (likely an error).
 			if let Some(status) = child.try_wait()? {
-				if !status.success() {
-					anyhow::bail!(
-						"Fork process exited with status {}. Check the log file for details.",
-						status
-					);
-				}
-				break;
+				anyhow::bail!(
+					"Fork process exited unexpectedly (status: {}). Check the log file for details.",
+					status
+				);
 			}
 
 			// Check for readiness file.
@@ -244,8 +241,6 @@ impl Command {
 
 			thread::sleep(poll_interval);
 		}
-
-		Ok(())
 	}
 
 	/// Spawn the server process. Extracted for testability.
@@ -702,11 +697,11 @@ mod tests {
 
 		let result = Command::wait_for_ready(&ready_path, &mut child, &mut cli);
 		assert!(result.is_err());
-		assert!(result.unwrap_err().to_string().contains("Fork process exited with status"));
+		assert!(result.unwrap_err().to_string().contains("Fork process exited unexpectedly"));
 	}
 
 	#[test]
-	fn wait_for_ready_returns_ok_when_child_exits_cleanly() {
+	fn wait_for_ready_fails_when_child_exits_cleanly_without_ready_file() {
 		let dir = tempfile::tempdir().unwrap();
 		let ready_path = dir.path().join("test.ready");
 
@@ -723,6 +718,7 @@ mod tests {
 		let mut cli = MockCli::new();
 
 		let result = Command::wait_for_ready(&ready_path, &mut child, &mut cli);
-		assert!(result.is_ok());
+		assert!(result.is_err());
+		assert!(result.unwrap_err().to_string().contains("Fork process exited unexpectedly"));
 	}
 }
