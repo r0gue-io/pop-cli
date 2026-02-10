@@ -359,12 +359,13 @@ pub struct Blockchain {
 	/// subsequent call) awaits the result and returns immediately.
 	prefetch_done: OnceCell<()>,
 
-	/// Cached slot duration in milliseconds.
+	/// Cached slot duration in milliseconds (0 = not yet detected).
 	///
 	/// Computed during warmup by reusing the compiled WASM prototype for a
 	/// `AuraApi_slot_duration` call. Used by `build_block()` to skip an
 	/// expensive runtime call in `create_next_header_with_slot`.
-	cached_slot_duration: OnceCell<u64>,
+	/// Reset on runtime upgrade so the next block re-detects it.
+	cached_slot_duration: AtomicU64,
 
 	/// Event broadcaster for subscription notifications.
 	///
@@ -548,7 +549,7 @@ impl Blockchain {
 			executor: RwLock::new(executor),
 			warm_prototype: tokio::sync::Mutex::new(None),
 			prefetch_done: OnceCell::new(),
-			cached_slot_duration: OnceCell::new(),
+			cached_slot_duration: AtomicU64::new(0),
 			remote,
 			event_tx,
 			genesis_hash_cache: OnceCell::new(),
@@ -637,7 +638,7 @@ impl Blockchain {
 					};
 					drop(head);
 
-					let _ = self.cached_slot_duration.set(duration);
+					self.cached_slot_duration.store(duration, Ordering::Release);
 					log::info!(
 						"[Blockchain] Warmup: slot_duration={duration}ms ({:?})",
 						warmup_start.elapsed()
@@ -1106,7 +1107,10 @@ impl Blockchain {
 			&parent_block,
 			&executor,
 			vec![],
-			self.cached_slot_duration.get().copied(),
+			match self.cached_slot_duration.load(Ordering::Acquire) {
+				0 => None,
+				d => Some(d),
+			},
 		)
 		.await?;
 
@@ -1171,6 +1175,8 @@ impl Blockchain {
 			let new_executor =
 				RuntimeExecutor::with_config(runtime_code, None, self.executor_config.clone())?;
 			*self.executor.write().await = new_executor;
+			// Invalidate cached slot duration so the next block re-detects it
+			self.cached_slot_duration.store(0, Ordering::Release);
 			// Prototype is stale after upgrade, leave warm_prototype as None
 		} else {
 			*self.warm_prototype.lock().await = returned_prototype;
@@ -1486,17 +1492,18 @@ impl Blockchain {
 		args: &[u8],
 	) -> Result<Option<Vec<u8>>, BlockchainError> {
 		// Fast path: head block reuses the warm prototype (avoids ~5s WASM recompilation)
-		{
+		let head_block = {
 			let head = self.head.read().await;
-			if hash == head.hash {
-				let executor = self.executor.read().await.clone();
-				let warm_prototype = self.warm_prototype.lock().await.take();
-				let (result, returned_prototype) = executor
-					.call_with_prototype(warm_prototype, method, args, head.storage())
-					.await;
-				*self.warm_prototype.lock().await = returned_prototype;
-				return Ok(Some(result?.output));
-			}
+			(hash == head.hash).then(|| head.clone())
+		};
+		if let Some(head_block) = head_block {
+			let executor = self.executor.read().await.clone();
+			let warm_prototype = self.warm_prototype.lock().await.take();
+			let (result, returned_prototype) = executor
+				.call_with_prototype(warm_prototype, method, args, head_block.storage())
+				.await;
+			*self.warm_prototype.lock().await = returned_prototype;
+			return Ok(Some(result?.output));
 		}
 
 		// Slow path: historical/non-head blocks need a fresh executor
@@ -1632,7 +1639,9 @@ impl Blockchain {
 		&self,
 		extrinsic: &[u8],
 	) -> Result<ValidTransaction, TransactionValidityError> {
-		let head = self.head.read().await;
+		// Clone head and release the read lock before the async call to avoid
+		// blocking build_block() from acquiring the write lock.
+		let head = self.head.read().await.clone();
 
 		// Build args: (source, extrinsic, block_hash)
 		// source = External (0x02) - transaction comes from outside

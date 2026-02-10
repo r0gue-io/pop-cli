@@ -45,7 +45,7 @@ pub(crate) struct ForkArgs {
 	#[arg(short, long)]
 	pub cache: Option<PathBuf>,
 
-	/// Starting port for RPC server(s). Auto-finds from 8000 if not specified.
+	/// Starting port for RPC server(s). Auto-finds from 9944 if not specified.
 	#[arg(short, long)]
 	pub port: Option<u16>,
 
