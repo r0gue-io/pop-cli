@@ -1485,14 +1485,27 @@ impl Blockchain {
 		method: &str,
 		args: &[u8],
 	) -> Result<Option<Vec<u8>>, BlockchainError> {
-		// Find block: search fork history or create mocked block for historical
+		// Fast path: head block reuses the warm prototype (avoids ~5s WASM recompilation)
+		{
+			let head = self.head.read().await;
+			if hash == head.hash {
+				let executor = self.executor.read().await.clone();
+				let warm_prototype = self.warm_prototype.lock().await.take();
+				let (result, returned_prototype) = executor
+					.call_with_prototype(warm_prototype, method, args, head.storage())
+					.await;
+				*self.warm_prototype.lock().await = returned_prototype;
+				return Ok(Some(result?.output));
+			}
+		}
+
+		// Slow path: historical/non-head blocks need a fresh executor
 		let block = self.find_or_create_block_for_call(hash).await?;
 
 		let Some(block) = block else {
 			return Ok(None); // Block not found
 		};
 
-		// Execute call on the found/created block
 		let runtime_code = block.runtime_code().await?;
 		let executor =
 			RuntimeExecutor::with_config(runtime_code, None, self.executor_config.clone())?;
