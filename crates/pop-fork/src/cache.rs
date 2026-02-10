@@ -1150,6 +1150,7 @@ impl StorageCache {
 			.filter(sc::block_hash.eq(block_hash.as_bytes()))
 			.filter(sc::key.gt(key))
 			.filter(sc::key.ge(prefix))
+			.filter(sc::is_empty.eq(false))
 			.select(sc::key)
 			.order(sc::key.asc())
 			.limit(1)
