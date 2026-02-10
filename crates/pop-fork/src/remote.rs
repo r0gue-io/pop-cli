@@ -54,7 +54,7 @@ use std::sync::{
 	Arc,
 	atomic::{AtomicUsize, Ordering},
 };
-use subxt::{config::substrate::H256, ext::codec::Encode};
+use subxt::{Metadata, config::substrate::H256, ext::codec::Encode};
 
 /// Default number of keys to fetch per RPC call during prefix scans.
 ///
@@ -754,8 +754,8 @@ impl RemoteStorageLayer {
 		Ok(self.rpc.finalized_head().await?)
 	}
 
-	/// Get metadata bytes at a specific block from the remote chain.
-	pub async fn metadata(&self, block_hash: H256) -> Result<Vec<u8>, RemoteStorageError> {
+	/// Get decoded metadata at a specific block from the remote chain.
+	pub async fn metadata(&self, block_hash: H256) -> Result<Metadata, RemoteStorageError> {
 		Ok(self.rpc.metadata(block_hash).await?)
 	}
 }

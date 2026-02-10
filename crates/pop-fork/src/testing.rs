@@ -38,7 +38,6 @@ use crate::{
 	rpc_server::{ForkRpcServer, RpcServerConfig},
 };
 use pop_common::test_env::TestNode;
-use scale::Decode;
 use std::sync::Arc;
 use subxt::{Metadata, config::substrate::H256};
 use url::Url;
@@ -390,11 +389,7 @@ impl TestContextBuilder {
 			let hash = block_hash.unwrap_or_else(|| {
 				panic!("block_hash required for metadata - use with_block_info()")
 			});
-			let metadata_bytes = rpc_ref.metadata(hash).await.expect("Failed to get metadata");
-			Some(
-				Metadata::decode(&mut metadata_bytes.as_slice())
-					.expect("Failed to decode metadata"),
-			)
+			Some(rpc_ref.metadata(hash).await.expect("Failed to get metadata"))
 		} else {
 			None
 		};
