@@ -351,12 +351,13 @@ pub struct Blockchain {
 	/// this layer, ensuring connection reuse.
 	remote: crate::RemoteStorageLayer,
 
-	/// Whether the initial storage prefetch has been completed.
+	/// Guard ensuring the storage prefetch runs exactly once.
 	///
-	/// Set to `true` after the first block build. Subsequent blocks skip the
-	/// prefetch since all `StorageValue` keys and pallet prefix pages are
-	/// already cached in the `RemoteStorageLayer`.
-	prefetched: std::sync::atomic::AtomicBool,
+	/// Both the background warmup and `build_block()` call
+	/// `ensure_prefetched()`, which uses `OnceCell::get_or_init` so only the
+	/// first caller runs the actual prefetch. The second caller (or any
+	/// subsequent call) awaits the result and returns immediately.
+	prefetch_done: OnceCell<()>,
 
 	/// Event broadcaster for subscription notifications.
 	///
@@ -539,7 +540,7 @@ impl Blockchain {
 			executor_config,
 			executor: RwLock::new(executor),
 			warm_prototype: tokio::sync::Mutex::new(None),
-			prefetched: std::sync::atomic::AtomicBool::new(false),
+			prefetch_done: OnceCell::new(),
 			remote,
 			event_tx,
 			genesis_hash_cache: OnceCell::new(),
@@ -574,7 +575,7 @@ impl Blockchain {
 	///    block building).
 	///
 	/// If a block is built before warmup finishes, the builder falls back to its
-	/// normal (non-cached) path. The `Mutex`/`AtomicBool` guards ensure no races.
+	/// normal (non-cached) path. The `Mutex`/`OnceCell` guards ensure no races.
 	pub async fn warmup(self: &Arc<Self>) {
 		log::info!("[Blockchain] Background warmup starting...");
 
@@ -588,10 +589,8 @@ impl Blockchain {
 			Err(e) => log::warn!("[Blockchain] Warmup: prototype compilation failed: {e}"),
 		}
 
-		// 2. Prefetch storage (same logic as BlockBuilder::prefetch_block_building_storage)
-		if let Err(e) = self.prefetch_storage().await {
-			log::warn!("[Blockchain] Warmup: storage prefetch failed: {e}");
-		}
+		// 2. Prefetch storage (coordinated via OnceCell with build_block)
+		self.ensure_prefetched().await;
 
 		// 3. Warm up inherent providers
 		let head = self.head.read().await.clone();
@@ -602,16 +601,27 @@ impl Blockchain {
 		log::info!("[Blockchain] Background warmup complete");
 	}
 
-	/// Prefetch storage commonly accessed during block building.
+	/// Ensure storage has been prefetched exactly once.
+	///
+	/// Uses `OnceCell` to guarantee the prefetch runs only once, even when
+	/// called concurrently by the background warmup and `build_block()`.
+	/// The first caller runs the actual prefetch; subsequent callers await
+	/// the result and return immediately.
+	async fn ensure_prefetched(&self) {
+		self.prefetch_done
+			.get_or_init(|| async {
+				if let Err(e) = self.do_prefetch().await {
+					log::warn!("[Blockchain] Storage prefetch failed (non-fatal): {e}");
+				}
+			})
+			.await;
+	}
+
+	/// Run the actual storage prefetch.
 	///
 	/// Replicates the prefetch logic from `BlockBuilder` but operates directly
 	/// on the `Blockchain`'s remote storage layer and head block metadata.
-	async fn prefetch_storage(&self) -> Result<(), BlockchainError> {
-		// Skip if already prefetched (e.g. a block was built before warmup ran)
-		if self.prefetched.load(std::sync::atomic::Ordering::Relaxed) {
-			return Ok(());
-		}
-
+	async fn do_prefetch(&self) -> Result<(), BlockchainError> {
 		let head = self.head.read().await;
 		let metadata = head.metadata().await?;
 		let block_hash = head.storage().fork_block_hash();
@@ -659,12 +669,11 @@ impl Blockchain {
 		}
 
 		log::info!(
-			"[Blockchain] Warmup: prefetched {} StorageValue + {} map keys ({} pallets)",
+			"[Blockchain] Prefetched {} StorageValue + {} map keys ({} pallets)",
 			value_keys.len(),
 			scan_keys,
 			pallet_prefixes.len(),
 		);
-		self.prefetched.store(true, std::sync::atomic::Ordering::Relaxed);
 
 		Ok(())
 	}
@@ -1042,8 +1051,12 @@ impl Blockchain {
 			.map(|p| Box::new(ArcProvider(Arc::clone(p))) as Box<dyn InherentProvider>)
 			.collect();
 
-		// Skip prefetch after the first block (keys are already cached)
-		let skip_prefetch = self.prefetched.load(std::sync::atomic::Ordering::Relaxed);
+		// Ensure storage is prefetched (coordinated with background warmup via OnceCell).
+		// If warmup already completed, this returns immediately. If warmup is still
+		// running the prefetch, this awaits its completion. If warmup hasn't started
+		// the prefetch yet, this runs it. Either way, the BlockBuilder always skips
+		// its own prefetch since the Blockchain handles it.
+		self.ensure_prefetched().await;
 
 		// Create block builder with warm prototype for WASM reuse
 		let mut builder = BlockBuilder::new(
@@ -1052,14 +1065,11 @@ impl Blockchain {
 			header,
 			providers,
 			warm_prototype,
-			skip_prefetch,
+			true, // prefetch handled above
 		);
 
 		// Initialize block
 		builder.initialize().await?;
-
-		// Mark prefetch as done for subsequent blocks
-		self.prefetched.store(true, std::sync::atomic::Ordering::Relaxed);
 
 		// Apply inherents
 		builder.apply_inherents().await?;
