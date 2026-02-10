@@ -31,19 +31,20 @@
 //! ```
 
 use crate::{
-	Block, BlockBuilderError, RuntimeExecutor, inherent::InherentProvider,
-	strings::inherent::timestamp as strings,
+	Block, BlockBuilderError, RuntimeExecutor,
+	inherent::InherentProvider,
+	strings::inherent::timestamp::{
+		self as strings,
+		slot_duration::{
+			PARACHAIN_FALLBACK_MS as DEFAULT_PARA_SLOT_DURATION_MS,
+			RELAY_CHAIN_FALLBACK_MS as DEFAULT_RELAY_SLOT_DURATION_MS,
+		},
+	},
 };
 use async_trait::async_trait;
 use scale::{Compact, Decode, Encode};
 use std::sync::atomic::{AtomicU64, Ordering};
 use subxt::Metadata;
-
-/// Default slot duration for relay chains (6 seconds).
-const DEFAULT_RELAY_SLOT_DURATION_MS: u64 = 6_000;
-
-/// Default slot duration for parachains (12 seconds).
-const DEFAULT_PARA_SLOT_DURATION_MS: u64 = 12_000;
 
 /// Extrinsic format version for unsigned/bare extrinsics.
 /// Version 5 is current; version 4 is legacy.

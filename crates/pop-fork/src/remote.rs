@@ -62,6 +62,13 @@ use subxt::{Metadata, config::substrate::H256, ext::codec::Encode};
 /// and response latency. 1000 keys typically fits well within RPC response limits.
 const DEFAULT_PREFETCH_PAGE_SIZE: u32 = 1000;
 
+/// Minimum key length (bytes) for speculative prefix prefetch.
+///
+/// Polkadot SDK storage keys are composed of twox128(pallet) + twox128(item) = 32 bytes.
+/// Keys shorter than this are pallet-level prefixes rather than storage item keys,
+/// so speculative prefix scans on them would be too broad.
+const MIN_STORAGE_KEY_PREFIX_LEN: usize = 32;
+
 /// Counters tracking cache hits vs RPC misses for performance analysis.
 ///
 /// All counters are atomic and shared across clones of the same `RemoteStorageLayer`.
@@ -214,8 +221,8 @@ impl RemoteStorageLayer {
 		// Errors are non-fatal: speculative prefetch is an optimization. If the
 		// connection drops mid-prefetch, we fall through to the individual fetch
 		// below which has its own retry logic.
-		if key.len() >= 32 {
-			let prefix = &key[..32];
+		if key.len() >= MIN_STORAGE_KEY_PREFIX_LEN {
+			let prefix = &key[..MIN_STORAGE_KEY_PREFIX_LEN];
 			let progress = self.cache.get_prefix_scan_progress(block_hash, prefix).await?;
 			if progress.is_none() {
 				match self

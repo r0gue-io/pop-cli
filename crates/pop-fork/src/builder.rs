@@ -60,7 +60,13 @@ use crate::{
 		InherentProvider,
 		relay::{PARA_INHERENT_PALLET, para_inherent_included_key},
 	},
-	strings::builder::runtime_api,
+	strings::{
+		builder::runtime_api,
+		inherent::timestamp::slot_duration::{
+			PARACHAIN_FALLBACK_MS as DEFAULT_PARA_SLOT_DURATION_MS,
+			RELAY_CHAIN_FALLBACK_MS as DEFAULT_RELAY_SLOT_DURATION_MS,
+		},
+	},
 };
 use log::{error, info};
 use scale::{Decode, Encode};
@@ -291,7 +297,7 @@ impl BlockBuilder {
 		// speculative prefetch at the 32-byte level during execution.
 		// Scan failures are non-fatal: the speculative prefetch and individual
 		// fetches during execution will pick up any keys we missed here.
-		let page_size = 200;
+		let page_size = crate::strings::builder::PREFETCH_PAGE_SIZE;
 		let scan_futures: Vec<_> = pallet_prefixes
 			.iter()
 			.map(|prefix| remote.prefetch_prefix_single_page(block_hash, prefix, page_size))
@@ -846,12 +852,6 @@ pub fn create_next_header(parent: &Block, digest_items: Vec<DigestItem>) -> Vec<
 	};
 	header.encode()
 }
-
-/// Default slot duration for relay chains (6 seconds).
-const DEFAULT_RELAY_SLOT_DURATION_MS: u64 = 6_000;
-
-/// Default slot duration for parachains (12 seconds).
-const DEFAULT_PARA_SLOT_DURATION_MS: u64 = 12_000;
 
 /// Create a header for the next block with automatic slot digest injection.
 ///

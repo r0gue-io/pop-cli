@@ -54,7 +54,7 @@ use crate::{
 	builder::ApplyExtrinsicResult,
 	create_next_header_with_slot, default_providers,
 	strings::{
-		inherent::parachain::storage_keys,
+		inherent::{parachain::storage_keys, timestamp::slot_duration},
 		txpool::{runtime_api, transaction_source},
 	},
 };
@@ -630,8 +630,8 @@ impl Blockchain {
 							.and_then(|c| u64::decode(&mut &c.value()[..]).ok())
 					});
 					babe_duration.unwrap_or(match self.chain_type {
-						ChainType::RelayChain => 6_000,
-						ChainType::Parachain { .. } => 12_000,
+						ChainType::RelayChain => slot_duration::RELAY_CHAIN_FALLBACK_MS,
+						ChainType::Parachain { .. } => slot_duration::PARACHAIN_FALLBACK_MS,
 					})
 				};
 				drop(head);
@@ -716,7 +716,7 @@ impl Blockchain {
 		}
 
 		// Single-page pallet prefix scans in parallel
-		let page_size = 200;
+		let page_size = crate::strings::builder::PREFETCH_PAGE_SIZE;
 		let scan_futures: Vec<_> = pallet_prefixes
 			.iter()
 			.map(|prefix| self.remote.prefetch_prefix_single_page(block_hash, prefix, page_size))
