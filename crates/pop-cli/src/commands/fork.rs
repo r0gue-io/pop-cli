@@ -2,9 +2,10 @@
 
 use crate::cli::{self};
 use anyhow::Result;
-use clap::{Args, ValueEnum};
+use clap::{ArgGroup, Args, ValueEnum};
+use pop_chains::SupportedChains;
 use pop_fork::{
-	Blockchain, ExecutorConfig, SignatureMockMode, TxPool,
+	BlockForkPoint, Blockchain, ExecutorConfig, SignatureMockMode, TxPool,
 	rpc_server::{ForkRpcServer, RpcServerConfig},
 };
 use serde::Serialize;
@@ -12,9 +13,16 @@ use std::{
 	path::PathBuf,
 	process::{Child, Command as StdCommand, Stdio},
 	sync::Arc,
+	thread,
+	time::{Duration, Instant},
 };
 use tempfile::NamedTempFile;
 use url::Url;
+
+/// Timeout for waiting for the detached fork server to become ready.
+const DETACH_READY_TIMEOUT_SECS: u64 = 120;
+/// Poll interval when checking for fork server readiness.
+const DETACH_READY_POLL_MS: u64 = 200;
 
 /// Log level for fork command output.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, ValueEnum, Serialize)]
@@ -50,9 +58,15 @@ impl LogLevel {
 
 /// Arguments for the fork command.
 #[derive(Args, Clone, Default, Serialize)]
+#[command(group = ArgGroup::new("source").args(["chain", "endpoints"]).required(true))]
 pub(crate) struct ForkArgs {
+	/// Well-known chain to fork (e.g., paseo, polkadot, kusama, westend).
+	#[arg(value_enum, index = 1)]
+	#[serde(skip)]
+	pub chain: Option<SupportedChains>,
+
 	/// RPC endpoint(s) to fork from. Use multiple times for multiple chains.
-	#[arg(short = 'e', long = "endpoint", required = true)]
+	#[arg(short = 'e', long = "endpoint")]
 	pub endpoints: Vec<String>,
 
 	/// Path to persist SQLite cache. If not specified, uses in-memory cache.
@@ -76,24 +90,70 @@ pub(crate) struct ForkArgs {
 	#[arg(short, long)]
 	pub detach: bool,
 
+	/// Fork at a specific block number. If not specified, forks at the latest finalized block.
+	#[arg(long)]
+	pub at: Option<u32>,
+
 	/// Internal flag: run as background server (used by detach mode).
 	#[arg(long, hide = true)]
 	#[serde(skip)]
 	pub serve: bool,
+
+	/// Internal flag: path to write readiness info to (used by detach mode).
+	#[arg(long, hide = true, requires = "serve")]
+	#[serde(skip)]
+	pub ready_file: Option<PathBuf>,
 }
 
 pub(crate) struct Command;
 
 impl Command {
 	pub(crate) async fn execute(args: &ForkArgs, cli: &mut impl cli::traits::Cli) -> Result<()> {
-		if args.detach {
-			return Self::spawn_detached(args, cli);
-		}
-
+		// Serve mode is always called with resolved endpoints (no chain).
 		if args.serve {
 			return Self::run_server(args).await;
 		}
 
+		// When a well-known chain is specified, try each RPC URL with fallback.
+		if let Some(chain) = &args.chain {
+			return Self::execute_with_fallback(args, chain, cli).await;
+		}
+
+		// Direct endpoint mode (existing behavior).
+		Self::execute_resolved(args, cli).await
+	}
+
+	/// Try each RPC URL for a well-known chain, falling back on failure.
+	async fn execute_with_fallback(
+		args: &ForkArgs,
+		chain: &SupportedChains,
+		cli: &mut impl cli::traits::Cli,
+	) -> Result<()> {
+		let rpc_urls = chain.rpc_urls();
+		let mut last_error = None;
+
+		for rpc_url in rpc_urls {
+			let resolved =
+				ForkArgs { endpoints: vec![rpc_url.to_string()], chain: None, ..args.clone() };
+
+			match Self::execute_resolved(&resolved, cli).await {
+				Ok(()) => return Ok(()),
+				Err(e) => {
+					cli.warning(format!("{} did not respond, trying next endpoint...", rpc_url))?;
+					last_error = Some(e);
+				},
+			}
+		}
+
+		Err(last_error
+			.unwrap_or_else(|| anyhow::anyhow!("No RPC endpoints available for {}", chain)))
+	}
+
+	/// Execute with already-resolved endpoints (no chain fallback).
+	async fn execute_resolved(args: &ForkArgs, cli: &mut impl cli::traits::Cli) -> Result<()> {
+		if args.detach {
+			return Self::spawn_detached(args, cli);
+		}
 		Self::run_interactive(args, cli).await
 	}
 
@@ -101,25 +161,86 @@ impl Command {
 	fn spawn_detached(args: &ForkArgs, cli: &mut impl cli::traits::Cli) -> Result<()> {
 		cli.intro("Forking chain(s) (detached mode)")?;
 
-		// Create log file that persists after we exit
+		for endpoint in &args.endpoints {
+			cli.info(format!("Forking {}...", endpoint))?;
+		}
+
+		// Create log file that persists after we exit.
 		let log_file = NamedTempFile::new()?;
 		let log_path = log_file.path().to_path_buf();
+		let ready_path = log_path.with_extension("ready");
 
-		// Build command args: same as current but with --serve instead of --detach
-		let cmd_args = Self::build_serve_args(args);
+		// Build command args with --ready-file for readiness signaling.
+		let mut cmd_args = Self::build_serve_args(args);
+		cmd_args.push("--ready-file".to_string());
+		cmd_args.push(ready_path.to_string_lossy().to_string());
 
-		// Spawn subprocess with output redirected to log file
-		let child = Self::spawn_server_process(&cmd_args, &log_path)?;
+		// Spawn subprocess with output redirected to log file.
+		let mut child = Self::spawn_server_process(&cmd_args, &log_path)?;
 		let pid = child.id();
 
-		// Keep log file persistent (don't delete on drop)
+		// Keep log file persistent (don't delete on drop).
 		log_file.keep()?;
 
-		cli.success(format!("Fork started with PID {}", pid))?;
-		cli.info(format!("Log file: {}", log_path.display()))?;
-		cli.outro(format!("Run `kill -9 {}` or `pop clean node -p {}` to stop.", pid, pid))?;
+		// Wait for the server to signal readiness and display fork info.
+		match Self::wait_for_ready(&ready_path, &mut child, cli) {
+			Ok(()) => {
+				let _ = std::fs::remove_file(&ready_path);
+				cli.success(format!("Fork started with PID {}", pid))?;
+				cli.info(format!("Log file: {}", log_path.display()))?;
+				cli.outro(format!(
+					"Run `kill -9 {}` or `pop clean node -p {}` to stop.",
+					pid, pid
+				))?;
+				Ok(())
+			},
+			Err(e) => {
+				let _ = child.kill();
+				let _ = child.wait();
+				let _ = std::fs::remove_file(&ready_path);
+				Err(e)
+			},
+		}
+	}
 
-		Ok(())
+	/// Wait for the detached server process to signal readiness.
+	/// Polls a readiness file written by the child process.
+	fn wait_for_ready(
+		ready_path: &std::path::Path,
+		child: &mut Child,
+		cli: &mut impl cli::traits::Cli,
+	) -> Result<()> {
+		let timeout = Duration::from_secs(DETACH_READY_TIMEOUT_SECS);
+		let poll_interval = Duration::from_millis(DETACH_READY_POLL_MS);
+		let start = Instant::now();
+
+		loop {
+			// Check if child process has exited (likely an error).
+			if let Some(status) = child.try_wait()? {
+				anyhow::bail!(
+					"Fork process exited unexpectedly (status: {}). Check the log file for details.",
+					status
+				);
+			}
+
+			// Check for readiness file.
+			if let Ok(content) = std::fs::read_to_string(ready_path) &&
+				!content.is_empty()
+			{
+				for line in content.lines() {
+					cli.success(line)?;
+				}
+				return Ok(());
+			}
+
+			if start.elapsed() > timeout {
+				anyhow::bail!(
+					"Timed out waiting for fork to be ready. Check the log file for details."
+				);
+			}
+
+			thread::sleep(poll_interval);
+		}
 	}
 
 	/// Spawn the server process. Extracted for testability.
@@ -154,6 +275,8 @@ impl Command {
 			..Default::default()
 		};
 
+		let fork_point = args.at.map(BlockForkPoint::from);
+
 		let mut servers: Vec<(String, Arc<Blockchain>, ForkRpcServer)> = Vec::new();
 		let mut current_port = args.port;
 
@@ -165,7 +288,7 @@ impl Command {
 			let blockchain = Blockchain::fork_with_config(
 				endpoint,
 				cache_path.as_deref(),
-				None,
+				fork_point,
 				executor_config.clone(),
 			)
 			.await?;
@@ -186,6 +309,22 @@ impl Command {
 			);
 
 			servers.push((blockchain.chain_name().to_string(), blockchain, server));
+		}
+
+		// Signal readiness to the parent process (detach mode).
+		if let Some(ready_path) = &args.ready_file {
+			let info: Vec<String> = servers
+				.iter()
+				.map(|(_, blockchain, server)| {
+					format!(
+						"Forked {} at block #{} -> {}",
+						blockchain.chain_name(),
+						blockchain.fork_point_number(),
+						server.ws_url()
+					)
+				})
+				.collect();
+			std::fs::write(ready_path, info.join("\n"))?;
 		}
 
 		println!("Server running. Waiting for termination signal...");
@@ -223,6 +362,8 @@ impl Command {
 			..Default::default()
 		};
 
+		let fork_point = args.at.map(BlockForkPoint::from);
+
 		let mut servers: Vec<(String, Arc<Blockchain>, ForkRpcServer)> = Vec::new();
 		let mut current_port = args.port;
 
@@ -234,7 +375,7 @@ impl Command {
 			let blockchain = Blockchain::fork_with_config(
 				endpoint,
 				cache_path.as_deref(),
-				None,
+				fork_point,
 				executor_config.clone(),
 			)
 			.await?;
@@ -316,6 +457,10 @@ impl Command {
 		if args.mock_all_signatures {
 			cmd_args.push("--mock-all-signatures".to_string());
 		}
+		if let Some(at) = args.at {
+			cmd_args.push("--at".to_string());
+			cmd_args.push(at.to_string());
+		}
 		cmd_args.push("--log-level".to_string());
 		cmd_args.push(format!("{:?}", args.log_level).to_lowercase());
 		cmd_args.push("--serve".to_string());
@@ -326,6 +471,7 @@ impl Command {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::cli::MockCli;
 
 	#[test]
 	fn resolve_cache_path_single_endpoint_no_extension() {
@@ -393,8 +539,11 @@ mod tests {
 			port: Some(9000),
 			mock_all_signatures: true,
 			log_level: LogLevel::Debug,
-			detach: true, // Should not appear in serve args
+			at: Some(100),
+			detach: true,
 			serve: false,
+			chain: None,
+			ready_file: None,
 		};
 		let result = Command::build_serve_args(&args);
 		assert_eq!(
@@ -410,11 +559,44 @@ mod tests {
 				"--port",
 				"9000",
 				"--mock-all-signatures",
+				"--at",
+				"100",
 				"--log-level",
 				"debug",
 				"--serve"
 			]
 		);
+	}
+
+	#[test]
+	fn build_serve_args_with_at() {
+		let args = ForkArgs {
+			endpoints: vec!["wss://rpc.polkadot.io".to_string()],
+			at: Some(5000),
+			..Default::default()
+		};
+		let result = Command::build_serve_args(&args);
+		assert_eq!(
+			result,
+			vec![
+				"fork",
+				"-e",
+				"wss://rpc.polkadot.io",
+				"--at",
+				"5000",
+				"--log-level",
+				"info",
+				"--serve"
+			]
+		);
+	}
+
+	#[test]
+	fn build_serve_args_without_at() {
+		let args =
+			ForkArgs { endpoints: vec!["wss://rpc.polkadot.io".to_string()], ..Default::default() };
+		let result = Command::build_serve_args(&args);
+		assert!(!result.contains(&"--at".to_string()));
 	}
 
 	#[test]
@@ -427,5 +609,116 @@ mod tests {
 		let result = Command::build_serve_args(&args);
 		assert!(result.contains(&"--serve".to_string()));
 		assert!(!result.contains(&"--detach".to_string()));
+	}
+
+	#[test]
+	fn build_serve_args_excludes_ready_file() {
+		let args = ForkArgs {
+			endpoints: vec!["wss://test.io".to_string()],
+			ready_file: Some(PathBuf::from("/tmp/test.ready")),
+			..Default::default()
+		};
+		let result = Command::build_serve_args(&args);
+		assert!(!result.contains(&"--ready-file".to_string()));
+	}
+
+	#[test]
+	fn wait_for_ready_succeeds_with_ready_file() {
+		let dir = tempfile::tempdir().unwrap();
+		let ready_path = dir.path().join("test.ready");
+		std::fs::write(&ready_path, "Forked paseo at block #100 -> ws://127.0.0.1:9945").unwrap();
+
+		let mut child = StdCommand::new("sleep")
+			.arg("60")
+			.stdin(Stdio::null())
+			.stdout(Stdio::null())
+			.stderr(Stdio::null())
+			.spawn()
+			.unwrap();
+
+		let mut cli =
+			MockCli::new().expect_success("Forked paseo at block #100 -> ws://127.0.0.1:9945");
+
+		let result = Command::wait_for_ready(&ready_path, &mut child, &mut cli);
+		assert!(result.is_ok());
+		cli.verify().unwrap();
+
+		let _ = child.kill();
+		let _ = child.wait();
+	}
+
+	#[test]
+	fn wait_for_ready_displays_multiple_fork_lines() {
+		let dir = tempfile::tempdir().unwrap();
+		let ready_path = dir.path().join("test.ready");
+		std::fs::write(
+			&ready_path,
+			"Forked polkadot at block #100 -> ws://127.0.0.1:9945\n\
+			 Forked kusama at block #200 -> ws://127.0.0.1:9946",
+		)
+		.unwrap();
+
+		let mut child = StdCommand::new("sleep")
+			.arg("60")
+			.stdin(Stdio::null())
+			.stdout(Stdio::null())
+			.stderr(Stdio::null())
+			.spawn()
+			.unwrap();
+
+		let mut cli = MockCli::new()
+			.expect_success("Forked polkadot at block #100 -> ws://127.0.0.1:9945")
+			.expect_success("Forked kusama at block #200 -> ws://127.0.0.1:9946");
+
+		let result = Command::wait_for_ready(&ready_path, &mut child, &mut cli);
+		assert!(result.is_ok());
+		cli.verify().unwrap();
+
+		let _ = child.kill();
+		let _ = child.wait();
+	}
+
+	#[test]
+	fn wait_for_ready_fails_when_child_exits_with_error() {
+		let dir = tempfile::tempdir().unwrap();
+		let ready_path = dir.path().join("test.ready");
+
+		let mut child = StdCommand::new("false")
+			.stdin(Stdio::null())
+			.stdout(Stdio::null())
+			.stderr(Stdio::null())
+			.spawn()
+			.unwrap();
+
+		// Give the process time to exit.
+		thread::sleep(Duration::from_millis(100));
+
+		let mut cli = MockCli::new();
+
+		let result = Command::wait_for_ready(&ready_path, &mut child, &mut cli);
+		assert!(result.is_err());
+		assert!(result.unwrap_err().to_string().contains("Fork process exited unexpectedly"));
+	}
+
+	#[test]
+	fn wait_for_ready_fails_when_child_exits_cleanly_without_ready_file() {
+		let dir = tempfile::tempdir().unwrap();
+		let ready_path = dir.path().join("test.ready");
+
+		let mut child = StdCommand::new("true")
+			.stdin(Stdio::null())
+			.stdout(Stdio::null())
+			.stderr(Stdio::null())
+			.spawn()
+			.unwrap();
+
+		// Give the process time to exit.
+		thread::sleep(Duration::from_millis(100));
+
+		let mut cli = MockCli::new();
+
+		let result = Command::wait_for_ready(&ready_path, &mut child, &mut cli);
+		assert!(result.is_err());
+		assert!(result.unwrap_err().to_string().contains("Fork process exited unexpectedly"));
 	}
 }
