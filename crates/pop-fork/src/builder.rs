@@ -897,6 +897,7 @@ pub async fn create_next_header_with_slot(
 	parent: &Block,
 	executor: &RuntimeExecutor,
 	additional_digest_items: Vec<DigestItem>,
+	cached_slot_duration: Option<u64>,
 ) -> Result<Vec<u8>, BlockBuilderError> {
 	use crate::inherent::{
 		TimestampInherent,
@@ -933,13 +934,17 @@ pub async fn create_next_header_with_slot(
 			ConsensusType::Unknown => DEFAULT_RELAY_SLOT_DURATION_MS,
 		};
 
-		let slot_duration = TimestampInherent::get_slot_duration_from_runtime(
-			executor,
-			storage,
-			&metadata,
-			default_duration,
-		)
-		.await;
+		let slot_duration = match cached_slot_duration {
+			Some(d) => d,
+			None =>
+				TimestampInherent::get_slot_duration_from_runtime(
+					executor,
+					storage,
+					&metadata,
+					default_duration,
+				)
+				.await,
+		};
 
 		// Read current timestamp from storage
 		let timestamp_key = TimestampInherent::timestamp_now_key();

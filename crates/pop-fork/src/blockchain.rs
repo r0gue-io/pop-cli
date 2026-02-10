@@ -359,6 +359,13 @@ pub struct Blockchain {
 	/// subsequent call) awaits the result and returns immediately.
 	prefetch_done: OnceCell<()>,
 
+	/// Cached slot duration in milliseconds.
+	///
+	/// Computed during warmup by reusing the compiled WASM prototype for a
+	/// `AuraApi_slot_duration` call. Used by `build_block()` to skip an
+	/// expensive runtime call in `create_next_header_with_slot`.
+	cached_slot_duration: OnceCell<u64>,
+
 	/// Event broadcaster for subscription notifications.
 	///
 	/// Subscriptions receive events through receivers obtained via
@@ -541,6 +548,7 @@ impl Blockchain {
 			executor: RwLock::new(executor),
 			warm_prototype: tokio::sync::Mutex::new(None),
 			prefetch_done: OnceCell::new(),
+			cached_slot_duration: OnceCell::new(),
 			remote,
 			event_tx,
 			genesis_hash_cache: OnceCell::new(),
@@ -589,10 +597,36 @@ impl Blockchain {
 			Err(e) => log::warn!("[Blockchain] Warmup: prototype compilation failed: {e}"),
 		}
 
-		// 2. Prefetch storage (coordinated via OnceCell with build_block)
+		// 2. Compute slot duration reusing the warm prototype (avoids a second WASM compilation).
+		//    The result is cached for create_next_header_with_slot.
+		{
+			let mut proto_guard = self.warm_prototype.lock().await;
+			if let Some(proto) = proto_guard.take() {
+				let head = self.head.read().await;
+				let (result, returned_proto) = executor
+					.call_with_prototype(
+						Some(proto),
+						crate::strings::inherent::timestamp::slot_duration::AURA_API_METHOD,
+						&[],
+						head.storage(),
+					)
+					.await;
+				*proto_guard = returned_proto;
+				drop(head);
+
+				if let Ok(ref r) = result &&
+					let Ok(duration) = u64::decode(&mut r.output.as_slice())
+				{
+					let _ = self.cached_slot_duration.set(duration);
+					log::info!("[Blockchain] Warmup: cached slot_duration={duration}ms");
+				}
+			}
+		}
+
+		// 3. Prefetch storage (coordinated via OnceCell with build_block)
 		self.ensure_prefetched().await;
 
-		// 3. Warm up inherent providers
+		// 4. Warm up inherent providers
 		let head = self.head.read().await.clone();
 		for provider in &self.inherent_providers {
 			provider.warmup(&head, &executor).await;
@@ -1041,8 +1075,15 @@ impl Blockchain {
 		// Take the warm prototype from the cache (if available from a previous block build)
 		let warm_prototype = self.warm_prototype.lock().await.take();
 
-		// Create header for new block with automatic slot digest injection
-		let header = create_next_header_with_slot(&parent_block, &executor, vec![]).await?;
+		// Create header for new block with automatic slot digest injection.
+		// Pass cached slot duration to avoid a WASM runtime call.
+		let header = create_next_header_with_slot(
+			&parent_block,
+			&executor,
+			vec![],
+			self.cached_slot_duration.get().copied(),
+		)
+		.await?;
 
 		// Convert Arc providers to Box for BlockBuilder
 		let providers: Vec<Box<dyn InherentProvider>> = self
