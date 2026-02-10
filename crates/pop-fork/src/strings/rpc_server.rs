@@ -31,6 +31,15 @@ pub mod storage {
 	/// Storage item name for Account storage.
 	pub const ACCOUNT_STORAGE: &[u8] = b"Account";
 
+	/// Storage item name for Number storage (block number).
+	pub const NUMBER_STORAGE: &[u8] = b"Number";
+
+	/// Pallet name for Sudo storage queries.
+	pub const SUDO_PALLET: &[u8] = b"Sudo";
+
+	/// Storage item name for Sudo key.
+	pub const SUDO_KEY_STORAGE: &[u8] = b"Key";
+
 	/// Size of nonce field in AccountInfo (u32 = 4 bytes).
 	pub const NONCE_SIZE: usize = 4;
 

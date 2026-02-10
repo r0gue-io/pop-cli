@@ -458,6 +458,7 @@ mod tests {
 	use super::*;
 	use crate::{
 		rpc_server::types::{ArchiveCallResult, ArchiveStorageResult},
+		strings::rpc_server::storage,
 		testing::TestContext,
 	};
 	use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
@@ -951,8 +952,8 @@ mod tests {
 
 		// Query System::Number storage key
 		let mut key = Vec::new();
-		key.extend(sp_core::twox_128(b"System"));
-		key.extend(sp_core::twox_128(b"Number"));
+		key.extend(sp_core::twox_128(storage::SYSTEM_PALLET));
+		key.extend(sp_core::twox_128(storage::NUMBER_STORAGE));
 		let key_hex = format!("0x{}", hex::encode(&key));
 
 		let items = vec![serde_json::json!({
@@ -1060,9 +1061,11 @@ mod tests {
 		let head_number = head.number;
 
 		// System::Number storage key = twox128("System") ++ twox128("Number")
-		let system_number_key: Vec<u8> =
-			[sp_core::twox_128(b"System").as_slice(), sp_core::twox_128(b"Number").as_slice()]
-				.concat();
+		let system_number_key: Vec<u8> = [
+			sp_core::twox_128(storage::SYSTEM_PALLET).as_slice(),
+			sp_core::twox_128(storage::NUMBER_STORAGE).as_slice(),
+		]
+		.concat();
 
 		// Query System::Number BEFORE
 		let number_before = ctx
@@ -1124,8 +1127,8 @@ mod tests {
 
 		// Query System::Number storage key with hash type
 		let mut key = Vec::new();
-		key.extend(sp_core::twox_128(b"System"));
-		key.extend(sp_core::twox_128(b"Number"));
+		key.extend(sp_core::twox_128(storage::SYSTEM_PALLET));
+		key.extend(sp_core::twox_128(storage::NUMBER_STORAGE));
 		let key_hex = format!("0x{}", hex::encode(&key));
 
 		let items = vec![serde_json::json!({
@@ -1171,8 +1174,8 @@ mod tests {
 
 		// Query System::Number at both blocks
 		let mut key = Vec::new();
-		key.extend(sp_core::twox_128(b"System"));
-		key.extend(sp_core::twox_128(b"Number"));
+		key.extend(sp_core::twox_128(storage::SYSTEM_PALLET));
+		key.extend(sp_core::twox_128(storage::NUMBER_STORAGE));
 		let key_hex = format!("0x{}", hex::encode(&key));
 
 		let items = vec![serde_json::json!({ "key": key_hex, "type": "value" })];

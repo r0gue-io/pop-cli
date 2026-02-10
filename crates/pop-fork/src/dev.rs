@@ -9,6 +9,8 @@
 //! - **Substrate** (32-byte sr25519): Alice, Bob, Charlie, Dave, Eve, Ferdie
 //! - **Ethereum** (20-byte H160): Alith, Baltathar, Charleth, Dorothy, Ethan, Faith
 
+use crate::strings::rpc_server::storage;
+
 /// Default balance for dev accounts: half of u128::MAX.
 pub const DEV_BALANCE: u128 = u128::MAX / 2;
 
@@ -121,8 +123,8 @@ pub const ETHEREUM_DEV_ACCOUNTS: [(&str, [u8; 20]); 6] = [
 /// Works with both 32-byte (Substrate) and 20-byte (Ethereum) account IDs.
 pub fn account_storage_key(account: &[u8]) -> Vec<u8> {
 	let mut key = Vec::new();
-	key.extend(sp_core::twox_128(b"System"));
-	key.extend(sp_core::twox_128(b"Account"));
+	key.extend(sp_core::twox_128(storage::SYSTEM_PALLET));
+	key.extend(sp_core::twox_128(storage::ACCOUNT_STORAGE));
 	key.extend(sp_core::blake2_128(account));
 	key.extend(account);
 	key
@@ -131,8 +133,8 @@ pub fn account_storage_key(account: &[u8]) -> Vec<u8> {
 /// Compute the `Sudo::Key` storage key.
 pub fn sudo_key_storage_key() -> Vec<u8> {
 	let mut key = Vec::new();
-	key.extend(sp_core::twox_128(b"Sudo"));
-	key.extend(sp_core::twox_128(b"Key"));
+	key.extend(sp_core::twox_128(storage::SUDO_PALLET));
+	key.extend(sp_core::twox_128(storage::SUDO_KEY_STORAGE));
 	key
 }
 
