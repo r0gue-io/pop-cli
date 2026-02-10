@@ -1173,20 +1173,17 @@ impl Blockchain {
 		let new_executor = if runtime_upgraded {
 			log::info!("[Blockchain] Runtime upgrade detected, recreating executor");
 			match new_block.runtime_code().await {
-				Ok(code) => match RuntimeExecutor::with_config(
-					code,
-					None,
-					self.executor_config.clone(),
-				) {
-					Ok(executor) => Some(executor),
-					Err(e) => {
-						log::error!(
-							"[Blockchain] Failed to recreate executor after runtime upgrade: {e}. \
+				Ok(code) =>
+					match RuntimeExecutor::with_config(code, None, self.executor_config.clone()) {
+						Ok(executor) => Some(executor),
+						Err(e) => {
+							log::error!(
+								"[Blockchain] Failed to recreate executor after runtime upgrade: {e}. \
 							 Subsequent runtime calls may fail until the next successful upgrade."
-						);
-						None
+							);
+							None
+						},
 					},
-				},
 				Err(e) => {
 					log::error!(
 						"[Blockchain] Failed to get runtime code after upgrade: {e}. \
