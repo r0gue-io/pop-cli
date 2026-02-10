@@ -39,17 +39,17 @@ mod messages {
 	/// Shutdown message.
 	pub const SHUTTING_DOWN: &str = "Shutting down...";
 
-	/// Format "Forking <endpoint>..." progress message.
+	/// Format "Forking `endpoint`..." progress message.
 	pub fn forking(endpoint: &impl std::fmt::Display) -> String {
 		format!("Forking {endpoint}...")
 	}
 
-	/// Format "Dev accounts funded on <chain>" message.
+	/// Format "Dev accounts funded on `chain`" message.
 	pub fn dev_accounts_funded(chain_name: &str) -> String {
 		format!("Dev accounts funded on {chain_name}")
 	}
 
-	/// Format "Forked <chain> at block #<n> -> <ws_url>" message.
+	/// Format "Forked `chain` at block #N -> `ws_url`" message.
 	pub fn forked(chain_name: &str, block_number: u32, ws_url: &str) -> String {
 		format!("Forked {chain_name} at block #{block_number} -> {ws_url}")
 	}
