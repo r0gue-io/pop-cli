@@ -555,15 +555,7 @@ mod tests {
 		let result = Command::build_serve_args(&args);
 		assert_eq!(
 			result,
-			vec![
-				"fork",
-				"-e",
-				"wss://rpc.polkadot.io",
-				"--at",
-				"5000",
-				"--dev",
-				"--serve"
-			]
+			vec!["fork", "-e", "wss://rpc.polkadot.io", "--at", "5000", "--dev", "--serve"]
 		);
 	}
 
