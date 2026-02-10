@@ -133,7 +133,7 @@ impl Command {
 		}
 
 		// When a well-known chain is specified, try each RPC URL with fallback.
-		if let Some(chain) = args.chain.clone() {
+		if let Some(chain) = args.chain {
 			return Self::execute_with_fallback(args, &chain, cli).await;
 		}
 
