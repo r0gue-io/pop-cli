@@ -116,7 +116,7 @@ pub struct LocalStorageLayer {
 	parent: RemoteStorageLayer,
 	first_forked_block_hash: H256,
 	first_forked_block_number: u32,
-	latest_block_number: u32,
+	current_block_number: u32,
 	modifications: Arc<RwLock<Modifications>>,
 	deleted_prefixes: Arc<RwLock<DeletedPrefixes>>,
 	/// Metadata versions indexed by the block number when they became valid.
@@ -149,7 +149,8 @@ impl LocalStorageLayer {
 			parent,
 			first_forked_block_hash,
 			first_forked_block_number,
-			latest_block_number: first_forked_block_number,
+			current_block_number: first_forked_block_number + 1, /* current_block_number is the
+			                                                      * one to be produced. */
 			modifications: Arc::new(RwLock::new(HashMap::new())),
 			deleted_prefixes: Arc::new(RwLock::new(Vec::new())),
 			metadata_versions: Arc::new(RwLock::new(metadata_versions)),
@@ -183,9 +184,9 @@ impl LocalStorageLayer {
 		Ok(self.parent.fetch_and_cache_block_by_number(block_number).await?)
 	}
 
-	/// Get the current latest block number.
-	pub fn get_latest_block_number(&self) -> u32 {
-		self.latest_block_number
+	/// Get the current block number.
+	pub fn get_current_block_number(&self) -> u32 {
+		self.current_block_number
 	}
 
 	/// Get a reference to the underlying storage cache.
@@ -334,7 +335,7 @@ impl LocalStorageLayer {
 		key: &[u8],
 		block_number: u32,
 	) -> Result<Option<Option<SharedValue>>, LocalStorageError> {
-		let latest_block_number = self.get_latest_block_number();
+		let latest_block_number = self.get_current_block_number();
 		let modifications_lock =
 			self.modifications.read().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
 		let deleted_prefixes_lock = self
@@ -377,7 +378,7 @@ impl LocalStorageLayer {
 		block_number: u32,
 		key: &[u8],
 	) -> Result<Option<SharedValue>, LocalStorageError> {
-		let latest_block_number = self.get_latest_block_number();
+		let latest_block_number = self.get_current_block_number();
 
 		// First check if the key has a local modification
 		if let local_modification @ Ok(Some(_)) = self.get_local_modification(key, block_number) {
@@ -524,7 +525,7 @@ impl LocalStorageLayer {
 		// 1. Get remote keys at the fork point.
 		let remote_keys = self.parent.get_keys(self.first_forked_block_hash, prefix).await?;
 
-		let latest_block_number = self.get_latest_block_number();
+		let latest_block_number = self.get_current_block_number();
 
 		if block_number >= latest_block_number {
 			// Latest block: use in-memory modifications (fast path).
@@ -624,7 +625,7 @@ impl LocalStorageLayer {
 		let mut modifications_lock =
 			self.modifications.write().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
 
-		let latest_block_number = self.get_latest_block_number();
+		let latest_block_number = self.get_current_block_number();
 
 		modifications_lock.insert(
 			key.to_vec(),
@@ -667,7 +668,7 @@ impl LocalStorageLayer {
 			return Ok(vec![]);
 		}
 
-		let latest_block_number = self.get_latest_block_number();
+		let latest_block_number = self.get_current_block_number();
 		let mut results: Vec<Option<SharedValue>> = Vec::with_capacity(keys.len());
 		let mut non_local_keys: Vec<&[u8]> = Vec::new();
 		let mut non_local_indices: Vec<usize> = Vec::new();
@@ -798,7 +799,7 @@ impl LocalStorageLayer {
 			return Ok(());
 		}
 
-		let latest_block_number = self.get_latest_block_number();
+		let latest_block_number = self.get_current_block_number();
 
 		let mut modifications_lock =
 			self.modifications.write().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
@@ -901,8 +902,8 @@ impl LocalStorageLayer {
 	/// - The modifications HashMap remains intact and available after commit
 	/// - Increases the latest block number
 	pub async fn commit(&mut self) -> Result<(), LocalStorageError> {
-		let latest_block_number = self.get_latest_block_number();
-		let new_latest_block = latest_block_number
+		let current_block_number = self.get_current_block_number();
+		let new_latest_block = current_block_number
 			.checked_add(ONE_BLOCK)
 			.ok_or(LocalStorageError::Arithmetic)?;
 
@@ -916,7 +917,7 @@ impl LocalStorageLayer {
 			.iter()
 			.filter_map(|(key, shared_value)| {
 				shared_value.as_ref().and_then(|sv| {
-					if sv.last_modification_block == latest_block_number {
+					if sv.last_modification_block == current_block_number {
 						Some((key.as_slice(), sv.value.as_deref()))
 					} else {
 						None
@@ -929,23 +930,23 @@ impl LocalStorageLayer {
 		for (key, value) in entries_to_commit {
 			match self.parent.cache().get_local_key(key).await? {
 				Some(LocalKeyRow { id: key_id, .. }) => {
-					self.parent.cache().close_local_value(key_id, latest_block_number).await?;
+					self.parent.cache().close_local_value(key_id, current_block_number).await?;
 					self.parent
 						.cache()
-						.insert_local_value(key_id, value, latest_block_number)
+						.insert_local_value(key_id, value, current_block_number)
 						.await?;
 				},
 				_ => {
 					let key_id = self.parent.cache().insert_local_key(key).await?;
 					self.parent
 						.cache()
-						.insert_local_value(key_id, value, latest_block_number)
+						.insert_local_value(key_id, value, current_block_number)
 						.await?;
 				},
 			}
 		}
 
-		self.latest_block_number = new_latest_block;
+		self.current_block_number = new_latest_block;
 
 		Ok(())
 	}
@@ -998,7 +999,7 @@ mod tests {
 		let diff = layer.diff().unwrap();
 		assert_eq!(diff.len(), 0, "New layer should have no modifications");
 		assert_eq!(layer.first_forked_block_number, ctx.block_number());
-		assert_eq!(layer.latest_block_number, ctx.block_number() + 1);
+		assert_eq!(layer.current_block_number, ctx.block_number() + 1);
 	}
 
 	// Tests for get()
@@ -1006,7 +1007,7 @@ mod tests {
 	async fn get_returns_local_modification() {
 		let ctx = TestContext::for_local().await;
 		let mut layer = create_layer(&ctx);
-		let block = layer.get_latest_block_number();
+		let block = layer.get_current_block_number();
 
 		let key = b"test_key";
 		let value = b"test_value";
@@ -1027,7 +1028,7 @@ mod tests {
 		// After a few commits, the last modification blocks remains the same
 		layer.commit().await.unwrap();
 		layer.commit().await.unwrap();
-		let new_block = layer.get_latest_block_number();
+		let new_block = layer.get_current_block_number();
 		let result = layer.get(new_block, key).await.unwrap();
 		assert_eq!(
 			result,
@@ -1055,7 +1056,7 @@ mod tests {
 	async fn get_returns_none_for_deleted_prefix_if_exact_key_not_found() {
 		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
-		let block = layer.get_latest_block_number();
+		let block = layer.get_current_block_number();
 
 		let key = b"key";
 		let prefix = b"ke";
@@ -1074,7 +1075,7 @@ mod tests {
 	async fn get_returns_some_for_deleted_prefix_if_exact_key_found_after_deletion() {
 		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
-		let block = layer.get_latest_block_number();
+		let block = layer.get_current_block_number();
 
 		let key = b"key";
 		let prefix = b"ke";
@@ -1100,7 +1101,7 @@ mod tests {
 	async fn get_falls_back_to_parent() {
 		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
-		let block = layer.get_latest_block_number();
+		let block = layer.get_current_block_number();
 
 		let key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 
@@ -1113,7 +1114,7 @@ mod tests {
 	async fn get_local_overrides_parent() {
 		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
-		let block = layer.get_latest_block_number();
+		let block = layer.get_current_block_number();
 
 		let key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 		let local_value = b"local_override";
@@ -1140,7 +1141,7 @@ mod tests {
 	async fn get_returns_none_for_nonexistent_key() {
 		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
-		let block = layer.get_latest_block_number();
+		let block = layer.get_current_block_number();
 
 		let key = b"nonexistent_key_12345";
 
@@ -1164,12 +1165,12 @@ mod tests {
 		// Set and commit at block N (first_forked_block)
 		layer.set(key, Some(value_block_1)).unwrap();
 		layer.commit().await.unwrap();
-		let block_1 = layer.get_latest_block_number() - 1; // Block where we committed
+		let block_1 = layer.get_current_block_number() - 1; // Block where we committed
 
 		// Set and commit at block N+1
 		layer.set(key, Some(value_block_2)).unwrap();
 		layer.commit().await.unwrap();
-		let block_2 = layer.get_latest_block_number() - 1; // Block where we committed
+		let block_2 = layer.get_current_block_number() - 1; // Block where we committed
 
 		// Query at block_1 - should get value_block_1 from local_storage table
 		let result_block_1 = layer.get(block_1, key).await.unwrap();
@@ -1192,7 +1193,7 @@ mod tests {
 		);
 
 		// Query at latest block - should get value_block_2 from modifications
-		let result_latest = layer.get(layer.get_latest_block_number(), key).await.unwrap();
+		let result_latest = layer.get(layer.get_current_block_number(), key).await.unwrap();
 		assert_eq!(
 			result_latest,
 			Some(Arc::new(LocalSharedValue {
@@ -1212,7 +1213,7 @@ mod tests {
 		// Advance a few blocks
 		layer.commit().await.unwrap();
 		layer.commit().await.unwrap();
-		let committed_block = layer.get_latest_block_number() - 1;
+		let committed_block = layer.get_current_block_number() - 1;
 
 		// Query the unmodified_key at the committed block
 		// Since unmodified_key was never modified, it should fall back to remote at
@@ -1253,7 +1254,7 @@ mod tests {
 	async fn set_stores_value() {
 		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
-		let block = layer.get_latest_block_number();
+		let block = layer.get_current_block_number();
 
 		let key = b"key";
 		let value = b"value";
@@ -1275,7 +1276,7 @@ mod tests {
 	async fn set_overwrites_previous_value() {
 		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
-		let block = layer.get_latest_block_number();
+		let block = layer.get_current_block_number();
 
 		let key = b"key";
 		let value1 = b"value1";
@@ -1303,7 +1304,7 @@ mod tests {
 	async fn get_batch_returns_local_modifications() {
 		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
-		let block = layer.get_latest_block_number();
+		let block = layer.get_current_block_number();
 
 		let key1 = b"key1";
 		let key2 = b"key2";
@@ -1322,7 +1323,7 @@ mod tests {
 	async fn get_batch_returns_none_for_deleted_prefix() {
 		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
-		let block = layer.get_latest_block_number();
+		let block = layer.get_current_block_number();
 
 		let key1 = b"key1";
 		let key2 = b"key2";
@@ -1339,7 +1340,7 @@ mod tests {
 	async fn get_batch_falls_back_to_parent() {
 		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
-		let block = layer.get_latest_block_number();
+		let block = layer.get_current_block_number();
 
 		let key1 = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 		let key2 = hex::decode(SYSTEM_PARENT_HASH_KEY).unwrap();
@@ -1353,7 +1354,7 @@ mod tests {
 	async fn get_batch_local_overrides_parent() {
 		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
-		let block = layer.get_latest_block_number();
+		let block = layer.get_current_block_number();
 
 		let key1 = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
 		let key2 = hex::decode(SYSTEM_PARENT_HASH_KEY).unwrap();
@@ -1374,7 +1375,7 @@ mod tests {
 	async fn get_batch_mixed_sources() {
 		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
-		let block = layer.get_latest_block_number();
+		let block = layer.get_current_block_number();
 
 		let local_key = b"local_key";
 		let remote_key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
@@ -1406,7 +1407,7 @@ mod tests {
 	async fn get_batch_maintains_order() {
 		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
-		let block = layer.get_latest_block_number();
+		let block = layer.get_current_block_number();
 
 		let key1 = b"key1";
 		let key2 = b"key2";
@@ -1446,14 +1447,14 @@ mod tests {
 			.set_batch(&[(key1, Some(value1_block_1)), (key2, Some(value2_block_1))])
 			.unwrap();
 		layer.commit().await.unwrap();
-		let block_1 = layer.get_latest_block_number() - 1;
+		let block_1 = layer.get_current_block_number() - 1;
 
 		// Set and commit at block N+1
 		layer
 			.set_batch(&[(key1, Some(value1_block_2)), (key2, Some(value2_block_2))])
 			.unwrap();
 		layer.commit().await.unwrap();
-		let block_2 = layer.get_latest_block_number() - 1;
+		let block_2 = layer.get_current_block_number() - 1;
 
 		// Query at block_1 - should get values from local_storage table
 		let results_block_1 = layer.get_batch(block_1, &[key1, key2]).await.unwrap();
@@ -1491,7 +1492,7 @@ mod tests {
 
 		// Query at latest block - should get values from modifications
 		let results_latest =
-			layer.get_batch(layer.get_latest_block_number(), &[key1, key2]).await.unwrap();
+			layer.get_batch(layer.get_current_block_number(), &[key1, key2]).await.unwrap();
 		assert_eq!(
 			results_latest[0],
 			Some(Arc::new(LocalSharedValue {
@@ -1519,7 +1520,7 @@ mod tests {
 		// Advance a few blocks
 		layer.commit().await.unwrap();
 		layer.commit().await.unwrap();
-		let committed_block = layer.get_latest_block_number() - 1;
+		let committed_block = layer.get_current_block_number() - 1;
 
 		// Query the unmodified keys at the committed block
 		// Since they were never modified, they should fall back to remote at first_forked_block
@@ -1597,7 +1598,7 @@ mod tests {
 		layer.commit().await.unwrap();
 		layer.commit().await.unwrap();
 
-		let latest_block_1 = layer.get_latest_block_number();
+		let latest_block_1 = layer.get_current_block_number();
 
 		let key1 = b"local_key";
 		let key2 = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
@@ -1627,7 +1628,7 @@ mod tests {
 		// Commit block modifications
 		layer.commit().await.unwrap();
 
-		let latest_block_2 = layer.get_latest_block_number();
+		let latest_block_2 = layer.get_current_block_number();
 
 		layer.set(key1, Some(b"local_value_2")).unwrap();
 
@@ -1688,7 +1689,7 @@ mod tests {
 	async fn set_batch_with_deletions() {
 		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
-		let block = layer.get_latest_block_number();
+		let block = layer.get_current_block_number();
 
 		let key1 = b"key1";
 		let key2 = b"key2";
@@ -1706,7 +1707,7 @@ mod tests {
 	async fn set_batch_overwrites_previous_values() {
 		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
-		let block = layer.get_latest_block_number();
+		let block = layer.get_current_block_number();
 
 		let key = b"key";
 		let value1 = b"value1";
@@ -1723,7 +1724,7 @@ mod tests {
 	async fn set_batch_duplicate_keys_last_wins() {
 		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
-		let block = layer.get_latest_block_number();
+		let block = layer.get_current_block_number();
 
 		let key = b"key";
 		let value1 = b"value1";
@@ -1765,7 +1766,7 @@ mod tests {
 	async fn delete_prefix_blocks_parent_reads() {
 		let ctx = TestContext::for_local().await;
 		let layer = create_layer(&ctx);
-		let block = layer.get_latest_block_number();
+		let block = layer.get_current_block_number();
 
 		let prefix = hex::decode(SYSTEM_PALLET_PREFIX).unwrap();
 		let key = hex::decode(SYSTEM_NUMBER_KEY).unwrap();
@@ -1920,7 +1921,7 @@ mod tests {
 		let ctx = TestContext::for_local().await;
 		let mut layer = create_layer(&ctx);
 
-		let block = layer.get_latest_block_number();
+		let block = layer.get_current_block_number();
 
 		let key1 = b"commit_key1";
 		let key2 = b"commit_key2";
@@ -1965,7 +1966,7 @@ mod tests {
 		let ctx = TestContext::for_local().await;
 		let mut layer = create_layer(&ctx);
 
-		let block = layer.get_latest_block_number();
+		let block = layer.get_current_block_number();
 
 		let key = b"preserve_key";
 		let value = b"preserve_value";
@@ -1988,7 +1989,7 @@ mod tests {
 	async fn commit_with_deletions() {
 		let ctx = TestContext::for_local().await;
 		let mut layer = create_layer(&ctx);
-		let block = layer.get_latest_block_number();
+		let block = layer.get_current_block_number();
 
 		let key1 = b"delete_key1";
 		let key2 = b"delete_key2";
@@ -2023,7 +2024,7 @@ mod tests {
 	async fn commit_multiple_times() {
 		let ctx = TestContext::for_local().await;
 		let mut layer = create_layer(&ctx);
-		let block = layer.get_latest_block_number();
+		let block = layer.get_current_block_number();
 
 		let key = b"multi_block_key";
 		let value = b"multi_block_value";
@@ -2053,7 +2054,7 @@ mod tests {
 		let value2 = b"value_version_2";
 
 		// Block N: Set initial value and commit
-		let block_n = layer.get_latest_block_number();
+		let block_n = layer.get_current_block_number();
 		layer.set(key, Some(value1)).unwrap();
 		layer.commit().await.unwrap();
 
@@ -2149,7 +2150,7 @@ mod tests {
 		let value3 = b"value3";
 
 		// Block N: Set key1 and commit
-		let block_n = layer.get_latest_block_number() as i64;
+		let block_n = layer.get_current_block_number() as i64;
 		layer.set(key1, Some(value1)).unwrap();
 		layer.commit().await.unwrap();
 
@@ -2417,7 +2418,7 @@ mod tests {
 		// Modify a non-code key
 		layer.set(b"some_random_key", Some(b"some_value")).unwrap();
 
-		let block = layer.get_latest_block_number();
+		let block = layer.get_current_block_number();
 		let result = layer.has_code_changed_at(block).unwrap();
 		assert!(!result, "Should return false when only non-code keys modified");
 	}
@@ -2431,7 +2432,7 @@ mod tests {
 		let code_key = sp_core::storage::well_known_keys::CODE;
 		layer.set(code_key, Some(b"new_runtime_code")).unwrap();
 
-		let block = layer.get_latest_block_number();
+		let block = layer.get_current_block_number();
 		let result = layer.has_code_changed_at(block).unwrap();
 		assert!(result, "Should return true when :code was modified at the specified block");
 	}
@@ -2445,7 +2446,7 @@ mod tests {
 		let code_key = sp_core::storage::well_known_keys::CODE;
 		layer.set(code_key, Some(b"new_runtime_code")).unwrap();
 
-		let current_block = layer.get_latest_block_number();
+		let current_block = layer.get_current_block_number();
 
 		// Check a different block number - should return false
 		let result = layer.has_code_changed_at(current_block + 1).unwrap();
@@ -2461,7 +2462,7 @@ mod tests {
 		let mut layer = create_layer(&ctx);
 
 		let code_key = sp_core::storage::well_known_keys::CODE;
-		let first_block = layer.get_latest_block_number();
+		let first_block = layer.get_current_block_number();
 
 		// Modify code at first block
 		layer.set(code_key, Some(b"runtime_v1")).unwrap();
@@ -2472,7 +2473,7 @@ mod tests {
 
 		// Commit and advance to next block
 		layer.commit().await.unwrap();
-		let second_block = layer.get_latest_block_number();
+		let second_block = layer.get_current_block_number();
 
 		// Code was modified at first_block, not second_block
 		assert!(
