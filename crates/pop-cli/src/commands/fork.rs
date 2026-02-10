@@ -28,6 +28,33 @@ const DETACH_READY_TIMEOUT_SECS: u64 = 120;
 /// Poll interval when checking for fork server readiness.
 const DETACH_READY_POLL_MS: u64 = 200;
 
+/// UI messages used across interactive and headless paths.
+mod messages {
+	/// Intro message for the fork CLI session.
+	pub const INTRO: &str = "Forking chain";
+	/// Intro message for detached fork mode.
+	pub const INTRO_DETACHED: &str = "Forking chain (detached mode)";
+	/// Prompt to stop the server.
+	pub const PRESS_CTRL_C: &str = "Press Ctrl+C to stop.";
+	/// Shutdown message.
+	pub const SHUTTING_DOWN: &str = "Shutting down...";
+
+	/// Format "Forking <endpoint>..." progress message.
+	pub fn forking(endpoint: &impl std::fmt::Display) -> String {
+		format!("Forking {endpoint}...")
+	}
+
+	/// Format "Dev accounts funded on <chain>" message.
+	pub fn dev_accounts_funded(chain_name: &str) -> String {
+		format!("Dev accounts funded on {chain_name}")
+	}
+
+	/// Format "Forked <chain> at block #<n> -> <ws_url>" message.
+	pub fn forked(chain_name: &str, block_number: u32, ws_url: &str) -> String {
+		format!("Forked {chain_name} at block #{block_number} -> {ws_url}")
+	}
+}
+
 /// Arguments for the fork command.
 #[derive(Args, Clone, Default, Serialize)]
 #[command(group = ArgGroup::new("source").args(["chain", "endpoint"]))]
@@ -96,9 +123,9 @@ impl Command {
 
 		// Show intro first so the cliclack session is set up before any prompts.
 		if args.detach {
-			cli.intro("Forking chain (detached mode)")?;
+			cli.intro(messages::INTRO_DETACHED)?;
 		} else {
-			cli.intro("Forking chain")?;
+			cli.intro(messages::INTRO)?;
 		}
 
 		// When a well-known chain is specified, try each RPC URL with fallback.
@@ -270,7 +297,7 @@ impl Command {
 
 		let fork_point = args.at.map(BlockForkPoint::from);
 
-		println!("Forking {}...", endpoint);
+		log::info!("{}", messages::forking(&endpoint));
 
 		let blockchain = Blockchain::fork_with_config(
 			&endpoint,
@@ -282,43 +309,35 @@ impl Command {
 
 		if args.dev {
 			blockchain.initialize_dev_accounts().await?;
-			log::info!("Dev accounts funded on {}", blockchain.chain_name());
+			log::info!("{}", messages::dev_accounts_funded(blockchain.chain_name()));
 		}
 
 		let txpool = Arc::new(TxPool::new());
 		let server_config = RpcServerConfig { port: args.port, ..Default::default() };
 		let server = ForkRpcServer::start(blockchain.clone(), txpool, server_config).await?;
 
-		println!(
-			"Forked {} at block #{} -> {}",
+		let forked_msg = messages::forked(
 			blockchain.chain_name(),
 			blockchain.fork_point_number(),
-			server.ws_url()
+			&server.ws_url(),
 		);
+		log::info!("{forked_msg}");
 
 		// Signal readiness to the parent process (detach mode).
 		if let Some(ready_path) = &args.ready_file {
-			std::fs::write(
-				ready_path,
-				format!(
-					"Forked {} at block #{} -> {}",
-					blockchain.chain_name(),
-					blockchain.fork_point_number(),
-					server.ws_url()
-				),
-			)?;
+			std::fs::write(ready_path, &forked_msg)?;
 		}
 
-		println!("Server running. Waiting for termination signal...");
+		log::info!("Server running. Waiting for termination signal...");
 
 		// Wait for termination signal
 		tokio::signal::ctrl_c().await?;
 
-		println!("Shutting down...");
+		log::info!("{}", messages::SHUTTING_DOWN);
 		server.stop().await;
 		let _ = blockchain.clear_local_storage().await;
 
-		println!("Shutdown complete.");
+		log::info!("Shutdown complete.");
 		Ok(())
 	}
 
@@ -337,7 +356,7 @@ impl Command {
 
 		let fork_point = args.at.map(BlockForkPoint::from);
 
-		cli.info(format!("Forking {}...", endpoint))?;
+		cli.info(messages::forking(&endpoint))?;
 
 		let blockchain = Blockchain::fork_with_config(
 			&endpoint,
@@ -349,7 +368,7 @@ impl Command {
 
 		if args.dev {
 			blockchain.initialize_dev_accounts().await?;
-			cli.info(format!("Dev accounts funded on {}", blockchain.chain_name()))?;
+			cli.info(messages::dev_accounts_funded(blockchain.chain_name()))?;
 		}
 
 		let txpool = Arc::new(TxPool::new());
@@ -358,9 +377,8 @@ impl Command {
 
 		let ws = server.ws_url();
 		cli.success(format!(
-			"Forked {} at block #{} -> {ws}\n{}\n{}",
-			blockchain.chain_name(),
-			blockchain.fork_point_number(),
+			"{}\n{}\n{}",
+			messages::forked(blockchain.chain_name(), blockchain.fork_point_number(), &ws),
 			style(format!("  polkadot.js: https://polkadot.js.org/apps/?rpc={ws}#/explorer")).dim(),
 			style(format!(
 				"  papi:        https://dev.papi.how/explorer#networkId=custom&endpoint={ws}"
@@ -368,11 +386,11 @@ impl Command {
 			.dim(),
 		))?;
 
-		cli.info("Press Ctrl+C to stop.")?;
+		cli.info(messages::PRESS_CTRL_C)?;
 
 		tokio::signal::ctrl_c().await?;
 
-		cli.info("Shutting down...")?;
+		cli.info(messages::SHUTTING_DOWN)?;
 		server.stop().await;
 		if let Err(e) = blockchain.clear_local_storage().await {
 			cli.warning(format!("Failed to clear local storage: {}", e))?;
