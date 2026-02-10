@@ -15,6 +15,7 @@ use jsonrpsee::{
 	core::{RpcResult, SubscriptionResult},
 	proc_macros::rpc,
 };
+use log::info;
 use std::sync::Arc;
 use subxt::config::substrate::H256;
 
@@ -91,6 +92,13 @@ impl AuthorApiServer for AuthorApi {
 			eprintln!("[AuthorApi] Extrinsic failed dispatch after validation: {}", failed.reason);
 		}
 
+		info!(
+			"[author] Extrinsic submitted (0x{}) included in block #{} (0x{})",
+			hex::encode(hash.as_bytes()),
+			result.block.number,
+			hex::encode(&result.block.hash.as_bytes()[..4]),
+		);
+
 		Ok(HexString::from_bytes(hash.as_bytes()).into())
 	}
 
@@ -123,7 +131,7 @@ impl AuthorApiServer for AuthorApi {
 		}
 
 		// Calculate hash
-		let _hash = H256::from(sp_core::blake2_256(&ext_bytes));
+		let hash = H256::from(sp_core::blake2_256(&ext_bytes));
 
 		// Send "ready" status (only after validation passes)
 		let msg = jsonrpsee::SubscriptionMessage::from_json(&serde_json::json!({"ready": null}))?;
@@ -167,6 +175,13 @@ impl AuthorApiServer for AuthorApi {
 				}
 
 				let block_hex = format!("0x{}", hex::encode(result.block.hash.as_bytes()));
+
+				info!(
+					"[author] Extrinsic submitted (0x{}) included in block #{} (0x{})",
+					hex::encode(hash.as_bytes()),
+					result.block.number,
+					hex::encode(&result.block.hash.as_bytes()[..4]),
+				);
 
 				// Send "inBlock" status
 				let msg = jsonrpsee::SubscriptionMessage::from_json(

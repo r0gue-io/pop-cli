@@ -61,3 +61,9 @@ impl From<runtime_call::Error> for ExecutorError {
 		ExecutorError::RuntimeError { method: String::new(), message: err.to_string() }
 	}
 }
+
+impl From<runtime_call::ErrorDetail> for ExecutorError {
+	fn from(err: runtime_call::ErrorDetail) -> Self {
+		ExecutorError::RuntimeError { method: String::new(), message: err.to_string() }
+	}
+}

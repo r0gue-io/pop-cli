@@ -16,6 +16,7 @@ use jsonrpsee::{
 	core::{RpcResult, SubscriptionResult},
 	proc_macros::rpc,
 };
+use log::{debug, warn};
 use scale::Decode;
 use std::sync::Arc;
 use tokio::sync::broadcast;
@@ -91,18 +92,31 @@ impl ChainApiServer for ChainApi {
 
 	async fn get_header(&self, hash: Option<String>) -> RpcResult<Option<RpcHeader>> {
 		let block_hash = match hash {
-			Some(h) => parse_block_hash(&h)?,
+			Some(ref h) => parse_block_hash(h)?,
 			None => self.blockchain.head_hash().await,
 		};
+
+		debug!("[chain] getHeader requested for {}", hash.as_deref().unwrap_or("(head)"));
 
 		match self.blockchain.block_header(block_hash).await {
 			Ok(Some(header_bytes)) => {
 				let header = Header::decode(&mut header_bytes.as_slice()).map_err(|e| {
 					RpcServerError::Internal(format!("Failed to decode header: {e}"))
 				})?;
+				debug!(
+					"[chain] getHeader returning #{} (parent=0x{}...)",
+					header.number,
+					hex::encode(&header.parent_hash.0[..4])
+				);
 				Ok(Some(RpcHeader::from_header(&header)))
 			},
-			Ok(None) => Ok(None),
+			Ok(None) => {
+				warn!(
+					"[chain] getHeader: block not found for 0x{}",
+					hex::encode(&block_hash.0[..8])
+				);
+				Ok(None)
+			},
 			Err(e) =>
 				Err(RpcServerError::Internal(format!("Failed to fetch block header: {e}")).into()),
 		}
@@ -114,19 +128,30 @@ impl ChainApiServer for ChainApi {
 			None => self.blockchain.head_hash().await,
 		};
 
+		debug!("[chain] getBlock requested for {}", hash.as_deref().unwrap_or("(head)"));
+
 		// Get header
 		let header = match self
 			.get_header(Some(HexString::from_bytes(block_hash.as_bytes()).into()))
 			.await?
 		{
 			Some(h) => h,
-			None => return Ok(None),
+			None => {
+				warn!(
+					"[chain] getBlock: header not found for 0x{}",
+					hex::encode(&block_hash.0[..8])
+				);
+				return Ok(None);
+			},
 		};
 
 		// Get extrinsics
 		let extrinsics = match self.blockchain.block_body(block_hash).await {
 			Ok(Some(body)) => body.iter().map(|ext| HexString::from_bytes(ext).into()).collect(),
-			Ok(None) => return Ok(None),
+			Ok(None) => {
+				warn!("[chain] getBlock: body not found for 0x{}", hex::encode(&block_hash.0[..8]));
+				return Ok(None);
+			},
 			Err(e) =>
 				return Err(
 					RpcServerError::Internal(format!("Failed to fetch block body: {e}")).into()
@@ -146,13 +171,40 @@ impl ChainApiServer for ChainApi {
 		let blockchain = Arc::clone(&self.blockchain);
 		let token = self.shutdown_token.clone();
 
+		debug!("[chain] New heads subscription accepted");
+
 		// Send current head immediately
 		let head_hash = blockchain.head_hash().await;
-		if let Ok(Some(header_bytes)) = blockchain.block_header(head_hash).await &&
-			let Ok(header) = Header::decode(&mut header_bytes.as_slice())
-		{
-			let rpc_header = RpcHeader::from_header(&header);
-			let _ = sink.send(jsonrpsee::SubscriptionMessage::from_json(&rpc_header)?).await;
+		match blockchain.block_header(head_hash).await {
+			Ok(Some(header_bytes)) => match Header::decode(&mut header_bytes.as_slice()) {
+				Ok(header) => {
+					// Log the hash that PJS will compute from re-encoding this header
+					use scale::Encode;
+					use sp_core::hashing::blake2_256;
+					let reencoded = header.encode();
+					let computed_hash = blake2_256(&reencoded);
+					debug!(
+						"[chain] Initial head #{}: stored_hash=0x{} computed_hash=0x{} parent=0x{} (header {} bytes, reencoded {} bytes)",
+						header.number,
+						hex::encode(head_hash.as_bytes()),
+						hex::encode(computed_hash),
+						hex::encode(header.parent_hash.as_bytes()),
+						header_bytes.len(),
+						reencoded.len(),
+					);
+					let rpc_header = RpcHeader::from_header(&header);
+					let _ =
+						sink.send(jsonrpsee::SubscriptionMessage::from_json(&rpc_header)?).await;
+					debug!("[chain] Sent initial head #{}", header.number);
+				},
+				Err(e) => warn!(
+					"[chain] Failed to decode initial head header ({} bytes): {e}",
+					header_bytes.len()
+				),
+			},
+			Ok(None) =>
+				warn!("[chain] No header found for head hash 0x{}", hex::encode(&head_hash.0[..4])),
+			Err(e) => warn!("[chain] Failed to fetch initial head header: {e}"),
 		}
 
 		// Subscribe to blockchain events
@@ -168,30 +220,44 @@ impl ChainApiServer for ChainApi {
 					_ = token.cancelled() => break,
 
 					// Client disconnected
-					_ = sink.closed() => break,
+					_ = sink.closed() => {
+						debug!("[chain] Subscriber disconnected");
+						break;
+					},
 
 					// New event received
 					event = receiver.recv() => {
 						match event {
-							Ok(BlockchainEvent::NewBlock { header, .. }) => {
-								// Decode and send the new header in RPC format
-								if let Ok(decoded) = Header::decode(&mut header.as_slice()) {
-									let rpc_header = RpcHeader::from_header(&decoded);
-									let msg = match jsonrpsee::SubscriptionMessage::from_json(&rpc_header) {
-										Ok(m) => m,
-										Err(_) => continue,
-									};
-									if sink.send(msg).await.is_err() {
-										break; // Client disconnected
-									}
+							Ok(BlockchainEvent::NewBlock { number, header, .. }) => {
+								match Header::decode(&mut header.as_slice()) {
+									Ok(decoded) => {
+										let rpc_header = RpcHeader::from_header(&decoded);
+										let msg = match jsonrpsee::SubscriptionMessage::from_json(&rpc_header) {
+											Ok(m) => m,
+											Err(e) => {
+												warn!("[chain] Failed to serialize header for #{number}: {e}");
+												continue;
+											},
+										};
+										if sink.send(msg).await.is_err() {
+											debug!("[chain] Subscriber disconnected during send");
+											break;
+										}
+										debug!("[chain] Sent new head #{number}");
+									},
+									Err(e) => warn!(
+										"[chain] Failed to decode header for #{number} ({} bytes): {e}",
+										header.len()
+									),
 								}
 							}
-							Err(broadcast::error::RecvError::Lagged(_)) => {
-								// Slow consumer - skip missed events
+							Err(broadcast::error::RecvError::Lagged(n)) => {
+								warn!("[chain] Subscriber lagged, skipped {n} events");
 								continue;
 							}
 							Err(broadcast::error::RecvError::Closed) => {
-								break; // Channel closed
+								debug!("[chain] Broadcast channel closed");
+								break;
 							}
 						}
 					}

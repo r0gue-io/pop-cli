@@ -59,10 +59,20 @@ use crate::{
 	},
 };
 use scale::Decode;
-use std::{path::Path, sync::Arc};
+use std::{
+	path::Path,
+	sync::{
+		Arc,
+		atomic::{AtomicU64, Ordering},
+	},
+};
 use subxt::config::substrate::H256;
 use tokio::sync::{OnceCell, RwLock, broadcast};
 use url::Url;
+
+/// Minimum interval (in seconds) between reconnection log messages at DEBUG level.
+/// More frequent reconnections are logged at TRACE to reduce noise.
+const RECONNECT_LOG_DEBOUNCE_SECS: u64 = 30;
 
 pub type BlockBody = Vec<Vec<u8>>;
 
@@ -319,12 +329,34 @@ pub struct Blockchain {
 	/// Executor configuration for runtime calls.
 	executor_config: ExecutorConfig,
 
+	/// Cached runtime executor, created once at fork time and reused across blocks.
+	///
+	/// Recreated only on runtime upgrade (when `:code` storage changes).
+	/// The executor stores the compiled WASM runtime code and is cheap to clone
+	/// (runtime code is behind an `Arc`).
+	executor: RwLock<RuntimeExecutor>,
+
+	/// Warm VM prototype for reuse across block builds.
+	///
+	/// A compiled WASM prototype that persists across block builds, avoiding
+	/// the cost of re-parsing and re-compiling the runtime (~2.5 MB for Asset Hub)
+	/// on each block. Taken before each block build and returned after finalization.
+	/// Invalidated (set to `None`) on runtime upgrade.
+	warm_prototype: tokio::sync::Mutex<Option<smoldot::executor::host::HostVmPrototype>>,
+
 	/// Remote storage layer for fetching data from the live chain.
 	///
 	/// This maintains a persistent connection to the RPC endpoint and is shared
 	/// across all blocks. All remote queries (storage, blocks, headers) go through
 	/// this layer, ensuring connection reuse.
 	remote: crate::RemoteStorageLayer,
+
+	/// Whether the initial storage prefetch has been completed.
+	///
+	/// Set to `true` after the first block build. Subsequent blocks skip the
+	/// prefetch since all `StorageValue` keys and pallet prefix pages are
+	/// already cached in the `RemoteStorageLayer`.
+	prefetched: std::sync::atomic::AtomicBool,
 
 	/// Event broadcaster for subscription notifications.
 	///
@@ -343,6 +375,14 @@ pub struct Blockchain {
 	/// This cache is instance-specific, ensuring each forked chain maintains
 	/// its own properties even when multiple forks run in the same process.
 	chain_properties_cache: OnceCell<Option<serde_json::Value>>,
+
+	/// Epoch milliseconds of the last reconnection log at DEBUG level.
+	///
+	/// Used to debounce reconnection messages. When the WS connection drops
+	/// during long WASM execution, concurrent RPC requests all trigger
+	/// reconnection attempts simultaneously. Without debouncing, this floods
+	/// the log with identical messages.
+	last_reconnect_log: AtomicU64,
 }
 
 impl Blockchain {
@@ -482,6 +522,11 @@ impl Blockchain {
 		// Get the remote storage layer from the fork block (shares same RPC connection)
 		let remote = fork_block.storage().remote().clone();
 
+		// Create executor once with runtime code from the fork point.
+		// This avoids re-validating and re-compiling the WASM on every block build.
+		let runtime_code = fork_block.runtime_code().await?;
+		let executor = RuntimeExecutor::with_config(runtime_code, None, executor_config.clone())?;
+
 		log::debug!("Forked at block #{fork_point_number} (0x{})", hex::encode(fork_point_hash));
 
 		Ok(Arc::new(Self {
@@ -492,10 +537,14 @@ impl Blockchain {
 			fork_point_hash,
 			fork_point_number,
 			executor_config,
+			executor: RwLock::new(executor),
+			warm_prototype: tokio::sync::Mutex::new(None),
+			prefetched: std::sync::atomic::AtomicBool::new(false),
 			remote,
 			event_tx,
 			genesis_hash_cache: OnceCell::new(),
 			chain_properties_cache: OnceCell::new(),
+			last_reconnect_log: AtomicU64::new(0),
 		}))
 	}
 
@@ -639,9 +688,18 @@ impl Blockchain {
 			}
 			current = block.parent.as_deref();
 		}
+		drop(head);
 
-		// Not found locally or is fork point - fetch from remote storage layer
-		Ok(self.remote.block_body(hash).await.map_err(BlockError::from)?)
+		// Not found locally or is fork point - fetch from remote with reconnect
+		match self.remote.block_body(hash).await {
+			Ok(body) => Ok(body),
+			Err(first_err) =>
+				if self.reconnect_upstream().await {
+					Ok(self.remote.block_body(hash).await.map_err(BlockError::from)?)
+				} else {
+					Err(BlockchainError::Block(BlockError::from(first_err)))
+				},
+		}
 	}
 
 	/// Get block header by hash.
@@ -669,9 +727,18 @@ impl Blockchain {
 			}
 			current = block.parent.as_deref();
 		}
+		drop(head);
 
-		// Not found locally - fetch from remote storage layer
-		Ok(self.remote.block_header(hash).await.map_err(BlockError::from)?)
+		// Not found locally - fetch from remote with reconnect
+		match self.remote.block_header(hash).await {
+			Ok(header) => Ok(header),
+			Err(first_err) =>
+				if self.reconnect_upstream().await {
+					Ok(self.remote.block_header(hash).await.map_err(BlockError::from)?)
+				} else {
+					Err(BlockchainError::Block(BlockError::from(first_err)))
+				},
+		}
 	}
 
 	/// Get block hash by block number.
@@ -709,9 +776,22 @@ impl Blockchain {
 
 			current = block.parent.as_deref();
 		}
+		drop(head);
 
-		// Block number is before our fork point or not found - fetch from remote storage layer
-		Ok(self.remote.block_hash_by_number(block_number).await.map_err(BlockError::from)?)
+		// Block number is before our fork point - fetch from remote with reconnect
+		match self.remote.block_hash_by_number(block_number).await {
+			Ok(hash) => Ok(hash),
+			Err(first_err) =>
+				if self.reconnect_upstream().await {
+					Ok(self
+						.remote
+						.block_hash_by_number(block_number)
+						.await
+						.map_err(BlockError::from)?)
+				} else {
+					Err(BlockchainError::Block(BlockError::from(first_err)))
+				},
+		}
 	}
 
 	/// Get block number by block hash.
@@ -737,10 +817,18 @@ impl Blockchain {
 			}
 			current = block.parent.as_deref();
 		}
+		drop(head);
 
-		// Not found locally - check if it exists on remote chain via storage layer
-		// This now uses the persistent SQLite cache before hitting RPC
-		Ok(self.remote.block_number_by_hash(hash).await.map_err(BlockError::from)?)
+		// Not found locally - check remote with reconnect
+		match self.remote.block_number_by_hash(hash).await {
+			Ok(number) => Ok(number),
+			Err(first_err) =>
+				if self.reconnect_upstream().await {
+					Ok(self.remote.block_number_by_hash(hash).await.map_err(BlockError::from)?)
+				} else {
+					Err(BlockchainError::Block(BlockError::from(first_err)))
+				},
+		}
 	}
 
 	/// Get parent hash of a block by its hash.
@@ -766,9 +854,18 @@ impl Blockchain {
 			}
 			current = block.parent.as_deref();
 		}
+		drop(head);
 
-		// Not found locally - check if it exists on remote chain via storage layer
-		Ok(self.remote.parent_hash(hash).await.map_err(BlockError::from)?)
+		// Not found locally - check remote with reconnect
+		match self.remote.parent_hash(hash).await {
+			Ok(parent) => Ok(parent),
+			Err(first_err) =>
+				if self.reconnect_upstream().await {
+					Ok(self.remote.parent_hash(hash).await.map_err(BlockError::from)?)
+				} else {
+					Err(BlockchainError::Block(BlockError::from(first_err)))
+				},
+		}
 	}
 
 	/// Build a new block with the given extrinsics.
@@ -801,17 +898,18 @@ impl Blockchain {
 		extrinsics: BlockBody,
 	) -> Result<BuildBlockResult, BlockchainError> {
 		// PHASE 1: Prepare (read lock only) - get state needed for building
-		let (parent_block, runtime_code, parent_hash) = {
+		let (parent_block, parent_hash) = {
 			let head = self.head.read().await;
-			let runtime_code = head.runtime_code().await?;
 			let parent_hash = head.hash;
-			(head.clone(), runtime_code, parent_hash)
+			(head.clone(), parent_hash)
 		}; // Read lock released here
 
 		// PHASE 2: Build (no lock held) - allows concurrent reads
-		// Create executor with current runtime and configured settings
-		let executor =
-			RuntimeExecutor::with_config(runtime_code, None, self.executor_config.clone())?;
+		// Reuse the cached executor (created at fork time, updated on runtime upgrade)
+		let executor = self.executor.read().await.clone();
+
+		// Take the warm prototype from the cache (if available from a previous block build)
+		let warm_prototype = self.warm_prototype.lock().await.take();
 
 		// Create header for new block with automatic slot digest injection
 		let header = create_next_header_with_slot(&parent_block, &executor, vec![]).await?;
@@ -823,11 +921,24 @@ impl Blockchain {
 			.map(|p| Box::new(ArcProvider(Arc::clone(p))) as Box<dyn InherentProvider>)
 			.collect();
 
-		// Create block builder
-		let mut builder = BlockBuilder::new(parent_block, executor, header, providers);
+		// Skip prefetch after the first block (keys are already cached)
+		let skip_prefetch = self.prefetched.load(std::sync::atomic::Ordering::Relaxed);
+
+		// Create block builder with warm prototype for WASM reuse
+		let mut builder = BlockBuilder::new(
+			parent_block,
+			executor,
+			header,
+			providers,
+			warm_prototype,
+			skip_prefetch,
+		);
 
 		// Initialize block
 		builder.initialize().await?;
+
+		// Mark prefetch as done for subsequent blocks
+		self.prefetched.store(true, std::sync::atomic::Ordering::Relaxed);
 
 		// Apply inherents
 		builder.apply_inherents().await?;
@@ -848,8 +959,25 @@ impl Blockchain {
 			}
 		}
 
-		// Finalize and get new block
-		let new_block = builder.finalize().await?;
+		// Check if a runtime upgrade occurred before finalizing, so we know
+		// whether to invalidate the cached executor after finalization.
+		let runtime_upgraded = builder.runtime_upgraded();
+
+		// Finalize and get new block + warm prototype for reuse
+		let (new_block, returned_prototype) = builder.finalize().await?;
+
+		// Return the warm prototype for reuse in the next block build.
+		// If a runtime upgrade occurred, discard the stale prototype.
+		if runtime_upgraded {
+			log::info!("[Blockchain] Runtime upgrade detected, recreating executor");
+			let runtime_code = new_block.runtime_code().await?;
+			let new_executor =
+				RuntimeExecutor::with_config(runtime_code, None, self.executor_config.clone())?;
+			*self.executor.write().await = new_executor;
+			// Prototype is stale after upgrade, leave warm_prototype as None
+		} else {
+			*self.warm_prototype.lock().await = returned_prototype;
+		}
 
 		// PHASE 3: Commit (brief write lock) - update head
 		{
@@ -869,6 +997,14 @@ impl Blockchain {
 			.unwrap_or_default();
 
 		// Emit event AFTER releasing lock (ignore errors - no subscribers is OK)
+		let subscribers = self.event_tx.receiver_count();
+		log::debug!(
+			"[Blockchain] Emitting NewBlock #{} event ({} modified keys, {} subscribers, {} header bytes)",
+			new_block.number,
+			modified_keys.len(),
+			subscribers,
+			new_block.header.len(),
+		);
 		let _ = self.event_tx.send(BlockchainEvent::NewBlock {
 			hash: new_block.hash,
 			number: new_block.number,
@@ -1226,9 +1362,32 @@ impl Blockchain {
 
 	/// Attempt to reconnect the upstream RPC client.
 	///
+	/// Logs at DEBUG level at most once per `RECONNECT_LOG_DEBOUNCE_SECS` seconds.
+	/// More frequent reconnection attempts are logged at TRACE to avoid flooding
+	/// the console when the WS connection drops during long WASM execution.
+	///
 	/// Returns `true` if reconnection succeeded.
 	async fn reconnect_upstream(&self) -> bool {
-		log::debug!("Upstream connection lost, reconnecting to {}", self.remote.rpc().endpoint());
+		let now_ms = std::time::SystemTime::now()
+			.duration_since(std::time::UNIX_EPOCH)
+			.map(|d| d.as_millis() as u64)
+			.unwrap_or(0);
+		let last = self.last_reconnect_log.load(Ordering::Relaxed);
+		let elapsed_secs = now_ms.saturating_sub(last) / 1000;
+
+		if elapsed_secs >= RECONNECT_LOG_DEBOUNCE_SECS {
+			self.last_reconnect_log.store(now_ms, Ordering::Relaxed);
+			log::debug!(
+				"Upstream connection lost, reconnecting to {}",
+				self.remote.rpc().endpoint()
+			);
+		} else {
+			log::trace!(
+				"Upstream connection lost, reconnecting to {}",
+				self.remote.rpc().endpoint()
+			);
+		}
+
 		self.remote.rpc().reconnect().await.is_ok()
 	}
 
@@ -1274,15 +1433,8 @@ impl Blockchain {
 		args.extend(extrinsic);
 		args.extend(head.hash.as_bytes());
 
-		// Get runtime code and create executor
-		let runtime_code = head
-			.runtime_code()
-			.await
-			.map_err(|_| TransactionValidityError::Unknown(UnknownTransaction::CannotLookup))?;
-
-		let executor =
-			RuntimeExecutor::with_config(runtime_code, None, self.executor_config.clone())
-				.map_err(|_| TransactionValidityError::Unknown(UnknownTransaction::CannotLookup))?;
+		// Reuse the cached executor (avoids re-validating WASM on every call)
+		let executor = self.executor.read().await.clone();
 
 		// Call runtime API
 		let result = executor
