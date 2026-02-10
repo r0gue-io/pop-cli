@@ -596,6 +596,99 @@ impl StorageCache {
 			.collect())
 	}
 
+	/// Get all locally-modified keys matching a prefix that existed at a specific block.
+	///
+	/// Joins `local_keys` with `local_values` to find keys where:
+	/// - The key starts with `prefix`
+	/// - A value entry is valid at `block_number` (valid_from <= block AND (valid_until IS NULL OR
+	///   valid_until > block))
+	/// - The value is not NULL (i.e., the key was not deleted at that block)
+	///
+	/// Returns a sorted list of matching keys.
+	pub async fn get_local_keys_at_block(
+		&self,
+		prefix: &[u8],
+		block_number: u32,
+	) -> Result<Vec<Vec<u8>>, CacheError> {
+		use crate::schema::{local_keys::columns as lkc, local_values::columns as lvc};
+
+		let mut conn = self.get_conn().await?;
+		let block_num = block_number as i64;
+		let prefix_vec = prefix.to_vec();
+
+		let mut query = local_keys::table
+			.inner_join(local_values::table)
+			.filter(lkc::key.ge(&prefix_vec))
+			.filter(lvc::valid_from.le(block_num))
+			.filter(lvc::valid_until.is_null().or(lvc::valid_until.gt(block_num)))
+			.filter(lvc::value.is_not_null())
+			.select(lkc::key)
+			.distinct()
+			.order(lkc::key.asc())
+			.into_boxed();
+
+		if let Some(upper) = Self::prefix_upper_bound(prefix) {
+			query = query.filter(lkc::key.lt(upper));
+		}
+
+		let keys: Vec<Vec<u8>> = query.load(&mut conn).await?;
+		Ok(keys)
+	}
+
+	/// Get all locally-deleted keys matching a prefix at a specific block.
+	///
+	/// Returns keys where the value entry valid at `block_number` has a NULL value
+	/// (explicitly deleted). This is needed to exclude deleted keys from merged
+	/// remote + local key enumeration.
+	pub async fn get_local_deleted_keys_at_block(
+		&self,
+		prefix: &[u8],
+		block_number: u32,
+	) -> Result<Vec<Vec<u8>>, CacheError> {
+		use crate::schema::{local_keys::columns as lkc, local_values::columns as lvc};
+
+		let mut conn = self.get_conn().await?;
+		let block_num = block_number as i64;
+		let prefix_vec = prefix.to_vec();
+
+		let mut query = local_keys::table
+			.inner_join(local_values::table)
+			.filter(lkc::key.ge(&prefix_vec))
+			.filter(lvc::valid_from.le(block_num))
+			.filter(lvc::valid_until.is_null().or(lvc::valid_until.gt(block_num)))
+			.filter(lvc::value.is_null())
+			.select(lkc::key)
+			.distinct()
+			.order(lkc::key.asc())
+			.into_boxed();
+
+		if let Some(upper) = Self::prefix_upper_bound(prefix) {
+			query = query.filter(lkc::key.lt(upper));
+		}
+
+		let keys: Vec<Vec<u8>> = query.load(&mut conn).await?;
+		Ok(keys)
+	}
+
+	/// Compute the exclusive upper bound for a binary prefix range query.
+	///
+	/// Increments the prefix to produce the first byte sequence that does NOT
+	/// start with `prefix`. Returns `None` if the prefix is all `0xFF` bytes
+	/// (no upper bound needed, `>=` is sufficient).
+	fn prefix_upper_bound(prefix: &[u8]) -> Option<Vec<u8>> {
+		let mut upper = prefix.to_vec();
+		// Walk backwards, incrementing the last non-0xFF byte.
+		while let Some(last) = upper.last_mut() {
+			if *last < 0xFF {
+				*last += 1;
+				return Some(upper);
+			}
+			upper.pop();
+		}
+		// All bytes were 0xFF, no upper bound possible.
+		None
+	}
+
 	/// Insert a new local value entry.
 	///
 	/// # Arguments
@@ -1669,5 +1762,92 @@ mod tests {
 		assert!(cache.get_local_key(key1).await.unwrap().is_none());
 		assert!(cache.get_local_key(key2).await.unwrap().is_none());
 		assert!(cache.get_local_value_at_block(key1, 100).await.unwrap().is_none());
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn get_local_keys_at_block_returns_live_keys() {
+		let cache = StorageCache::in_memory().await.unwrap();
+
+		// Insert keys with prefix "pallet:" at different blocks.
+		let k1 = b"pallet:alice";
+		let k2 = b"pallet:bob";
+		let k3 = b"other:charlie";
+
+		let id1 = cache.insert_local_key(k1).await.unwrap();
+		let id2 = cache.insert_local_key(k2).await.unwrap();
+		let id3 = cache.insert_local_key(k3).await.unwrap();
+
+		// k1: valid from block 100
+		cache.insert_local_value(id1, Some(b"v1"), 100).await.unwrap();
+		// k2: valid from block 200
+		cache.insert_local_value(id2, Some(b"v2"), 200).await.unwrap();
+		// k3: valid from block 100 (different prefix)
+		cache.insert_local_value(id3, Some(b"v3"), 100).await.unwrap();
+
+		// At block 150: only k1 matches "pallet:" prefix
+		let keys = cache.get_local_keys_at_block(b"pallet:", 150).await.unwrap();
+		assert_eq!(keys, vec![k1.to_vec()]);
+
+		// At block 200: both k1 and k2 match
+		let keys = cache.get_local_keys_at_block(b"pallet:", 200).await.unwrap();
+		assert_eq!(keys, vec![k1.to_vec(), k2.to_vec()]);
+
+		// At block 99: nothing matches (before any inserts)
+		let keys = cache.get_local_keys_at_block(b"pallet:", 99).await.unwrap();
+		assert!(keys.is_empty());
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn get_local_keys_at_block_excludes_deleted() {
+		let cache = StorageCache::in_memory().await.unwrap();
+
+		let k1 = b"pallet:alice";
+		let id1 = cache.insert_local_key(k1).await.unwrap();
+
+		// k1: value at block 100, deleted at block 200
+		cache.insert_local_value(id1, Some(b"v1"), 100).await.unwrap();
+		cache.close_local_value(id1, 200).await.unwrap();
+		cache.insert_local_value(id1, None, 200).await.unwrap();
+
+		// At block 150: key exists (has value)
+		let keys = cache.get_local_keys_at_block(b"pallet:", 150).await.unwrap();
+		assert_eq!(keys, vec![k1.to_vec()]);
+
+		// At block 200: key was deleted (value is NULL)
+		let keys = cache.get_local_keys_at_block(b"pallet:", 200).await.unwrap();
+		assert!(keys.is_empty());
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn get_local_deleted_keys_at_block_works() {
+		let cache = StorageCache::in_memory().await.unwrap();
+
+		let k1 = b"pallet:alice";
+		let id1 = cache.insert_local_key(k1).await.unwrap();
+
+		// k1: value at block 100, deleted at block 200
+		cache.insert_local_value(id1, Some(b"v1"), 100).await.unwrap();
+		cache.close_local_value(id1, 200).await.unwrap();
+		cache.insert_local_value(id1, None, 200).await.unwrap();
+
+		// At block 150: no deleted keys
+		let deleted = cache.get_local_deleted_keys_at_block(b"pallet:", 150).await.unwrap();
+		assert!(deleted.is_empty());
+
+		// At block 200: k1 is deleted
+		let deleted = cache.get_local_deleted_keys_at_block(b"pallet:", 200).await.unwrap();
+		assert_eq!(deleted, vec![k1.to_vec()]);
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn prefix_upper_bound_works() {
+		// Normal case
+		assert_eq!(StorageCache::prefix_upper_bound(b"abc"), Some(b"abd".to_vec()));
+		// Trailing 0xFF
+		assert_eq!(StorageCache::prefix_upper_bound(b"ab\xff"), Some(b"ac".to_vec()));
+		// All 0xFF
+		assert_eq!(StorageCache::prefix_upper_bound(b"\xff\xff"), None);
+		// Empty prefix
+		assert_eq!(StorageCache::prefix_upper_bound(b""), None);
 	}
 }

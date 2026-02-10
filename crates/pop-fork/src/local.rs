@@ -507,15 +507,40 @@ impl LocalStorageLayer {
 	///
 	/// This method combines keys from the remote layer (at the fork point) with
 	/// locally modified keys, producing a sorted, deduplicated list of keys that
-	/// exist at the current fork-local state.
+	/// exist at the specified fork-local block.
+	///
+	/// For the latest block, uses the in-memory `modifications` and
+	/// `deleted_prefixes` snapshots. For historical fork-local blocks, queries
+	/// the persisted local values in the cache to reconstruct the key set that
+	/// existed at that block.
 	///
 	/// Keys that were deleted locally (either individually via `set(key, None)`
 	/// or via `delete_prefix`) are excluded.
-	pub async fn keys_by_prefix(&self, prefix: &[u8]) -> Result<Vec<Vec<u8>>, LocalStorageError> {
+	pub async fn keys_by_prefix(
+		&self,
+		prefix: &[u8],
+		block_number: u32,
+	) -> Result<Vec<Vec<u8>>, LocalStorageError> {
 		// 1. Get remote keys at the fork point.
 		let remote_keys = self.parent.get_keys(self.first_forked_block_hash, prefix).await?;
 
-		// 2. Snapshot local modifications and deleted prefixes.
+		let latest_block_number = self.get_latest_block_number();
+
+		if block_number >= latest_block_number {
+			// Latest block: use in-memory modifications (fast path).
+			self.merge_keys_with_in_memory(remote_keys, prefix)
+		} else {
+			// Historical fork-local block: query persisted local values from cache.
+			self.merge_keys_with_cache(remote_keys, prefix, block_number).await
+		}
+	}
+
+	/// Merge remote keys with in-memory modifications for the latest block.
+	fn merge_keys_with_in_memory(
+		&self,
+		remote_keys: Vec<Vec<u8>>,
+		prefix: &[u8],
+	) -> Result<Vec<Vec<u8>>, LocalStorageError> {
 		let modifications = self
 			.modifications
 			.read()
@@ -531,7 +556,6 @@ impl LocalStorageLayer {
 			deleted_prefixes.iter().any(|dp| key.starts_with(dp.as_slice()))
 		};
 
-		// Helper: check if a local modification represents a deletion.
 		let is_locally_deleted = |key: &[u8]| -> bool {
 			modifications
 				.get::<[u8]>(key)
@@ -539,18 +563,45 @@ impl LocalStorageLayer {
 				.is_some_and(|sv| sv.value.is_none())
 		};
 
-		// 3. Merge: start with remote keys that are not deleted.
 		let mut merged: std::collections::BTreeSet<Vec<u8>> = remote_keys
 			.into_iter()
 			.filter(|k| !is_deleted(k) && !is_locally_deleted(k))
 			.collect();
 
-		// 4. Add locally-set keys that match the prefix and have a value.
-		for (key, maybe_sv) in &modifications {
+		for (key, maybe_sv) in modifications.iter() {
 			if key.starts_with(prefix) && maybe_sv.as_ref().is_some_and(|sv| sv.value.is_some()) {
 				merged.insert(key.clone());
 			}
 		}
+
+		Ok(merged.into_iter().collect())
+	}
+
+	/// Merge remote keys with persisted cache data for a historical fork-local block.
+	async fn merge_keys_with_cache(
+		&self,
+		remote_keys: Vec<Vec<u8>>,
+		prefix: &[u8],
+		block_number: u32,
+	) -> Result<Vec<Vec<u8>>, LocalStorageError> {
+		let cache = self.parent.cache();
+
+		// Get keys that had non-NULL values at this block.
+		let local_live_keys = cache.get_local_keys_at_block(prefix, block_number).await?;
+
+		// Get keys that were explicitly deleted at this block.
+		let local_deleted_keys =
+			cache.get_local_deleted_keys_at_block(prefix, block_number).await?;
+
+		let deleted_set: std::collections::HashSet<Vec<u8>> =
+			local_deleted_keys.into_iter().collect();
+
+		// Start with remote keys, excluding those deleted locally at this block.
+		let mut merged: std::collections::BTreeSet<Vec<u8>> =
+			remote_keys.into_iter().filter(|k| !deleted_set.contains(k)).collect();
+
+		// Add locally-live keys.
+		merged.extend(local_live_keys);
 
 		Ok(merged.into_iter().collect())
 	}

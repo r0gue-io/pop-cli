@@ -966,14 +966,13 @@ impl Blockchain {
 		);
 
 		let block_number = self.block_number_by_hash(block_hash).await?;
-		let is_fork_local = block_number.is_some_and(|n| n > self.fork_point_number);
 
-		if is_fork_local {
-			// Merge remote + local keys, then paginate in-memory.
+		if let Some(n) = block_number.filter(|&n| n > self.fork_point_number) {
+			// Fork-local block: merge remote + local keys, then paginate in-memory.
 			let all_keys = {
 				let head = self.head.read().await;
 				head.storage()
-					.keys_by_prefix(prefix)
+					.keys_by_prefix(prefix, n)
 					.await
 					.map_err(|e| BlockchainError::Block(BlockError::Storage(e)))?
 			};
@@ -1036,12 +1035,12 @@ impl Blockchain {
 		);
 
 		let block_number = self.block_number_by_hash(at).await?;
-		let is_fork_local = block_number.is_some_and(|n| n > self.fork_point_number);
 
-		let keys = if is_fork_local {
+		let keys = if let Some(n) = block_number.filter(|&n| n > self.fork_point_number) {
+			// Fork-local block: merge remote + local keys using persisted state.
 			let head = self.head.read().await;
 			head.storage()
-				.keys_by_prefix(prefix)
+				.keys_by_prefix(prefix, n)
 				.await
 				.map_err(|e| BlockchainError::Block(BlockError::Storage(e)))?
 		} else {
