@@ -1166,11 +1166,35 @@ impl Blockchain {
 		// Finalize and get new block + warm prototype for reuse
 		let (new_block, returned_prototype) = builder.finalize().await?;
 
-		// Prepare new executor if runtime upgraded (expensive, done before locking)
+		// Prepare new executor if runtime upgraded (expensive, done before locking).
+		// Errors here must NOT prevent head from advancing: finalize() already
+		// committed storage for the new block, so returning Err would leave the
+		// fork in an inconsistent state (persisted N+1, head at N).
 		let new_executor = if runtime_upgraded {
 			log::info!("[Blockchain] Runtime upgrade detected, recreating executor");
-			let runtime_code = new_block.runtime_code().await?;
-			Some(RuntimeExecutor::with_config(runtime_code, None, self.executor_config.clone())?)
+			match new_block.runtime_code().await {
+				Ok(code) => match RuntimeExecutor::with_config(
+					code,
+					None,
+					self.executor_config.clone(),
+				) {
+					Ok(executor) => Some(executor),
+					Err(e) => {
+						log::error!(
+							"[Blockchain] Failed to recreate executor after runtime upgrade: {e}. \
+							 Subsequent runtime calls may fail until the next successful upgrade."
+						);
+						None
+					},
+				},
+				Err(e) => {
+					log::error!(
+						"[Blockchain] Failed to get runtime code after upgrade: {e}. \
+						 Subsequent runtime calls may fail until the next successful upgrade."
+					);
+					None
+				},
+			}
 		} else {
 			None
 		};
@@ -1190,6 +1214,9 @@ impl Blockchain {
 			// consistent (head, executor) pair during runtime upgrades.
 			if let Some(executor) = new_executor {
 				*self.executor.write().await = executor;
+			}
+			if runtime_upgraded {
+				// Invalidate caches regardless of whether executor recreation succeeded.
 				self.cached_slot_duration.store(0, Ordering::Release);
 			}
 		}
@@ -1197,6 +1224,11 @@ impl Blockchain {
 		// Update warm prototype outside the head lock (brief mutex acquisition).
 		if runtime_upgraded {
 			*self.warm_prototype.lock().await = None;
+			// Invalidate inherent provider caches so stale slot durations
+			// are not carried forward after a runtime upgrade.
+			for provider in &self.inherent_providers {
+				provider.invalidate_cache();
+			}
 		} else {
 			*self.warm_prototype.lock().await = returned_prototype;
 		}
