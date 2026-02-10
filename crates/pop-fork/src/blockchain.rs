@@ -1176,7 +1176,9 @@ impl Blockchain {
 			None
 		};
 
-		// PHASE 3: Commit (brief write lock) - update head
+		// PHASE 3: Commit (write lock) - update head and caches atomically.
+		// Holding the head write lock while updating executor/prototype ensures
+		// concurrent readers see a consistent (head, executor) pair.
 		{
 			let mut head = self.head.write().await;
 			// Verify parent hasn't changed (optimistic concurrency check)
@@ -1184,17 +1186,17 @@ impl Blockchain {
 				return Err(BlockchainError::Block(BlockError::ConcurrentBlockBuild));
 			}
 			*head = new_block.clone();
-		} // Write lock released here before event emission
 
-		// Update caches only after successful commit to avoid corrupting
-		// state if a concurrent build loses the optimistic check.
-		if let Some(executor) = new_executor {
-			*self.executor.write().await = executor;
-			// Invalidate cached slot duration so the next block re-detects it
-			self.cached_slot_duration.store(0, Ordering::Release);
-			// Prototype is stale after upgrade, leave warm_prototype as None
-		} else {
-			*self.warm_prototype.lock().await = returned_prototype;
+			// Update caches only after successful commit to avoid corrupting
+			// state if a concurrent build loses the optimistic check.
+			if let Some(executor) = new_executor {
+				*self.executor.write().await = executor;
+				// Invalidate cached slot duration so the next block re-detects it
+				self.cached_slot_duration.store(0, Ordering::Release);
+				// Prototype is stale after upgrade, leave warm_prototype as None
+			} else {
+				*self.warm_prototype.lock().await = returned_prototype;
+			}
 		}
 
 		// Get modified keys from storage diff
