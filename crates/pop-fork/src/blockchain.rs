@@ -585,46 +585,71 @@ impl Blockchain {
 	/// If a block is built before warmup finishes, the builder falls back to its
 	/// normal (non-cached) path. The `Mutex`/`OnceCell` guards ensure no races.
 	pub async fn warmup(self: &Arc<Self>) {
+		let warmup_start = std::time::Instant::now();
 		log::info!("[Blockchain] Background warmup starting...");
 
-		// 1. Compile WASM prototype
+		// 1 & 2. Compile WASM prototype and compute slot duration under a single lock.
+		// Holding the lock across both steps prevents build_block() from stealing the
+		// prototype before slot duration is cached, which would cause a redundant 5s
+		// WASM compilation in create_next_header_with_slot.
 		let executor = self.executor.read().await.clone();
-		match executor.create_prototype() {
-			Ok(proto) => {
-				*self.warm_prototype.lock().await = Some(proto);
-				log::info!("[Blockchain] Warmup: WASM prototype compiled");
-			},
-			Err(e) => log::warn!("[Blockchain] Warmup: prototype compilation failed: {e}"),
-		}
-
-		// 2. Compute slot duration reusing the warm prototype (avoids a second WASM compilation).
-		//    The result is cached for create_next_header_with_slot.
 		{
 			let mut proto_guard = self.warm_prototype.lock().await;
-			if let Some(proto) = proto_guard.take() {
-				let head = self.head.read().await;
-				let (result, returned_proto) = executor
-					.call_with_prototype(
-						Some(proto),
-						crate::strings::inherent::timestamp::slot_duration::AURA_API_METHOD,
-						&[],
-						head.storage(),
-					)
-					.await;
-				*proto_guard = returned_proto;
-				drop(head);
+			match executor.create_prototype() {
+				Ok(proto) => {
+					log::info!(
+						"[Blockchain] Warmup: WASM prototype compiled ({:?})",
+						warmup_start.elapsed()
+					);
 
-				if let Ok(ref r) = result &&
-					let Ok(duration) = u64::decode(&mut r.output.as_slice())
-				{
+					// Try AuraApi_slot_duration using the warm prototype (Aura chains).
+					let head = self.head.read().await;
+					let (result, returned_proto) = executor
+						.call_with_prototype(
+							Some(proto),
+							crate::strings::inherent::timestamp::slot_duration::AURA_API_METHOD,
+							&[],
+							head.storage(),
+						)
+						.await;
+					*proto_guard = returned_proto;
+
+					let aura_duration =
+						result.ok().and_then(|r| u64::decode(&mut r.output.as_slice()).ok());
+
+					// Use the full three-tier detection: AuraApi > Babe constant > fallback.
+					// This mirrors TimestampInherent::get_slot_duration_from_runtime but
+					// avoids creating a redundant WASM prototype.
+					let duration = if let Some(d) = aura_duration {
+						d
+					} else {
+						let metadata = head.metadata().await.ok();
+						let babe_duration = metadata.as_ref().and_then(|m| {
+							use crate::strings::inherent::timestamp::slot_duration;
+							m.pallet_by_name(slot_duration::BABE_PALLET)?
+								.constant_by_name(slot_duration::BABE_EXPECTED_BLOCK_TIME)
+								.and_then(|c| u64::decode(&mut &c.value()[..]).ok())
+						});
+						babe_duration.unwrap_or(match self.chain_type {
+							ChainType::RelayChain => 6_000,
+							ChainType::Parachain { .. } => 12_000,
+						})
+					};
+					drop(head);
+
 					let _ = self.cached_slot_duration.set(duration);
-					log::info!("[Blockchain] Warmup: cached slot_duration={duration}ms");
-				}
+					log::info!(
+						"[Blockchain] Warmup: slot_duration={duration}ms ({:?})",
+						warmup_start.elapsed()
+					);
+				},
+				Err(e) => log::warn!("[Blockchain] Warmup: prototype compilation failed: {e}"),
 			}
 		}
 
 		// 3. Prefetch storage (coordinated via OnceCell with build_block)
 		self.ensure_prefetched().await;
+		log::info!("[Blockchain] Warmup: prefetch done ({:?})", warmup_start.elapsed());
 
 		// 4. Warm up inherent providers
 		let head = self.head.read().await.clone();
@@ -632,7 +657,7 @@ impl Blockchain {
 			provider.warmup(&head, &executor).await;
 		}
 
-		log::info!("[Blockchain] Background warmup complete");
+		log::info!("[Blockchain] Background warmup complete ({:?})", warmup_start.elapsed());
 	}
 
 	/// Ensure storage has been prefetched exactly once.
