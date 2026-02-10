@@ -529,7 +529,7 @@ impl Blockchain {
 
 		log::debug!("Forked at block #{fork_point_number} (0x{})", hex::encode(fork_point_hash));
 
-		Ok(Arc::new(Self {
+		let blockchain = Arc::new(Self {
 			head: RwLock::new(fork_block),
 			inherent_providers,
 			chain_name,
@@ -545,7 +545,128 @@ impl Blockchain {
 			genesis_hash_cache: OnceCell::new(),
 			chain_properties_cache: OnceCell::new(),
 			last_reconnect_log: AtomicU64::new(0),
-		}))
+		});
+
+		// Spawn background warmup to pre-cache WASM prototype, storage, and
+		// inherent provider state. This runs concurrently and does not delay
+		// the return of the fork. If a block is built before warmup finishes,
+		// the builder falls back to its normal (non-cached) path.
+		let bc = Arc::clone(&blockchain);
+		tokio::spawn(async move { bc.warmup().await });
+
+		Ok(blockchain)
+	}
+
+	/// Run background warmup to pre-cache expensive resources.
+	///
+	/// This method is designed to be spawned as a background task immediately after
+	/// forking. It pre-populates caches that would otherwise cause a cold-start
+	/// penalty on the first block build:
+	///
+	/// 1. **WASM prototype compilation** (~2-5s for large runtimes like Asset Hub). The compiled
+	///    prototype is stored in `warm_prototype` for reuse by the first `build_block()` call.
+	///
+	/// 2. **Storage prefetch** (~1-2s). Batch-fetches all `StorageValue` keys and the first page of
+	///    each pallet's storage map, populating the remote cache.
+	///
+	/// 3. **Inherent provider warmup**. Calls `warmup()` on each registered provider (e.g.
+	///    `TimestampInherent` caches the slot duration to avoid a separate WASM execution during
+	///    block building).
+	///
+	/// If a block is built before warmup finishes, the builder falls back to its
+	/// normal (non-cached) path. The `Mutex`/`AtomicBool` guards ensure no races.
+	pub async fn warmup(self: &Arc<Self>) {
+		log::info!("[Blockchain] Background warmup starting...");
+
+		// 1. Compile WASM prototype
+		let executor = self.executor.read().await.clone();
+		match executor.create_prototype() {
+			Ok(proto) => {
+				*self.warm_prototype.lock().await = Some(proto);
+				log::info!("[Blockchain] Warmup: WASM prototype compiled");
+			},
+			Err(e) => log::warn!("[Blockchain] Warmup: prototype compilation failed: {e}"),
+		}
+
+		// 2. Prefetch storage (same logic as BlockBuilder::prefetch_block_building_storage)
+		if let Err(e) = self.prefetch_storage().await {
+			log::warn!("[Blockchain] Warmup: storage prefetch failed: {e}");
+		}
+
+		// 3. Warm up inherent providers
+		let head = self.head.read().await.clone();
+		for provider in &self.inherent_providers {
+			provider.warmup(&head, &executor).await;
+		}
+
+		log::info!("[Blockchain] Background warmup complete");
+	}
+
+	/// Prefetch storage commonly accessed during block building.
+	///
+	/// Replicates the prefetch logic from `BlockBuilder` but operates directly
+	/// on the `Blockchain`'s remote storage layer and head block metadata.
+	async fn prefetch_storage(&self) -> Result<(), BlockchainError> {
+		// Skip if already prefetched (e.g. a block was built before warmup ran)
+		if self.prefetched.load(std::sync::atomic::Ordering::Relaxed) {
+			return Ok(());
+		}
+
+		let head = self.head.read().await;
+		let metadata = head.metadata().await?;
+		let block_hash = head.storage().fork_block_hash();
+
+		// Collect StorageValue keys and pallet prefixes from metadata
+		let mut value_keys: Vec<Vec<u8>> = Vec::new();
+		let mut pallet_prefixes: Vec<Vec<u8>> = Vec::new();
+
+		for pallet in metadata.pallets() {
+			let pallet_hash = sp_core::twox_128(pallet.name().as_bytes());
+			if let Some(storage) = pallet.storage() {
+				for entry in storage.entries() {
+					if matches!(
+						entry.entry_type(),
+						subxt::metadata::types::StorageEntryType::Plain(_)
+					) {
+						let entry_hash = sp_core::twox_128(entry.name().as_bytes());
+						value_keys.push([pallet_hash.as_slice(), entry_hash.as_slice()].concat());
+					}
+				}
+				pallet_prefixes.push(pallet_hash.to_vec());
+			}
+		}
+
+		// Batch-fetch all StorageValue keys
+		if !value_keys.is_empty() {
+			let key_refs: Vec<&[u8]> = value_keys.iter().map(|k| k.as_slice()).collect();
+			if let Err(e) = self.remote.get_batch(block_hash, &key_refs).await {
+				log::debug!(
+					"[Blockchain] Warmup: StorageValue batch fetch failed (non-fatal): {e}"
+				);
+			}
+		}
+
+		// Single-page pallet prefix scans in parallel
+		let page_size = 200;
+		let scan_futures: Vec<_> = pallet_prefixes
+			.iter()
+			.map(|prefix| self.remote.prefetch_prefix_single_page(block_hash, prefix, page_size))
+			.collect();
+		let scan_results = futures::future::join_all(scan_futures).await;
+		let mut scan_keys = 0usize;
+		for count in scan_results.into_iter().flatten() {
+			scan_keys += count;
+		}
+
+		log::info!(
+			"[Blockchain] Warmup: prefetched {} StorageValue + {} map keys ({} pallets)",
+			value_keys.len(),
+			scan_keys,
+			pallet_prefixes.len(),
+		);
+		self.prefetched.store(true, std::sync::atomic::Ordering::Relaxed);
+
+		Ok(())
 	}
 
 	/// Get the chain name.

@@ -124,5 +124,5 @@ smoldot = { version = "0.21.0", default-features = false, features = ["std", "wa
 trie-db = { version = "0.30", default-features = false }
 
 [patch.crates-io]
-smoldot = { git = "https://github.com/moliholy/smoldot", branch = "aarch64-apple-darwin" }
+smoldot = { git = "https://github.com/r0gue-io/smoldot", tag = "v0.21.0-aarch64-apple-darwin" }
 

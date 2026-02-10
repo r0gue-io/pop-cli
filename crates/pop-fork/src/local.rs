@@ -47,11 +47,7 @@
 //! local.delete_prefix(&prefix)?;
 //! ```
 
-use crate::{
-	error::LocalStorageError,
-	models::BlockRow,
-	remote::RemoteStorageLayer,
-};
+use crate::{error::LocalStorageError, models::BlockRow, remote::RemoteStorageLayer};
 use std::{
 	collections::{BTreeMap, HashMap},
 	sync::{Arc, RwLock},
