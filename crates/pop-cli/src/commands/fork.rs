@@ -2,7 +2,7 @@
 
 use crate::cli::{self};
 use anyhow::Result;
-use clap::{Args, ValueEnum};
+use clap::Args;
 use pop_fork::{
 	Blockchain, ExecutorConfig, SignatureMockMode, TxPool,
 	rpc_server::{ForkRpcServer, RpcServerConfig},
@@ -15,38 +15,6 @@ use std::{
 };
 use tempfile::NamedTempFile;
 use url::Url;
-
-/// Log level for fork command output.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, ValueEnum, Serialize)]
-pub enum LogLevel {
-	/// Disable all logging.
-	Off,
-	/// Error level only.
-	Error,
-	/// Warnings and errors.
-	Warn,
-	/// Informational messages (default).
-	#[default]
-	Info,
-	/// Debug messages.
-	Debug,
-	/// Trace messages.
-	Trace,
-}
-
-impl LogLevel {
-	/// Convert to log::LevelFilter.
-	pub fn to_level_filter(self) -> log::LevelFilter {
-		match self {
-			LogLevel::Off => log::LevelFilter::Off,
-			LogLevel::Error => log::LevelFilter::Error,
-			LogLevel::Warn => log::LevelFilter::Warn,
-			LogLevel::Info => log::LevelFilter::Info,
-			LogLevel::Debug => log::LevelFilter::Debug,
-			LogLevel::Trace => log::LevelFilter::Trace,
-		}
-	}
-}
 
 /// Arguments for the fork command.
 #[derive(Args, Clone, Default, Serialize)]
@@ -67,10 +35,6 @@ pub(crate) struct ForkArgs {
 	/// Use this for maximum flexibility when testing.
 	#[arg(long = "mock-all-signatures")]
 	pub mock_all_signatures: bool,
-
-	/// Log level for internal block building operations.
-	#[arg(long = "log-level", value_enum, default_value = "info")]
-	pub log_level: LogLevel,
 
 	/// Run the fork in the background and return immediately.
 	#[arg(short, long)]
@@ -150,7 +114,6 @@ impl Command {
 			} else {
 				SignatureMockMode::MagicSignature
 			},
-			max_log_level: args.log_level as u32,
 			..Default::default()
 		};
 
@@ -219,7 +182,6 @@ impl Command {
 			} else {
 				SignatureMockMode::MagicSignature
 			},
-			max_log_level: args.log_level as u32,
 			..Default::default()
 		};
 
@@ -316,8 +278,6 @@ impl Command {
 		if args.mock_all_signatures {
 			cmd_args.push("--mock-all-signatures".to_string());
 		}
-		cmd_args.push("--log-level".to_string());
-		cmd_args.push(format!("{:?}", args.log_level).to_lowercase());
 		cmd_args.push("--serve".to_string());
 		cmd_args
 	}
@@ -376,10 +336,7 @@ mod tests {
 		let args =
 			ForkArgs { endpoints: vec!["wss://rpc.polkadot.io".to_string()], ..Default::default() };
 		let result = Command::build_serve_args(&args);
-		assert_eq!(
-			result,
-			vec!["fork", "-e", "wss://rpc.polkadot.io", "--log-level", "info", "--serve"]
-		);
+		assert_eq!(result, vec!["fork", "-e", "wss://rpc.polkadot.io", "--serve"]);
 	}
 
 	#[test]
@@ -392,7 +349,6 @@ mod tests {
 			cache: Some(PathBuf::from("/tmp/cache.db")),
 			port: Some(9000),
 			mock_all_signatures: true,
-			log_level: LogLevel::Debug,
 			detach: true, // Should not appear in serve args
 			serve: false,
 		};
@@ -410,8 +366,6 @@ mod tests {
 				"--port",
 				"9000",
 				"--mock-all-signatures",
-				"--log-level",
-				"debug",
 				"--serve"
 			]
 		);
