@@ -154,7 +154,7 @@ impl traits::Cli for Cli {
 
 	/// Constructs a new [`Select`] prompt.
 	fn select<T: Clone + Eq>(&mut self, prompt: impl Display) -> impl traits::Select<T> {
-		Select::<T>(cliclack::select(prompt).max_rows(40))
+		Select::<T>(cliclack::select(prompt).max_rows(35))
 	}
 
 	/// Prints a success message.

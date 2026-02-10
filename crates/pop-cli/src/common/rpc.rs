@@ -61,7 +61,7 @@ pub(crate) async fn prompt_to_select_chain_rpc(
 ) -> Result<Url> {
 	// Select from available endpoints
 	let mut prompt = cli.select(select_message);
-	prompt = prompt.item(0, "Local", "Deploy on a local node");
+	prompt = prompt.item(0, "Local", "Local node (ws://localhost:9944)");
 	prompt = prompt.item(1, "Custom", "Type the chain URL manually");
 	let chains = extract_chain_endpoints().await.unwrap_or_default();
 	let prompt = chains.iter().enumerate().fold(prompt, |acc, (pos, node)| {
