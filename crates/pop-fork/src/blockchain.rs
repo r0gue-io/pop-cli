@@ -1193,7 +1193,8 @@ impl Blockchain {
 				*self.executor.write().await = executor;
 				// Invalidate cached slot duration so the next block re-detects it
 				self.cached_slot_duration.store(0, Ordering::Release);
-				// Prototype is stale after upgrade, leave warm_prototype as None
+				// Discard any prototype a concurrent call may have repopulated
+				*self.warm_prototype.lock().await = None;
 			} else {
 				*self.warm_prototype.lock().await = returned_prototype;
 			}
