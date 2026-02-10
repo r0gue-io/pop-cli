@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::{self};
+use crate::{
+	cli::{self},
+	common::{rpc::prompt_to_select_chain_rpc, urls},
+};
 use anyhow::Result;
 use clap::{ArgGroup, Args, ValueEnum};
+use console::style;
 use pop_chains::SupportedChains;
 use pop_fork::{
 	BlockForkPoint, Blockchain, ExecutorConfig, SignatureMockMode, TxPool,
@@ -58,7 +62,7 @@ impl LogLevel {
 
 /// Arguments for the fork command.
 #[derive(Args, Clone, Default, Serialize)]
-#[command(group = ArgGroup::new("source").args(["chain", "endpoints"]).required(true))]
+#[command(group = ArgGroup::new("source").args(["chain", "endpoints"]))]
 pub(crate) struct ForkArgs {
 	/// Well-known chain to fork (e.g., paseo, polkadot, kusama, westend).
 	#[arg(value_enum, index = 1)]
@@ -95,7 +99,7 @@ pub(crate) struct ForkArgs {
 	pub at: Option<u32>,
 
 	/// Internal flag: run as background server (used by detach mode).
-	#[arg(long, hide = true)]
+	#[arg(long, hide = true, requires = "endpoints")]
 	#[serde(skip)]
 	pub serve: bool,
 
@@ -108,19 +112,49 @@ pub(crate) struct ForkArgs {
 pub(crate) struct Command;
 
 impl Command {
-	pub(crate) async fn execute(args: &ForkArgs, cli: &mut impl cli::traits::Cli) -> Result<()> {
-		// Serve mode is always called with resolved endpoints (no chain).
+	pub(crate) async fn execute(
+		args: &mut ForkArgs,
+		cli: &mut impl cli::traits::Cli,
+	) -> Result<()> {
+		// --serve is an internal flag used by spawn_detached; it always receives endpoints
+		// via CLI args, so no prompting or intro is needed.
 		if args.serve {
+			if args.endpoints.is_empty() {
+				anyhow::bail!("--serve requires at least one --endpoint");
+			}
 			return Self::run_server(args).await;
 		}
 
-		// When a well-known chain is specified, try each RPC URL with fallback.
-		if let Some(chain) = &args.chain {
-			return Self::execute_with_fallback(args, chain, cli).await;
+		// Show intro first so the cliclack session is set up before any prompts.
+		if args.detach {
+			cli.intro("Forking chain(s) (detached mode)")?;
+		} else {
+			cli.intro("Forking chain(s)")?;
 		}
 
-		// Direct endpoint mode (existing behavior).
-		Self::execute_resolved(args, cli).await
+		// When a well-known chain is specified, try each RPC URL with fallback.
+		if let Some(chain) = args.chain {
+			return Self::execute_with_fallback(args, &chain, cli).await;
+		}
+
+		// Prompt for endpoint if none provided.
+		if args.endpoints.is_empty() {
+			let url = prompt_to_select_chain_rpc(
+				"Which chain would you like to fork? (type to filter)",
+				"Type the chain RPC URL",
+				urls::LOCAL,
+				|_| true,
+				cli,
+			)
+			.await?;
+			args.endpoints.push(url.to_string());
+		}
+
+		if args.detach {
+			return Self::spawn_detached(args, cli);
+		}
+
+		Self::run_interactive(args, cli).await
 	}
 
 	/// Try each RPC URL for a well-known chain, falling back on failure.
@@ -159,12 +193,6 @@ impl Command {
 
 	/// Spawn a detached background process and return immediately.
 	fn spawn_detached(args: &ForkArgs, cli: &mut impl cli::traits::Cli) -> Result<()> {
-		cli.intro("Forking chain(s) (detached mode)")?;
-
-		for endpoint in &args.endpoints {
-			cli.info(format!("Forking {}...", endpoint))?;
-		}
-
 		// Create log file that persists after we exit.
 		let log_file = NamedTempFile::new()?;
 		let log_path = log_file.path().to_path_buf();
@@ -344,8 +372,6 @@ impl Command {
 
 	/// Run interactively with CLI output (default mode).
 	async fn run_interactive(args: &ForkArgs, cli: &mut impl cli::traits::Cli) -> Result<()> {
-		cli.intro("Forking chain(s)")?;
-
 		let endpoints: Vec<Url> = args
 			.endpoints
 			.iter()
@@ -390,11 +416,17 @@ impl Command {
 				current_port = Some(server.addr().port() + 1);
 			}
 
+			let ws = server.ws_url();
 			cli.success(format!(
-				"Forked {} at block #{} -> {}",
+				"Forked {} at block #{} -> {ws}\n{}\n{}",
 				blockchain.chain_name(),
 				blockchain.fork_point_number(),
-				server.ws_url()
+				style(format!("  polkadot.js: https://polkadot.js.org/apps/?rpc={ws}#/explorer"))
+					.dim(),
+				style(format!(
+					"  papi:        https://dev.papi.how/explorer#networkId=custom&endpoint={ws}"
+				))
+				.dim(),
 			))?;
 
 			servers.push((blockchain.chain_name().to_string(), blockchain, server));
@@ -472,6 +504,67 @@ impl Command {
 mod tests {
 	use super::*;
 	use crate::cli::MockCli;
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn execute_prompts_when_no_endpoints_selects_local() {
+		let mut args = ForkArgs::default();
+		let mut cli = MockCli::new().expect_select(
+			"Which chain would you like to fork? (type to filter)",
+			None,
+			true,
+			Some(vec![
+				("Local".to_string(), "Local node (ws://localhost:9944)".to_string()),
+				("Custom".to_string(), "Type the chain URL manually".to_string()),
+			]),
+			0, // select Local
+			None,
+		);
+		// execute will fail connecting, but the prompt should populate endpoints
+		let _ = Command::execute(&mut args, &mut cli).await;
+		assert_eq!(args.endpoints, vec!["ws://localhost:9944/"]);
+		cli.verify().unwrap();
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn execute_prompts_when_no_endpoints_selects_custom() {
+		let mut args = ForkArgs::default();
+		let mut cli = MockCli::new()
+			.expect_select(
+				"Which chain would you like to fork? (type to filter)",
+				None,
+				true,
+				Some(vec![
+					("Local".to_string(), "Local node (ws://localhost:9944)".to_string()),
+					("Custom".to_string(), "Type the chain URL manually".to_string()),
+				]),
+				1, // select Custom
+				None,
+			)
+			.expect_input("Type the chain RPC URL", "ws://127.0.0.1:1".to_string());
+		let _ = Command::execute(&mut args, &mut cli).await;
+		assert_eq!(args.endpoints, vec!["ws://127.0.0.1:1/"]);
+		cli.verify().unwrap();
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn execute_skips_prompt_when_endpoints_provided() {
+		let mut args =
+			ForkArgs { endpoints: vec!["ws://127.0.0.1:1".to_string()], ..Default::default() };
+		// No select expectation -- prompt should not be triggered
+		let mut cli = MockCli::new();
+		let _ = Command::execute(&mut args, &mut cli).await;
+		assert_eq!(args.endpoints, vec!["ws://127.0.0.1:1".to_string()]);
+		cli.verify().unwrap();
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn execute_errors_when_serve_without_endpoints() {
+		let mut args = ForkArgs { serve: true, ..Default::default() };
+		let mut cli = MockCli::new();
+		let err = Command::execute(&mut args, &mut cli).await.unwrap_err();
+		assert!(err.to_string().contains("--serve requires at least one --endpoint"));
+		cli.verify().unwrap();
+	}
 
 	#[test]
 	fn resolve_cache_path_single_endpoint_no_extension() {

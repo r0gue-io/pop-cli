@@ -49,8 +49,9 @@ use crate::{
 	error::rpc::RpcClientError,
 	strings::rpc::{methods, storage_keys},
 };
+use scale::{Decode, Encode};
 use subxt::{
-	SubstrateConfig,
+	Metadata, SubstrateConfig,
 	backend::{
 		legacy::{LegacyRpcMethods, rpc_methods::Block},
 		rpc::RpcClient,
@@ -58,6 +59,11 @@ use subxt::{
 	config::substrate::H256,
 };
 use url::Url;
+
+/// Oldest metadata version supported.
+const METADATA_V14: u32 = 14;
+/// Most up-to-date metadata version supported.
+const METADATA_LATEST: u32 = 15;
 
 /// RPC client wrapper for fork operations.
 ///
@@ -312,16 +318,63 @@ impl ForkRpcClient {
 
 	/// Get runtime metadata at a specific block.
 	///
-	/// Returns the raw metadata bytes which can be parsed using `subxt::Metadata`.
-	pub async fn metadata(&self, at: H256) -> Result<Vec<u8>, RpcClientError> {
-		let metadata = self.legacy.state_get_metadata(Some(at)).await.map_err(|e| {
+	/// Attempts to fetch and decode metadata via `state_getMetadata`. If decoding
+	/// fails (e.g., due to type registry inconsistencies in the chain's metadata),
+	/// falls back to requesting specific metadata versions via
+	/// `Metadata_metadata_at_version` runtime API (latest down to V14).
+	pub async fn metadata(&self, at: H256) -> Result<Metadata, RpcClientError> {
+		let raw = self.legacy.state_get_metadata(Some(at)).await.map_err(|e| {
 			RpcClientError::RequestFailed {
 				method: methods::STATE_GET_METADATA,
 				message: e.to_string(),
 			}
 		})?;
 
-		Ok(metadata.into_raw())
+		let raw_bytes = raw.into_raw();
+		match Metadata::decode(&mut raw_bytes.as_slice()) {
+			Ok(metadata) => Ok(metadata),
+			Err(default_err) => {
+				// Try explicit version requests as fallback.
+				for version in (METADATA_V14..=METADATA_LATEST).rev() {
+					if let Some(bytes) = self.metadata_at_version(version, at).await? &&
+						let Ok(metadata) = Metadata::decode(&mut bytes.as_slice())
+					{
+						return Ok(metadata);
+					}
+				}
+				Err(RpcClientError::MetadataDecodingFailed(default_err.to_string()))
+			},
+		}
+	}
+
+	/// Request metadata at a specific version via the `Metadata_metadata_at_version`
+	/// runtime API.
+	///
+	/// Returns `Ok(Some(bytes))` if the chain supports the requested version,
+	/// `Ok(None)` if it does not, or an error if the RPC call itself fails.
+	async fn metadata_at_version(
+		&self,
+		version: u32,
+		at: H256,
+	) -> Result<Option<Vec<u8>>, RpcClientError> {
+		let result = self
+			.legacy
+			.state_call("Metadata_metadata_at_version", Some(&version.encode()), Some(at))
+			.await
+			.map_err(|e| RpcClientError::RequestFailed {
+				method: methods::STATE_CALL,
+				message: e.to_string(),
+			})?;
+
+		// The runtime returns SCALE-encoded `Option<OpaqueMetadata>` where
+		// `OpaqueMetadata` is `Vec<u8>`.
+		let opaque: Option<Vec<u8>> = Decode::decode(&mut result.as_slice()).map_err(|e| {
+			RpcClientError::InvalidResponse(format!(
+				"Failed to decode metadata_at_version response: {e}"
+			))
+		})?;
+
+		Ok(opaque)
 	}
 
 	/// Get the runtime WASM code at a specific block.
@@ -470,8 +523,8 @@ mod tests {
 			let hash = ctx.rpc().finalized_head().await.unwrap();
 			let metadata = ctx.rpc().metadata(hash).await.unwrap();
 
-			// Metadata should be substantial
-			assert!(metadata.len() > 1000);
+			// Decoded metadata should contain pallets
+			assert!(metadata.pallets().len() > 0);
 		}
 
 		#[tokio::test]

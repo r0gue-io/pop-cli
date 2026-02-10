@@ -52,7 +52,6 @@ use crate::{
 	models::{BlockRow, LocalKeyRow},
 	remote::RemoteStorageLayer,
 };
-use scale::Decode;
 use std::{
 	collections::{BTreeMap, HashMap},
 	sync::{Arc, RwLock},
@@ -252,13 +251,8 @@ impl LocalStorageLayer {
 			))
 		})?;
 
-		// Fetch metadata bytes from remote
-		let metadata_bytes = self.parent.rpc().metadata(block_hash).await?;
-
-		// Decode metadata
-		let metadata = Metadata::decode(&mut metadata_bytes.as_slice()).map_err(|e| {
-			LocalStorageError::MetadataNotFound(format!("Failed to decode remote metadata: {}", e))
-		})?;
+		// Fetch and decode metadata from remote
+		let metadata = self.parent.rpc().metadata(block_hash).await?;
 
 		Ok(Arc::new(metadata))
 	}
