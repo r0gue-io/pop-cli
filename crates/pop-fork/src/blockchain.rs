@@ -589,63 +589,62 @@ impl Blockchain {
 		let warmup_start = std::time::Instant::now();
 		log::info!("[Blockchain] Background warmup starting...");
 
-		// 1 & 2. Compile WASM prototype and compute slot duration under a single lock.
-		// Holding the lock across both steps prevents build_block() from stealing the
-		// prototype before slot duration is cached, which would cause a redundant 5s
-		// WASM compilation in create_next_header_with_slot.
+		// 1 & 2. Compile WASM prototype and compute slot duration without holding
+		// the prototype lock. The expensive work (create_prototype + WASM call) runs
+		// lock-free so concurrent call_at_block() and build_block() are not blocked.
+		// If build_block() runs before warmup finishes, it simply finds no cached
+		// prototype and falls back to its normal path.
 		let executor = self.executor.read().await.clone();
-		{
-			let mut proto_guard = self.warm_prototype.lock().await;
-			match executor.create_prototype() {
-				Ok(proto) => {
-					log::info!(
-						"[Blockchain] Warmup: WASM prototype compiled ({:?})",
-						warmup_start.elapsed()
-					);
+		match executor.create_prototype() {
+			Ok(proto) => {
+				log::info!(
+					"[Blockchain] Warmup: WASM prototype compiled ({:?})",
+					warmup_start.elapsed()
+				);
 
-					// Try AuraApi_slot_duration using the warm prototype (Aura chains).
-					let head = self.head.read().await;
-					let (result, returned_proto) = executor
-						.call_with_prototype(
-							Some(proto),
-							crate::strings::inherent::timestamp::slot_duration::AURA_API_METHOD,
-							&[],
-							head.storage(),
-						)
-						.await;
-					*proto_guard = returned_proto;
+				// Try AuraApi_slot_duration using the warm prototype (Aura chains).
+				let head = self.head.read().await;
+				let (result, returned_proto) = executor
+					.call_with_prototype(
+						Some(proto),
+						crate::strings::inherent::timestamp::slot_duration::AURA_API_METHOD,
+						&[],
+						head.storage(),
+					)
+					.await;
 
-					let aura_duration =
-						result.ok().and_then(|r| u64::decode(&mut r.output.as_slice()).ok());
+				let aura_duration =
+					result.ok().and_then(|r| u64::decode(&mut r.output.as_slice()).ok());
 
-					// Use the full three-tier detection: AuraApi > Babe constant > fallback.
-					// This mirrors TimestampInherent::get_slot_duration_from_runtime but
-					// avoids creating a redundant WASM prototype.
-					let duration = if let Some(d) = aura_duration {
-						d
-					} else {
-						let metadata = head.metadata().await.ok();
-						let babe_duration = metadata.as_ref().and_then(|m| {
-							use crate::strings::inherent::timestamp::slot_duration;
-							m.pallet_by_name(slot_duration::BABE_PALLET)?
-								.constant_by_name(slot_duration::BABE_EXPECTED_BLOCK_TIME)
-								.and_then(|c| u64::decode(&mut &c.value()[..]).ok())
-						});
-						babe_duration.unwrap_or(match self.chain_type {
-							ChainType::RelayChain => 6_000,
-							ChainType::Parachain { .. } => 12_000,
-						})
-					};
-					drop(head);
+				// Use the full three-tier detection: AuraApi > Babe constant > fallback.
+				// This mirrors TimestampInherent::get_slot_duration_from_runtime but
+				// avoids creating a redundant WASM prototype.
+				let duration = if let Some(d) = aura_duration {
+					d
+				} else {
+					let metadata = head.metadata().await.ok();
+					let babe_duration = metadata.as_ref().and_then(|m| {
+						use crate::strings::inherent::timestamp::slot_duration;
+						m.pallet_by_name(slot_duration::BABE_PALLET)?
+							.constant_by_name(slot_duration::BABE_EXPECTED_BLOCK_TIME)
+							.and_then(|c| u64::decode(&mut &c.value()[..]).ok())
+					});
+					babe_duration.unwrap_or(match self.chain_type {
+						ChainType::RelayChain => 6_000,
+						ChainType::Parachain { .. } => 12_000,
+					})
+				};
+				drop(head);
 
-					self.cached_slot_duration.store(duration, Ordering::Release);
-					log::info!(
-						"[Blockchain] Warmup: slot_duration={duration}ms ({:?})",
-						warmup_start.elapsed()
-					);
-				},
-				Err(e) => log::warn!("[Blockchain] Warmup: prototype compilation failed: {e}"),
-			}
+				self.cached_slot_duration.store(duration, Ordering::Release);
+				// Store prototype under a brief lock.
+				*self.warm_prototype.lock().await = returned_proto;
+				log::info!(
+					"[Blockchain] Warmup: slot_duration={duration}ms ({:?})",
+					warmup_start.elapsed()
+				);
+			},
+			Err(e) => log::warn!("[Blockchain] Warmup: prototype compilation failed: {e}"),
 		}
 
 		// 3. Prefetch storage (coordinated via OnceCell with build_block)
@@ -1176,9 +1175,9 @@ impl Blockchain {
 			None
 		};
 
-		// PHASE 3: Commit (write lock) - update head and caches atomically.
-		// Holding the head write lock while updating executor/prototype ensures
-		// concurrent readers see a consistent (head, executor) pair.
+		// PHASE 3: Commit (write lock) - update head and executor atomically.
+		// The prototype cache is updated after releasing the head lock to minimize
+		// write-lock hold time and avoid blocking concurrent readers.
 		{
 			let mut head = self.head.write().await;
 			// Verify parent hasn't changed (optimistic concurrency check)
@@ -1187,17 +1186,19 @@ impl Blockchain {
 			}
 			*head = new_block.clone();
 
-			// Update caches only after successful commit to avoid corrupting
-			// state if a concurrent build loses the optimistic check.
+			// Update executor atomically with head so readers always see a
+			// consistent (head, executor) pair during runtime upgrades.
 			if let Some(executor) = new_executor {
 				*self.executor.write().await = executor;
-				// Invalidate cached slot duration so the next block re-detects it
 				self.cached_slot_duration.store(0, Ordering::Release);
-				// Discard any prototype a concurrent call may have repopulated
-				*self.warm_prototype.lock().await = None;
-			} else {
-				*self.warm_prototype.lock().await = returned_prototype;
 			}
+		}
+
+		// Update warm prototype outside the head lock (brief mutex acquisition).
+		if runtime_upgraded {
+			*self.warm_prototype.lock().await = None;
+		} else {
+			*self.warm_prototype.lock().await = returned_prototype;
 		}
 
 		// Get modified keys from storage diff
