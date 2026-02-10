@@ -5,7 +5,7 @@ use crate::{
 	common::{rpc::prompt_to_select_chain_rpc, urls},
 };
 use anyhow::Result;
-use clap::{ArgGroup, Args, ValueEnum};
+use clap::{ArgGroup, Args};
 use console::style;
 use pop_chains::SupportedChains;
 use pop_fork::{
@@ -27,38 +27,6 @@ use url::Url;
 const DETACH_READY_TIMEOUT_SECS: u64 = 120;
 /// Poll interval when checking for fork server readiness.
 const DETACH_READY_POLL_MS: u64 = 200;
-
-/// Log level for fork command output.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, ValueEnum, Serialize)]
-pub enum LogLevel {
-	/// Disable all logging.
-	Off,
-	/// Error level only.
-	Error,
-	/// Warnings and errors.
-	Warn,
-	/// Informational messages (default).
-	#[default]
-	Info,
-	/// Debug messages.
-	Debug,
-	/// Trace messages.
-	Trace,
-}
-
-impl LogLevel {
-	/// Convert to log::LevelFilter.
-	pub fn to_level_filter(self) -> log::LevelFilter {
-		match self {
-			LogLevel::Off => log::LevelFilter::Off,
-			LogLevel::Error => log::LevelFilter::Error,
-			LogLevel::Warn => log::LevelFilter::Warn,
-			LogLevel::Info => log::LevelFilter::Info,
-			LogLevel::Debug => log::LevelFilter::Debug,
-			LogLevel::Trace => log::LevelFilter::Trace,
-		}
-	}
-}
 
 /// Arguments for the fork command.
 #[derive(Args, Clone, Default, Serialize)]
@@ -86,9 +54,10 @@ pub(crate) struct ForkArgs {
 	#[arg(long = "mock-all-signatures")]
 	pub mock_all_signatures: bool,
 
-	/// Log level for internal block building operations.
-	#[arg(long = "log-level", value_enum, default_value = "info")]
-	pub log_level: LogLevel,
+	/// Fund well-known dev accounts (Alice, Bob, Charlie, Dave, Eve, Ferdie)
+	/// and set Alice as sudo (if the chain has the Sudo pallet).
+	#[arg(long)]
+	pub dev: bool,
 
 	/// Run the fork in the background and return immediately.
 	#[arg(short, long)]
@@ -299,7 +268,6 @@ impl Command {
 			} else {
 				SignatureMockMode::MagicSignature
 			},
-			max_log_level: args.log_level as u32,
 			..Default::default()
 		};
 
@@ -320,6 +288,11 @@ impl Command {
 				executor_config.clone(),
 			)
 			.await?;
+
+			if args.dev {
+				blockchain.initialize_dev_accounts().await?;
+				log::info!("Dev accounts funded on {}", blockchain.chain_name());
+			}
 
 			let txpool = Arc::new(TxPool::new());
 			let server_config = RpcServerConfig { port: current_port, max_connections: 100 };
@@ -384,7 +357,6 @@ impl Command {
 			} else {
 				SignatureMockMode::MagicSignature
 			},
-			max_log_level: args.log_level as u32,
 			..Default::default()
 		};
 
@@ -405,6 +377,11 @@ impl Command {
 				executor_config.clone(),
 			)
 			.await?;
+
+			if args.dev {
+				blockchain.initialize_dev_accounts().await?;
+				cli.info(format!("Dev accounts funded on {}", blockchain.chain_name()))?;
+			}
 
 			let txpool = Arc::new(TxPool::new());
 
@@ -489,12 +466,13 @@ impl Command {
 		if args.mock_all_signatures {
 			cmd_args.push("--mock-all-signatures".to_string());
 		}
+		if args.dev {
+			cmd_args.push("--dev".to_string());
+		}
 		if let Some(at) = args.at {
 			cmd_args.push("--at".to_string());
 			cmd_args.push(at.to_string());
 		}
-		cmd_args.push("--log-level".to_string());
-		cmd_args.push(format!("{:?}", args.log_level).to_lowercase());
 		cmd_args.push("--serve".to_string());
 		cmd_args
 	}
@@ -615,10 +593,7 @@ mod tests {
 		let args =
 			ForkArgs { endpoints: vec!["wss://rpc.polkadot.io".to_string()], ..Default::default() };
 		let result = Command::build_serve_args(&args);
-		assert_eq!(
-			result,
-			vec!["fork", "-e", "wss://rpc.polkadot.io", "--log-level", "info", "--serve"]
-		);
+		assert_eq!(result, vec!["fork", "-e", "wss://rpc.polkadot.io", "--serve"]);
 	}
 
 	#[test]
@@ -631,7 +606,7 @@ mod tests {
 			cache: Some(PathBuf::from("/tmp/cache.db")),
 			port: Some(9000),
 			mock_all_signatures: true,
-			log_level: LogLevel::Debug,
+			dev: true,
 			at: Some(100),
 			detach: true,
 			serve: false,
@@ -652,10 +627,9 @@ mod tests {
 				"--port",
 				"9000",
 				"--mock-all-signatures",
+				"--dev",
 				"--at",
 				"100",
-				"--log-level",
-				"debug",
 				"--serve"
 			]
 		);
@@ -669,19 +643,7 @@ mod tests {
 			..Default::default()
 		};
 		let result = Command::build_serve_args(&args);
-		assert_eq!(
-			result,
-			vec![
-				"fork",
-				"-e",
-				"wss://rpc.polkadot.io",
-				"--at",
-				"5000",
-				"--log-level",
-				"info",
-				"--serve"
-			]
-		);
+		assert_eq!(result, vec!["fork", "-e", "wss://rpc.polkadot.io", "--at", "5000", "--serve"]);
 	}
 
 	#[test]

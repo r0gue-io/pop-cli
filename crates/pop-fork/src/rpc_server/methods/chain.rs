@@ -19,6 +19,7 @@ use jsonrpsee::{
 use scale::Decode;
 use std::sync::Arc;
 use tokio::sync::broadcast;
+use tokio_util::sync::CancellationToken;
 
 /// Legacy chain RPC methods.
 #[rpc(server, namespace = "chain")]
@@ -62,12 +63,13 @@ pub trait ChainApi {
 /// Implementation of legacy chain RPC methods.
 pub struct ChainApi {
 	blockchain: Arc<Blockchain>,
+	shutdown_token: CancellationToken,
 }
 
 impl ChainApi {
 	/// Create a new ChainApi instance.
-	pub fn new(blockchain: Arc<Blockchain>) -> Self {
-		Self { blockchain }
+	pub fn new(blockchain: Arc<Blockchain>, shutdown_token: CancellationToken) -> Self {
+		Self { blockchain, shutdown_token }
 	}
 }
 
@@ -142,6 +144,7 @@ impl ChainApiServer for ChainApi {
 	async fn subscribe_new_heads(&self, pending: PendingSubscriptionSink) -> SubscriptionResult {
 		let sink = pending.accept().await?;
 		let blockchain = Arc::clone(&self.blockchain);
+		let token = self.shutdown_token.clone();
 
 		// Send current head immediately
 		let head_hash = blockchain.head_hash().await;
@@ -160,6 +163,9 @@ impl ChainApiServer for ChainApi {
 			loop {
 				tokio::select! {
 					biased;
+
+					// Server shutting down
+					_ = token.cancelled() => break,
 
 					// Client disconnected
 					_ = sink.closed() => break,

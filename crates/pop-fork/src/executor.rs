@@ -364,7 +364,7 @@ impl RuntimeExecutor {
 						)
 					} else {
 						// Fetch from storage backend at the latest block
-						let block_number = storage.get_latest_block_number();
+						let block_number = storage.get_current_block_number();
 						let value = storage.get(block_number, &key).await.map_err(|e| {
 							ExecutorError::StorageError {
 								key: hex::encode(&key),
@@ -987,7 +987,7 @@ mod tests {
 			let system_number_key: Vec<u8> =
 				[system_prefix.as_slice(), number_key.as_slice()].concat();
 
-			let block_num = ctx.storage.get_latest_block_number();
+			let block_num = ctx.storage.get_current_block_number();
 			let stored_value = ctx
 				.storage
 				.get(block_num, &system_number_key)

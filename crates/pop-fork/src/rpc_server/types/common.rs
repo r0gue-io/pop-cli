@@ -208,10 +208,9 @@ pub enum ChainHeadEvent {
 pub struct InitializedEvent {
 	/// Finalized block hashes.
 	pub finalized_block_hashes: Vec<String>,
-	/// Finalized block runtime (if requested).
-	/// This is a flat runtime object for papi compatibility (not wrapped in ValidRuntime).
+	/// Finalized block runtime (if requested), wrapped in `{ type: "valid", spec: {...} }`.
 	#[serde(skip_serializing_if = "Option::is_none")]
-	pub finalized_block_runtime: Option<ChainHeadRuntimeVersion>,
+	pub finalized_block_runtime: Option<RuntimeEvent>,
 }
 
 /// Runtime version for chainHead RPC methods.
@@ -255,8 +254,8 @@ pub enum RuntimeEvent {
 /// Valid runtime info.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValidRuntime {
-	/// Runtime specification.
-	pub spec: RuntimeVersion,
+	/// Runtime specification (uses HashMap apis for chainHead compatibility).
+	pub spec: ChainHeadRuntimeVersion,
 }
 
 /// New block event data.
@@ -301,6 +300,9 @@ pub struct MethodResponse {
 	/// Operation result.
 	#[serde(flatten)]
 	pub result: OperationResult,
+	/// Number of discarded items (required for `chainHead_v1_storage` responses).
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub discarded_items: Option<u32>,
 }
 
 /// Operation result variants.
@@ -308,6 +310,7 @@ pub struct MethodResponse {
 #[serde(tag = "result", rename_all = "camelCase")]
 pub enum OperationResult {
 	/// Operation started successfully.
+	#[serde(rename_all = "camelCase")]
 	Started {
 		/// Unique identifier for tracking this operation.
 		operation_id: String,

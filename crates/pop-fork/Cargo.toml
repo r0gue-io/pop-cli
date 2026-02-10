@@ -27,6 +27,7 @@ sp-trie.workspace = true
 subxt.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+tokio-util.workspace = true
 trie-db.workspace = true
 url.workspace = true
 
