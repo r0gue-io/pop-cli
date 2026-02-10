@@ -67,12 +67,6 @@ pub(crate) struct ForkArgs {
 	#[arg(long)]
 	pub at: Option<u32>,
 
-	/// Validate extrinsics before block inclusion via
-	/// `TaggedTransactionQueue_validate_transaction`. By default, validation is skipped for
-	/// faster block production (invalid extrinsics are caught during `apply_extrinsic` instead).
-	#[arg(long)]
-	pub validate: bool,
-
 	/// Internal flag: run as background server (used by detach mode).
 	#[arg(long, hide = true, requires = "endpoints")]
 	#[serde(skip)]
@@ -301,11 +295,7 @@ impl Command {
 			}
 
 			let txpool = Arc::new(TxPool::new());
-			let server_config = RpcServerConfig {
-				port: current_port,
-				validate_on_submit: args.validate,
-				..Default::default()
-			};
+			let server_config = RpcServerConfig { port: current_port, ..Default::default() };
 			let server = ForkRpcServer::start(blockchain.clone(), txpool, server_config).await?;
 
 			if current_port.is_some() {
@@ -395,11 +385,7 @@ impl Command {
 
 			let txpool = Arc::new(TxPool::new());
 
-			let server_config = RpcServerConfig {
-				port: current_port,
-				validate_on_submit: args.validate,
-				..Default::default()
-			};
+			let server_config = RpcServerConfig { port: current_port, ..Default::default() };
 
 			let server = ForkRpcServer::start(blockchain.clone(), txpool, server_config).await?;
 
@@ -486,9 +472,6 @@ impl Command {
 		if let Some(at) = args.at {
 			cmd_args.push("--at".to_string());
 			cmd_args.push(at.to_string());
-		}
-		if args.validate {
-			cmd_args.push("--validate".to_string());
 		}
 		cmd_args.push("--serve".to_string());
 		cmd_args
@@ -625,7 +608,6 @@ mod tests {
 			mock_all_signatures: true,
 			dev: true,
 			at: Some(100),
-			validate: true,
 			detach: true,
 			serve: false,
 			chain: None,
@@ -648,7 +630,6 @@ mod tests {
 				"--dev",
 				"--at",
 				"100",
-				"--validate",
 				"--serve"
 			]
 		);

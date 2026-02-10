@@ -1630,13 +1630,22 @@ impl Blockchain {
 		args.extend(extrinsic);
 		args.extend(head.hash.as_bytes());
 
-		// Reuse the cached executor (avoids re-validating WASM on every call)
+		// Reuse the cached executor and warm prototype (avoids WASM recompilation)
 		let executor = self.executor.read().await.clone();
+		let warm_prototype = self.warm_prototype.lock().await.take();
 
-		// Call runtime API
-		let result = executor
-			.call(runtime_api::TAGGED_TRANSACTION_QUEUE_VALIDATE, &args, head.storage())
-			.await
+		// Call runtime API with warm prototype for fast validation
+		let (result, returned_prototype) = executor
+			.call_with_prototype(
+				warm_prototype,
+				runtime_api::TAGGED_TRANSACTION_QUEUE_VALIDATE,
+				&args,
+				head.storage(),
+			)
+			.await;
+		*self.warm_prototype.lock().await = returned_prototype;
+
+		let result = result
 			.map_err(|_| TransactionValidityError::Unknown(UnknownTransaction::CannotLookup))?;
 
 		// Decode result

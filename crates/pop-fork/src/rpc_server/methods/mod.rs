@@ -53,7 +53,6 @@ pub fn create_rpc_module(
 	blockchain: Arc<Blockchain>,
 	txpool: Arc<TxPool>,
 	shutdown_token: CancellationToken,
-	validate_on_submit: bool,
 ) -> Result<RpcModule<()>, RpcServerError> {
 	let mut module = RpcModule::new(());
 
@@ -61,8 +60,7 @@ pub fn create_rpc_module(
 	let chain_impl = ChainApi::new(blockchain.clone(), shutdown_token.clone());
 	let state_impl = StateApi::new(blockchain.clone(), shutdown_token.clone());
 	let system_impl = SystemApi::new(blockchain.clone());
-	let author_impl = AuthorApi::new(blockchain.clone(), txpool.clone())
-		.with_validate_on_submit(validate_on_submit);
+	let author_impl = AuthorApi::new(blockchain.clone(), txpool.clone());
 	let archive_impl = ArchiveApi::new(blockchain.clone());
 	let chain_head_state = Arc::new(ChainHeadState::new());
 	let chain_head_impl = ChainHeadApi::new(blockchain.clone(), chain_head_state, shutdown_token);

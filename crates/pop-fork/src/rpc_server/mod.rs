@@ -81,15 +81,11 @@ pub struct RpcServerConfig {
 	pub port: Option<u16>,
 	/// Maximum number of connections.
 	pub max_connections: u32,
-	/// When `true`, extrinsics are validated via `TaggedTransactionQueue_validate_transaction`
-	/// before block inclusion. When `false` (default), validation is skipped for faster block
-	/// production (invalid extrinsics are caught during `apply_extrinsic` instead).
-	pub validate_on_submit: bool,
 }
 
 impl Default for RpcServerConfig {
 	fn default() -> Self {
-		Self { port: None, max_connections: 100, validate_on_submit: false }
+		Self { port: None, max_connections: 100 }
 	}
 }
 
@@ -128,12 +124,7 @@ impl ForkRpcServer {
 		let shutdown_token = CancellationToken::new();
 
 		// Create RPC module first (doesn't need the server)
-		let rpc_module = methods::create_rpc_module(
-			blockchain,
-			txpool,
-			shutdown_token.clone(),
-			config.validate_on_submit,
-		)?;
+		let rpc_module = methods::create_rpc_module(blockchain, txpool, shutdown_token.clone())?;
 
 		let (server, addr) = if let Some(port) = config.port {
 			// User specified a port - try only that one
