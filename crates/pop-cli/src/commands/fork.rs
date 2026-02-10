@@ -441,6 +441,9 @@ impl Command {
 			cmd_args.push("--at".to_string());
 			cmd_args.push(at.to_string());
 		}
+		if args.dev {
+			cmd_args.push("--dev".to_string());
+		}
 		cmd_args.push("--serve".to_string());
 		cmd_args
 	}
@@ -558,6 +561,7 @@ mod tests {
 				"wss://rpc.polkadot.io",
 				"--at",
 				"5000",
+				"--dev",
 				"--serve"
 			]
 		);
