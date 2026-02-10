@@ -1167,20 +1167,14 @@ impl Blockchain {
 		// Finalize and get new block + warm prototype for reuse
 		let (new_block, returned_prototype) = builder.finalize().await?;
 
-		// Return the warm prototype for reuse in the next block build.
-		// If a runtime upgrade occurred, discard the stale prototype.
-		if runtime_upgraded {
+		// Prepare new executor if runtime upgraded (expensive, done before locking)
+		let new_executor = if runtime_upgraded {
 			log::info!("[Blockchain] Runtime upgrade detected, recreating executor");
 			let runtime_code = new_block.runtime_code().await?;
-			let new_executor =
-				RuntimeExecutor::with_config(runtime_code, None, self.executor_config.clone())?;
-			*self.executor.write().await = new_executor;
-			// Invalidate cached slot duration so the next block re-detects it
-			self.cached_slot_duration.store(0, Ordering::Release);
-			// Prototype is stale after upgrade, leave warm_prototype as None
+			Some(RuntimeExecutor::with_config(runtime_code, None, self.executor_config.clone())?)
 		} else {
-			*self.warm_prototype.lock().await = returned_prototype;
-		}
+			None
+		};
 
 		// PHASE 3: Commit (brief write lock) - update head
 		{
@@ -1191,6 +1185,17 @@ impl Blockchain {
 			}
 			*head = new_block.clone();
 		} // Write lock released here before event emission
+
+		// Update caches only after successful commit to avoid corrupting
+		// state if a concurrent build loses the optimistic check.
+		if let Some(executor) = new_executor {
+			*self.executor.write().await = executor;
+			// Invalidate cached slot duration so the next block re-detects it
+			self.cached_slot_duration.store(0, Ordering::Release);
+			// Prototype is stale after upgrade, leave warm_prototype as None
+		} else {
+			*self.warm_prototype.lock().await = returned_prototype;
+		}
 
 		// Get modified keys from storage diff
 		let modified_keys: Vec<Vec<u8>> = new_block
