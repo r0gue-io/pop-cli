@@ -120,6 +120,9 @@ diesel_migrations = { version = "2.3.1", default-features = false }
 
 # executor
 async-trait = "0.1"
-smoldot = { version = "0.21.0", default-features = false, features = ["std"] }
+smoldot = { version = "0.21.0", default-features = false, features = ["std", "wasmtime"] }
 trie-db = { version = "0.30", default-features = false }
+
+[patch.crates-io]
+smoldot = { git = "https://github.com/moliholy/smoldot", branch = "aarch64-apple-darwin" }
 

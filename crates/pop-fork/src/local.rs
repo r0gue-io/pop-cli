@@ -49,7 +49,7 @@
 
 use crate::{
 	error::LocalStorageError,
-	models::{BlockRow, LocalKeyRow},
+	models::BlockRow,
 	remote::RemoteStorageLayer,
 };
 use std::{
@@ -920,25 +920,11 @@ impl LocalStorageLayer {
 			})
 			.collect();
 
-		// Commit
-		for (key, value) in entries_to_commit {
-			match self.parent.cache().get_local_key(key).await? {
-				Some(LocalKeyRow { id: key_id, .. }) => {
-					self.parent.cache().close_local_value(key_id, current_block_number).await?;
-					self.parent
-						.cache()
-						.insert_local_value(key_id, value, current_block_number)
-						.await?;
-				},
-				_ => {
-					let key_id = self.parent.cache().insert_local_key(key).await?;
-					self.parent
-						.cache()
-						.insert_local_value(key_id, value, current_block_number)
-						.await?;
-				},
-			}
-		}
+		// Commit all changes in a single transaction
+		self.parent
+			.cache()
+			.commit_local_changes(&entries_to_commit, current_block_number)
+			.await?;
 
 		self.current_block_number = new_latest_block;
 

@@ -756,6 +756,88 @@ impl StorageCache {
 		}
 	}
 
+	/// Commit a batch of local storage changes in a single transaction.
+	///
+	/// For each entry: upserts the key into `local_keys`, closes the previous value
+	/// (sets `valid_until`), and inserts the new value. Wrapping everything in one
+	/// transaction avoids per-operation fsync overhead, reducing commit time from
+	/// tens of seconds to sub-second.
+	pub async fn commit_local_changes(
+		&self,
+		entries: &[(&[u8], Option<&[u8]>)],
+		block_number: u32,
+	) -> Result<(), CacheError> {
+		use crate::schema::{local_keys::columns as lkc, local_values::columns as lvc};
+
+		if entries.is_empty() {
+			return Ok(());
+		}
+
+		// Clone entries into owned data so they can move into the async closure.
+		let owned: Vec<(Vec<u8>, Option<Vec<u8>>)> =
+			entries.iter().map(|(k, v)| (k.to_vec(), v.map(|val| val.to_vec()))).collect();
+
+		let mut attempts = 0;
+		loop {
+			let owned = owned.clone();
+			let mut conn = self.get_conn().await?;
+
+			let res = conn
+				.transaction::<_, DieselError, _>(move |conn| {
+					Box::pin(async move {
+						for (key, value) in &owned {
+							// Upsert key
+							diesel::insert_into(local_keys::table)
+								.values(NewLocalKeyRow { key })
+								.on_conflict(lkc::key)
+								.do_nothing()
+								.execute(conn)
+								.await?;
+
+							let key_id: i32 = local_keys::table
+								.filter(lkc::key.eq(key.as_slice()))
+								.select(lkc::id)
+								.first(conn)
+								.await?;
+
+							// Close previous value
+							diesel::update(
+								local_values::table
+									.filter(lvc::key_id.eq(key_id))
+									.filter(lvc::valid_until.is_null()),
+							)
+							.set(lvc::valid_until.eq(Some(block_number as i64)))
+							.execute(conn)
+							.await?;
+
+							// Insert new value
+							let row = NewLocalValueRow {
+								key_id,
+								value: value.clone(),
+								valid_from: block_number as i64,
+								valid_until: None,
+							};
+							diesel::insert_into(local_values::table)
+								.values(&row)
+								.execute(conn)
+								.await?;
+						}
+						Ok(())
+					})
+				})
+				.await;
+
+			match res {
+				Ok(_) => return Ok(()),
+				Err(e) if is_locked_error(&e) && attempts < MAX_LOCK_RETRIES => {
+					retry_conn(&mut attempts).await;
+					continue;
+				},
+				Err(e) => return Err(e.into()),
+			}
+		}
+	}
+
 	/// Clear all local storage data (both local_keys and local_values tables).
 	///
 	/// This removes all locally tracked key-value pairs and their validity history.

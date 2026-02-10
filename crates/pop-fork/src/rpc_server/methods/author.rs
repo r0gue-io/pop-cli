@@ -48,12 +48,23 @@ pub trait AuthorApi {
 pub struct AuthorApi {
 	blockchain: Arc<Blockchain>,
 	txpool: Arc<TxPool>,
+	/// When `true`, extrinsics are validated via `TaggedTransactionQueue_validate_transaction`
+	/// before inclusion. When `false` (default), validation is skipped and invalid extrinsics
+	/// are caught during `apply_extrinsic` instead. Skipping saves a full runtime call per
+	/// submission.
+	validate_on_submit: bool,
 }
 
 impl AuthorApi {
-	/// Create a new AuthorApi instance.
+	/// Create a new AuthorApi instance with validation disabled (instant mode).
 	pub fn new(blockchain: Arc<Blockchain>, txpool: Arc<TxPool>) -> Self {
-		Self { blockchain, txpool }
+		Self { blockchain, txpool, validate_on_submit: false }
+	}
+
+	/// Enable or disable pre-submission extrinsic validation.
+	pub fn with_validate_on_submit(mut self, validate: bool) -> Self {
+		self.validate_on_submit = validate;
+		self
 	}
 }
 
@@ -62,8 +73,11 @@ impl AuthorApiServer for AuthorApi {
 	async fn submit_extrinsic(&self, extrinsic: String) -> RpcResult<String> {
 		let ext_bytes = parse_hex_bytes(&extrinsic, "extrinsic")?;
 
-		// Validate extrinsic BEFORE adding to pool
-		if let Err(err) = self.blockchain.validate_extrinsic(&ext_bytes).await {
+		// Validate extrinsic before adding to pool (only when enabled).
+		// Skipped by default in instant mode since apply_extrinsic catches errors.
+		if self.validate_on_submit &&
+			let Err(err) = self.blockchain.validate_extrinsic(&ext_bytes).await
+		{
 			let reason = err.reason();
 			let data = None; // Could encode the full error in future
 
@@ -121,8 +135,11 @@ impl AuthorApiServer for AuthorApi {
 			},
 		};
 
-		// Validate BEFORE sending "ready" status
-		if let Err(err) = self.blockchain.validate_extrinsic(&ext_bytes).await {
+		// Validate before sending "ready" status (only when enabled).
+		// Skipped by default in instant mode since apply_extrinsic catches errors.
+		if self.validate_on_submit &&
+			let Err(err) = self.blockchain.validate_extrinsic(&ext_bytes).await
+		{
 			let msg = jsonrpsee::SubscriptionMessage::from_json(
 				&serde_json::json!({"invalid": err.reason()}),
 			)?;
@@ -222,7 +239,7 @@ mod tests {
 	use crate::{
 		ExecutorConfig, SignatureMockMode,
 		testing::{
-			TestContext,
+			TestContext, TestContextBuilder,
 			accounts::{ALICE, BOB},
 			constants::TRANSFER_AMOUNT,
 			helpers::{account_storage_key, build_mock_signed_extrinsic_v4, decode_free_balance},
@@ -467,7 +484,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn author_submit_extrinsic_rejects_garbage_with_error_code() {
-		let ctx = TestContext::for_rpc_server().await;
+		let ctx = TestContextBuilder::new().with_server().validate_on_submit(true).build().await;
 		let client = WsClientBuilder::default()
 			.build(&ctx.ws_url())
 			.await
@@ -496,7 +513,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn author_submit_extrinsic_does_not_build_block_on_validation_failure() {
-		let ctx = TestContext::for_rpc_server().await;
+		let ctx = TestContextBuilder::new().with_server().validate_on_submit(true).build().await;
 		let client = WsClientBuilder::default()
 			.build(&ctx.ws_url())
 			.await
@@ -522,7 +539,7 @@ mod tests {
 	async fn author_submit_and_watch_sends_invalid_on_validation_failure() {
 		use jsonrpsee::core::client::SubscriptionClientT;
 
-		let ctx = TestContext::for_rpc_server().await;
+		let ctx = TestContextBuilder::new().with_server().validate_on_submit(true).build().await;
 		let client = WsClientBuilder::default()
 			.build(&ctx.ws_url())
 			.await

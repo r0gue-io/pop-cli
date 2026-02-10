@@ -285,6 +285,7 @@ pub struct TestContextBuilder {
 	with_blockchain: bool,
 	with_server: bool,
 	with_executor: bool,
+	validate_on_submit: bool,
 }
 
 impl TestContextBuilder {
@@ -335,6 +336,12 @@ impl TestContextBuilder {
 	pub fn with_server(mut self) -> Self {
 		self.with_server = true;
 		self.with_blockchain = true;
+		self
+	}
+
+	/// Enable pre-submission extrinsic validation on the RPC server.
+	pub fn validate_on_submit(mut self, validate: bool) -> Self {
+		self.validate_on_submit = validate;
 		self
 	}
 
@@ -423,9 +430,16 @@ impl TestContextBuilder {
 			let blockchain_ref = blockchain.clone().expect("Blockchain required for server");
 			let txpool_ref = txpool.clone().expect("TxPool required for server");
 			Some(
-				ForkRpcServer::start(blockchain_ref, txpool_ref, RpcServerConfig::default())
-					.await
-					.expect("Failed to start RPC server"),
+				ForkRpcServer::start(
+					blockchain_ref,
+					txpool_ref,
+					RpcServerConfig {
+						validate_on_submit: self.validate_on_submit,
+						..Default::default()
+					},
+				)
+				.await
+				.expect("Failed to start RPC server"),
 			)
 		} else {
 			None
