@@ -135,7 +135,7 @@ impl LocalStorageLayer {
 	///
 	/// # Returns
 	/// A new `LocalStorageLayer` with no modifications, with `latest_block_number` set to
-	/// `first_forked_block_number + 1`.
+	/// `first_forked_block_number`.
 	pub fn new(
 		parent: RemoteStorageLayer,
 		first_forked_block_number: u32,
@@ -149,7 +149,7 @@ impl LocalStorageLayer {
 			parent,
 			first_forked_block_hash,
 			first_forked_block_number,
-			latest_block_number: first_forked_block_number + 1,
+			latest_block_number: first_forked_block_number,
 			modifications: Arc::new(RwLock::new(HashMap::new())),
 			deleted_prefixes: Arc::new(RwLock::new(Vec::new())),
 			metadata_versions: Arc::new(RwLock::new(metadata_versions)),

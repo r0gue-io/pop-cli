@@ -479,6 +479,8 @@ impl Blockchain {
 		// Get the remote storage layer from the fork block (shares same RPC connection)
 		let remote = fork_block.storage().remote().clone();
 
+		log::debug!("Forked at block #{fork_point_number} (0x{})", hex::encode(fork_point_hash));
+
 		Ok(Arc::new(Self {
 			head: RwLock::new(fork_block),
 			inherent_providers,
@@ -1348,6 +1350,86 @@ impl Blockchain {
 	pub async fn set_storage_for_testing(&self, key: &[u8], value: Option<&[u8]>) {
 		let mut head = self.head.write().await;
 		head.storage_mut().set(key, value).unwrap();
+	}
+
+	/// Fund well-known dev accounts and optionally set the first account as sudo.
+	///
+	/// Detects the chain type from the `isEthereum` chain property:
+	/// - **Ethereum chains**: funds Alith, Baltathar, Charleth, Dorothy, Ethan, Faith (20-byte H160
+	///   accounts)
+	/// - **Substrate chains**: funds Alice, Bob, Charlie, Dave, Eve, Ferdie (32-byte sr25519
+	///   accounts)
+	///
+	/// For each account:
+	/// - If it already exists on-chain, patches its free balance
+	/// - If it does not exist, creates a fresh `AccountInfo`
+	///
+	/// If the chain has a `Sudo` pallet, sets the first dev account as sudo.
+	pub async fn initialize_dev_accounts(&self) -> Result<(), BlockchainError> {
+		use crate::dev::{
+			DEV_BALANCE, ETHEREUM_DEV_ACCOUNTS, SUBSTRATE_DEV_ACCOUNTS, account_storage_key,
+			build_account_info, patch_free_balance, sudo_key_storage_key,
+		};
+
+		// Check isEthereum property before acquiring the write lock.
+		let is_ethereum = self
+			.chain_properties()
+			.await
+			.and_then(|props| props.get("isEthereum")?.as_bool())
+			.unwrap_or(false);
+
+		let mut head = self.head.write().await;
+
+		// Pick the right account set for the chain type.
+		let accounts: Vec<(&str, Vec<u8>)> = if is_ethereum {
+			ETHEREUM_DEV_ACCOUNTS.iter().map(|(n, a)| (*n, a.to_vec())).collect()
+		} else {
+			SUBSTRATE_DEV_ACCOUNTS.iter().map(|(n, a)| (*n, a.to_vec())).collect()
+		};
+
+		// Build all storage keys upfront.
+		let keys: Vec<Vec<u8>> = accounts.iter().map(|(_, a)| account_storage_key(a)).collect();
+		let key_refs: Vec<&[u8]> = keys.iter().map(|k| k.as_slice()).collect();
+
+		// Batch-fetch existing account data in a single RPC call.
+		let existing_values = head
+			.storage()
+			.remote()
+			.get_batch(self.fork_point_hash, &key_refs)
+			.await
+			.map_err(BlockError::from)?;
+
+		// Build funded account entries and write them all at once.
+		let entries: Vec<(&[u8], Option<Vec<u8>>)> = keys
+			.iter()
+			.zip(existing_values.iter())
+			.map(|(key, existing)| {
+				let value = match existing {
+					Some(data) => patch_free_balance(data, DEV_BALANCE),
+					None => build_account_info(DEV_BALANCE),
+				};
+				(key.as_slice(), Some(value))
+			})
+			.collect();
+
+		let batch: Vec<(&[u8], Option<&[u8]>)> =
+			entries.iter().map(|(k, v)| (*k, v.as_deref())).collect();
+		head.storage_mut().set_batch(&batch).map_err(BlockError::from)?;
+
+		for (name, _) in &accounts {
+			log::debug!("Funded dev account: {name}");
+		}
+
+		// Set the first dev account as sudo if the Sudo pallet exists.
+		let metadata = head.metadata().await?;
+		if metadata.pallet_by_name("Sudo").is_some() {
+			let key = sudo_key_storage_key();
+			let sudo_account = &accounts[0].1;
+			head.storage_mut().set(&key, Some(sudo_account)).map_err(BlockError::from)?;
+			log::info!("Set {} as sudo key", accounts[0].0);
+		}
+
+		Ok(())
 	}
 
 	/// Clear all locally tracked storage data from the cache.

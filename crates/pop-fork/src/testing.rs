@@ -60,21 +60,9 @@ pub mod constants {
 	pub const TRANSFER_AMOUNT: u128 = 100_000_000_000_000;
 }
 
-/// Well-known dev accounts for testing.
+/// Well-known dev accounts for testing (re-exported from [`crate::dev`]).
 pub mod accounts {
-	/// Well-known dev account: Alice
-	pub const ALICE: [u8; 32] = [
-		0xd4, 0x35, 0x93, 0xc7, 0x15, 0xfd, 0xd3, 0x1c, 0x61, 0x14, 0x1a, 0xbd, 0x04, 0xa9, 0x9f,
-		0xd6, 0x82, 0x2c, 0x85, 0x58, 0x85, 0x4c, 0xcd, 0xe3, 0x9a, 0x56, 0x84, 0xe7, 0xa5, 0x6d,
-		0xa2, 0x7d,
-	];
-
-	/// Well-known dev account: Bob
-	pub const BOB: [u8; 32] = [
-		0x8e, 0xaf, 0x04, 0x15, 0x16, 0x87, 0x73, 0x63, 0x26, 0xc9, 0xfe, 0xa1, 0x7e, 0x25, 0xfc,
-		0x52, 0x87, 0x61, 0x36, 0x93, 0xc9, 0x12, 0x90, 0x9c, 0xb2, 0x26, 0xaa, 0x47, 0x94, 0xf2,
-		0x6a, 0x48,
-	];
+	pub use crate::dev::{ALICE, BOB};
 }
 
 /// Helper functions for testing.
@@ -82,15 +70,7 @@ pub mod helpers {
 	use super::accounts::ALICE;
 	use scale::{Compact, Encode};
 
-	/// Compute Blake2_128Concat storage key for System::Account.
-	pub fn account_storage_key(account: &[u8; 32]) -> Vec<u8> {
-		let mut key = Vec::new();
-		key.extend(sp_core::twox_128(b"System"));
-		key.extend(sp_core::twox_128(b"Account"));
-		key.extend(sp_core::blake2_128(account));
-		key.extend(account);
-		key
-	}
+	pub use crate::dev::account_storage_key;
 
 	/// Decode AccountInfo and extract free balance.
 	///

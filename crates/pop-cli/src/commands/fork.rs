@@ -36,6 +36,11 @@ pub(crate) struct ForkArgs {
 	#[arg(long = "mock-all-signatures")]
 	pub mock_all_signatures: bool,
 
+	/// Fund well-known dev accounts (Alice, Bob, Charlie, Dave, Eve, Ferdie)
+	/// and set Alice as sudo (if the chain has the Sudo pallet).
+	#[arg(long)]
+	pub dev: bool,
+
 	/// Run the fork in the background and return immediately.
 	#[arg(short, long)]
 	pub detach: bool,
@@ -133,6 +138,11 @@ impl Command {
 			)
 			.await?;
 
+			if args.dev {
+				blockchain.initialize_dev_accounts().await?;
+				log::info!("Dev accounts funded on {}", blockchain.chain_name());
+			}
+
 			let txpool = Arc::new(TxPool::new());
 			let server_config = RpcServerConfig { port: current_port, max_connections: 100 };
 			let server = ForkRpcServer::start(blockchain.clone(), txpool, server_config).await?;
@@ -200,6 +210,11 @@ impl Command {
 				executor_config.clone(),
 			)
 			.await?;
+
+			if args.dev {
+				blockchain.initialize_dev_accounts().await?;
+				cli.info(format!("Dev accounts funded on {}", blockchain.chain_name()))?;
+			}
 
 			let txpool = Arc::new(TxPool::new());
 
@@ -278,6 +293,9 @@ impl Command {
 		if args.mock_all_signatures {
 			cmd_args.push("--mock-all-signatures".to_string());
 		}
+		if args.dev {
+			cmd_args.push("--dev".to_string());
+		}
 		cmd_args.push("--serve".to_string());
 		cmd_args
 	}
@@ -349,6 +367,7 @@ mod tests {
 			cache: Some(PathBuf::from("/tmp/cache.db")),
 			port: Some(9000),
 			mock_all_signatures: true,
+			dev: true,
 			detach: true, // Should not appear in serve args
 			serve: false,
 		};
@@ -366,6 +385,7 @@ mod tests {
 				"--port",
 				"9000",
 				"--mock-all-signatures",
+				"--dev",
 				"--serve"
 			]
 		);
