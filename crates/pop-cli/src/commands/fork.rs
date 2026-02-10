@@ -441,9 +441,6 @@ impl Command {
 			cmd_args.push("--at".to_string());
 			cmd_args.push(at.to_string());
 		}
-		if args.dev {
-			cmd_args.push("--dev".to_string());
-		}
 		cmd_args.push("--serve".to_string());
 		cmd_args
 	}
@@ -517,8 +514,8 @@ mod tests {
 			port: Some(9000),
 			mock_all_signatures: true,
 			dev: true,
-			detach: true, // Should not appear in serve args
 			at: Some(100),
+			detach: true,
 			serve: false,
 			chain: None,
 			ready_file: None,
@@ -553,10 +550,7 @@ mod tests {
 			..Default::default()
 		};
 		let result = Command::build_serve_args(&args);
-		assert_eq!(
-			result,
-			vec!["fork", "-e", "wss://rpc.polkadot.io", "--at", "5000", "--dev", "--serve"]
-		);
+		assert_eq!(result, vec!["fork", "-e", "wss://rpc.polkadot.io", "--at", "5000", "--serve"]);
 	}
 
 	#[test]
