@@ -44,6 +44,11 @@ pub mod runtime_api {
 	/// Runtime API method for fetching runtime version.
 	pub const CORE_VERSION: &str = "Core_version";
 
+	/// Prefix shared by all `Metadata_*` runtime API methods.
+	///
+	/// Used to route metadata calls to the upstream proxy for performance.
+	pub const METADATA_PREFIX: &str = "Metadata_";
+
 	/// Runtime API method for fetching metadata.
 	pub const METADATA: &str = "Metadata_metadata";
 

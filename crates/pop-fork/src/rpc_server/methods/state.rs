@@ -288,7 +288,9 @@ impl StateApiServer for StateApi {
 		// but only for blocks at or before the fork point where the runtime is
 		// guaranteed to match the upstream. Fork-local blocks may have a different
 		// runtime due to upgrades.
-		if method.starts_with("Metadata_") && block_number <= self.blockchain.fork_point_number() {
+		if method.starts_with(runtime_api::METADATA_PREFIX) &&
+			block_number <= self.blockchain.fork_point_number()
+		{
 			match self.blockchain.proxy_state_call(&method, &params, block_hash).await {
 				Ok(result) => return Ok(HexString::from_bytes(&result).into()),
 				Err(e) => {
