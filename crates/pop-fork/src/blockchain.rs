@@ -53,7 +53,10 @@ use crate::{
 	ExecutorError, ForkRpcClient, InherentProvider, RuntimeExecutor, StorageCache,
 	builder::ApplyExtrinsicResult,
 	create_next_header_with_slot, default_providers,
-	strings::txpool::{runtime_api, transaction_source},
+	strings::{
+		inherent::parachain::storage_keys,
+		txpool::{runtime_api, transaction_source},
+	},
 };
 use scale::Decode;
 use std::{path::Path, sync::Arc};
@@ -1109,8 +1112,8 @@ impl Blockchain {
 		use scale::Decode;
 
 		// Compute storage key: ParachainInfo::ParachainId
-		let pallet_hash = sp_core::twox_128(b"ParachainInfo");
-		let storage_hash = sp_core::twox_128(b"ParachainId");
+		let pallet_hash = sp_core::twox_128(storage_keys::PARACHAIN_INFO_PALLET);
+		let storage_hash = sp_core::twox_128(storage_keys::PARACHAIN_ID);
 		let key: Vec<u8> = [pallet_hash.as_slice(), storage_hash.as_slice()].concat();
 
 		// Query storage
