@@ -558,8 +558,6 @@ mod tests {
 				"wss://rpc.polkadot.io",
 				"--at",
 				"5000",
-				"--log-level",
-				"info",
 				"--serve"
 			]
 		);
