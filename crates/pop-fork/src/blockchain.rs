@@ -1797,10 +1797,10 @@ impl Blockchain {
 
 		let batch: Vec<(&[u8], Option<&[u8]>)> =
 			entries.iter().map(|(k, v)| (*k, v.as_deref())).collect();
-		head.storage_mut().set_batch(&batch).map_err(BlockError::from)?;
+		head.storage_mut().set_batch_initial(&batch).map_err(BlockError::from)?;
 
-		for (name, _) in &accounts {
-			log::debug!("Funded dev account: {name}");
+		for (name, addr) in &accounts {
+			log::debug!("Funded dev account: {name} (0x{})", hex::encode(addr));
 		}
 
 		// Set the first dev account as sudo if the Sudo pallet exists.
@@ -1808,8 +1808,10 @@ impl Blockchain {
 		if metadata.pallet_by_name("Sudo").is_some() {
 			let key = sudo_key_storage_key();
 			let sudo_account = &accounts[0].1;
-			head.storage_mut().set(&key, Some(sudo_account)).map_err(BlockError::from)?;
-			log::info!("Set {} as sudo key", accounts[0].0);
+			head.storage_mut()
+				.set_initial(&key, Some(sudo_account))
+				.map_err(BlockError::from)?;
+			log::info!("Set {} as sudo key (0x{})", accounts[0].0, hex::encode(&accounts[0].1));
 		}
 
 		Ok(())

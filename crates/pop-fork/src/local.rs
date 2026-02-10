@@ -630,6 +630,31 @@ impl LocalStorageLayer {
 		Ok(())
 	}
 
+	/// Set a storage value visible from the fork point onwards.
+	///
+	/// Unlike [`set`], which records the modification at the current working block,
+	/// this marks the entry with `last_modification_block = 0` so it is visible
+	/// for any query at block > 0. This is used for injecting initial state (e.g.,
+	/// dev accounts, sudo key) that should be readable before any block is built.
+	///
+	/// These entries are never committed to the persistent cache by [`commit`]
+	/// (which only commits entries at `current_block_number`), but they remain in
+	/// the in-memory modifications map for the lifetime of the fork.
+	pub fn set_initial(&self, key: &[u8], value: Option<&[u8]>) -> Result<(), LocalStorageError> {
+		let mut modifications_lock =
+			self.modifications.write().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
+
+		modifications_lock.insert(
+			key.to_vec(),
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: 0,
+				value: value.map(|v| v.to_vec()),
+			})),
+		);
+
+		Ok(())
+	}
+
 	/// Get multiple storage values in a batch.
 	///
 	/// # Arguments
@@ -800,6 +825,34 @@ impl LocalStorageLayer {
 				Some(Arc::new(LocalSharedValue {
 					last_modification_block: latest_block_number,
 					value: value.map(|value| value.to_vec()),
+				})),
+			);
+		}
+
+		Ok(())
+	}
+
+	/// Batch version of [`set_initial`].
+	///
+	/// Sets multiple storage values visible from the fork point onwards, using
+	/// `last_modification_block = 0`. See [`set_initial`] for details.
+	pub fn set_batch_initial(
+		&self,
+		entries: &[(&[u8], Option<&[u8]>)],
+	) -> Result<(), LocalStorageError> {
+		if entries.is_empty() {
+			return Ok(());
+		}
+
+		let mut modifications_lock =
+			self.modifications.write().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
+
+		for (key, value) in entries {
+			modifications_lock.insert(
+				key.to_vec(),
+				Some(Arc::new(LocalSharedValue {
+					last_modification_block: 0,
+					value: value.map(|v| v.to_vec()),
 				})),
 			);
 		}
