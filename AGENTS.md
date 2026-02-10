@@ -37,7 +37,6 @@ Commands in `crates/pop-cli/src/commands/`:
 - `convert/` - Convert between address formats
 
 ### Important Notes
-- Requires Rust 1.91.1 (set in `rust-toolchain.toml`)
 - Uses `cargo nextest` for faster test execution
 - Integration tests require the `integration-tests` feature flag
 - Set `GITHUB_TOKEN` environment variable to avoid GitHub API rate limits during testing
