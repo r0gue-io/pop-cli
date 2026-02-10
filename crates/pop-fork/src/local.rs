@@ -134,8 +134,8 @@ impl LocalStorageLayer {
 	/// * `metadata` - The runtime metadata at the fork point
 	///
 	/// # Returns
-	/// A new `LocalStorageLayer` with no modifications, with `latest_block_number` set to
-	/// `first_forked_block_number`.
+	/// A new `LocalStorageLayer` with no modifications, with `current_block_number` set to
+	/// `first_forked_block_number + 1` (the block being built).
 	pub fn new(
 		parent: RemoteStorageLayer,
 		first_forked_block_number: u32,
