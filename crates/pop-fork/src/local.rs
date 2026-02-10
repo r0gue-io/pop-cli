@@ -633,9 +633,11 @@ impl LocalStorageLayer {
 	/// Set a storage value visible from the fork point onwards.
 	///
 	/// Unlike [`Self::set`], which records the modification at the current working block,
-	/// this marks the entry with `last_modification_block = 0` so it is visible
-	/// for any query at block > 0. This is used for injecting initial state (e.g.,
-	/// dev accounts, sudo key) that should be readable before any block is built.
+	/// this marks the entry with `last_modification_block = first_forked_block_number` so
+	/// it is visible for any query at a fork-local block (block_number >
+	/// first_forked_block_number), but not for historical pre-fork queries.
+	/// This is used for injecting initial state (e.g., dev accounts, sudo key)
+	/// that should be readable before any block is built.
 	///
 	/// These entries are never committed to the persistent cache by [`Self::commit`]
 	/// (which only commits entries at `current_block_number`), but they remain in
@@ -647,7 +649,7 @@ impl LocalStorageLayer {
 		modifications_lock.insert(
 			key.to_vec(),
 			Some(Arc::new(LocalSharedValue {
-				last_modification_block: 0,
+				last_modification_block: self.first_forked_block_number,
 				value: value.map(|v| v.to_vec()),
 			})),
 		);
@@ -835,7 +837,8 @@ impl LocalStorageLayer {
 	/// Batch version of [`Self::set_initial`].
 	///
 	/// Sets multiple storage values visible from the fork point onwards, using
-	/// `last_modification_block = 0`. See [`Self::set_initial`] for details.
+	/// `last_modification_block = first_forked_block_number`. See [`Self::set_initial`]
+	/// for details.
 	pub fn set_batch_initial(
 		&self,
 		entries: &[(&[u8], Option<&[u8]>)],
@@ -851,7 +854,7 @@ impl LocalStorageLayer {
 			modifications_lock.insert(
 				key.to_vec(),
 				Some(Arc::new(LocalSharedValue {
-					last_modification_block: 0,
+					last_modification_block: self.first_forked_block_number,
 					value: value.map(|v| v.to_vec()),
 				})),
 			);

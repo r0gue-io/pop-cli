@@ -1506,12 +1506,18 @@ impl Blockchain {
 			(hash == head.hash).then(|| head.clone())
 		};
 		if let Some(head_block) = head_block {
+			let pre_call_hash = head_block.hash;
 			let executor = self.executor.read().await.clone();
 			let warm_prototype = self.warm_prototype.lock().await.take();
 			let (result, returned_prototype) = executor
 				.call_with_prototype(warm_prototype, method, args, head_block.storage())
 				.await;
-			*self.warm_prototype.lock().await = returned_prototype;
+			// Only restore the prototype if head hasn't changed (e.g., runtime upgrade).
+			// A concurrent build_block may have invalidated the cache; restoring a
+			// prototype compiled from old :code would cause stale execution.
+			if self.head.read().await.hash == pre_call_hash {
+				*self.warm_prototype.lock().await = returned_prototype;
+			}
 			return Ok(Some(result?.output));
 		}
 
@@ -1662,6 +1668,7 @@ impl Blockchain {
 		args.extend(head.hash.as_bytes());
 
 		// Reuse the cached executor and warm prototype (avoids WASM recompilation)
+		let pre_call_hash = head.hash;
 		let executor = self.executor.read().await.clone();
 		let warm_prototype = self.warm_prototype.lock().await.take();
 
@@ -1674,7 +1681,10 @@ impl Blockchain {
 				head.storage(),
 			)
 			.await;
-		*self.warm_prototype.lock().await = returned_prototype;
+		// Only restore if head hasn't changed (guards against runtime upgrade race).
+		if self.head.read().await.hash == pre_call_hash {
+			*self.warm_prototype.lock().await = returned_prototype;
+		}
 
 		let result = result
 			.map_err(|_| TransactionValidityError::Unknown(UnknownTransaction::CannotLookup))?;
