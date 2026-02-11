@@ -75,7 +75,7 @@ async fn resolve_test_endpoint() -> Url {
 
 	#[cfg(test)]
 	{
-		return unit_test_node_ws_url().await.parse().expect("Invalid unit test WebSocket URL");
+		unit_test_node_ws_url().await.parse().expect("Invalid unit test WebSocket URL")
 	}
 
 	#[cfg(not(test))]

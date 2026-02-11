@@ -79,10 +79,10 @@ pub async fn author_submit_extrinsic_rejects_garbage_with_error_code_at(
 	let err = result.expect_err("error expected");
 	let err_str = err.to_string();
 	assert!(
-		err_str.contains("1010")
-			|| err_str.contains("1011")
-			|| err_str.contains("invalid")
-			|| err_str.contains("Invalid"),
+		err_str.contains("1010") ||
+			err_str.contains("1011") ||
+			err_str.contains("invalid") ||
+			err_str.contains("Invalid"),
 		"Error should indicate transaction invalidity: {err_str}"
 	);
 }
