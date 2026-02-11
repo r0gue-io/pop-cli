@@ -22,8 +22,8 @@ use scale::{Compact, Encode};
 use std::time::Duration;
 use subxt::config::substrate::H256;
 
-const RPC_REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
-const SUBSCRIPTION_EVENT_TIMEOUT: Duration = Duration::from_secs(300);
+const RPC_REQUEST_TIMEOUT: Duration = Duration::from_secs(400);
+const SUBSCRIPTION_EVENT_TIMEOUT: Duration = Duration::from_secs(400);
 
 /// Build call data for Balances.transfer_keep_alive using metadata.
 async fn build_transfer_call_data(blockchain: &Blockchain) -> Vec<u8> {
