@@ -587,7 +587,7 @@ impl Blockchain {
 	/// normal (non-cached) path. The `Mutex`/`OnceCell` guards ensure no races.
 	pub async fn warmup(self: &Arc<Self>) {
 		let warmup_start = std::time::Instant::now();
-		log::info!("[Blockchain] Background warmup starting...");
+		log::debug!("[Blockchain] Background warmup starting...");
 
 		// 1 & 2. Compile WASM prototype and compute slot duration without holding
 		// the prototype lock. The expensive work (create_prototype + WASM call) runs
@@ -597,7 +597,7 @@ impl Blockchain {
 		let executor = self.executor.read().await.clone();
 		match executor.create_prototype() {
 			Ok(proto) => {
-				log::info!(
+				log::debug!(
 					"[Blockchain] Warmup: WASM prototype compiled ({:?})",
 					warmup_start.elapsed()
 				);
@@ -639,7 +639,7 @@ impl Blockchain {
 				self.cached_slot_duration.store(duration, Ordering::Release);
 				// Store prototype under a brief lock.
 				*self.warm_prototype.lock().await = returned_proto;
-				log::info!(
+				log::debug!(
 					"[Blockchain] Warmup: slot_duration={duration}ms ({:?})",
 					warmup_start.elapsed()
 				);
@@ -649,7 +649,7 @@ impl Blockchain {
 
 		// 3. Prefetch storage (coordinated via OnceCell with build_block)
 		self.ensure_prefetched().await;
-		log::info!("[Blockchain] Warmup: prefetch done ({:?})", warmup_start.elapsed());
+		log::debug!("[Blockchain] Warmup: prefetch done ({:?})", warmup_start.elapsed());
 
 		// 4. Warm up inherent providers
 		let head = self.head.read().await.clone();
@@ -657,7 +657,7 @@ impl Blockchain {
 			provider.warmup(&head, &executor).await;
 		}
 
-		log::info!("[Blockchain] Background warmup complete ({:?})", warmup_start.elapsed());
+		log::debug!("[Blockchain] Background warmup complete ({:?})", warmup_start.elapsed());
 	}
 
 	/// Ensure storage has been prefetched exactly once.
@@ -727,7 +727,7 @@ impl Blockchain {
 			scan_keys += count;
 		}
 
-		log::info!(
+		log::debug!(
 			"[Blockchain] Prefetched {} StorageValue + {} map keys ({} pallets)",
 			value_keys.len(),
 			scan_keys,
@@ -1171,7 +1171,7 @@ impl Blockchain {
 		// committed storage for the new block, so returning Err would leave the
 		// fork in an inconsistent state (persisted N+1, head at N).
 		let new_executor = if runtime_upgraded {
-			log::info!("[Blockchain] Runtime upgrade detected, recreating executor");
+			log::debug!("[Blockchain] Runtime upgrade detected, recreating executor");
 			match new_block.runtime_code().await {
 				Ok(code) =>
 					match RuntimeExecutor::with_config(code, None, self.executor_config.clone()) {
@@ -1859,7 +1859,7 @@ impl Blockchain {
 			head.storage_mut()
 				.set_initial(&key, Some(sudo_account))
 				.map_err(BlockError::from)?;
-			log::info!("Set {} as sudo key (0x{})", accounts[0].0, hex::encode(&accounts[0].1));
+			log::debug!("Set {} as sudo key (0x{})", accounts[0].0, hex::encode(&accounts[0].1));
 		}
 
 		Ok(())

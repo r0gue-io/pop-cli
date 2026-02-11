@@ -287,7 +287,7 @@ impl InherentProvider for TimestampInherent {
 		// Calculate new timestamp
 		let new_timestamp = current_timestamp.saturating_add(slot_duration);
 
-		log::info!(
+		log::debug!(
 			"[Timestamp] current_timestamp={current_timestamp}, slot_duration={slot_duration}, new_timestamp={new_timestamp}"
 		);
 
@@ -317,12 +317,12 @@ impl InherentProvider for TimestampInherent {
 		)
 		.await;
 		self.cached_slot_duration.store(duration, Ordering::Release);
-		log::info!("[Timestamp] Warmup: cached slot_duration={duration}ms");
+		log::debug!("[Timestamp] Warmup: cached slot_duration={duration}ms");
 	}
 
 	fn invalidate_cache(&self) {
 		self.cached_slot_duration.store(0, Ordering::Release);
-		log::info!("[Timestamp] Cache invalidated (runtime upgrade detected)");
+		log::debug!("[Timestamp] Cache invalidated (runtime upgrade detected)");
 	}
 }
 

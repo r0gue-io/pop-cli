@@ -9494,6 +9494,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "pop-common",
+ "scale-value",
  "serde",
  "serde_json",
  "smoldot 0.21.0",

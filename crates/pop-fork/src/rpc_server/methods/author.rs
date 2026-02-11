@@ -15,7 +15,7 @@ use jsonrpsee::{
 	core::{RpcResult, SubscriptionResult},
 	proc_macros::rpc,
 };
-use log::info;
+use log::debug;
 use std::sync::Arc;
 use subxt::config::substrate::H256;
 
@@ -92,7 +92,7 @@ impl AuthorApiServer for AuthorApi {
 			eprintln!("[AuthorApi] Extrinsic failed dispatch after validation: {}", failed.reason);
 		}
 
-		info!(
+		debug!(
 			"[author] Extrinsic submitted (0x{}) included in block #{} (0x{})",
 			hex::encode(hash.as_bytes()),
 			result.block.number,
@@ -176,7 +176,7 @@ impl AuthorApiServer for AuthorApi {
 
 				let block_hex = format!("0x{}", hex::encode(result.block.hash.as_bytes()));
 
-				info!(
+				debug!(
 					"[author] Extrinsic submitted (0x{}) included in block #{} (0x{})",
 					hex::encode(hash.as_bytes()),
 					result.block.number,

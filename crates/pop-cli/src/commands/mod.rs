@@ -286,7 +286,10 @@ impl Command {
 			Self::Verify(verify) => verify.execute(&mut Cli).await,
 			#[cfg(feature = "chain")]
 			Self::Fork(args) => {
-				env_logger::init();
+				env_logger::Builder::new()
+					.filter_level(log::LevelFilter::Info)
+					.parse_default_env()
+					.init();
 				fork::Command::execute(args, &mut Cli).await
 			},
 		}

@@ -68,7 +68,7 @@ use crate::{
 		},
 	},
 };
-use log::{error, info};
+use log::{debug, error, info};
 use scale::{Decode, Encode};
 use smoldot::executor::host::HostVmPrototype;
 use sp_core::blake2_256;
@@ -245,7 +245,7 @@ impl BlockBuilder {
 	/// Log the current storage access counters for a phase.
 	fn log_storage_stats(&self, phase: &str) {
 		let stats = self.storage().remote().stats();
-		info!("[BlockBuilder] {phase} storage: {stats}");
+		debug!("[BlockBuilder] {phase} storage: {stats}");
 	}
 
 	/// Prefetch storage commonly accessed during block building.
@@ -316,7 +316,7 @@ impl BlockBuilder {
 		}
 
 		if scan_errors > 0 {
-			info!(
+			debug!(
 				"[BlockBuilder] Prefetched {} StorageValue + {} map keys ({} pallets, {} scans failed)",
 				value_keys.len(),
 				scan_keys,
@@ -324,7 +324,7 @@ impl BlockBuilder {
 				scan_errors,
 			);
 		} else {
-			info!(
+			debug!(
 				"[BlockBuilder] Prefetched {} StorageValue + {} map keys ({} pallets)",
 				value_keys.len(),
 				scan_keys,
@@ -357,12 +357,12 @@ impl BlockBuilder {
 		// Prefetch storage keys commonly accessed during block building.
 		// Skipped for subsequent blocks since keys are already cached.
 		if !self.skip_prefetch {
-			info!("[BlockBuilder] Prefetching block building storage...");
+			debug!("[BlockBuilder] Prefetching block building storage...");
 			self.prefetch_block_building_storage().await?;
 		}
 
 		// Call Core_initialize_block with the header
-		info!("[BlockBuilder] Calling Core_initialize_block...");
+		debug!("[BlockBuilder] Calling Core_initialize_block...");
 		self.reset_storage_stats();
 		let (result, proto) = self
 			.executor
@@ -379,8 +379,8 @@ impl BlockBuilder {
 			e
 		})?;
 		self.log_storage_stats("Core_initialize_block");
-		info!("[BlockBuilder] Core_initialize_block OK");
-		info!(
+		debug!("[BlockBuilder] Core_initialize_block OK");
+		debug!(
 			"[BlockBuilder] Building block on top of #{} (0x{}...)",
 			self.parent.number,
 			hex::encode(&self.parent.hash.0[..4])
@@ -425,7 +425,7 @@ impl BlockBuilder {
 		let mut all_inherents: Vec<(String, Vec<Vec<u8>>)> = Vec::new();
 		for provider in &self.inherent_providers {
 			let id = provider.identifier().to_string();
-			info!("[BlockBuilder] Getting inherents from provider: {}", id);
+			debug!("[BlockBuilder] Getting inherents from provider: {}", id);
 			let inherents = provider.provide(&self.parent, &self.executor).await.map_err(|e| {
 				error!("[BlockBuilder] Provider {} FAILED: {e}", id);
 				BlockBuilderError::InherentProvider { provider: id.clone(), message: e.to_string() }
@@ -446,7 +446,7 @@ impl BlockBuilder {
 				// dispatch error
 				let dispatch_ok = match (result.output.first(), result.output.get(1)) {
 					(Some(0x00), Some(0x00)) => {
-						info!(
+						debug!(
 							"[BlockBuilder] Inherent {i} from {} OK (dispatch success)",
 							provider_id
 						);
@@ -564,11 +564,31 @@ impl BlockBuilder {
 			self.apply_storage_diff(&result.storage_diff)?;
 			let ext_hash = blake2_256(&extrinsic);
 			self.log_storage_stats("apply_extrinsic");
-			info!(
-				"[BlockBuilder] Extrinsic 0x{}...{} included in block",
-				hex::encode(&ext_hash[..4]),
-				hex::encode(&ext_hash[28..])
-			);
+
+			// Log with human-readable pallet/call when decodable.
+			match self.decode_extrinsic_call(&extrinsic).await {
+				Some(decoded) => {
+					let mut msg = format!(
+						"[BlockBuilder] Extrinsic included in block\n  \
+						 Pallet: {}\n  \
+						 Call:   {}\n  \
+						 Hash:   0x{}",
+						decoded.pallet,
+						decoded.call,
+						hex::encode(ext_hash),
+					);
+					for (name, value) in &decoded.args {
+						msg.push_str(&format!("\n  {name}: {value}"));
+					}
+					info!("{msg}");
+				},
+				None => info!(
+					"[BlockBuilder] Extrinsic included in block\n  \
+					 Hash: 0x{}",
+					hex::encode(ext_hash),
+				),
+			}
+
 			self.extrinsics.push(extrinsic);
 			Ok(ApplyExtrinsicResult::Success { storage_changes })
 		} else {
@@ -624,7 +644,7 @@ impl BlockBuilder {
 		}
 
 		// Call BlockBuilder_finalize_block
-		info!("[BlockBuilder] Calling BlockBuilder_finalize_block...");
+		debug!("[BlockBuilder] Calling BlockBuilder_finalize_block...");
 		self.reset_storage_stats();
 		let (result, proto) = self
 			.executor
@@ -641,7 +661,7 @@ impl BlockBuilder {
 			e
 		})?;
 		self.log_storage_stats("finalize_block");
-		info!("[BlockBuilder] BlockBuilder_finalize_block OK");
+		debug!("[BlockBuilder] BlockBuilder_finalize_block OK");
 
 		// Apply final storage changes
 		self.apply_storage_diff(&result.storage_diff)?;
@@ -728,6 +748,36 @@ impl BlockBuilder {
 		Ok(())
 	}
 
+	/// Attempt to decode pallet name, call name, and arguments from raw
+	/// extrinsic bytes. Returns `None` if decoding fails (never panics).
+	///
+	/// ## Extrinsic layout (v4)
+	///
+	/// ```text
+	/// [compact_len] [version_byte] [signer+sig+extensions (signed only)] [pallet_idx call_idx args...]
+	/// ```
+	///
+	/// For unsigned extrinsics the call starts at a fixed offset. For signed
+	/// extrinsics the address and signature are parsed deterministically, then
+	/// a short scan over the extensions area finds the call. Candidates are
+	/// validated by checking the remaining bytes against the minimum encoded
+	/// size of the call's arguments to reject false positives.
+	async fn decode_extrinsic_call(&self, extrinsic: &[u8]) -> Option<DecodedCall> {
+		let metadata = self.parent.metadata().await.ok()?;
+		let remaining = strip_compact_prefix(extrinsic)?;
+
+		let version_byte = *remaining.first()?;
+		let is_signed = version_byte & 0x80 != 0;
+
+		if !is_signed {
+			let pi = *remaining.get(1)?;
+			let ci = *remaining.get(2)?;
+			return try_decode_call(&metadata, pi, ci, remaining.get(3..)?);
+		}
+
+		find_signed_call(&metadata, remaining)
+	}
+
 	/// Apply storage diff to the parent's storage layer.
 	fn apply_storage_diff(
 		&self,
@@ -743,6 +793,139 @@ impl BlockBuilder {
 		self.storage().set_batch(&entries)?;
 		Ok(())
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Extrinsic call decoding helpers
+// ---------------------------------------------------------------------------
+
+/// Decoded extrinsic call with pallet, call name, and arguments.
+struct DecodedCall {
+	pallet: String,
+	call: String,
+	args: Vec<(String, String)>,
+}
+
+/// Strip the SCALE compact length prefix, returning the remainder.
+fn strip_compact_prefix(bytes: &[u8]) -> Option<&[u8]> {
+	let mode = bytes.first()? & 0b11;
+	match mode {
+		0b00 => bytes.get(1..),
+		0b01 => bytes.get(2..),
+		0b10 => bytes.get(4..),
+		_ => None,
+	}
+}
+
+/// Parse the signed extrinsic header deterministically, then scan the
+/// extensions area for a valid call. False positives are rejected because
+/// `scale_value::scale::decode_as_type` must successfully consume each
+/// argument field.
+fn find_signed_call(metadata: &Metadata, remaining: &[u8]) -> Option<DecodedCall> {
+	// Parse MultiAddress (version byte at offset 0, address variant at 1).
+	let addr_variant = *remaining.get(1)?;
+	let addr_data_len = match addr_variant {
+		0x00 | 0x03 => 32, // Id / Address32
+		0x04 => 20,        // Address20
+		_ => return None,
+	};
+	let after_addr = 1 + 1 + addr_data_len; // version + variant + data
+
+	// Candidate offsets for the start of extensions, trying both:
+	//  - standard MultiSignature with variant byte (1 + 64 or 65)
+	//  - mock format without variant byte (just 64 bytes)
+	let sig_ends: [Option<usize>; 2] = [
+		remaining.get(after_addr).and_then(|&v| match v {
+			0x00 | 0x01 => Some(after_addr + 1 + 64),
+			0x02 => Some(after_addr + 1 + 65),
+			_ => None,
+		}),
+		Some(after_addr + 64),
+	];
+
+	// Extensions are typically 3-20 bytes; scan a generous window.
+	const MAX_EXT_SCAN: usize = 30;
+
+	for ext_start in sig_ends.into_iter().flatten() {
+		let scan_end = (ext_start + MAX_EXT_SCAN).min(remaining.len().saturating_sub(2));
+		for offset in ext_start..=scan_end {
+			let pi = *remaining.get(offset)?;
+			let ci = *remaining.get(offset + 1)?;
+			if let Some(decoded) = try_decode_call(metadata, pi, ci, remaining.get(offset + 2..)?) {
+				return Some(decoded);
+			}
+		}
+	}
+
+	None
+}
+
+/// Try to match `(pallet_index, call_index)` against metadata and validate
+/// by fully decoding all argument fields with `scale_value`. If any field
+/// fails to decode, this candidate is rejected.
+fn try_decode_call(
+	metadata: &Metadata,
+	pallet_index: u8,
+	call_index: u8,
+	args_bytes: &[u8],
+) -> Option<DecodedCall> {
+	let pallet = metadata.pallets().find(|p| p.index() == pallet_index)?;
+	let call = pallet.call_variants()?.iter().find(|v| v.index == call_index)?;
+
+	let registry = metadata.types();
+	let mut cursor: &[u8] = args_bytes;
+	let mut args = Vec::new();
+
+	for field in &call.fields {
+		let value = scale_value::scale::decode_as_type(&mut cursor, field.ty.id, registry).ok()?;
+		let name = field.name.as_deref().unwrap_or("?").to_string();
+		let formatted = format_scale_value(&value)?;
+		args.push((name, formatted));
+	}
+
+	// The call is at the very end of the extrinsic, so all bytes must be consumed.
+	// Remaining bytes indicate a false positive match in the extensions area.
+	if !cursor.is_empty() {
+		return None;
+	}
+
+	Some(DecodedCall { pallet: pallet.name().to_string(), call: call.name.clone(), args })
+}
+
+/// Format byte sequences as UTF-8 strings when valid, otherwise as lowercase hex.
+fn format_bytes<T, W: std::fmt::Write>(
+	value: &scale_value::Value<T>,
+	mut writer: W,
+) -> Option<core::fmt::Result> {
+	let mut hex_buf = String::new();
+	let res = scale_value::stringify::custom_formatters::format_hex(value, &mut hex_buf);
+	match res {
+		Some(Ok(())) => {
+			// format_hex recognized it as a byte sequence. Try UTF-8 first.
+			let hex_str = hex_buf.trim_start_matches("0x");
+			if let Ok(bytes) = hex::decode(hex_str) &&
+				let Ok(s) = std::str::from_utf8(&bytes) &&
+				!s.is_empty() &&
+				s.bytes().all(|b| b.is_ascii_graphic() || b == b' ')
+			{
+				return Some(writer.write_fmt(format_args!("\"{s}\"")));
+			}
+			Some(writer.write_str(&hex_buf.to_lowercase()))
+		},
+		other => other,
+	}
+}
+
+/// Format a decoded `scale_value::Value` into a human-readable string.
+/// Uses the built-in hex formatter so byte arrays render as `0x...`.
+fn format_scale_value<T>(value: &scale_value::Value<T>) -> Option<String> {
+	let mut buf = String::new();
+	scale_value::stringify::to_writer_custom()
+		.compact()
+		.add_custom_formatter(|v, w| format_bytes(v, w))
+		.write(value, &mut buf)
+		.ok()?;
+	Some(buf)
 }
 
 /// Digest item for block headers.
