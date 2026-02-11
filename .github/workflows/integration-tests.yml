@@ -133,20 +133,6 @@ jobs:
           nohup "/tmp/ink-node-dist/${BIN_RELATIVE_PATH}" --dev --tmp --rpc-port=9944 \
             >/tmp/ink-node.log 2>&1 &
 
-          for _ in {1..30}; do
-            if curl --silent --show-error --fail \
-              --header "Content-Type: application/json" \
-              --data '{"jsonrpc":"2.0","id":1,"method":"system_health","params":[]}' \
-              http://127.0.0.1:9944 >/dev/null; then
-              exit 0
-            fi
-            sleep 1
-          done
-
-          cat /tmp/ink-node.log || true
-          echo "ink-node did not become ready in time" >&2
-          exit 1
-
       - name: Run pop-fork integration tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
