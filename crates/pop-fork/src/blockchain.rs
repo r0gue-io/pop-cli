@@ -1791,10 +1791,9 @@ impl Blockchain {
 	/// Fund well-known dev accounts and optionally set the first account as sudo.
 	///
 	/// Detects the chain type from the `isEthereum` chain property:
-	/// - **Ethereum chains**: funds Alith, Baltathar, Charleth, Dorothy, Ethan, Faith (20-byte H160
-	///   accounts)
-	/// - **Substrate chains**: funds Alice, Bob, Charlie, Dave, Eve, Ferdie (32-byte sr25519
-	///   accounts)
+	/// - **Ethereum chains**: funds both Substrate (Alice, Bob, ...) and Ethereum (Alith,
+	///   Baltathar, ...) dev accounts for compatibility.
+	/// - **Substrate chains**: funds Substrate dev accounts only.
 	///
 	/// For each account:
 	/// - If it already exists on-chain, patches its free balance
@@ -1816,12 +1815,14 @@ impl Blockchain {
 
 		let mut head = self.head.write().await;
 
-		// Pick the right account set for the chain type.
-		let accounts: Vec<(&str, Vec<u8>)> = if is_ethereum {
-			ETHEREUM_DEV_ACCOUNTS.iter().map(|(n, a)| (*n, a.to_vec())).collect()
-		} else {
-			SUBSTRATE_DEV_ACCOUNTS.iter().map(|(n, a)| (*n, a.to_vec())).collect()
-		};
+		// On Ethereum-marked chains, also fund Substrate dev accounts.
+		// ink-node exposes Ethereum compatibility while still using AccountId32, and
+		// many tests submit Substrate-style Alice/Bob transactions.
+		let mut accounts: Vec<(&str, Vec<u8>)> =
+			SUBSTRATE_DEV_ACCOUNTS.iter().map(|(n, a)| (*n, a.to_vec())).collect();
+		if is_ethereum {
+			accounts.extend(ETHEREUM_DEV_ACCOUNTS.iter().map(|(n, a)| (*n, a.to_vec())));
+		}
 
 		// Build all storage keys upfront.
 		let keys: Vec<Vec<u8>> = accounts.iter().map(|(_, a)| account_storage_key(a)).collect();

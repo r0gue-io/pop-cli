@@ -59,7 +59,7 @@ jobs:
 
       - name: Build and archive instrumented tests
         run: |
-          source <(cargo llvm-cov show-env --export-prefix)
+          source <(cargo llvm-cov show-env --export-prefix --target x86_64-unknown-linux-gnu --coverage-target-only)
           cargo nextest archive --locked --workspace --lib --bins --archive-file nextest-archive.tar.zst
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -158,13 +158,13 @@ jobs:
 
       - name: Setup llvm-cov environment and extract test binaries
         run: |
-          source <(cargo llvm-cov show-env --export-prefix)
+          source <(cargo llvm-cov show-env --export-prefix --target x86_64-unknown-linux-gnu --coverage-target-only)
           mkdir -p target/llvm-cov-target
           tar --zstd -xf nextest-archive.tar.zst --strip-components=1 -C target/llvm-cov-target
 
       - name: Generate merged coverage report
         run: |
-          source <(cargo llvm-cov show-env --export-prefix)
+          source <(cargo llvm-cov show-env --export-prefix --target x86_64-unknown-linux-gnu --coverage-target-only)
           cargo llvm-cov report --codecov --output-path codecov.json
 
       - name: Upload to codecov.io

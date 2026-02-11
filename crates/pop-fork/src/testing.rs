@@ -157,7 +157,8 @@ pub mod helpers {
 		inner.push(0x84); // Version: signed (0x80) + v4 (0x04)
 		inner.push(0x00); // MultiAddress::Id variant
 		inner.extend(ALICE);
-		inner.extend([0u8; 64]); // Dummy signature (works with AlwaysValid)
+		inner.push(0x01); // MultiSignature::Sr25519 variant
+		inner.extend([0u8; 64]); // Dummy sr25519 signature (works with AlwaysValid)
 		inner.push(0x00); // CheckMortality: immortal
 		inner.extend(Compact(nonce).encode()); // CheckNonce
 		inner.extend(Compact(0u128).encode()); // ChargeTransactionPayment
