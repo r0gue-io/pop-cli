@@ -417,9 +417,10 @@ mod tests {
 			.await
 			.expect("Failed to subscribe");
 
-		// Collect events with timeout
+		// Collect events with timeout.
+		// Block building requires WASM compilation on first call, so allow enough time.
 		let mut events = Vec::new();
-		let timeout = tokio::time::Duration::from_secs(10);
+		let timeout = tokio::time::Duration::from_secs(120);
 
 		loop {
 			match tokio::time::timeout(timeout, subscription.next()).await {
@@ -546,8 +547,9 @@ mod tests {
 			.await
 			.expect("Failed to subscribe");
 
-		// Should receive "invalid" event (not "ready")
-		let timeout = tokio::time::Duration::from_secs(5);
+		// Should receive "invalid" event (not "ready").
+		// Validation requires WASM compilation on first call, so allow enough time.
+		let timeout = tokio::time::Duration::from_secs(120);
 		match tokio::time::timeout(timeout, subscription.next()).await {
 			Ok(Some(Ok(event))) => {
 				assert!(
