@@ -4,31 +4,20 @@
 
 //! Integration tests for the RPC client.
 //!
-//! These tests are separated from unit tests because they spawn local test nodes
-//! (ink-node) which requires downloading binaries and starting external processes.
-//!
-//! # Why Integration Tests?
-//!
-//! 1. **External Dependencies**: Tests spawn real blockchain nodes, which is slow and requires
-//!    network access to download binaries on first run.
-//!
-//! 2. **CI Isolation**: Keeping these separate allows CI to run them with special flags (like `-j
-//!    1` for sequential execution) without affecting other tests.
-//!
-//! # Running These Tests
-//!
-//! ```bash
-//! # Run with the integration-tests feature enabled
-//! cargo nextest run -p pop-fork --features integration-tests --test rpc
-//!
-//! # Run in parallel
-//! cargo nextest run -p pop-fork --features integration-tests --test rpc
-//! ```
+//! These scenarios expect a local node running at `ws://127.0.0.1:9944`
+//! (started by CI via `pop up ink-node --detach`).
 
 use crate::{ForkRpcClient, RpcClientError};
-use pop_common::test_env::TestNode;
 use subxt::config::substrate::H256;
 use url::Url;
+
+const LOCAL_TEST_NODE_WS_URL: &str = "ws://127.0.0.1:9944";
+
+fn local_endpoint() -> Url {
+	LOCAL_TEST_NODE_WS_URL
+		.parse()
+		.expect("local test node endpoint should be valid")
+}
 
 // Well-known storage keys for testing.
 // These are derived from twox128 hashes of pallet and storage item names.
@@ -44,15 +33,13 @@ const SYSTEM_PARENT_HASH_KEY: &str =
 	"26aa394eea5630e07c48ae0c9558cef734abf5cb34d6244378cddbf18e849d96";
 
 pub async fn connect_to_node() {
-	let node = TestNode::spawn().await.expect("Failed to spawn test node");
-	let endpoint: Url = node.ws_url().parse().unwrap();
+	let endpoint = local_endpoint();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 	assert_eq!(client.endpoint(), &endpoint);
 }
 
 pub async fn fetch_finalized_head() {
-	let node = TestNode::spawn().await.expect("Failed to spawn test node");
-	let endpoint: Url = node.ws_url().parse().unwrap();
+	let endpoint = local_endpoint();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 	let hash = client.finalized_head().await.unwrap();
 	// Hash should be 32 bytes
@@ -60,8 +47,7 @@ pub async fn fetch_finalized_head() {
 }
 
 pub async fn fetch_header() {
-	let node = TestNode::spawn().await.expect("Failed to spawn test node");
-	let endpoint: Url = node.ws_url().parse().unwrap();
+	let endpoint = local_endpoint();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 	let hash = client.finalized_head().await.unwrap();
 	let header = client.header(hash).await.unwrap();
@@ -70,8 +56,7 @@ pub async fn fetch_header() {
 }
 
 pub async fn fetch_storage() {
-	let node = TestNode::spawn().await.expect("Failed to spawn test node");
-	let endpoint: Url = node.ws_url().parse().unwrap();
+	let endpoint = local_endpoint();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 	let hash = client.finalized_head().await.unwrap();
 
@@ -83,8 +68,7 @@ pub async fn fetch_storage() {
 }
 
 pub async fn fetch_metadata() {
-	let node = TestNode::spawn().await.expect("Failed to spawn test node");
-	let endpoint: Url = node.ws_url().parse().unwrap();
+	let endpoint = local_endpoint();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 	let hash = client.finalized_head().await.unwrap();
 	let metadata = client.metadata(hash).await.unwrap();
@@ -94,8 +78,7 @@ pub async fn fetch_metadata() {
 }
 
 pub async fn fetch_runtime_code() {
-	let node = TestNode::spawn().await.expect("Failed to spawn test node");
-	let endpoint: Url = node.ws_url().parse().unwrap();
+	let endpoint = local_endpoint();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 	let hash = client.finalized_head().await.unwrap();
 	let code = client.runtime_code(hash).await.unwrap();
@@ -106,8 +89,7 @@ pub async fn fetch_runtime_code() {
 }
 
 pub async fn fetch_storage_keys_paged() {
-	let node = TestNode::spawn().await.expect("Failed to spawn test node");
-	let endpoint: Url = node.ws_url().parse().unwrap();
+	let endpoint = local_endpoint();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 	let hash = client.finalized_head().await.unwrap();
 
@@ -123,8 +105,7 @@ pub async fn fetch_storage_keys_paged() {
 }
 
 pub async fn fetch_storage_batch() {
-	let node = TestNode::spawn().await.expect("Failed to spawn test node");
-	let endpoint: Url = node.ws_url().parse().unwrap();
+	let endpoint = local_endpoint();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 	let hash = client.finalized_head().await.unwrap();
 
@@ -140,8 +121,7 @@ pub async fn fetch_storage_batch() {
 }
 
 pub async fn fetch_system_chain() {
-	let node = TestNode::spawn().await.expect("Failed to spawn test node");
-	let endpoint: Url = node.ws_url().parse().unwrap();
+	let endpoint = local_endpoint();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 
 	let chain_name = client.system_chain().await.unwrap();
@@ -151,8 +131,7 @@ pub async fn fetch_system_chain() {
 }
 
 pub async fn fetch_system_properties() {
-	let node = TestNode::spawn().await.expect("Failed to spawn test node");
-	let endpoint: Url = node.ws_url().parse().unwrap();
+	let endpoint = local_endpoint();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 
 	// Just verify the call succeeds - ink-node may not have all standard properties
@@ -177,8 +156,7 @@ pub async fn connect_to_invalid_endpoint_fails() {
 }
 
 pub async fn fetch_header_non_existent_block_fails() {
-	let node = TestNode::spawn().await.expect("Failed to spawn test node");
-	let endpoint: Url = node.ws_url().parse().unwrap();
+	let endpoint = local_endpoint();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 
 	// Use a fabricated block hash that doesn't exist
@@ -194,8 +172,7 @@ pub async fn fetch_header_non_existent_block_fails() {
 }
 
 pub async fn fetch_storage_non_existent_key_returns_none() {
-	let node = TestNode::spawn().await.expect("Failed to spawn test node");
-	let endpoint: Url = node.ws_url().parse().unwrap();
+	let endpoint = local_endpoint();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 	let hash = client.finalized_head().await.unwrap();
 
@@ -208,8 +185,7 @@ pub async fn fetch_storage_non_existent_key_returns_none() {
 }
 
 pub async fn fetch_storage_batch_with_mixed_keys() {
-	let node = TestNode::spawn().await.expect("Failed to spawn test node");
-	let endpoint: Url = node.ws_url().parse().unwrap();
+	let endpoint = local_endpoint();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 	let hash = client.finalized_head().await.unwrap();
 
@@ -227,8 +203,7 @@ pub async fn fetch_storage_batch_with_mixed_keys() {
 }
 
 pub async fn fetch_storage_batch_empty_keys() {
-	let node = TestNode::spawn().await.expect("Failed to spawn test node");
-	let endpoint: Url = node.ws_url().parse().unwrap();
+	let endpoint = local_endpoint();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 	let hash = client.finalized_head().await.unwrap();
 

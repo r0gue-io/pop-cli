@@ -6,7 +6,11 @@
 
 use crate::{
 	Blockchain,
-	testing::{accounts::BOB, constants::TRANSFER_AMOUNT, helpers::build_mock_signed_extrinsic_v4},
+	testing::{
+		accounts::BOB,
+		constants::TRANSFER_AMOUNT,
+		helpers::{build_mock_signed_extrinsic_v4, build_mock_signed_extrinsic_v4_with_nonce},
+	},
 };
 use jsonrpsee::{
 	core::client::{ClientT, SubscriptionClientT},
@@ -75,10 +79,10 @@ pub async fn author_submit_extrinsic_rejects_garbage_with_error_code_at(
 	let err = result.expect_err("error expected");
 	let err_str = err.to_string();
 	assert!(
-		err_str.contains("1010") ||
-			err_str.contains("1011") ||
-			err_str.contains("invalid") ||
-			err_str.contains("Invalid"),
+		err_str.contains("1010")
+			|| err_str.contains("1011")
+			|| err_str.contains("invalid")
+			|| err_str.contains("Invalid"),
 		"Error should indicate transaction invalidity: {err_str}"
 	);
 }
@@ -105,8 +109,20 @@ async fn build_transfer_call_data(blockchain: &Blockchain) -> Vec<u8> {
 
 /// Build a valid transfer extrinsic hex string for author scenario setup.
 pub async fn build_transfer_extrinsic_hex(blockchain: &Blockchain) -> String {
+	build_transfer_extrinsic_hex_with_nonce(blockchain, 0).await
+}
+
+/// Build a valid transfer extrinsic hex string for author scenario setup with an explicit nonce.
+pub async fn build_transfer_extrinsic_hex_with_nonce(
+	blockchain: &Blockchain,
+	nonce: u64,
+) -> String {
 	let call_data = build_transfer_call_data(blockchain).await;
-	let extrinsic = build_mock_signed_extrinsic_v4(&call_data);
+	let extrinsic = if nonce == 0 {
+		build_mock_signed_extrinsic_v4(&call_data)
+	} else {
+		build_mock_signed_extrinsic_v4_with_nonce(&call_data, nonce)
+	};
 	format!("0x{}", hex::encode(&extrinsic))
 }
 

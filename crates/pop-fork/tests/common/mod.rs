@@ -548,24 +548,49 @@ pub async fn run_rpc_server_author_tests() {
 		..Default::default()
 	};
 	let ctx = TestContext::for_rpc_server_with_config(config).await;
+	ctx.blockchain()
+		.initialize_dev_accounts()
+		.await
+		.expect("Failed to initialize dev accounts");
 	let ws_url = ctx.ws_url();
-	let ext_hex = rpc_server_author::build_transfer_extrinsic_hex(ctx.blockchain()).await;
+	let alice_key =
+		pop_fork::testing::helpers::account_storage_key(&pop_fork::testing::accounts::ALICE);
+	let base_nonce = ctx
+		.blockchain()
+		.storage(&alice_key)
+		.await
+		.expect("Failed to read Alice account")
+		.map(|v| pop_fork::testing::helpers::decode_account_nonce(&v))
+		.unwrap_or(0) as u64;
+	let ext_hex_0 =
+		rpc_server_author::build_transfer_extrinsic_hex_with_nonce(ctx.blockchain(), base_nonce)
+			.await;
 	let expected_hash = format!(
 		"0x{}",
 		hex::encode(sp_core::blake2_256(
-			&hex::decode(ext_hex.trim_start_matches("0x")).expect("extrinsic hex should decode")
+			&hex::decode(ext_hex_0.trim_start_matches("0x")).expect("extrinsic hex should decode")
 		))
 	);
 
 	rpc_server_author::author_submit_extrinsic_returns_correct_hash_at(
 		&ws_url,
-		&ext_hex,
+		&ext_hex_0,
 		&expected_hash,
 	)
 	.await;
-	rpc_server_author::author_pending_extrinsics_empty_after_submit_at(&ws_url, &ext_hex).await;
+	let ext_hex_1 = rpc_server_author::build_transfer_extrinsic_hex_with_nonce(
+		ctx.blockchain(),
+		base_nonce + 1,
+	)
+	.await;
+	rpc_server_author::author_pending_extrinsics_empty_after_submit_at(&ws_url, &ext_hex_1).await;
 	rpc_server_author::author_submit_extrinsic_invalid_hex_at(&ws_url).await;
-	rpc_server_author::author_submit_and_watch_sends_lifecycle_events_at(&ws_url, &ext_hex).await;
+	let ext_hex_2 = rpc_server_author::build_transfer_extrinsic_hex_with_nonce(
+		ctx.blockchain(),
+		base_nonce + 2,
+	)
+	.await;
+	rpc_server_author::author_submit_and_watch_sends_lifecycle_events_at(&ws_url, &ext_hex_2).await;
 
 	let invalid_ctx = pop_fork::testing::TestContextBuilder::new().with_server().build().await;
 	let invalid_ws = invalid_ctx.ws_url();
@@ -591,10 +616,19 @@ pub async fn run_rpc_server_chain_tests() {
 	let ctx = TestContext::for_rpc_server().await;
 	ctx.blockchain().build_empty_block().await.expect("Failed to build block");
 	let head_number = ctx.blockchain().head_number().await;
-	let expected_hash = format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
-	chain::chain_get_block_hash_returns_head_hash(&ctx.ws_url(), head_number, &expected_hash).await;
-	chain::chain_get_block_hash_without_number_returns_head_hash(&ctx.ws_url(), &expected_hash)
-		.await;
+	let expected_initial_head_hash =
+		format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
+	chain::chain_get_block_hash_returns_head_hash(
+		&ctx.ws_url(),
+		head_number,
+		&expected_initial_head_hash,
+	)
+	.await;
+	chain::chain_get_block_hash_without_number_returns_head_hash(
+		&ctx.ws_url(),
+		&expected_initial_head_hash,
+	)
+	.await;
 	chain::chain_get_block_hash_returns_none_hash(&ctx.ws_url(), head_number + 999).await;
 	let fork_point_number = ctx.blockchain().fork_point_number();
 	let fork_hash = format!("0x{}", hex::encode(ctx.blockchain().fork_point().as_bytes()));
@@ -650,7 +684,10 @@ pub async fn run_rpc_server_chain_tests() {
 	)
 	.await;
 	chain::chain_get_block_returns_head_when_no_hash(&ctx.ws_url(), &number_hex).await;
-	chain::chain_get_finalized_head_returns_head_hash(&ctx.ws_url(), &expected_hash).await;
+	let expected_current_head_hash =
+		format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
+	chain::chain_get_finalized_head_returns_head_hash(&ctx.ws_url(), &expected_current_head_hash)
+		.await;
 
 	let new_block = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
 	chain::chain_get_finalized_head_returns_head_hash(

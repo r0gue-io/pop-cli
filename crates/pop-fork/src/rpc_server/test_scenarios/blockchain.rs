@@ -10,7 +10,10 @@ use crate::{
 		TestContext,
 		accounts::{ALICE, BOB},
 		constants::TRANSFER_AMOUNT,
-		helpers::{account_storage_key, build_mock_signed_extrinsic_v4, decode_free_balance},
+		helpers::{
+			account_storage_key, build_mock_signed_extrinsic_v4_with_nonce, decode_account_nonce,
+			decode_free_balance,
+		},
 	},
 };
 use subxt::config::substrate::H256;
@@ -249,6 +252,10 @@ pub async fn build_block_with_signed_transfer_updates_balances() {
 	let blockchain = Blockchain::fork_with_config(&ctx.endpoint, None, None, config)
 		.await
 		.expect("Failed to fork blockchain");
+	blockchain
+		.initialize_dev_accounts()
+		.await
+		.expect("Failed to initialize dev accounts");
 
 	// Get storage keys for Alice and Bob
 	let alice_key = account_storage_key(&ALICE);
@@ -266,6 +273,12 @@ pub async fn build_block_with_signed_transfer_updates_balances() {
 		.expect("Failed to get Alice balance")
 		.map(|v| decode_free_balance(&v))
 		.expect("Alice should have a balance");
+	let alice_nonce_before = blockchain
+		.storage_at(head_number_before, &alice_key)
+		.await
+		.expect("Failed to get Alice account data")
+		.map(|v| decode_account_nonce(&v))
+		.expect("Alice account should exist");
 
 	let bob_balance_before = blockchain
 		.storage_at(head_number_before, &bob_key)
@@ -287,8 +300,9 @@ pub async fn build_block_with_signed_transfer_updates_balances() {
 	call_data.extend(BOB);
 	call_data.extend(Compact(TRANSFER_AMOUNT).encode());
 
-	// Build a signed extrinsic
-	let extrinsic = build_mock_signed_extrinsic_v4(&call_data);
+	// Build a signed extrinsic with the current nonce.
+	let extrinsic =
+		build_mock_signed_extrinsic_v4_with_nonce(&call_data, alice_nonce_before.into());
 
 	// Build a block with the transfer extrinsic
 	let result = blockchain
@@ -869,6 +883,10 @@ pub async fn validate_extrinsic_accepts_valid_transfer() {
 	let blockchain = Blockchain::fork_with_config(&ctx.endpoint, None, None, config)
 		.await
 		.expect("Failed to fork blockchain");
+	blockchain
+		.initialize_dev_accounts()
+		.await
+		.expect("Failed to initialize dev accounts");
 
 	// Build a valid transfer extrinsic
 	let head = blockchain.head().await;
@@ -886,7 +904,14 @@ pub async fn validate_extrinsic_accepts_valid_transfer() {
 	call_data.extend(BOB);
 	call_data.extend(Compact(TRANSFER_AMOUNT).encode());
 
-	let extrinsic = build_mock_signed_extrinsic_v4(&call_data);
+	let alice_key = account_storage_key(&ALICE);
+	let alice_nonce = blockchain
+		.storage(&alice_key)
+		.await
+		.expect("Failed to get Alice account data")
+		.map(|v| decode_account_nonce(&v))
+		.expect("Alice account should exist");
+	let extrinsic = build_mock_signed_extrinsic_v4_with_nonce(&call_data, u64::from(alice_nonce));
 
 	// Validate should succeed
 	let result = blockchain.validate_extrinsic(&extrinsic).await;
@@ -915,6 +940,10 @@ pub async fn build_block_result_tracks_included_extrinsics() {
 	let blockchain = Blockchain::fork_with_config(&ctx.endpoint, None, None, config)
 		.await
 		.expect("Failed to fork");
+	blockchain
+		.initialize_dev_accounts()
+		.await
+		.expect("Failed to initialize dev accounts");
 
 	// Build a valid transfer extrinsic
 	let head = blockchain.head().await;
@@ -932,7 +961,14 @@ pub async fn build_block_result_tracks_included_extrinsics() {
 	call_data.extend(BOB);
 	call_data.extend(Compact(TRANSFER_AMOUNT).encode());
 
-	let extrinsic = build_mock_signed_extrinsic_v4(&call_data);
+	let alice_key = account_storage_key(&ALICE);
+	let alice_nonce = blockchain
+		.storage(&alice_key)
+		.await
+		.expect("Failed to get Alice account data")
+		.map(|v| decode_account_nonce(&v))
+		.expect("Alice account should exist");
+	let extrinsic = build_mock_signed_extrinsic_v4_with_nonce(&call_data, u64::from(alice_nonce));
 
 	let result = blockchain
 		.build_block(vec![extrinsic.clone()])

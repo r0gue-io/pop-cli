@@ -8,12 +8,12 @@ use crate::{
 	ForkRpcClient, LocalStorageLayer, RemoteStorageLayer, RuntimeExecutor, StorageCache,
 	TimestampInherent,
 };
-use pop_common::test_env::TestNode;
 use subxt::Metadata;
 use url::Url;
 
 const DEFAULT_RELAY_SLOT_DURATION_MS: u64 = 6_000;
 const DEFAULT_PARA_SLOT_DURATION_MS: u64 = 12_000;
+const LOCAL_TEST_NODE_WS_URL: &str = "ws://127.0.0.1:9944";
 
 /// Asset Hub Paseo endpoints (Aura-based parachain).
 const ASSET_HUB_PASEO_ENDPOINTS: &[&str] = &[
@@ -27,8 +27,6 @@ const PASEO_RELAY_ENDPOINTS: &[&str] =
 	&["wss://rpc.ibp.network/paseo", "wss://pas-rpc.stakeworld.io", "wss://paseo.dotters.network"];
 
 struct LocalTestContext {
-	#[allow(dead_code)]
-	node: TestNode,
 	executor: RuntimeExecutor,
 	storage: LocalStorageLayer,
 	metadata: Metadata,
@@ -41,12 +39,12 @@ struct RemoteTestContext {
 }
 
 async fn create_local_context() -> LocalTestContext {
-	let node = TestNode::spawn().await.expect("Failed to spawn test node");
-	let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
-	let RemoteTestContext { executor, storage, metadata } =
-		try_create_remote_context(&endpoint).await.expect("Failed to create context");
+	let endpoint: Url = LOCAL_TEST_NODE_WS_URL.parse().expect("Invalid WebSocket URL");
+	let RemoteTestContext { executor, storage, metadata } = try_create_remote_context(&endpoint)
+		.await
+		.expect("Failed to create context from local node (ws://127.0.0.1:9944)");
 
-	LocalTestContext { node, executor, storage, metadata }
+	LocalTestContext { executor, storage, metadata }
 }
 
 async fn try_create_remote_context(endpoint: &Url) -> Option<RemoteTestContext> {
