@@ -15,6 +15,7 @@ use jsonrpsee::{
 	core::{RpcResult, SubscriptionResult},
 	proc_macros::rpc,
 };
+use log::debug;
 use std::sync::Arc;
 use subxt::config::substrate::H256;
 
@@ -61,7 +62,7 @@ impl AuthorApiServer for AuthorApi {
 	async fn submit_extrinsic(&self, extrinsic: String) -> RpcResult<String> {
 		let ext_bytes = parse_hex_bytes(&extrinsic, "extrinsic")?;
 
-		// Validate extrinsic BEFORE adding to pool
+		// Validate extrinsic before adding to pool.
 		if let Err(err) = self.blockchain.validate_extrinsic(&ext_bytes).await {
 			let reason = err.reason();
 			let data = None; // Could encode the full error in future
@@ -91,6 +92,13 @@ impl AuthorApiServer for AuthorApi {
 			eprintln!("[AuthorApi] Extrinsic failed dispatch after validation: {}", failed.reason);
 		}
 
+		debug!(
+			"[author] Extrinsic submitted (0x{}) included in block #{} (0x{})",
+			hex::encode(hash.as_bytes()),
+			result.block.number,
+			hex::encode(&result.block.hash.as_bytes()[..4]),
+		);
+
 		Ok(HexString::from_bytes(hash.as_bytes()).into())
 	}
 
@@ -113,7 +121,7 @@ impl AuthorApiServer for AuthorApi {
 			},
 		};
 
-		// Validate BEFORE sending "ready" status
+		// Validate before sending "ready" status.
 		if let Err(err) = self.blockchain.validate_extrinsic(&ext_bytes).await {
 			let msg = jsonrpsee::SubscriptionMessage::from_json(
 				&serde_json::json!({"invalid": err.reason()}),
@@ -123,7 +131,7 @@ impl AuthorApiServer for AuthorApi {
 		}
 
 		// Calculate hash
-		let _hash = H256::from(sp_core::blake2_256(&ext_bytes));
+		let hash = H256::from(sp_core::blake2_256(&ext_bytes));
 
 		// Send "ready" status (only after validation passes)
 		let msg = jsonrpsee::SubscriptionMessage::from_json(&serde_json::json!({"ready": null}))?;
@@ -168,6 +176,13 @@ impl AuthorApiServer for AuthorApi {
 
 				let block_hex = format!("0x{}", hex::encode(result.block.hash.as_bytes()));
 
+				debug!(
+					"[author] Extrinsic submitted (0x{}) included in block #{} (0x{})",
+					hex::encode(hash.as_bytes()),
+					result.block.number,
+					hex::encode(&result.block.hash.as_bytes()[..4]),
+				);
+
 				// Send "inBlock" status
 				let msg = jsonrpsee::SubscriptionMessage::from_json(
 					&serde_json::json!({"inBlock": block_hex}),
@@ -207,7 +222,7 @@ mod tests {
 	use crate::{
 		ExecutorConfig, SignatureMockMode,
 		testing::{
-			TestContext,
+			TestContext, TestContextBuilder,
 			accounts::{ALICE, BOB},
 			constants::TRANSFER_AMOUNT,
 			helpers::{account_storage_key, build_mock_signed_extrinsic_v4, decode_free_balance},
@@ -242,6 +257,7 @@ mod tests {
 			ExecutorConfig { signature_mock: SignatureMockMode::AlwaysValid, ..Default::default() };
 		let ctx = TestContext::for_rpc_server_with_config(config).await;
 		let client = WsClientBuilder::default()
+			.request_timeout(std::time::Duration::from_secs(120))
 			.build(&ctx.ws_url())
 			.await
 			.expect("Failed to connect");
@@ -299,6 +315,7 @@ mod tests {
 			ExecutorConfig { signature_mock: SignatureMockMode::AlwaysValid, ..Default::default() };
 		let ctx = TestContext::for_rpc_server_with_config(config).await;
 		let client = WsClientBuilder::default()
+			.request_timeout(std::time::Duration::from_secs(120))
 			.build(&ctx.ws_url())
 			.await
 			.expect("Failed to connect");
@@ -333,6 +350,7 @@ mod tests {
 			ExecutorConfig { signature_mock: SignatureMockMode::AlwaysValid, ..Default::default() };
 		let ctx = TestContext::for_rpc_server_with_config(config).await;
 		let client = WsClientBuilder::default()
+			.request_timeout(std::time::Duration::from_secs(120))
 			.build(&ctx.ws_url())
 			.await
 			.expect("Failed to connect");
@@ -377,6 +395,7 @@ mod tests {
 			ExecutorConfig { signature_mock: SignatureMockMode::AlwaysValid, ..Default::default() };
 		let ctx = TestContext::for_rpc_server_with_config(config).await;
 		let client = WsClientBuilder::default()
+			.request_timeout(std::time::Duration::from_secs(120))
 			.build(&ctx.ws_url())
 			.await
 			.expect("Failed to connect");
@@ -398,9 +417,10 @@ mod tests {
 			.await
 			.expect("Failed to subscribe");
 
-		// Collect events with timeout
+		// Collect events with timeout.
+		// Block building requires WASM compilation on first call, so allow enough time.
 		let mut events = Vec::new();
-		let timeout = tokio::time::Duration::from_secs(10);
+		let timeout = tokio::time::Duration::from_secs(120);
 
 		loop {
 			match tokio::time::timeout(timeout, subscription.next()).await {
@@ -452,8 +472,9 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn author_submit_extrinsic_rejects_garbage_with_error_code() {
-		let ctx = TestContext::for_rpc_server().await;
+		let ctx = TestContextBuilder::new().with_server().build().await;
 		let client = WsClientBuilder::default()
+			.request_timeout(std::time::Duration::from_secs(120))
 			.build(&ctx.ws_url())
 			.await
 			.expect("Failed to connect");
@@ -481,7 +502,7 @@ mod tests {
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn author_submit_extrinsic_does_not_build_block_on_validation_failure() {
-		let ctx = TestContext::for_rpc_server().await;
+		let ctx = TestContextBuilder::new().with_server().build().await;
 		let client = WsClientBuilder::default()
 			.build(&ctx.ws_url())
 			.await
@@ -507,8 +528,9 @@ mod tests {
 	async fn author_submit_and_watch_sends_invalid_on_validation_failure() {
 		use jsonrpsee::core::client::SubscriptionClientT;
 
-		let ctx = TestContext::for_rpc_server().await;
+		let ctx = TestContextBuilder::new().with_server().build().await;
 		let client = WsClientBuilder::default()
+			.request_timeout(std::time::Duration::from_secs(120))
 			.build(&ctx.ws_url())
 			.await
 			.expect("Failed to connect");
@@ -525,8 +547,9 @@ mod tests {
 			.await
 			.expect("Failed to subscribe");
 
-		// Should receive "invalid" event (not "ready")
-		let timeout = tokio::time::Duration::from_secs(5);
+		// Should receive "invalid" event (not "ready").
+		// Validation requires WASM compilation on first call, so allow enough time.
+		let timeout = tokio::time::Duration::from_secs(120);
 		match tokio::time::timeout(timeout, subscription.next()).await {
 			Ok(Some(Ok(event))) => {
 				assert!(

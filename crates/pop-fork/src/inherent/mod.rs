@@ -105,6 +105,20 @@ pub trait InherentProvider: Send + Sync {
 		parent: &Block,
 		executor: &RuntimeExecutor,
 	) -> Result<Vec<Vec<u8>>, BlockBuilderError>;
+
+	/// Pre-cache expensive computations to speed up the first `provide()` call.
+	///
+	/// Called during background warmup after forking. The default implementation
+	/// is a no-op. Providers that perform expensive runtime calls (e.g. WASM
+	/// execution to detect slot duration) should override this to cache the result.
+	async fn warmup(&self, _parent: &Block, _executor: &RuntimeExecutor) {}
+
+	/// Invalidate cached runtime-derived values.
+	///
+	/// Called after a runtime upgrade so that providers re-detect values
+	/// (e.g. slot duration) from the new runtime on the next `provide()` call.
+	/// The default implementation is a no-op.
+	fn invalidate_cache(&self) {}
 }
 
 /// Create default inherent providers for block building.

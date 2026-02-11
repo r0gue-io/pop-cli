@@ -35,6 +35,12 @@ pub mod timestamp {
 
 		/// Babe constant name for expected block time.
 		pub const BABE_EXPECTED_BLOCK_TIME: &str = "ExpectedBlockTime";
+
+		/// Fallback slot duration for relay chains (6 seconds).
+		pub const RELAY_CHAIN_FALLBACK_MS: u64 = 6_000;
+
+		/// Fallback slot duration for parachains (12 seconds).
+		pub const PARACHAIN_FALLBACK_MS: u64 = 12_000;
 	}
 
 	/// Error message formats.

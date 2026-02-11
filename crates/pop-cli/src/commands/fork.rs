@@ -28,24 +28,51 @@ const DETACH_READY_TIMEOUT_SECS: u64 = 120;
 /// Poll interval when checking for fork server readiness.
 const DETACH_READY_POLL_MS: u64 = 200;
 
+/// UI messages used across interactive and headless paths.
+mod messages {
+	/// Intro message for the fork CLI session.
+	pub const INTRO: &str = "Forking chain";
+	/// Intro message for detached fork mode.
+	pub const INTRO_DETACHED: &str = "Forking chain (detached mode)";
+	/// Prompt to stop the server.
+	pub const PRESS_CTRL_C: &str = "Press Ctrl+C to stop.";
+	/// Shutdown message.
+	pub const SHUTTING_DOWN: &str = "Shutting down...";
+
+	/// Format "Forking `endpoint`..." progress message.
+	pub fn forking(endpoint: &impl std::fmt::Display) -> String {
+		format!("Forking {endpoint}...")
+	}
+
+	/// Format "Dev accounts funded on `chain`" message.
+	pub fn dev_accounts_funded(chain_name: &str) -> String {
+		format!("Dev accounts funded on {chain_name}")
+	}
+
+	/// Format "Forked `chain` at block #N -> `ws_url`" message.
+	pub fn forked(chain_name: &str, block_number: u32, ws_url: &str) -> String {
+		format!("Forked {chain_name} at block #{block_number} -> {ws_url}")
+	}
+}
+
 /// Arguments for the fork command.
 #[derive(Args, Clone, Default, Serialize)]
-#[command(group = ArgGroup::new("source").args(["chain", "endpoints"]))]
+#[command(group = ArgGroup::new("source").args(["chain", "endpoint"]))]
 pub(crate) struct ForkArgs {
 	/// Well-known chain to fork (e.g., paseo, polkadot, kusama, westend).
 	#[arg(value_enum, index = 1)]
 	#[serde(skip)]
 	pub chain: Option<SupportedChains>,
 
-	/// RPC endpoint(s) to fork from. Use multiple times for multiple chains.
+	/// RPC endpoint to fork from.
 	#[arg(short = 'e', long = "endpoint")]
-	pub endpoints: Vec<String>,
+	pub endpoint: Option<String>,
 
 	/// Path to persist SQLite cache. If not specified, uses in-memory cache.
 	#[arg(short, long)]
 	pub cache: Option<PathBuf>,
 
-	/// Starting port for RPC server(s). Auto-finds from 8000 if not specified.
+	/// Port for the RPC server. Auto-finds from 9944 if not specified.
 	#[arg(short, long)]
 	pub port: Option<u16>,
 
@@ -68,7 +95,7 @@ pub(crate) struct ForkArgs {
 	pub at: Option<u32>,
 
 	/// Internal flag: run as background server (used by detach mode).
-	#[arg(long, hide = true, requires = "endpoints")]
+	#[arg(long, hide = true, requires = "endpoint")]
 	#[serde(skip)]
 	pub serve: bool,
 
@@ -85,20 +112,20 @@ impl Command {
 		args: &mut ForkArgs,
 		cli: &mut impl cli::traits::Cli,
 	) -> Result<()> {
-		// --serve is an internal flag used by spawn_detached; it always receives endpoints
-		// via CLI args, so no prompting or intro is needed.
+		// --serve is an internal flag used by spawn_detached; it always receives the
+		// endpoint via CLI args, so no prompting or intro is needed.
 		if args.serve {
-			if args.endpoints.is_empty() {
-				anyhow::bail!("--serve requires at least one --endpoint");
+			if args.endpoint.is_none() {
+				anyhow::bail!("--serve requires --endpoint");
 			}
 			return Self::run_server(args).await;
 		}
 
 		// Show intro first so the cliclack session is set up before any prompts.
 		if args.detach {
-			cli.intro("Forking chain(s) (detached mode)")?;
+			cli.intro(messages::INTRO_DETACHED)?;
 		} else {
-			cli.intro("Forking chain(s)")?;
+			cli.intro(messages::INTRO)?;
 		}
 
 		// When a well-known chain is specified, try each RPC URL with fallback.
@@ -107,7 +134,7 @@ impl Command {
 		}
 
 		// Prompt for endpoint if none provided.
-		if args.endpoints.is_empty() {
+		if args.endpoint.is_none() {
 			let url = prompt_to_select_chain_rpc(
 				"Which chain would you like to fork? (type to filter)",
 				"Type the chain RPC URL",
@@ -116,7 +143,7 @@ impl Command {
 				cli,
 			)
 			.await?;
-			args.endpoints.push(url.to_string());
+			args.endpoint = Some(url.to_string());
 		}
 
 		if args.detach {
@@ -137,7 +164,7 @@ impl Command {
 
 		for rpc_url in rpc_urls {
 			let resolved =
-				ForkArgs { endpoints: vec![rpc_url.to_string()], chain: None, ..args.clone() };
+				ForkArgs { endpoint: Some(rpc_url.to_string()), chain: None, ..args.clone() };
 
 			match Self::execute_resolved(&resolved, cli).await {
 				Ok(()) => return Ok(()),
@@ -152,7 +179,7 @@ impl Command {
 			.unwrap_or_else(|| anyhow::anyhow!("No RPC endpoints available for {}", chain)))
 	}
 
-	/// Execute with already-resolved endpoints (no chain fallback).
+	/// Execute with an already-resolved endpoint (no chain fallback).
 	async fn execute_resolved(args: &ForkArgs, cli: &mut impl cli::traits::Cli) -> Result<()> {
 		if args.detach {
 			return Self::spawn_detached(args, cli);
@@ -256,11 +283,8 @@ impl Command {
 	/// Run as a background server (called via --serve flag).
 	/// Output goes to log file, waits for termination signal.
 	async fn run_server(args: &ForkArgs) -> Result<()> {
-		let endpoints: Vec<Url> = args
-			.endpoints
-			.iter()
-			.map(|e| e.parse::<Url>())
-			.collect::<std::result::Result<Vec<_>, _>>()?;
+		let endpoint: Url =
+			args.endpoint.as_ref().expect("endpoint required for --serve").parse()?;
 
 		let executor_config = ExecutorConfig {
 			signature_mock: if args.mock_all_signatures {
@@ -273,83 +297,53 @@ impl Command {
 
 		let fork_point = args.at.map(BlockForkPoint::from);
 
-		let mut servers: Vec<(String, Arc<Blockchain>, ForkRpcServer)> = Vec::new();
-		let mut current_port = args.port;
+		log::info!("{}", messages::forking(&endpoint));
 
-		for (i, endpoint) in endpoints.iter().enumerate() {
-			println!("Forking {}...", endpoint);
+		let blockchain = Blockchain::fork_with_config(
+			&endpoint,
+			args.cache.as_deref(),
+			fork_point,
+			executor_config,
+		)
+		.await?;
 
-			let cache_path = Self::resolve_cache_path(&args.cache, endpoints.len(), i);
-
-			let blockchain = Blockchain::fork_with_config(
-				endpoint,
-				cache_path.as_deref(),
-				fork_point,
-				executor_config.clone(),
-			)
-			.await?;
-
-			if args.dev {
-				blockchain.initialize_dev_accounts().await?;
-				log::info!("Dev accounts funded on {}", blockchain.chain_name());
-			}
-
-			let txpool = Arc::new(TxPool::new());
-			let server_config = RpcServerConfig { port: current_port, max_connections: 100 };
-			let server = ForkRpcServer::start(blockchain.clone(), txpool, server_config).await?;
-
-			if current_port.is_some() {
-				current_port = Some(server.addr().port() + 1);
-			}
-
-			println!(
-				"Forked {} at block #{} -> {}",
-				blockchain.chain_name(),
-				blockchain.fork_point_number(),
-				server.ws_url()
-			);
-
-			servers.push((blockchain.chain_name().to_string(), blockchain, server));
+		if args.dev {
+			blockchain.initialize_dev_accounts().await?;
+			log::info!("{}", messages::dev_accounts_funded(blockchain.chain_name()));
 		}
+
+		let txpool = Arc::new(TxPool::new());
+		let server_config = RpcServerConfig { port: args.port, ..Default::default() };
+		let server = ForkRpcServer::start(blockchain.clone(), txpool, server_config).await?;
+
+		let forked_msg = messages::forked(
+			blockchain.chain_name(),
+			blockchain.fork_point_number(),
+			&server.ws_url(),
+		);
+		log::info!("{forked_msg}");
 
 		// Signal readiness to the parent process (detach mode).
 		if let Some(ready_path) = &args.ready_file {
-			let info: Vec<String> = servers
-				.iter()
-				.map(|(_, blockchain, server)| {
-					format!(
-						"Forked {} at block #{} -> {}",
-						blockchain.chain_name(),
-						blockchain.fork_point_number(),
-						server.ws_url()
-					)
-				})
-				.collect();
-			std::fs::write(ready_path, info.join("\n"))?;
+			std::fs::write(ready_path, &forked_msg)?;
 		}
 
-		println!("Server running. Waiting for termination signal...");
+		log::info!("Server running. Waiting for termination signal...");
 
 		// Wait for termination signal
 		tokio::signal::ctrl_c().await?;
 
-		println!("Shutting down...");
-		for (_, blockchain, server) in servers {
-			server.stop().await;
-			let _ = blockchain.clear_local_storage().await;
-		}
+		log::info!("{}", messages::SHUTTING_DOWN);
+		server.stop().await;
+		let _ = blockchain.clear_local_storage().await;
 
-		println!("Shutdown complete.");
+		log::info!("Shutdown complete.");
 		Ok(())
 	}
 
 	/// Run interactively with CLI output (default mode).
 	async fn run_interactive(args: &ForkArgs, cli: &mut impl cli::traits::Cli) -> Result<()> {
-		let endpoints: Vec<Url> = args
-			.endpoints
-			.iter()
-			.map(|e| e.parse::<Url>())
-			.collect::<std::result::Result<Vec<_>, _>>()?;
+		let endpoint: Url = args.endpoint.as_ref().expect("endpoint required").parse()?;
 
 		let executor_config = ExecutorConfig {
 			signature_mock: if args.mock_all_signatures {
@@ -362,96 +356,55 @@ impl Command {
 
 		let fork_point = args.at.map(BlockForkPoint::from);
 
-		let mut servers: Vec<(String, Arc<Blockchain>, ForkRpcServer)> = Vec::new();
-		let mut current_port = args.port;
+		cli.info(messages::forking(&endpoint))?;
 
-		for (i, endpoint) in endpoints.iter().enumerate() {
-			cli.info(format!("Forking {}...", endpoint))?;
+		let blockchain = Blockchain::fork_with_config(
+			&endpoint,
+			args.cache.as_deref(),
+			fork_point,
+			executor_config,
+		)
+		.await?;
 
-			let cache_path = Self::resolve_cache_path(&args.cache, endpoints.len(), i);
-
-			let blockchain = Blockchain::fork_with_config(
-				endpoint,
-				cache_path.as_deref(),
-				fork_point,
-				executor_config.clone(),
-			)
-			.await?;
-
-			if args.dev {
-				blockchain.initialize_dev_accounts().await?;
-				cli.info(format!("Dev accounts funded on {}", blockchain.chain_name()))?;
-			}
-
-			let txpool = Arc::new(TxPool::new());
-
-			let server_config = RpcServerConfig { port: current_port, max_connections: 100 };
-
-			let server = ForkRpcServer::start(blockchain.clone(), txpool, server_config).await?;
-
-			if current_port.is_some() {
-				current_port = Some(server.addr().port() + 1);
-			}
-
-			let ws = server.ws_url();
-			cli.success(format!(
-				"Forked {} at block #{} -> {ws}\n{}\n{}",
-				blockchain.chain_name(),
-				blockchain.fork_point_number(),
-				style(format!("  polkadot.js: https://polkadot.js.org/apps/?rpc={ws}#/explorer"))
-					.dim(),
-				style(format!(
-					"  papi:        https://dev.papi.how/explorer#networkId=custom&endpoint={ws}"
-				))
-				.dim(),
-			))?;
-
-			servers.push((blockchain.chain_name().to_string(), blockchain, server));
+		if args.dev {
+			blockchain.initialize_dev_accounts().await?;
+			cli.info(messages::dev_accounts_funded(blockchain.chain_name()))?;
 		}
 
-		cli.info("Press Ctrl+C to stop.")?;
+		let txpool = Arc::new(TxPool::new());
+		let server_config = RpcServerConfig { port: args.port, ..Default::default() };
+		let server = ForkRpcServer::start(blockchain.clone(), txpool, server_config).await?;
+
+		let ws = server.ws_url();
+		cli.success(format!(
+			"{}\n{}\n{}",
+			messages::forked(blockchain.chain_name(), blockchain.fork_point_number(), &ws),
+			style(format!("  polkadot.js: https://polkadot.js.org/apps/?rpc={ws}#/explorer")).dim(),
+			style(format!(
+				"  papi:        https://dev.papi.how/explorer#networkId=custom&endpoint={ws}"
+			))
+			.dim(),
+		))?;
+
+		cli.info(messages::PRESS_CTRL_C)?;
 
 		tokio::signal::ctrl_c().await?;
 
-		cli.info("Shutting down...")?;
-		for (_, blockchain, server) in servers {
-			server.stop().await;
-			// Clear local storage to remove temporary state from cache
-			if let Err(e) = blockchain.clear_local_storage().await {
-				cli.warning(format!("Failed to clear local storage: {}", e))?;
-			}
+		cli.info(messages::SHUTTING_DOWN)?;
+		server.stop().await;
+		if let Err(e) = blockchain.clear_local_storage().await {
+			cli.warning(format!("Failed to clear local storage: {}", e))?;
 		}
 
 		cli.outro("Done.")?;
 		Ok(())
 	}
 
-	/// Resolve cache path for a specific chain index (handles multiple chains).
-	fn resolve_cache_path(
-		cache: &Option<PathBuf>,
-		num_endpoints: usize,
-		index: usize,
-	) -> Option<PathBuf> {
-		cache.as_ref().map(|p| {
-			if num_endpoints > 1 {
-				let stem = p.file_stem().unwrap_or_default().to_string_lossy();
-				let ext = p.extension().map(|e| e.to_string_lossy()).unwrap_or_default();
-				if ext.is_empty() {
-					p.with_file_name(format!("{}_{}", stem, index))
-				} else {
-					p.with_file_name(format!("{}_{}.{}", stem, index, ext))
-				}
-			} else {
-				p.clone()
-			}
-		})
-	}
-
 	/// Build command arguments for spawning a serve subprocess.
 	/// Extracted for testability.
 	fn build_serve_args(args: &ForkArgs) -> Vec<String> {
 		let mut cmd_args = vec!["fork".to_string()];
-		for endpoint in &args.endpoints {
+		if let Some(endpoint) = &args.endpoint {
 			cmd_args.push("-e".to_string());
 			cmd_args.push(endpoint.clone());
 		}
@@ -484,7 +437,7 @@ mod tests {
 	use crate::cli::MockCli;
 
 	#[tokio::test(flavor = "multi_thread")]
-	async fn execute_prompts_when_no_endpoints_selects_local() {
+	async fn execute_prompts_when_no_endpoint_selects_local() {
 		let mut args = ForkArgs::default();
 		let mut cli = MockCli::new().expect_select(
 			"Which chain would you like to fork? (type to filter)",
@@ -497,14 +450,14 @@ mod tests {
 			0, // select Local
 			None,
 		);
-		// execute will fail connecting, but the prompt should populate endpoints
+		// execute will fail connecting, but the prompt should populate endpoint
 		let _ = Command::execute(&mut args, &mut cli).await;
-		assert_eq!(args.endpoints, vec!["ws://localhost:9944/"]);
+		assert_eq!(args.endpoint, Some("ws://localhost:9944/".to_string()));
 		cli.verify().unwrap();
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
-	async fn execute_prompts_when_no_endpoints_selects_custom() {
+	async fn execute_prompts_when_no_endpoint_selects_custom() {
 		let mut args = ForkArgs::default();
 		let mut cli = MockCli::new()
 			.expect_select(
@@ -520,78 +473,34 @@ mod tests {
 			)
 			.expect_input("Type the chain RPC URL", "ws://127.0.0.1:1".to_string());
 		let _ = Command::execute(&mut args, &mut cli).await;
-		assert_eq!(args.endpoints, vec!["ws://127.0.0.1:1/"]);
+		assert_eq!(args.endpoint, Some("ws://127.0.0.1:1/".to_string()));
 		cli.verify().unwrap();
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
-	async fn execute_skips_prompt_when_endpoints_provided() {
+	async fn execute_skips_prompt_when_endpoint_provided() {
 		let mut args =
-			ForkArgs { endpoints: vec!["ws://127.0.0.1:1".to_string()], ..Default::default() };
+			ForkArgs { endpoint: Some("ws://127.0.0.1:1".to_string()), ..Default::default() };
 		// No select expectation -- prompt should not be triggered
 		let mut cli = MockCli::new();
 		let _ = Command::execute(&mut args, &mut cli).await;
-		assert_eq!(args.endpoints, vec!["ws://127.0.0.1:1".to_string()]);
+		assert_eq!(args.endpoint, Some("ws://127.0.0.1:1".to_string()));
 		cli.verify().unwrap();
 	}
 
 	#[tokio::test(flavor = "multi_thread")]
-	async fn execute_errors_when_serve_without_endpoints() {
+	async fn execute_errors_when_serve_without_endpoint() {
 		let mut args = ForkArgs { serve: true, ..Default::default() };
 		let mut cli = MockCli::new();
 		let err = Command::execute(&mut args, &mut cli).await.unwrap_err();
-		assert!(err.to_string().contains("--serve requires at least one --endpoint"));
+		assert!(err.to_string().contains("--serve requires --endpoint"));
 		cli.verify().unwrap();
-	}
-
-	#[test]
-	fn resolve_cache_path_single_endpoint_no_extension() {
-		let cache = Some(PathBuf::from("/tmp/cache"));
-		let result = Command::resolve_cache_path(&cache, 1, 0);
-		assert_eq!(result, Some(PathBuf::from("/tmp/cache")));
-	}
-
-	#[test]
-	fn resolve_cache_path_single_endpoint_with_extension() {
-		let cache = Some(PathBuf::from("/tmp/cache.db"));
-		let result = Command::resolve_cache_path(&cache, 1, 0);
-		assert_eq!(result, Some(PathBuf::from("/tmp/cache.db")));
-	}
-
-	#[test]
-	fn resolve_cache_path_multiple_endpoints_no_extension() {
-		let cache = Some(PathBuf::from("/tmp/cache"));
-		assert_eq!(Command::resolve_cache_path(&cache, 2, 0), Some(PathBuf::from("/tmp/cache_0")));
-		assert_eq!(Command::resolve_cache_path(&cache, 2, 1), Some(PathBuf::from("/tmp/cache_1")));
-	}
-
-	#[test]
-	fn resolve_cache_path_multiple_endpoints_with_extension() {
-		let cache = Some(PathBuf::from("/tmp/cache.db"));
-		assert_eq!(
-			Command::resolve_cache_path(&cache, 3, 0),
-			Some(PathBuf::from("/tmp/cache_0.db"))
-		);
-		assert_eq!(
-			Command::resolve_cache_path(&cache, 3, 1),
-			Some(PathBuf::from("/tmp/cache_1.db"))
-		);
-		assert_eq!(
-			Command::resolve_cache_path(&cache, 3, 2),
-			Some(PathBuf::from("/tmp/cache_2.db"))
-		);
-	}
-
-	#[test]
-	fn resolve_cache_path_none() {
-		let result = Command::resolve_cache_path(&None, 2, 0);
-		assert_eq!(result, None);
 	}
 
 	#[test]
 	fn build_serve_args_minimal() {
 		let args =
-			ForkArgs { endpoints: vec!["wss://rpc.polkadot.io".to_string()], ..Default::default() };
+			ForkArgs { endpoint: Some("wss://rpc.polkadot.io".to_string()), ..Default::default() };
 		let result = Command::build_serve_args(&args);
 		assert_eq!(result, vec!["fork", "-e", "wss://rpc.polkadot.io", "--serve"]);
 	}
@@ -599,10 +508,7 @@ mod tests {
 	#[test]
 	fn build_serve_args_full() {
 		let args = ForkArgs {
-			endpoints: vec![
-				"wss://rpc.polkadot.io".to_string(),
-				"wss://kusama-rpc.polkadot.io".to_string(),
-			],
+			endpoint: Some("wss://rpc.polkadot.io".to_string()),
 			cache: Some(PathBuf::from("/tmp/cache.db")),
 			port: Some(9000),
 			mock_all_signatures: true,
@@ -620,8 +526,6 @@ mod tests {
 				"fork",
 				"-e",
 				"wss://rpc.polkadot.io",
-				"-e",
-				"wss://kusama-rpc.polkadot.io",
 				"--cache",
 				"/tmp/cache.db",
 				"--port",
@@ -638,7 +542,7 @@ mod tests {
 	#[test]
 	fn build_serve_args_with_at() {
 		let args = ForkArgs {
-			endpoints: vec!["wss://rpc.polkadot.io".to_string()],
+			endpoint: Some("wss://rpc.polkadot.io".to_string()),
 			at: Some(5000),
 			..Default::default()
 		};
@@ -649,7 +553,7 @@ mod tests {
 	#[test]
 	fn build_serve_args_without_at() {
 		let args =
-			ForkArgs { endpoints: vec!["wss://rpc.polkadot.io".to_string()], ..Default::default() };
+			ForkArgs { endpoint: Some("wss://rpc.polkadot.io".to_string()), ..Default::default() };
 		let result = Command::build_serve_args(&args);
 		assert!(!result.contains(&"--at".to_string()));
 	}
@@ -657,7 +561,7 @@ mod tests {
 	#[test]
 	fn build_serve_args_includes_serve_not_detach() {
 		let args = ForkArgs {
-			endpoints: vec!["wss://test.io".to_string()],
+			endpoint: Some("wss://test.io".to_string()),
 			detach: true,
 			..Default::default()
 		};
@@ -669,7 +573,7 @@ mod tests {
 	#[test]
 	fn build_serve_args_excludes_ready_file() {
 		let args = ForkArgs {
-			endpoints: vec!["wss://test.io".to_string()],
+			endpoint: Some("wss://test.io".to_string()),
 			ready_file: Some(PathBuf::from("/tmp/test.ready")),
 			..Default::default()
 		};
@@ -693,37 +597,6 @@ mod tests {
 
 		let mut cli =
 			MockCli::new().expect_success("Forked paseo at block #100 -> ws://127.0.0.1:9945");
-
-		let result = Command::wait_for_ready(&ready_path, &mut child, &mut cli);
-		assert!(result.is_ok());
-		cli.verify().unwrap();
-
-		let _ = child.kill();
-		let _ = child.wait();
-	}
-
-	#[test]
-	fn wait_for_ready_displays_multiple_fork_lines() {
-		let dir = tempfile::tempdir().unwrap();
-		let ready_path = dir.path().join("test.ready");
-		std::fs::write(
-			&ready_path,
-			"Forked polkadot at block #100 -> ws://127.0.0.1:9945\n\
-			 Forked kusama at block #200 -> ws://127.0.0.1:9946",
-		)
-		.unwrap();
-
-		let mut child = StdCommand::new("sleep")
-			.arg("60")
-			.stdin(Stdio::null())
-			.stdout(Stdio::null())
-			.stderr(Stdio::null())
-			.spawn()
-			.unwrap();
-
-		let mut cli = MockCli::new()
-			.expect_success("Forked polkadot at block #100 -> ws://127.0.0.1:9945")
-			.expect_success("Forked kusama at block #200 -> ws://127.0.0.1:9946");
 
 		let result = Command::wait_for_ready(&ready_path, &mut child, &mut cli);
 		assert!(result.is_ok());

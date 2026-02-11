@@ -2,7 +2,7 @@
 
 //! Error types for block builder operations.
 
-use super::{BlockError, ExecutorError, LocalStorageError};
+use super::{BlockError, ExecutorError, LocalStorageError, RemoteStorageError};
 use thiserror::Error;
 
 /// Errors that can occur during block building.
@@ -51,4 +51,10 @@ pub enum BlockBuilderError {
 		/// The error message.
 		message: String,
 	},
+}
+
+impl From<RemoteStorageError> for BlockBuilderError {
+	fn from(err: RemoteStorageError) -> Self {
+		BlockBuilderError::Storage(LocalStorageError::from(err))
+	}
 }

@@ -45,7 +45,15 @@
 //! let value = storage.get(block_hash, &key).await?;
 //! ```
 
-use crate::{ForkRpcClient, StorageCache, error::RemoteStorageError, models::BlockRow};
+use crate::{
+	ForkRpcClient, StorageCache,
+	error::{RemoteStorageError, RpcClientError},
+	models::BlockRow,
+};
+use std::sync::{
+	Arc,
+	atomic::{AtomicUsize, Ordering},
+};
 use subxt::{Metadata, config::substrate::H256, ext::codec::Encode};
 
 /// Default number of keys to fetch per RPC call during prefix scans.
@@ -53,6 +61,61 @@ use subxt::{Metadata, config::substrate::H256, ext::codec::Encode};
 /// This balances RPC overhead (fewer calls = better) against memory usage
 /// and response latency. 1000 keys typically fits well within RPC response limits.
 const DEFAULT_PREFETCH_PAGE_SIZE: u32 = 1000;
+
+/// Minimum key length (bytes) for speculative prefix prefetch.
+///
+/// Polkadot SDK storage keys are composed of twox128(pallet) + twox128(item) = 32 bytes.
+/// Keys shorter than this are pallet-level prefixes rather than storage item keys,
+/// so speculative prefix scans on them would be too broad.
+const MIN_STORAGE_KEY_PREFIX_LEN: usize = 32;
+
+/// Counters tracking cache hits vs RPC misses for performance analysis.
+///
+/// All counters are atomic and shared across clones of the same `RemoteStorageLayer`.
+/// Use [`RemoteStorageLayer::reset_stats`] to zero them before a phase, and
+/// [`RemoteStorageLayer::stats`] to read the snapshot.
+#[derive(Debug, Default)]
+pub struct StorageStats {
+	/// Number of `get()` calls served from cache (no RPC).
+	pub cache_hits: AtomicUsize,
+	/// Number of `get()` calls that triggered a speculative prefetch and the
+	/// prefetch covered the requested key (cache hit after prefetch).
+	pub prefetch_hits: AtomicUsize,
+	/// Number of `get()` calls that fell through to an individual `state_getStorage` RPC.
+	pub rpc_misses: AtomicUsize,
+	/// Number of `next_key()` calls served from cache.
+	pub next_key_cache: AtomicUsize,
+	/// Number of `next_key()` calls that hit RPC.
+	pub next_key_rpc: AtomicUsize,
+}
+
+/// Snapshot of [`StorageStats`] counters at a point in time.
+#[derive(Debug, Clone, Default)]
+pub struct StorageStatsSnapshot {
+	pub cache_hits: usize,
+	pub prefetch_hits: usize,
+	pub rpc_misses: usize,
+	pub next_key_cache: usize,
+	pub next_key_rpc: usize,
+}
+
+impl std::fmt::Display for StorageStatsSnapshot {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		let total_get = self.cache_hits + self.prefetch_hits + self.rpc_misses;
+		let total_next = self.next_key_cache + self.next_key_rpc;
+		write!(
+			f,
+			"get: {} total ({} cache, {} prefetch, {} rpc) | next_key: {} total ({} cache, {} rpc)",
+			total_get,
+			self.cache_hits,
+			self.prefetch_hits,
+			self.rpc_misses,
+			total_next,
+			self.next_key_cache,
+			self.next_key_rpc,
+		)
+	}
+}
 
 /// Remote storage layer that lazily fetches state from a live chain.
 ///
@@ -74,6 +137,7 @@ const DEFAULT_PREFETCH_PAGE_SIZE: u32 = 1000;
 pub struct RemoteStorageLayer {
 	rpc: ForkRpcClient,
 	cache: StorageCache,
+	stats: Arc<StorageStats>,
 }
 
 impl RemoteStorageLayer {
@@ -83,7 +147,7 @@ impl RemoteStorageLayer {
 	/// * `rpc` - RPC client connected to the live chain
 	/// * `cache` - Storage cache for persisting fetched values
 	pub fn new(rpc: ForkRpcClient, cache: StorageCache) -> Self {
-		Self { rpc, cache }
+		Self { rpc, cache, stats: Arc::new(StorageStats::default()) }
 	}
 
 	/// Get a reference to the underlying RPC client.
@@ -101,6 +165,26 @@ impl RemoteStorageLayer {
 		self.rpc.endpoint()
 	}
 
+	/// Take a snapshot of the current storage access counters.
+	pub fn stats(&self) -> StorageStatsSnapshot {
+		StorageStatsSnapshot {
+			cache_hits: self.stats.cache_hits.load(Ordering::Relaxed),
+			prefetch_hits: self.stats.prefetch_hits.load(Ordering::Relaxed),
+			rpc_misses: self.stats.rpc_misses.load(Ordering::Relaxed),
+			next_key_cache: self.stats.next_key_cache.load(Ordering::Relaxed),
+			next_key_rpc: self.stats.next_key_rpc.load(Ordering::Relaxed),
+		}
+	}
+
+	/// Reset all storage access counters to zero.
+	pub fn reset_stats(&self) {
+		self.stats.cache_hits.store(0, Ordering::Relaxed);
+		self.stats.prefetch_hits.store(0, Ordering::Relaxed);
+		self.stats.rpc_misses.store(0, Ordering::Relaxed);
+		self.stats.next_key_cache.store(0, Ordering::Relaxed);
+		self.stats.next_key_rpc.store(0, Ordering::Relaxed);
+	}
+
 	/// Get a storage value, fetching from RPC if not cached.
 	///
 	/// # Returns
@@ -110,7 +194,12 @@ impl RemoteStorageLayer {
 	///
 	/// # Caching Behavior
 	/// - If the key is in cache, returns the cached value immediately
-	/// - If not cached, fetches from RPC, caches the result, and returns it
+	/// - If not cached and the key is >= 32 bytes, speculatively prefetches the first page of keys
+	///   sharing the same 32-byte prefix (pallet hash + storage item hash). This converts hundreds
+	///   of individual RPCs into a handful of bulk fetches without risking a full scan of large
+	///   maps.
+	/// - Falls back to individual RPC fetch if the key is short or the speculative prefetch didn't
+	///   cover it (key beyond first page).
 	/// - Empty storage (key exists but has no value) is cached as `None`
 	pub async fn get(
 		&self,
@@ -119,11 +208,52 @@ impl RemoteStorageLayer {
 	) -> Result<Option<Vec<u8>>, RemoteStorageError> {
 		// Check cache first
 		if let Some(cached) = self.cache.get_storage(block_hash, key).await? {
+			self.stats.cache_hits.fetch_add(1, Ordering::Relaxed);
 			return Ok(cached);
 		}
 
-		// Fetch from RPC
-		let value = self.rpc.storage(key, block_hash).await?;
+		// Speculative prefix prefetch: if the key is at least 32 bytes (pallet hash +
+		// storage item hash), bulk-fetch the FIRST PAGE of keys sharing that prefix.
+		// Only fetches one page to avoid blocking on large maps (e.g., Account maps
+		// with thousands of entries). This still captures the majority of runtime
+		// reads since most storage items have fewer than 1000 keys.
+		//
+		// Errors are non-fatal: speculative prefetch is an optimization. If the
+		// connection drops mid-prefetch, we fall through to the individual fetch
+		// below which has its own retry logic.
+		if key.len() >= MIN_STORAGE_KEY_PREFIX_LEN {
+			let prefix = &key[..MIN_STORAGE_KEY_PREFIX_LEN];
+			let progress = self.cache.get_prefix_scan_progress(block_hash, prefix).await?;
+			if progress.is_none() {
+				match self
+					.prefetch_prefix_single_page(block_hash, prefix, DEFAULT_PREFETCH_PAGE_SIZE)
+					.await
+				{
+					Ok(_) => {
+						// Check cache again, the prefetch likely fetched our key
+						if let Some(cached) = self.cache.get_storage(block_hash, key).await? {
+							self.stats.prefetch_hits.fetch_add(1, Ordering::Relaxed);
+							return Ok(cached);
+						}
+					},
+					Err(e) => {
+						log::debug!(
+							"Speculative prefetch failed (non-fatal), falling through to individual fetch: {e}"
+						);
+					},
+				}
+			}
+		}
+
+		// Fallback: fetch individual key from RPC (with reconnect-retry)
+		self.stats.rpc_misses.fetch_add(1, Ordering::Relaxed);
+		let value = match self.rpc.storage(key, block_hash).await {
+			Ok(v) => v,
+			Err(_) => {
+				self.rpc.reconnect().await?;
+				self.rpc.storage(key, block_hash).await?
+			},
+		};
 
 		// Cache the result (including empty values)
 		self.cache.set_storage(block_hash, key, value.as_deref()).await?;
@@ -173,8 +303,14 @@ impl RemoteStorageLayer {
 			return Ok(cached_results.into_iter().map(|c| c.flatten()).collect());
 		}
 
-		// Fetch uncached keys from RPC
-		let fetched_values = self.rpc.storage_batch(&uncached_keys, block_hash).await?;
+		// Fetch uncached keys from RPC (with reconnect-retry)
+		let fetched_values = match self.rpc.storage_batch(&uncached_keys, block_hash).await {
+			Ok(v) => v,
+			Err(_) => {
+				self.rpc.reconnect().await?;
+				self.rpc.storage_batch(&uncached_keys, block_hash).await?
+			},
+		};
 
 		// Cache fetched values
 		let cache_entries: Vec<(&[u8], Option<&[u8]>)> = uncached_keys
@@ -231,11 +367,20 @@ impl RemoteStorageLayer {
 		let mut start_key = progress.and_then(|p| p.last_scanned_key);
 
 		loop {
-			// Get next page of keys
-			let keys = self
+			// Get next page of keys (with reconnect-retry)
+			let keys = match self
 				.rpc
 				.storage_keys_paged(prefix, page_size, start_key.as_deref(), block_hash)
-				.await?;
+				.await
+			{
+				Ok(v) => v,
+				Err(_) => {
+					self.rpc.reconnect().await?;
+					self.rpc
+						.storage_keys_paged(prefix, page_size, start_key.as_deref(), block_hash)
+						.await?
+				},
+			};
 
 			if keys.is_empty() {
 				// No keys found - mark as complete if this is the first page
@@ -249,9 +394,15 @@ impl RemoteStorageLayer {
 			// Determine pagination state before consuming keys
 			let is_last_page = keys.len() < page_size as usize;
 
-			// Fetch values for these keys
+			// Fetch values for these keys (with reconnect-retry)
 			let key_refs: Vec<&[u8]> = keys.iter().map(|k| k.as_slice()).collect();
-			let values = self.rpc.storage_batch(&key_refs, block_hash).await?;
+			let values = match self.rpc.storage_batch(&key_refs, block_hash).await {
+				Ok(v) => v,
+				Err(_) => {
+					self.rpc.reconnect().await?;
+					self.rpc.storage_batch(&key_refs, block_hash).await?
+				},
+			};
 
 			// Cache all key-value pairs
 			let cache_entries: Vec<(&[u8], Option<&[u8]>)> =
@@ -276,6 +427,74 @@ impl RemoteStorageLayer {
 
 		// Return total count (includes any previously cached keys)
 		Ok(self.cache.count_keys_by_prefix(block_hash, prefix).await?)
+	}
+
+	/// Fetch a single page of keys for a prefix and cache their values.
+	///
+	/// Unlike [`prefetch_prefix`](Self::prefetch_prefix), this fetches only the first
+	/// page of keys (up to `page_size`) without looping through subsequent pages.
+	/// This keeps the cost bounded regardless of how many keys exist under the prefix.
+	///
+	/// Records scan progress so that subsequent calls to `prefetch_prefix` can
+	/// resume from where this left off.
+	pub async fn prefetch_prefix_single_page(
+		&self,
+		block_hash: H256,
+		prefix: &[u8],
+		page_size: u32,
+	) -> Result<usize, RemoteStorageError> {
+		// Check existing progress
+		let progress = self.cache.get_prefix_scan_progress(block_hash, prefix).await?;
+
+		if let Some(ref p) = progress {
+			if p.is_complete {
+				return Ok(self.cache.count_keys_by_prefix(block_hash, prefix).await?);
+			}
+			// A scan is already in progress (from a concurrent call or prior run),
+			// don't start another one.
+			return Ok(0);
+		}
+
+		// Fetch first page of keys (with reconnect-retry)
+		let keys = match self.rpc.storage_keys_paged(prefix, page_size, None, block_hash).await {
+			Ok(v) => v,
+			Err(_) => {
+				self.rpc.reconnect().await?;
+				self.rpc.storage_keys_paged(prefix, page_size, None, block_hash).await?
+			},
+		};
+
+		if keys.is_empty() {
+			self.cache.update_prefix_scan(block_hash, prefix, prefix, true).await?;
+			return Ok(0);
+		}
+
+		let is_last_page = keys.len() < page_size as usize;
+
+		// Fetch values for these keys (with reconnect-retry)
+		let key_refs: Vec<&[u8]> = keys.iter().map(|k| k.as_slice()).collect();
+		let values = match self.rpc.storage_batch(&key_refs, block_hash).await {
+			Ok(v) => v,
+			Err(_) => {
+				self.rpc.reconnect().await?;
+				self.rpc.storage_batch(&key_refs, block_hash).await?
+			},
+		};
+
+		// Cache all key-value pairs
+		let cache_entries: Vec<(&[u8], Option<&[u8]>)> =
+			key_refs.iter().zip(values.iter()).map(|(k, v)| (*k, v.as_deref())).collect();
+
+		self.cache.set_storage_batch(block_hash, &cache_entries).await?;
+
+		let count = keys.len();
+		if let Some(last_key) = keys.into_iter().last() {
+			self.cache
+				.update_prefix_scan(block_hash, prefix, &last_key, is_last_page)
+				.await?;
+		}
+
+		Ok(count)
 	}
 
 	/// Get all keys for a prefix, fetching from RPC if not fully cached.
@@ -359,7 +578,10 @@ impl RemoteStorageLayer {
 	/// Get the next key after the given key that starts with the prefix.
 	///
 	/// This method is used for key enumeration during runtime execution.
-	/// It fetches keys directly from the RPC without caching intermediate results.
+	/// Before hitting the RPC, it checks whether a complete prefix scan exists
+	/// in the cache for the queried prefix (or parent prefixes at 32 or 16 bytes).
+	/// If so, the answer is served from the local SQLite cache, avoiding an RPC
+	/// round-trip entirely.
 	///
 	/// # Arguments
 	/// * `block_hash` - Block hash to query at
@@ -375,8 +597,33 @@ impl RemoteStorageLayer {
 		prefix: &[u8],
 		key: &[u8],
 	) -> Result<Option<Vec<u8>>, RemoteStorageError> {
-		// Fetch just 1 key after the current key
-		let keys = self.rpc.storage_keys_paged(prefix, 1, Some(key), block_hash).await?;
+		// Check if we have a complete prefix scan that covers this query.
+		// Try the exact prefix first, then common parent lengths (32-byte = pallet+item,
+		// 16-byte = pallet-only).
+		let candidate_lengths: &[usize] = &[prefix.len(), 32, 16];
+		for &len in candidate_lengths {
+			if len > prefix.len() {
+				continue;
+			}
+			let candidate = &prefix[..len];
+			if let Some(progress) =
+				self.cache.get_prefix_scan_progress(block_hash, candidate).await? &&
+				progress.is_complete
+			{
+				self.stats.next_key_cache.fetch_add(1, Ordering::Relaxed);
+				return Ok(self.cache.next_key_from_cache(block_hash, prefix, key).await?);
+			}
+		}
+
+		// Fallback: fetch from RPC (with reconnect-retry)
+		self.stats.next_key_rpc.fetch_add(1, Ordering::Relaxed);
+		let keys = match self.rpc.storage_keys_paged(prefix, 1, Some(key), block_hash).await {
+			Ok(v) => v,
+			Err(_) => {
+				self.rpc.reconnect().await?;
+				self.rpc.storage_keys_paged(prefix, 1, Some(key), block_hash).await?
+			},
+		};
 		Ok(keys.into_iter().next())
 	}
 
@@ -406,11 +653,15 @@ impl RemoteStorageLayer {
 	///
 	/// # Returns
 	/// * `Ok(Some(header_bytes))` - Encoded header bytes
-	/// * `Ok(None)` - Block not found
+	/// * `Ok(None)` - Block not found on the remote chain
+	/// * `Err(..)` - Transport/connection error (caller should retry or reconnect)
 	pub async fn block_header(&self, hash: H256) -> Result<Option<Vec<u8>>, RemoteStorageError> {
 		match self.rpc.header(hash).await {
 			Ok(header) => Ok(Some(header.encode())),
-			Err(_) => Ok(None),
+			// Header not found (RPC returned null): legitimate "not found"
+			Err(RpcClientError::InvalidResponse(_)) => Ok(None),
+			// Connection/transport errors must be propagated so callers can reconnect
+			Err(e) => Err(e.into()),
 		}
 	}
 

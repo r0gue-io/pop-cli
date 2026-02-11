@@ -47,11 +47,7 @@
 //! local.delete_prefix(&prefix)?;
 //! ```
 
-use crate::{
-	error::LocalStorageError,
-	models::{BlockRow, LocalKeyRow},
-	remote::RemoteStorageLayer,
-};
+use crate::{error::LocalStorageError, models::BlockRow, remote::RemoteStorageLayer};
 use std::{
 	collections::{BTreeMap, HashMap},
 	sync::{Arc, RwLock},
@@ -634,6 +630,33 @@ impl LocalStorageLayer {
 		Ok(())
 	}
 
+	/// Set a storage value visible from the fork point onwards.
+	///
+	/// Unlike [`Self::set`], which records the modification at the current working block,
+	/// this marks the entry with `last_modification_block = first_forked_block_number` so
+	/// it is visible for any query at a fork-local block (block_number >
+	/// first_forked_block_number), but not for historical pre-fork queries.
+	/// This is used for injecting initial state (e.g., dev accounts, sudo key)
+	/// that should be readable before any block is built.
+	///
+	/// These entries are never committed to the persistent cache by [`Self::commit`]
+	/// (which only commits entries at `current_block_number`), but they remain in
+	/// the in-memory modifications map for the lifetime of the fork.
+	pub fn set_initial(&self, key: &[u8], value: Option<&[u8]>) -> Result<(), LocalStorageError> {
+		let mut modifications_lock =
+			self.modifications.write().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
+
+		modifications_lock.insert(
+			key.to_vec(),
+			Some(Arc::new(LocalSharedValue {
+				last_modification_block: self.first_forked_block_number,
+				value: value.map(|v| v.to_vec()),
+			})),
+		);
+
+		Ok(())
+	}
+
 	/// Get multiple storage values in a batch.
 	///
 	/// # Arguments
@@ -811,6 +834,35 @@ impl LocalStorageLayer {
 		Ok(())
 	}
 
+	/// Batch version of [`Self::set_initial`].
+	///
+	/// Sets multiple storage values visible from the fork point onwards, using
+	/// `last_modification_block = first_forked_block_number`. See [`Self::set_initial`]
+	/// for details.
+	pub fn set_batch_initial(
+		&self,
+		entries: &[(&[u8], Option<&[u8]>)],
+	) -> Result<(), LocalStorageError> {
+		if entries.is_empty() {
+			return Ok(());
+		}
+
+		let mut modifications_lock =
+			self.modifications.write().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
+
+		for (key, value) in entries {
+			modifications_lock.insert(
+				key.to_vec(),
+				Some(Arc::new(LocalSharedValue {
+					last_modification_block: self.first_forked_block_number,
+					value: value.map(|v| v.to_vec()),
+				})),
+			);
+		}
+
+		Ok(())
+	}
+
 	/// Delete all keys matching a prefix.
 	///
 	/// # Arguments
@@ -920,25 +972,11 @@ impl LocalStorageLayer {
 			})
 			.collect();
 
-		// Commit
-		for (key, value) in entries_to_commit {
-			match self.parent.cache().get_local_key(key).await? {
-				Some(LocalKeyRow { id: key_id, .. }) => {
-					self.parent.cache().close_local_value(key_id, current_block_number).await?;
-					self.parent
-						.cache()
-						.insert_local_value(key_id, value, current_block_number)
-						.await?;
-				},
-				_ => {
-					let key_id = self.parent.cache().insert_local_key(key).await?;
-					self.parent
-						.cache()
-						.insert_local_value(key_id, value, current_block_number)
-						.await?;
-				},
-			}
-		}
+		// Commit all changes in a single transaction
+		self.parent
+			.cache()
+			.commit_local_changes(&entries_to_commit, current_block_number)
+			.await?;
 
 		self.current_block_number = new_latest_block;
 

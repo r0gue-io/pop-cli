@@ -169,7 +169,17 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ${{ needs.setup.outputs.image }}
+      volumes:
+        - /:/host
     steps:
+      - name: Free disk space
+        run: |
+          rm -rf /host/usr/share/dotnet
+          rm -rf /host/usr/local/lib/android
+          rm -rf /host/opt/ghc
+          rm -rf /host/opt/hostedtoolcache/CodeQL
+          df -h
+
       - uses: actions/checkout@v4
 
       - name: Rust Cache
