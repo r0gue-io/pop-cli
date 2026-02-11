@@ -266,22 +266,24 @@ pub async fn build_block_with_signed_transfer_updates_balances() {
 	let head_number_before = head.number;
 	let metadata = head.metadata().await.expect("Failed to get metadata");
 
-	// Query initial balances at the current head block
+	// Query initial balances at the current head state.
+	// Use `storage()` (not `storage_at(fork_point, ...)`) so local test setup from
+	// `initialize_dev_accounts()` is visible.
 	let alice_balance_before = blockchain
-		.storage_at(head_number_before, &alice_key)
+		.storage(&alice_key)
 		.await
 		.expect("Failed to get Alice balance")
 		.map(|v| decode_free_balance(&v))
 		.expect("Alice should have a balance");
 	let alice_nonce_before = blockchain
-		.storage_at(head_number_before, &alice_key)
+		.storage(&alice_key)
 		.await
 		.expect("Failed to get Alice account data")
 		.map(|v| decode_account_nonce(&v))
 		.expect("Alice account should exist");
 
 	let bob_balance_before = blockchain
-		.storage_at(head_number_before, &bob_key)
+		.storage(&bob_key)
 		.await
 		.expect("Failed to get Bob balance")
 		.map(|v| decode_free_balance(&v))
