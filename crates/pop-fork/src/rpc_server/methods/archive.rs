@@ -18,6 +18,119 @@ use crate::{
 use jsonrpsee::{core::RpcResult, proc_macros::rpc, tracing};
 use std::sync::Arc;
 
+#[async_trait::async_trait]
+pub trait ArchiveBlockchain: Send + Sync {
+	async fn head_number(&self) -> u32;
+	async fn block_hash_at(
+		&self,
+		height: u32,
+	) -> Result<Option<subxt::utils::H256>, crate::BlockchainError>;
+	async fn block_header(
+		&self,
+		hash: subxt::utils::H256,
+	) -> Result<Option<Vec<u8>>, crate::BlockchainError>;
+	async fn block_body(
+		&self,
+		hash: subxt::utils::H256,
+	) -> Result<Option<Vec<Vec<u8>>>, crate::BlockchainError>;
+	async fn call_at_block(
+		&self,
+		hash: subxt::utils::H256,
+		function: &str,
+		params: &[u8],
+	) -> Result<Option<Vec<u8>>, crate::BlockchainError>;
+	async fn block_number_by_hash(
+		&self,
+		hash: subxt::utils::H256,
+	) -> Result<Option<u32>, crate::BlockchainError>;
+	async fn storage_at(
+		&self,
+		block_number: u32,
+		key: &[u8],
+	) -> Result<Option<Vec<u8>>, crate::BlockchainError>;
+	async fn storage_keys_by_prefix(
+		&self,
+		prefix: &[u8],
+		at: subxt::utils::H256,
+	) -> Result<Vec<Vec<u8>>, crate::BlockchainError>;
+	async fn genesis_hash(&self) -> Result<String, crate::BlockchainError>;
+	async fn block_parent_hash(
+		&self,
+		hash: subxt::utils::H256,
+	) -> Result<Option<subxt::utils::H256>, crate::BlockchainError>;
+}
+
+#[async_trait::async_trait]
+impl ArchiveBlockchain for Blockchain {
+	async fn head_number(&self) -> u32 {
+		Blockchain::head_number(self).await
+	}
+
+	async fn block_hash_at(
+		&self,
+		height: u32,
+	) -> Result<Option<subxt::utils::H256>, crate::BlockchainError> {
+		Blockchain::block_hash_at(self, height).await
+	}
+
+	async fn block_header(
+		&self,
+		hash: subxt::utils::H256,
+	) -> Result<Option<Vec<u8>>, crate::BlockchainError> {
+		Blockchain::block_header(self, hash).await
+	}
+
+	async fn block_body(
+		&self,
+		hash: subxt::utils::H256,
+	) -> Result<Option<Vec<Vec<u8>>>, crate::BlockchainError> {
+		Blockchain::block_body(self, hash).await
+	}
+
+	async fn call_at_block(
+		&self,
+		hash: subxt::utils::H256,
+		function: &str,
+		params: &[u8],
+	) -> Result<Option<Vec<u8>>, crate::BlockchainError> {
+		Blockchain::call_at_block(self, hash, function, params).await
+	}
+
+	async fn block_number_by_hash(
+		&self,
+		hash: subxt::utils::H256,
+	) -> Result<Option<u32>, crate::BlockchainError> {
+		Blockchain::block_number_by_hash(self, hash).await
+	}
+
+	async fn storage_at(
+		&self,
+		block_number: u32,
+		key: &[u8],
+	) -> Result<Option<Vec<u8>>, crate::BlockchainError> {
+		Blockchain::storage_at(self, block_number, key).await
+	}
+
+	async fn storage_keys_by_prefix(
+		&self,
+		prefix: &[u8],
+		at: subxt::utils::H256,
+	) -> Result<Vec<Vec<u8>>, crate::BlockchainError> {
+		Blockchain::storage_keys_by_prefix(self, prefix, at).await
+	}
+
+	async fn genesis_hash(&self) -> Result<String, crate::BlockchainError> {
+		Blockchain::genesis_hash(self).await
+	}
+
+	async fn block_parent_hash(
+		&self,
+		hash: subxt::utils::H256,
+	) -> Result<Option<subxt::utils::H256>, crate::BlockchainError> {
+		Blockchain::block_parent_hash(self, hash).await
+	}
+}
+
 /// New archive RPC methods (v1 spec).
 #[rpc(server, namespace = "archive")]
 pub trait ArchiveApi {
@@ -88,19 +201,19 @@ pub trait ArchiveApi {
 }
 
 /// Implementation of archive RPC methods.
-pub struct ArchiveApi {
-	blockchain: Arc<Blockchain>,
+pub struct ArchiveApi<T: ArchiveBlockchain = Blockchain> {
+	blockchain: Arc<T>,
 }
 
-impl ArchiveApi {
+impl<T: ArchiveBlockchain> ArchiveApi<T> {
 	/// Create a new ArchiveApi instance.
-	pub fn new(blockchain: Arc<Blockchain>) -> Self {
+	pub fn new(blockchain: Arc<T>) -> Self {
 		Self { blockchain }
 	}
 }
 
 #[async_trait::async_trait]
-impl ArchiveApiServer for ArchiveApi {
+impl<T: ArchiveBlockchain + 'static> ArchiveApiServer for ArchiveApi<T> {
 	async fn finalized_height(&self) -> RpcResult<u32> {
 		Ok(self.blockchain.head_number().await)
 	}
@@ -172,10 +285,12 @@ impl ArchiveApiServer for ArchiveApi {
 		// Get block number from hash
 		let block_number = match self.blockchain.block_number_by_hash(block_hash).await {
 			Ok(Some(num)) => num,
-			Ok(None) =>
-				return Ok(ArchiveStorageResult::Err { error: "Block not found".to_string() }),
-			Err(e) =>
-				return Err(RpcServerError::Internal(format!("Failed to resolve block: {e}")).into()),
+			Ok(None) => {
+				return Ok(ArchiveStorageResult::Err { error: "Block not found".to_string() });
+			},
+			Err(e) => {
+				return Err(RpcServerError::Internal(format!("Failed to resolve block: {e}")).into());
+			},
 		};
 
 		// Query storage for each item at the specific block
@@ -323,10 +438,12 @@ impl ArchiveApiServer for ArchiveApi {
 		// Get block number for the target block
 		let block_number = match self.blockchain.block_number_by_hash(block_hash).await {
 			Ok(Some(num)) => num,
-			Ok(None) =>
-				return Ok(ArchiveStorageDiffResult::Err { error: "Block not found".to_string() }),
-			Err(e) =>
-				return Err(RpcServerError::Internal(format!("Failed to resolve block: {e}")).into()),
+			Ok(None) => {
+				return Ok(ArchiveStorageDiffResult::Err { error: "Block not found".to_string() });
+			},
+			Err(e) => {
+				return Err(RpcServerError::Internal(format!("Failed to resolve block: {e}")).into());
+			},
 		};
 
 		// Determine the previous block hash
@@ -336,15 +453,17 @@ impl ArchiveApiServer for ArchiveApi {
 				// Get parent hash from the block
 				match self.blockchain.block_parent_hash(block_hash).await {
 					Ok(Some(parent_hash)) => parent_hash,
-					Ok(None) =>
+					Ok(None) => {
 						return Ok(ArchiveStorageDiffResult::Err {
 							error: "Block not found".to_string(),
-						}),
-					Err(e) =>
+						});
+					},
+					Err(e) => {
 						return Err(RpcServerError::Internal(format!(
 							"Failed to get parent hash: {e}"
 						))
-						.into()),
+						.into());
+					},
 				}
 			},
 		};
@@ -352,15 +471,17 @@ impl ArchiveApiServer for ArchiveApi {
 		// Get block number for the previous block
 		let prev_block_number = match self.blockchain.block_number_by_hash(prev_block_hash).await {
 			Ok(Some(num)) => num,
-			Ok(None) =>
+			Ok(None) => {
 				return Ok(ArchiveStorageDiffResult::Err {
 					error: "Previous block not found".to_string(),
-				}),
-			Err(e) =>
+				});
+			},
+			Err(e) => {
 				return Err(RpcServerError::Internal(format!(
 					"Failed to resolve previous block: {e}"
 				))
-				.into()),
+				.into());
+			},
 		};
 
 		// Query storage for each item at both blocks and compute differences
@@ -452,3 +573,6 @@ impl ArchiveApiServer for ArchiveApi {
 		Ok(ArchiveStorageDiffResult::Ok { items: results })
 	}
 }
+
+#[cfg(test)]
+mod tests {}

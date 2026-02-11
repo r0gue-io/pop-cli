@@ -4,5 +4,5 @@
 pop-fork-node-tests = { max-threads = 1 }
 
 [[profile.default.overrides]]
-filter = 'binary_id(pop-fork::rpc) or binary_id(pop-fork::timestamp)'
+filter = 'binary_id(pop-fork::fork)'
 test-group = 'pop-fork-node-tests'

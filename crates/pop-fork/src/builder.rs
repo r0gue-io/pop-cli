@@ -413,8 +413,9 @@ impl BlockBuilder {
 	pub async fn apply_inherents(&mut self) -> Result<Vec<RuntimeCallResult>, BlockBuilderError> {
 		match self.phase {
 			BuilderPhase::Created => return Err(BlockBuilderError::NotInitialized),
-			BuilderPhase::InherentsApplied =>
-				return Err(BlockBuilderError::InherentsAlreadyApplied),
+			BuilderPhase::InherentsApplied => {
+				return Err(BlockBuilderError::InherentsAlreadyApplied);
+			},
 			BuilderPhase::Initialized => {}, // Expected phase
 		}
 

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#![allow(missing_docs)]
+
 //! Integration tests for block lifecycle behavior against a real node.
 
-#![cfg(feature = "integration-tests")]
-
-use pop_fork::{Block, BlockError, testing::TestContext};
+use crate::{Block, BlockError, testing::TestContext};
 use subxt::config::substrate::H256;
 
 pub async fn fork_point_with_hash_creates_block_with_correct_metadata() {

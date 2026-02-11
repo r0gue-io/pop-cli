@@ -244,8 +244,9 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 		};
 		let confirm = match (count, selection_kind) {
 			(1, NetworkSelection::AutoSingle) => format!("Stop the network at {single_location}?"),
-			(1, NetworkSelection::Specified) =>
-				format!("Stop the specified network at {single_location}?"),
+			(1, NetworkSelection::Specified) => {
+				format!("Stop the specified network at {single_location}?")
+			},
 			(1, NetworkSelection::Selected) => "Stop the selected network?".to_string(),
 			_ => format!("Stop the {} selected networks?", count),
 		};

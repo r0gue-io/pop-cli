@@ -23,6 +23,122 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
+#[async_trait::async_trait]
+pub trait StateBlockchain: Send + Sync {
+	async fn head_number(&self) -> u32;
+	async fn head_hash(&self) -> subxt::utils::H256;
+	async fn block_number_by_hash(
+		&self,
+		hash: subxt::utils::H256,
+	) -> Result<Option<u32>, crate::BlockchainError>;
+	async fn storage_at(
+		&self,
+		block_number: u32,
+		key: &[u8],
+	) -> Result<Option<Vec<u8>>, crate::BlockchainError>;
+	async fn call_at_block(
+		&self,
+		hash: subxt::utils::H256,
+		method: &str,
+		params: &[u8],
+	) -> Result<Option<Vec<u8>>, crate::BlockchainError>;
+	fn fork_point_number(&self) -> u32;
+	async fn proxy_state_call(
+		&self,
+		method: &str,
+		params: &[u8],
+		at_hash: subxt::utils::H256,
+	) -> Result<Vec<u8>, crate::BlockchainError>;
+	async fn storage_keys_paged(
+		&self,
+		prefix: &[u8],
+		count: u32,
+		start_key: Option<&[u8]>,
+		at: Option<subxt::utils::H256>,
+	) -> Result<Vec<Vec<u8>>, crate::BlockchainError>;
+	async fn storage_batch(
+		&self,
+		block_hash: subxt::utils::H256,
+		keys: &[&[u8]],
+	) -> Result<Vec<Option<Vec<u8>>>, crate::BlockchainError>;
+	async fn storage(&self, key: &[u8]) -> Result<Option<Vec<u8>>, crate::BlockchainError>;
+	fn subscribe_events(&self) -> broadcast::Receiver<BlockchainEvent>;
+}
+
+#[async_trait::async_trait]
+impl StateBlockchain for Blockchain {
+	async fn head_number(&self) -> u32 {
+		Blockchain::head_number(self).await
+	}
+
+	async fn head_hash(&self) -> subxt::utils::H256 {
+		Blockchain::head_hash(self).await
+	}
+
+	async fn block_number_by_hash(
+		&self,
+		hash: subxt::utils::H256,
+	) -> Result<Option<u32>, crate::BlockchainError> {
+		Blockchain::block_number_by_hash(self, hash).await
+	}
+
+	async fn storage_at(
+		&self,
+		block_number: u32,
+		key: &[u8],
+	) -> Result<Option<Vec<u8>>, crate::BlockchainError> {
+		Blockchain::storage_at(self, block_number, key).await
+	}
+
+	async fn call_at_block(
+		&self,
+		hash: subxt::utils::H256,
+		method: &str,
+		params: &[u8],
+	) -> Result<Option<Vec<u8>>, crate::BlockchainError> {
+		Blockchain::call_at_block(self, hash, method, params).await
+	}
+
+	fn fork_point_number(&self) -> u32 {
+		Blockchain::fork_point_number(self)
+	}
+
+	async fn proxy_state_call(
+		&self,
+		method: &str,
+		params: &[u8],
+		at_hash: subxt::utils::H256,
+	) -> Result<Vec<u8>, crate::BlockchainError> {
+		Blockchain::proxy_state_call(self, method, params, at_hash).await
+	}
+
+	async fn storage_keys_paged(
+		&self,
+		prefix: &[u8],
+		count: u32,
+		start_key: Option<&[u8]>,
+		at: Option<subxt::utils::H256>,
+	) -> Result<Vec<Vec<u8>>, crate::BlockchainError> {
+		Blockchain::storage_keys_paged(self, prefix, count, start_key, at).await
+	}
+
+	async fn storage_batch(
+		&self,
+		block_hash: subxt::utils::H256,
+		keys: &[&[u8]],
+	) -> Result<Vec<Option<Vec<u8>>>, crate::BlockchainError> {
+		Blockchain::storage_batch(self, block_hash, keys).await
+	}
+
+	async fn storage(&self, key: &[u8]) -> Result<Option<Vec<u8>>, crate::BlockchainError> {
+		Blockchain::storage(self, key).await
+	}
+
+	fn subscribe_events(&self) -> broadcast::Receiver<BlockchainEvent> {
+		Blockchain::subscribe_events(self)
+	}
+}
+
 /// Legacy state RPC methods.
 #[rpc(server, namespace = "state")]
 pub trait StateApi {
@@ -78,20 +194,20 @@ pub trait StateApi {
 }
 
 /// Implementation of legacy state RPC methods.
-pub struct StateApi {
-	blockchain: Arc<Blockchain>,
+pub struct StateApi<T: StateBlockchain = Blockchain> {
+	blockchain: Arc<T>,
 	shutdown_token: CancellationToken,
 }
 
-impl StateApi {
+impl<T: StateBlockchain> StateApi<T> {
 	/// Create a new StateApi instance.
-	pub fn new(blockchain: Arc<Blockchain>, shutdown_token: CancellationToken) -> Self {
+	pub fn new(blockchain: Arc<T>, shutdown_token: CancellationToken) -> Self {
 		Self { blockchain, shutdown_token }
 	}
 }
 
 #[async_trait::async_trait]
-impl StateApiServer for StateApi {
+impl<T: StateBlockchain + 'static> StateApiServer for StateApi<T> {
 	async fn get_storage(&self, key: String, at: Option<String>) -> RpcResult<Option<String>> {
 		let block_number = match at {
 			Some(hash) => {
@@ -121,7 +237,7 @@ impl StateApiServer for StateApi {
 	async fn get_metadata(&self, at: Option<String>) -> RpcResult<String> {
 		let block_hash = match at {
 			Some(hash) => parse_block_hash(&hash)?,
-			None => self.blockchain.head().await.hash,
+			None => self.blockchain.head_hash().await,
 		};
 		// Fetch real metadata via runtime call
 		// The runtime returns SCALE-encoded Vec<u8>, so we need to decode it
@@ -155,8 +271,9 @@ impl StateApiServer for StateApi {
 				(num, parsed)
 			},
 			None => {
-				let head = self.blockchain.head().await;
-				(head.number, head.hash)
+				let head_number = self.blockchain.head_number().await;
+				let head_hash = self.blockchain.head_hash().await;
+				(head_number, head_hash)
 			},
 		};
 
@@ -280,8 +397,9 @@ impl StateApiServer for StateApi {
 				(num, parsed)
 			},
 			None => {
-				let head = self.blockchain.head().await;
-				(head.number, head.hash)
+				let head_number = self.blockchain.head_number().await;
+				let head_hash = self.blockchain.head_hash().await;
+				(head_number, head_hash)
 			},
 		};
 
@@ -331,8 +449,9 @@ impl StateApiServer for StateApi {
 				(num, parsed)
 			},
 			None => {
-				let head = self.blockchain.head().await;
-				(head.number, head.hash)
+				let head_number = self.blockchain.head_number().await;
+				let head_hash = self.blockchain.head_hash().await;
+				(head_number, head_hash)
 			},
 		};
 

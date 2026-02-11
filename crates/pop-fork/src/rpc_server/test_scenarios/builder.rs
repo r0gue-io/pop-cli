@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#![allow(missing_docs)]
+
 //! Integration tests for block building flow against a real node.
 
-#![cfg(feature = "integration-tests")]
-
-use pop_fork::{
+use crate::{
 	Block, BlockBuilder, BlockBuilderError, DigestItem, ExecutorConfig, InherentProvider,
 	RuntimeExecutor, TimestampInherent, consensus_engine, create_next_header, testing::TestContext,
 };

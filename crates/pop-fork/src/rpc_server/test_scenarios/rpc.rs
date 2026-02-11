@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#![allow(missing_docs)]
+
 //! Integration tests for the RPC client.
 //!
 //! These tests are separated from unit tests because they spawn local test nodes
@@ -23,10 +25,8 @@
 //! cargo nextest run -p pop-fork --features integration-tests --test rpc
 //! ```
 
-#![cfg(feature = "integration-tests")]
-
+use crate::{ForkRpcClient, RpcClientError};
 use pop_common::test_env::TestNode;
-use pop_fork::{ForkRpcClient, RpcClientError};
 use subxt::config::substrate::H256;
 use url::Url;
 

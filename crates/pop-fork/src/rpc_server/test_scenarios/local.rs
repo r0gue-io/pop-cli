@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#![allow(missing_docs)]
+
 //! Integration tests for local storage layer behavior against real chain state.
 
-#![cfg(feature = "integration-tests")]
-
-use pop_fork::{
+use crate::{
 	LocalStorageLayer,
 	testing::{
 		TestContext,
@@ -777,10 +777,10 @@ pub async fn diff_returns_all_modifications() {
 
 	let diff = layer.diff().unwrap();
 	assert_eq!(diff.len(), 2);
-	assert!(diff.iter().any(|(k, v)| k == key1
-		&& v.as_ref().and_then(|v| v.value.as_deref()) == Some(value1.as_slice())));
-	assert!(diff.iter().any(|(k, v)| k == key2
-		&& v.as_ref().and_then(|v| v.value.as_deref()) == Some(value2.as_slice())));
+	assert!(diff.iter().any(|(k, v)| k == key1 &&
+		v.as_ref().and_then(|v| v.value.as_deref()) == Some(value1.as_slice())));
+	assert!(diff.iter().any(|(k, v)| k == key2 &&
+		v.as_ref().and_then(|v| v.value.as_deref()) == Some(value2.as_slice())));
 }
 
 pub async fn diff_includes_deletions() {

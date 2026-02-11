@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#![allow(missing_docs)]
+
 //! Integration tests for runtime execution against real chain state.
 
-#![cfg(feature = "integration-tests")]
-
-use pop_fork::{
+use crate::{
 	ExecutorConfig, LocalStorageLayer, RuntimeExecutor, SignatureMockMode, testing::TestContext,
 };
 use scale::Encode;

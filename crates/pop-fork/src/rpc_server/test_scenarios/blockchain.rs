@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#![allow(missing_docs)]
+
 //! Integration tests for end-to-end blockchain manager behavior.
 
-#![cfg(feature = "integration-tests")]
-
-use pop_fork::{
+use crate::{
 	Blockchain, ChainType,
 	testing::{
 		TestContext,
@@ -238,7 +238,7 @@ pub async fn head_updates_after_building_block() {
 /// 4. Build a block containing the transaction
 /// 5. Verify the new block state reflects the transfer
 pub async fn build_block_with_signed_transfer_updates_balances() {
-	use pop_fork::{ExecutorConfig, SignatureMockMode};
+	use crate::{ExecutorConfig, SignatureMockMode};
 	use scale::{Compact, Encode};
 
 	let ctx = TestContext::minimal().await;
@@ -803,7 +803,7 @@ pub async fn call_at_block_executes_at_historical_block() {
 /// `Core_initialize_block` writes to `System::Number` and other storage keys during
 /// block initialization. This test verifies those changes are discarded after the call.
 pub async fn call_at_block_does_not_persist_storage() {
-	use pop_fork::{DigestItem, consensus_engine, create_next_header};
+	use crate::{DigestItem, consensus_engine, create_next_header};
 
 	let ctx = TestContext::minimal().await;
 
@@ -860,7 +860,7 @@ pub async fn call_at_block_does_not_persist_storage() {
 }
 
 pub async fn validate_extrinsic_accepts_valid_transfer() {
-	use pop_fork::{ExecutorConfig, SignatureMockMode};
+	use crate::{ExecutorConfig, SignatureMockMode};
 	use scale::{Compact, Encode};
 
 	let ctx = TestContext::minimal().await;
@@ -906,7 +906,7 @@ pub async fn validate_extrinsic_rejects_garbage() {
 }
 
 pub async fn build_block_result_tracks_included_extrinsics() {
-	use pop_fork::{ExecutorConfig, SignatureMockMode};
+	use crate::{ExecutorConfig, SignatureMockMode};
 	use scale::{Compact, Encode};
 
 	let ctx = TestContext::minimal().await;
@@ -945,7 +945,7 @@ pub async fn build_block_result_tracks_included_extrinsics() {
 }
 
 pub async fn build_block_result_tracks_failed_extrinsics() {
-	use pop_fork::{ExecutorConfig, SignatureMockMode};
+	use crate::{ExecutorConfig, SignatureMockMode};
 	use scale::{Compact, Encode};
 
 	let ctx = TestContext::minimal().await;

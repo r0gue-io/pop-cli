@@ -106,7 +106,7 @@ jobs:
             --locked \
             -p pop-fork \
             --features integration-tests \
-            --test integration_all \
+            --test fork \
             --no-fail-fast \
             --status-level all
 

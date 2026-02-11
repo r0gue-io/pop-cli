@@ -22,6 +22,61 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
+#[async_trait::async_trait]
+pub trait ChainBlockchain: Send + Sync {
+	async fn head_number(&self) -> u32;
+	async fn head_hash(&self) -> subxt::utils::H256;
+	async fn block_hash_at(
+		&self,
+		number: u32,
+	) -> Result<Option<subxt::utils::H256>, crate::BlockchainError>;
+	async fn block_header(
+		&self,
+		hash: subxt::utils::H256,
+	) -> Result<Option<Vec<u8>>, crate::BlockchainError>;
+	async fn block_body(
+		&self,
+		hash: subxt::utils::H256,
+	) -> Result<Option<Vec<Vec<u8>>>, crate::BlockchainError>;
+	fn subscribe_events(&self) -> broadcast::Receiver<BlockchainEvent>;
+}
+
+#[async_trait::async_trait]
+impl ChainBlockchain for Blockchain {
+	async fn head_number(&self) -> u32 {
+		Blockchain::head_number(self).await
+	}
+
+	async fn head_hash(&self) -> subxt::utils::H256 {
+		Blockchain::head_hash(self).await
+	}
+
+	async fn block_hash_at(
+		&self,
+		number: u32,
+	) -> Result<Option<subxt::utils::H256>, crate::BlockchainError> {
+		Blockchain::block_hash_at(self, number).await
+	}
+
+	async fn block_header(
+		&self,
+		hash: subxt::utils::H256,
+	) -> Result<Option<Vec<u8>>, crate::BlockchainError> {
+		Blockchain::block_header(self, hash).await
+	}
+
+	async fn block_body(
+		&self,
+		hash: subxt::utils::H256,
+	) -> Result<Option<Vec<Vec<u8>>>, crate::BlockchainError> {
+		Blockchain::block_body(self, hash).await
+	}
+
+	fn subscribe_events(&self) -> broadcast::Receiver<BlockchainEvent> {
+		Blockchain::subscribe_events(self)
+	}
+}
+
 /// Legacy chain RPC methods.
 #[rpc(server, namespace = "chain")]
 pub trait ChainApi {
@@ -62,20 +117,20 @@ pub trait ChainApi {
 }
 
 /// Implementation of legacy chain RPC methods.
-pub struct ChainApi {
-	blockchain: Arc<Blockchain>,
+pub struct ChainApi<T: ChainBlockchain = Blockchain> {
+	blockchain: Arc<T>,
 	shutdown_token: CancellationToken,
 }
 
-impl ChainApi {
+impl<T: ChainBlockchain> ChainApi<T> {
 	/// Create a new ChainApi instance.
-	pub fn new(blockchain: Arc<Blockchain>, shutdown_token: CancellationToken) -> Self {
+	pub fn new(blockchain: Arc<T>, shutdown_token: CancellationToken) -> Self {
 		Self { blockchain, shutdown_token }
 	}
 }
 
 #[async_trait::async_trait]
-impl ChainApiServer for ChainApi {
+impl<T: ChainBlockchain + 'static> ChainApiServer for ChainApi<T> {
 	async fn get_block_hash(&self, block_number: Option<u32>) -> RpcResult<Option<String>> {
 		let number = match block_number {
 			Some(n) => n,
@@ -152,10 +207,11 @@ impl ChainApiServer for ChainApi {
 				warn!("[chain] getBlock: body not found for 0x{}", hex::encode(&block_hash.0[..8]));
 				return Ok(None);
 			},
-			Err(e) =>
+			Err(e) => {
 				return Err(
 					RpcServerError::Internal(format!("Failed to fetch block body: {e}")).into()
-				),
+				);
+			},
 		};
 
 		Ok(Some(SignedBlock { block: BlockData { header, extrinsics }, justifications: None }))
@@ -202,8 +258,9 @@ impl ChainApiServer for ChainApi {
 					header_bytes.len()
 				),
 			},
-			Ok(None) =>
-				warn!("[chain] No header found for head hash 0x{}", hex::encode(&head_hash.0[..4])),
+			Ok(None) => {
+				warn!("[chain] No header found for head hash 0x{}", hex::encode(&head_hash.0[..4]))
+			},
 			Err(e) => warn!("[chain] Failed to fetch initial head header: {e}"),
 		}
 
@@ -278,5 +335,183 @@ impl ChainApiServer for ChainApi {
 
 	async fn subscribe_all_heads(&self, pending: PendingSubscriptionSink) -> SubscriptionResult {
 		self.subscribe_new_heads(pending).await
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::rpc_server::test_scenarios::chain as scenario;
+	use jsonrpsee::server::ServerBuilder;
+	use scale::Encode;
+	use subxt::config::substrate::{Digest, DynamicHasher256, H256, SubstrateHeader};
+
+	fn mock_hash(byte: u8) -> H256 {
+		H256::from([byte; 32])
+	}
+
+	fn encode_header(number: u32, parent: H256) -> Vec<u8> {
+		let header = SubstrateHeader::<u32, DynamicHasher256> {
+			parent_hash: parent,
+			number,
+			state_root: mock_hash(7),
+			extrinsics_root: mock_hash(8),
+			digest: Digest::default(),
+		};
+		header.encode()
+	}
+
+	struct MockChainBlockchain {
+		head_number: u32,
+		head_hash: H256,
+		header_by_hash: std::collections::HashMap<H256, Vec<u8>>,
+		body_by_hash: std::collections::HashMap<H256, Vec<Vec<u8>>>,
+		hash_by_number: std::collections::HashMap<u32, H256>,
+	}
+
+	#[async_trait::async_trait]
+	impl ChainBlockchain for MockChainBlockchain {
+		async fn head_number(&self) -> u32 {
+			self.head_number
+		}
+
+		async fn head_hash(&self) -> H256 {
+			self.head_hash
+		}
+
+		async fn block_hash_at(&self, number: u32) -> Result<Option<H256>, crate::BlockchainError> {
+			Ok(self.hash_by_number.get(&number).copied())
+		}
+
+		async fn block_header(
+			&self,
+			hash: H256,
+		) -> Result<Option<Vec<u8>>, crate::BlockchainError> {
+			Ok(self.header_by_hash.get(&hash).cloned())
+		}
+
+		async fn block_body(
+			&self,
+			hash: H256,
+		) -> Result<Option<Vec<Vec<u8>>>, crate::BlockchainError> {
+			Ok(self.body_by_hash.get(&hash).cloned())
+		}
+
+		fn subscribe_events(&self) -> broadcast::Receiver<BlockchainEvent> {
+			let (_, rx) = broadcast::channel(1);
+			rx
+		}
+	}
+
+	fn mock_api() -> ChainApi<MockChainBlockchain> {
+		let head_hash = mock_hash(1);
+		let parent_hash = mock_hash(2);
+		let mut header_by_hash = std::collections::HashMap::new();
+		header_by_hash.insert(head_hash, encode_header(10, parent_hash));
+
+		let mut body_by_hash = std::collections::HashMap::new();
+		body_by_hash.insert(head_hash, vec![vec![0xaa, 0xbb], vec![0xcc]]);
+
+		let mut hash_by_number = std::collections::HashMap::new();
+		hash_by_number.insert(10, head_hash);
+
+		let blockchain = MockChainBlockchain {
+			head_number: 10,
+			head_hash,
+			header_by_hash,
+			body_by_hash,
+			hash_by_number,
+		};
+		ChainApi::new(Arc::new(blockchain), CancellationToken::new())
+	}
+
+	async fn start_mock_server() -> (String, jsonrpsee::server::ServerHandle) {
+		let server =
+			ServerBuilder::default().build("127.0.0.1:0").await.expect("server should bind");
+		let addr = server.local_addr().expect("server should expose local addr");
+		let handle = server.start(ChainApiServer::into_rpc(mock_api()));
+		(format!("ws://{}", addr), handle)
+	}
+
+	#[tokio::test]
+	async fn chain_get_block_hash_returns_head_hash() {
+		let (ws_url, handle) = start_mock_server().await;
+		scenario::chain_get_block_hash_returns_head_hash(
+			&ws_url,
+			10,
+			&format!("0x{}", "01".repeat(32)),
+		)
+		.await;
+		handle.stop().expect("server should stop");
+	}
+
+	#[tokio::test]
+	async fn chain_get_block_hash_returns_none_hash() {
+		let (ws_url, handle) = start_mock_server().await;
+		scenario::chain_get_block_hash_returns_none_hash(&ws_url, 999).await;
+		handle.stop().expect("server should stop");
+	}
+
+	#[tokio::test]
+	async fn chain_get_block_hash_without_number_returns_head_hash() {
+		let (ws_url, handle) = start_mock_server().await;
+		scenario::chain_get_block_hash_without_number_returns_head_hash(
+			&ws_url,
+			&format!("0x{}", "01".repeat(32)),
+		)
+		.await;
+		handle.stop().expect("server should stop");
+	}
+
+	#[tokio::test]
+	async fn chain_get_header_returns_valid_header() {
+		let (ws_url, handle) = start_mock_server().await;
+		scenario::chain_get_header_returns_valid_header(
+			&ws_url,
+			&format!("0x{}", "01".repeat(32)),
+			"0xa",
+			&format!("0x{}", "02".repeat(32)),
+		)
+		.await;
+		handle.stop().expect("server should stop");
+	}
+
+	#[tokio::test]
+	async fn chain_get_header_returns_head_when_no_hash() {
+		let (ws_url, handle) = start_mock_server().await;
+		scenario::chain_get_header_returns_head_when_no_hash(&ws_url, "0xa").await;
+		handle.stop().expect("server should stop");
+	}
+
+	#[tokio::test]
+	async fn chain_get_block_returns_full_block() {
+		let (ws_url, handle) = start_mock_server().await;
+		scenario::chain_get_block_returns_full_block(
+			&ws_url,
+			&format!("0x{}", "01".repeat(32)),
+			"0xa",
+			&format!("0x{}", "02".repeat(32)),
+			&["0xaabb".to_string(), "0xcc".to_string()],
+		)
+		.await;
+		handle.stop().expect("server should stop");
+	}
+
+	#[tokio::test]
+	async fn chain_get_block_returns_head_when_no_hash() {
+		let (ws_url, handle) = start_mock_server().await;
+		scenario::chain_get_block_returns_head_when_no_hash(&ws_url, "0xa").await;
+		handle.stop().expect("server should stop");
+	}
+
+	#[tokio::test]
+	async fn chain_get_finalized_head_returns_head_hash() {
+		let (ws_url, handle) = start_mock_server().await;
+		scenario::chain_get_finalized_head_returns_head_hash(
+			&ws_url,
+			&format!("0x{}", "01".repeat(32)),
+		)
+		.await;
+		handle.stop().expect("server should stop");
 	}
 }

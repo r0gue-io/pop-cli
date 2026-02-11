@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#![allow(missing_docs)]
+
 //! Integration tests for timestamp slot-duration detection on local and live chains.
 
-#![cfg(feature = "integration-tests")]
-
-use pop_common::test_env::TestNode;
-use pop_fork::{
+use crate::{
 	ForkRpcClient, LocalStorageLayer, RemoteStorageLayer, RuntimeExecutor, StorageCache,
 	TimestampInherent,
 };
+use pop_common::test_env::TestNode;
 use subxt::Metadata;
 use url::Url;
 

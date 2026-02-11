@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#![allow(missing_docs)]
+
 //! Integration tests for remote storage and cache behavior.
 
-#![cfg(feature = "integration-tests")]
-
-use pop_fork::testing::{
+use crate::testing::{
 	TestContext,
 	constants::{SYSTEM_NUMBER_KEY, SYSTEM_PALLET_PREFIX, SYSTEM_PARENT_HASH_KEY},
 };

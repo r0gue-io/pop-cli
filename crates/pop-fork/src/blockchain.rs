@@ -1177,7 +1177,7 @@ impl Blockchain {
 		let new_executor = if runtime_upgraded {
 			log::debug!("[Blockchain] Runtime upgrade detected, recreating executor");
 			match new_block.runtime_code().await {
-				Ok(code) =>
+				Ok(code) => {
 					match RuntimeExecutor::with_config(code, None, self.executor_config.clone()) {
 						Ok(executor) => Some(executor),
 						Err(e) => {
@@ -1187,7 +1187,8 @@ impl Blockchain {
 							);
 							None
 						},
-					},
+					}
+				},
 				Err(e) => {
 					log::error!(
 						"[Blockchain] Failed to get runtime code after upgrade: {e}. \

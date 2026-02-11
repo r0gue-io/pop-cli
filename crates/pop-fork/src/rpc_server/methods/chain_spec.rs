@@ -91,6 +91,8 @@ impl<T: ChainSpecBlockchain + 'static> ChainSpecApiServer for ChainSpecApi<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::rpc_server::test_scenarios::chain_spec as scenario;
+	use jsonrpsee::server::ServerBuilder;
 	use serde_json::json;
 
 	struct MockChainSpecBlockchain {
@@ -118,10 +120,16 @@ mod tests {
 	async fn chain_spec_chain_name_returns_string() {
 		let api = ChainSpecApi::new(Arc::new(MockChainSpecBlockchain {
 			name: "ink-node",
-			genesis: "0x11".to_string(),
+			genesis: format!("0x{}", "ab".repeat(32)),
 			properties: None,
 		}));
-		assert_eq!(ChainSpecApiServer::chain_name(&api).await.unwrap(), "ink-node");
+		let server =
+			ServerBuilder::default().build("127.0.0.1:0").await.expect("server should bind");
+		let addr = server.local_addr().expect("server should expose local addr");
+		let handle = server.start(ChainSpecApiServer::into_rpc(api));
+
+		scenario::chain_spec_chain_name_returns_string(&format!("ws://{}", addr), "ink-node").await;
+		handle.stop().expect("server should stop");
 	}
 
 	#[tokio::test]
@@ -132,7 +140,18 @@ mod tests {
 			genesis: expected.clone(),
 			properties: None,
 		}));
-		assert_eq!(ChainSpecApiServer::genesis_hash(&api).await.unwrap(), expected);
+		let server =
+			ServerBuilder::default().build("127.0.0.1:0").await.expect("server should bind");
+		let addr = server.local_addr().expect("server should expose local addr");
+		let handle = server.start(ChainSpecApiServer::into_rpc(api));
+
+		let got = scenario::chain_spec_genesis_hash_returns_valid_hex_hash(
+			&format!("ws://{}", addr),
+			Some(&expected),
+		)
+		.await;
+		assert_eq!(got, expected);
+		handle.stop().expect("server should stop");
 	}
 
 	#[tokio::test]
@@ -140,9 +159,19 @@ mod tests {
 		let props = json!({"tokenSymbol":"UNIT","tokenDecimals":12});
 		let api = ChainSpecApi::new(Arc::new(MockChainSpecBlockchain {
 			name: "ink-node",
-			genesis: "0x11".to_string(),
+			genesis: format!("0x{}", "ab".repeat(32)),
 			properties: Some(props.clone()),
 		}));
-		assert_eq!(ChainSpecApiServer::properties(&api).await.unwrap(), Some(props));
+		let server =
+			ServerBuilder::default().build("127.0.0.1:0").await.expect("server should bind");
+		let addr = server.local_addr().expect("server should expose local addr");
+		let handle = server.start(ChainSpecApiServer::into_rpc(api));
+
+		scenario::chain_spec_properties_returns_json_or_null(
+			&format!("ws://{}", addr),
+			Some(props),
+		)
+		.await;
+		handle.stop().expect("server should stop");
 	}
 }
