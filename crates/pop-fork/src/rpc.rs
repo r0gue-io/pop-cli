@@ -49,15 +49,30 @@ use crate::{
 	error::rpc::RpcClientError,
 	strings::rpc::{methods, storage_keys},
 };
+use scale::{Decode, Encode};
+use std::sync::Arc;
 use subxt::{
-	SubstrateConfig,
+	Metadata, SubstrateConfig,
 	backend::{
 		legacy::{LegacyRpcMethods, rpc_methods::Block},
 		rpc::RpcClient,
 	},
 	config::substrate::H256,
 };
+use tokio::sync::{RwLock, Semaphore};
 use url::Url;
+
+/// Maximum number of concurrent upstream RPC calls for heavy storage methods.
+///
+/// Limits parallelism for `storage()`, `storage_batch()`, and `storage_keys_paged()` to prevent
+/// overwhelming the upstream WebSocket endpoint when many callers (e.g., polkadot.js sending 14
+/// concurrent `state_queryStorageAt` requests) hit the RPC server at once.
+const MAX_CONCURRENT_UPSTREAM_CALLS: usize = 4;
+
+/// Oldest metadata version supported.
+const METADATA_V14: u32 = 14;
+/// Most up-to-date metadata version supported.
+const METADATA_LATEST: u32 = 15;
 
 /// RPC client wrapper for fork operations.
 ///
@@ -75,10 +90,18 @@ use url::Url;
 /// let metadata = client.metadata(block_hash).await?;
 /// let storage_value = client.storage(&key, block_hash).await?;
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ForkRpcClient {
-	legacy: LegacyRpcMethods<SubstrateConfig>,
+	legacy: Arc<RwLock<LegacyRpcMethods<SubstrateConfig>>>,
 	endpoint: Url,
+	/// Semaphore limiting concurrent upstream calls for heavy storage methods.
+	upstream_semaphore: Arc<Semaphore>,
+}
+
+impl std::fmt::Debug for ForkRpcClient {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("ForkRpcClient").field("endpoint", &self.endpoint).finish()
+	}
 }
 
 impl ForkRpcClient {
@@ -92,16 +115,35 @@ impl ForkRpcClient {
 	/// let client = ForkRpcClient::connect(&"wss://rpc.polkadot.io".parse()?).await?;
 	/// ```
 	pub async fn connect(endpoint: &Url) -> Result<Self, RpcClientError> {
+		let legacy = Self::create_connection(endpoint).await?;
+		Ok(Self {
+			legacy: Arc::new(RwLock::new(legacy)),
+			endpoint: endpoint.clone(),
+			upstream_semaphore: Arc::new(Semaphore::new(MAX_CONCURRENT_UPSTREAM_CALLS)),
+		})
+	}
+
+	/// Create a new connection to the endpoint.
+	async fn create_connection(
+		endpoint: &Url,
+	) -> Result<LegacyRpcMethods<SubstrateConfig>, RpcClientError> {
 		let client = RpcClient::from_url(endpoint.as_str()).await.map_err(|e| {
 			RpcClientError::ConnectionFailed {
 				endpoint: endpoint.to_string(),
 				message: e.to_string(),
 			}
 		})?;
+		Ok(LegacyRpcMethods::new(client))
+	}
 
-		let legacy = LegacyRpcMethods::new(client);
-
-		Ok(Self { legacy, endpoint: endpoint.clone() })
+	/// Reconnect to the upstream RPC endpoint.
+	///
+	/// Creates a fresh WebSocket connection, replacing the existing one. All clones
+	/// of this client share the connection, so reconnecting affects all of them.
+	pub async fn reconnect(&self) -> Result<(), RpcClientError> {
+		let new_legacy = Self::create_connection(&self.endpoint).await?;
+		*self.legacy.write().await = new_legacy;
+		Ok(())
 	}
 
 	/// Get the endpoint URL this client is connected to.
@@ -114,13 +156,12 @@ impl ForkRpcClient {
 	/// This is typically the starting point for forking - we fork from the latest
 	/// finalized state to ensure consistency.
 	pub async fn finalized_head(&self) -> Result<H256, RpcClientError> {
-		self.legacy
-			.chain_get_finalized_head()
-			.await
-			.map_err(|e| RpcClientError::RequestFailed {
+		self.legacy.read().await.chain_get_finalized_head().await.map_err(|e| {
+			RpcClientError::RequestFailed {
 				method: methods::CHAIN_GET_FINALIZED_HEAD,
 				message: e.to_string(),
-			})
+			}
+		})
 	}
 
 	/// Get block header by hash.
@@ -132,6 +173,8 @@ impl ForkRpcClient {
 		hash: H256,
 	) -> Result<<SubstrateConfig as subxt::Config>::Header, RpcClientError> {
 		self.legacy
+			.read()
+			.await
 			.chain_get_header(Some(hash))
 			.await
 			.map_err(|e| RpcClientError::RequestFailed {
@@ -151,12 +194,15 @@ impl ForkRpcClient {
 	/// * `Ok(None)` - Block number doesn't exist yet
 	/// * `Err(_)` - RPC error
 	pub async fn block_hash_at(&self, block_number: u32) -> Result<Option<H256>, RpcClientError> {
-		self.legacy.chain_get_block_hash(Some(block_number.into())).await.map_err(|e| {
-			RpcClientError::RequestFailed {
+		self.legacy
+			.read()
+			.await
+			.chain_get_block_hash(Some(block_number.into()))
+			.await
+			.map_err(|e| RpcClientError::RequestFailed {
 				method: methods::CHAIN_GET_BLOCK_HASH,
 				message: e.to_string(),
-			}
-		})
+			})
 	}
 
 	/// Get full block data by block number.
@@ -184,12 +230,13 @@ impl ForkRpcClient {
 		};
 
 		// Get full block data
-		let block = self.legacy.chain_get_block(Some(block_hash)).await.map_err(|e| {
-			RpcClientError::RequestFailed {
-				method: methods::CHAIN_GET_BLOCK,
-				message: e.to_string(),
-			}
-		})?;
+		let block =
+			self.legacy.read().await.chain_get_block(Some(block_hash)).await.map_err(|e| {
+				RpcClientError::RequestFailed {
+					method: methods::CHAIN_GET_BLOCK,
+					message: e.to_string(),
+				}
+			})?;
 
 		Ok(block.map(|block| (block_hash, block.block)))
 	}
@@ -207,12 +254,13 @@ impl ForkRpcClient {
 		&self,
 		block_hash: H256,
 	) -> Result<Option<Block<SubstrateConfig>>, RpcClientError> {
-		let block = self.legacy.chain_get_block(Some(block_hash)).await.map_err(|e| {
-			RpcClientError::RequestFailed {
-				method: methods::CHAIN_GET_BLOCK,
-				message: e.to_string(),
-			}
-		})?;
+		let block =
+			self.legacy.read().await.chain_get_block(Some(block_hash)).await.map_err(|e| {
+				RpcClientError::RequestFailed {
+					method: methods::CHAIN_GET_BLOCK,
+					message: e.to_string(),
+				}
+			})?;
 
 		Ok(block.map(|b| b.block))
 	}
@@ -228,7 +276,7 @@ impl ForkRpcClient {
 	/// * `Ok(None)` - Storage key doesn't exist (empty)
 	/// * `Err(_)` - RPC error
 	pub async fn storage(&self, key: &[u8], at: H256) -> Result<Option<Vec<u8>>, RpcClientError> {
-		self.legacy.state_get_storage(key, Some(at)).await.map_err(|e| {
+		self.legacy.read().await.state_get_storage(key, Some(at)).await.map_err(|e| {
 			RpcClientError::RequestFailed {
 				method: methods::STATE_GET_STORAGE,
 				message: e.to_string(),
@@ -256,8 +304,11 @@ impl ForkRpcClient {
 			return Ok(vec![]);
 		}
 
+		let _permit = self.upstream_semaphore.acquire().await.expect("semaphore closed");
 		let result = self
 			.legacy
+			.read()
+			.await
 			.state_query_storage_at(keys.iter().copied(), Some(at))
 			.await
 			.map_err(|e| RpcClientError::RequestFailed {
@@ -266,7 +317,7 @@ impl ForkRpcClient {
 			})?;
 
 		// Build a map of key -> value from the response
-		let mut changes: std::collections::HashMap<Vec<u8>, Option<Vec<u8>>> = result
+		let changes: std::collections::HashMap<Vec<u8>, Option<Vec<u8>>> = result
 			.into_iter()
 			.flat_map(|change_set| {
 				change_set.changes.into_iter().map(|(k, v)| {
@@ -277,10 +328,8 @@ impl ForkRpcClient {
 			})
 			.collect();
 
-		// Return values in the same order as input keys.
-		// Use remove() to avoid cloning potentially large storage values.
-		// Note: If duplicate keys are passed, only the first occurrence gets the value.
-		let values = keys.iter().map(|key| changes.remove(*key).flatten()).collect();
+		// Return values in the same order as input keys, preserving duplicates.
+		let values = keys.iter().map(|key| changes.get::<[u8]>(key).cloned().flatten()).collect();
 
 		Ok(values)
 	}
@@ -301,7 +350,10 @@ impl ForkRpcClient {
 		start_key: Option<&[u8]>,
 		at: H256,
 	) -> Result<Vec<Vec<u8>>, RpcClientError> {
+		let _permit = self.upstream_semaphore.acquire().await.expect("semaphore closed");
 		self.legacy
+			.read()
+			.await
 			.state_get_keys_paged(prefix, count, start_key, Some(at))
 			.await
 			.map_err(|e| RpcClientError::RequestFailed {
@@ -312,16 +364,65 @@ impl ForkRpcClient {
 
 	/// Get runtime metadata at a specific block.
 	///
-	/// Returns the raw metadata bytes which can be parsed using `subxt::Metadata`.
-	pub async fn metadata(&self, at: H256) -> Result<Vec<u8>, RpcClientError> {
-		let metadata = self.legacy.state_get_metadata(Some(at)).await.map_err(|e| {
+	/// Attempts to fetch and decode metadata via `state_getMetadata`. If decoding
+	/// fails (e.g., due to type registry inconsistencies in the chain's metadata),
+	/// falls back to requesting specific metadata versions via
+	/// `Metadata_metadata_at_version` runtime API (latest down to V14).
+	pub async fn metadata(&self, at: H256) -> Result<Metadata, RpcClientError> {
+		let raw = self.legacy.read().await.state_get_metadata(Some(at)).await.map_err(|e| {
 			RpcClientError::RequestFailed {
 				method: methods::STATE_GET_METADATA,
 				message: e.to_string(),
 			}
 		})?;
 
-		Ok(metadata.into_raw())
+		let raw_bytes = raw.into_raw();
+		match Metadata::decode(&mut raw_bytes.as_slice()) {
+			Ok(metadata) => Ok(metadata),
+			Err(default_err) => {
+				// Try explicit version requests as fallback.
+				for version in (METADATA_V14..=METADATA_LATEST).rev() {
+					if let Some(bytes) = self.metadata_at_version(version, at).await? &&
+						let Ok(metadata) = Metadata::decode(&mut bytes.as_slice())
+					{
+						return Ok(metadata);
+					}
+				}
+				Err(RpcClientError::MetadataDecodingFailed(default_err.to_string()))
+			},
+		}
+	}
+
+	/// Request metadata at a specific version via the `Metadata_metadata_at_version`
+	/// runtime API.
+	///
+	/// Returns `Ok(Some(bytes))` if the chain supports the requested version,
+	/// `Ok(None)` if it does not, or an error if the RPC call itself fails.
+	async fn metadata_at_version(
+		&self,
+		version: u32,
+		at: H256,
+	) -> Result<Option<Vec<u8>>, RpcClientError> {
+		let result = self
+			.legacy
+			.read()
+			.await
+			.state_call("Metadata_metadata_at_version", Some(&version.encode()), Some(at))
+			.await
+			.map_err(|e| RpcClientError::RequestFailed {
+				method: methods::STATE_CALL,
+				message: e.to_string(),
+			})?;
+
+		// The runtime returns SCALE-encoded `Option<OpaqueMetadata>` where
+		// `OpaqueMetadata` is `Vec<u8>`.
+		let opaque: Option<Vec<u8>> = Decode::decode(&mut result.as_slice()).map_err(|e| {
+			RpcClientError::InvalidResponse(format!(
+				"Failed to decode metadata_at_version response: {e}"
+			))
+		})?;
+
+		Ok(opaque)
 	}
 
 	/// Get the runtime WASM code at a specific block.
@@ -338,23 +439,49 @@ impl ForkRpcClient {
 
 	/// Get the chain name from system properties.
 	pub async fn system_chain(&self) -> Result<String, RpcClientError> {
-		self.legacy.system_chain().await.map_err(|e| RpcClientError::RequestFailed {
-			method: methods::SYSTEM_CHAIN,
-			message: e.to_string(),
-		})
+		self.legacy
+			.read()
+			.await
+			.system_chain()
+			.await
+			.map_err(|e| RpcClientError::RequestFailed {
+				method: methods::SYSTEM_CHAIN,
+				message: e.to_string(),
+			})
+	}
+
+	/// Execute a runtime API call via `state_call` on the upstream chain.
+	///
+	/// This is useful for proxying computationally expensive runtime calls (like metadata
+	/// generation) to the upstream node, which has a JIT-compiled runtime and handles them
+	/// much faster than the local WASM interpreter.
+	pub async fn state_call(
+		&self,
+		function: &str,
+		call_parameters: &[u8],
+		at: Option<H256>,
+	) -> Result<Vec<u8>, RpcClientError> {
+		self.legacy
+			.read()
+			.await
+			.state_call(function, Some(call_parameters), at)
+			.await
+			.map_err(|e| RpcClientError::RequestFailed {
+				method: methods::STATE_CALL,
+				message: e.to_string(),
+			})
 	}
 
 	/// Get system properties (token decimals, symbols, etc.).
 	pub async fn system_properties(
 		&self,
 	) -> Result<subxt::backend::legacy::rpc_methods::SystemProperties, RpcClientError> {
-		self.legacy
-			.system_properties()
-			.await
-			.map_err(|e| RpcClientError::RequestFailed {
+		self.legacy.read().await.system_properties().await.map_err(|e| {
+			RpcClientError::RequestFailed {
 				method: methods::SYSTEM_PROPERTIES,
 				message: e.to_string(),
-			})
+			}
+		})
 	}
 }
 
@@ -470,8 +597,8 @@ mod tests {
 			let hash = ctx.rpc().finalized_head().await.unwrap();
 			let metadata = ctx.rpc().metadata(hash).await.unwrap();
 
-			// Metadata should be substantial
-			assert!(metadata.len() > 1000);
+			// Decoded metadata should contain pallets
+			assert!(metadata.pallets().len() > 0);
 		}
 
 		#[tokio::test]

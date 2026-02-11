@@ -17,7 +17,8 @@ use crate::{
 		types::{
 			BestBlockChangedEvent, ChainHeadEvent, ChainHeadRuntimeVersion, FinalizedEvent,
 			HexString, InitializedEvent, MethodResponse, NewBlockEvent, OperationEvent,
-			OperationResult, StorageQueryItem, StorageQueryType, StorageResultItem,
+			OperationResult, RuntimeEvent, StorageQueryItem, StorageQueryType, StorageResultItem,
+			ValidRuntime,
 		},
 	},
 	strings::rpc_server::{chain_head, runtime_api},
@@ -37,6 +38,7 @@ use std::{
 	},
 };
 use tokio::sync::{RwLock, broadcast, mpsc};
+use tokio_util::sync::CancellationToken;
 
 /// chainHead RPC methods (v1 spec).
 #[rpc(server, namespace = "chainHead")]
@@ -86,15 +88,18 @@ pub trait ChainHeadApi {
 
 	/// Continue a paused operation (for paginated storage queries).
 	#[method(name = "v1_continue")]
-	async fn continue_op(&self, follow_subscription: String, operation_id: String)
-	-> RpcResult<()>;
+	async fn continue_op(
+		&self,
+		follow_subscription: String,
+		operation_id: Option<String>,
+	) -> RpcResult<()>;
 
 	/// Stop an in-progress operation.
 	#[method(name = "v1_stopOperation")]
 	async fn stop_operation(
 		&self,
 		follow_subscription: String,
-		operation_id: String,
+		operation_id: Option<String>,
 	) -> RpcResult<()>;
 }
 
@@ -113,8 +118,6 @@ struct SubscriptionHandle {
 pub struct ChainHeadState {
 	/// Active subscriptions keyed by subscription ID.
 	subscriptions: RwLock<HashMap<String, Arc<SubscriptionHandle>>>,
-	/// Next subscription ID counter.
-	next_sub_id: AtomicU64,
 	/// Next operation ID counter.
 	next_op_id: AtomicU64,
 }
@@ -122,17 +125,7 @@ pub struct ChainHeadState {
 impl ChainHeadState {
 	/// Create new empty state.
 	pub fn new() -> Self {
-		Self {
-			subscriptions: RwLock::new(HashMap::new()),
-			next_sub_id: AtomicU64::new(1),
-			next_op_id: AtomicU64::new(1),
-		}
-	}
-
-	/// Generate a unique subscription ID.
-	fn generate_subscription_id(&self) -> String {
-		let id = self.next_sub_id.fetch_add(1, Ordering::SeqCst);
-		format!("chainHead-sub-{id}")
+		Self { subscriptions: RwLock::new(HashMap::new()), next_op_id: AtomicU64::new(1) }
 	}
 
 	/// Generate a unique operation ID.
@@ -172,12 +165,17 @@ impl Default for ChainHeadState {
 pub struct ChainHeadApi {
 	blockchain: Arc<Blockchain>,
 	state: Arc<ChainHeadState>,
+	shutdown_token: CancellationToken,
 }
 
 impl ChainHeadApi {
 	/// Create a new ChainHeadApi instance.
-	pub fn new(blockchain: Arc<Blockchain>, state: Arc<ChainHeadState>) -> Self {
-		Self { blockchain, state }
+	pub fn new(
+		blockchain: Arc<Blockchain>,
+		state: Arc<ChainHeadState>,
+		shutdown_token: CancellationToken,
+	) -> Self {
+		Self { blockchain, state, shutdown_token }
 	}
 }
 
@@ -248,7 +246,12 @@ impl ChainHeadApiServer for ChainHeadApi {
 
 		// Accept the subscription
 		let sink = pending.accept().await?;
-		let sub_id = self.state.generate_subscription_id();
+		// Use jsonrpsee's subscription ID so subsequent method calls (header, call,
+		// storage, etc.) can be matched by the ID the client actually received.
+		let sub_id = match sink.subscription_id() {
+			jsonrpsee::types::SubscriptionId::Num(n) => n.to_string(),
+			jsonrpsee::types::SubscriptionId::Str(s) => s.to_string(),
+		};
 
 		// Create event channel for operation results
 		let (event_tx, mut event_rx) = mpsc::unbounded_channel::<OperationEvent>();
@@ -265,12 +268,16 @@ impl ChainHeadApiServer for ChainHeadApi {
 
 		// Get current finalized block
 		let finalized_hash = self.blockchain.head_hash().await;
-		let finalized_hash_hex = HexString::from_bytes(finalized_hash.as_bytes()).into();
+		let finalized_hash_hex: String = HexString::from_bytes(finalized_hash.as_bytes()).into();
 
-		// Build initialized event
-		// Use flat runtime format for papi compatibility (not wrapped in ValidRuntime)
-		let runtime_version =
-			if with_runtime { get_chainhead_runtime_version(&self.blockchain).await } else { None };
+		// Build initialized event with runtime wrapped in { type: "valid", spec: {...} }
+		let runtime_version = if with_runtime {
+			get_chainhead_runtime_version(&self.blockchain)
+				.await
+				.map(|spec| RuntimeEvent::Valid(ValidRuntime { spec }))
+		} else {
+			None
+		};
 
 		// Log before building event (values are moved)
 		tracing::debug!(
@@ -281,7 +288,7 @@ impl ChainHeadApiServer for ChainHeadApi {
 		);
 
 		let initialized = ChainHeadEvent::Initialized(InitializedEvent {
-			finalized_block_hashes: vec![finalized_hash_hex],
+			finalized_block_hashes: vec![finalized_hash_hex.clone()],
 			finalized_block_runtime: runtime_version,
 		});
 
@@ -296,67 +303,14 @@ impl ChainHeadApiServer for ChainHeadApi {
 			return Ok(());
 		}
 
-		// Get parent hash for the fork point block to send newBlock event
-		// This is critical for papi-console explorer - it needs newBlock events to populate
-		// the block list, not just initialized/bestBlockChanged
-		let finalized_hash_hex_for_new: String =
-			HexString::from_bytes(finalized_hash.as_bytes()).into();
-		let parent_hash = self.blockchain.block_parent_hash(finalized_hash).await.ok().flatten();
-		let parent_hash_hex: String = parent_hash
-			.map(|h| HexString::from_bytes(h.as_bytes()).into())
-			.unwrap_or_else(|| {
-				// Genesis block has itself as parent in some representations
-				finalized_hash_hex_for_new.clone()
-			});
-
-		// Send newBlock event for the fork point block
-		let new_block = ChainHeadEvent::NewBlock(NewBlockEvent {
-			block_hash: finalized_hash_hex_for_new.clone(),
-			parent_block_hash: parent_hash_hex,
-			new_runtime: None,
+		// Per the spec, `bestBlockChanged` must be sent after the initialized event.
+		// The best block hash is allowed to be the last entry in `finalizedBlockHashes`.
+		// No `newBlock` or `finalized` events are sent for the fork point block since
+		// it is already included in the initialized event.
+		let best_block = ChainHeadEvent::BestBlockChanged(BestBlockChangedEvent {
+			best_block_hash: finalized_hash_hex,
 		});
-
-		tracing::debug!(
-			sub_id = %sub_id,
-			block_hash = %finalized_hash_hex_for_new,
-			"chainHead_v1_follow: sending newBlock event for fork point"
-		);
-
-		if !send_event(&sink, &new_block).await {
-			self.state.remove_subscription(&sub_id).await;
-			return Ok(());
-		}
-
-		// Send bestBlockChanged event after newBlock
-		let best_block_changed = ChainHeadEvent::BestBlockChanged(BestBlockChangedEvent {
-			best_block_hash: finalized_hash_hex_for_new.clone(),
-		});
-
-		tracing::debug!(
-			sub_id = %sub_id,
-			best_block_hash = %finalized_hash_hex_for_new,
-			"chainHead_v1_follow: sending bestBlockChanged event"
-		);
-
-		if !send_event(&sink, &best_block_changed).await {
-			self.state.remove_subscription(&sub_id).await;
-			return Ok(());
-		}
-
-		// Send finalized event for the fork point block
-		// This completes the event sequence: initialized → newBlock → bestBlockChanged → finalized
-		let finalized_event = ChainHeadEvent::Finalized(FinalizedEvent {
-			finalized_block_hashes: vec![finalized_hash_hex_for_new.clone()],
-			pruned_block_hashes: vec![],
-		});
-
-		tracing::debug!(
-			sub_id = %sub_id,
-			finalized_hash = %finalized_hash_hex_for_new,
-			"chainHead_v1_follow: sending finalized event for fork point"
-		);
-
-		if !send_event(&sink, &finalized_event).await {
+		if !send_event(&sink, &best_block).await {
 			self.state.remove_subscription(&sub_id).await;
 			return Ok(());
 		}
@@ -365,6 +319,7 @@ impl ChainHeadApiServer for ChainHeadApi {
 		let mut blockchain_rx = self.blockchain.subscribe_events();
 		let state = Arc::clone(&self.state);
 		let sub_id_clone = sub_id.clone();
+		let token = self.shutdown_token.clone();
 
 		// Spawn task to forward events
 		tokio::spawn(async move {
@@ -372,12 +327,18 @@ impl ChainHeadApiServer for ChainHeadApi {
 				tokio::select! {
 					biased;
 
+					// Server shutting down
+					_ = token.cancelled() => break,
+
 					// Client disconnected
 					_ = sink.closed() => break,
 
 					// Operation event from async operation
 					Some(op_event) = event_rx.recv() => {
-						if !send_event(&sink, &op_event).await {
+						tracing::debug!("chainHead_v1_follow: forwarding operation event to client");
+						let sent = send_event(&sink, &op_event).await;
+						tracing::debug!(success = sent, "chainHead_v1_follow: operation event sent");
+						if !sent {
 							break;
 						}
 					}
@@ -439,6 +400,8 @@ impl ChainHeadApiServer for ChainHeadApi {
 		// Parse block hash
 		let block_hash = parse_block_hash(&hash)?;
 
+		tracing::debug!(%follow_subscription, %hash, "chainHead_v1_header");
+
 		// Get header
 		match self.blockchain.block_header(block_hash).await {
 			Ok(Some(header_bytes)) => Ok(Some(HexString::from_bytes(&header_bytes).into())),
@@ -456,7 +419,10 @@ impl ChainHeadApiServer for ChainHeadApi {
 		// Check operation limit
 		let current_ops = handle.operation_count.load(Ordering::SeqCst);
 		if current_ops >= chain_head::MAX_OPERATIONS as u64 {
-			return Ok(MethodResponse { result: OperationResult::LimitReached });
+			return Ok(MethodResponse {
+				result: OperationResult::LimitReached,
+				discarded_items: None,
+			});
 		}
 		handle.operation_count.fetch_add(1, Ordering::SeqCst);
 
@@ -465,6 +431,8 @@ impl ChainHeadApiServer for ChainHeadApi {
 
 		// Parse block hash
 		let block_hash = parse_block_hash(&hash)?;
+
+		tracing::debug!(%follow_subscription, %hash, %operation_id, "chainHead_v1_body");
 
 		// Spawn async task to execute operation
 		let blockchain = Arc::clone(&self.blockchain);
@@ -491,7 +459,10 @@ impl ChainHeadApiServer for ChainHeadApi {
 			handle_clone.operation_count.fetch_sub(1, Ordering::SeqCst);
 		});
 
-		Ok(MethodResponse { result: OperationResult::Started { operation_id } })
+		Ok(MethodResponse {
+			result: OperationResult::Started { operation_id },
+			discarded_items: None,
+		})
 	}
 
 	async fn call(
@@ -509,7 +480,10 @@ impl ChainHeadApiServer for ChainHeadApi {
 		// Check operation limit
 		let current_ops = handle.operation_count.load(Ordering::SeqCst);
 		if current_ops >= chain_head::MAX_OPERATIONS as u64 {
-			return Ok(MethodResponse { result: OperationResult::LimitReached });
+			return Ok(MethodResponse {
+				result: OperationResult::LimitReached,
+				discarded_items: None,
+			});
 		}
 		handle.operation_count.fetch_add(1, Ordering::SeqCst);
 
@@ -520,16 +494,41 @@ impl ChainHeadApiServer for ChainHeadApi {
 		let block_hash = parse_block_hash(&hash)?;
 		let params = parse_hex_bytes(&call_parameters, "call_parameters")?;
 
+		tracing::debug!(%follow_subscription, %hash, %function, %operation_id, "chainHead_v1_call");
+
 		// Spawn async task
 		let blockchain = Arc::clone(&self.blockchain);
+		let fork_point = self.blockchain.fork_point_number();
 		let event_tx = handle.event_tx.clone();
 		let op_id = operation_id.clone();
 		let handle_clone = Arc::clone(&handle);
 
 		tokio::spawn(async move {
-			let event = match blockchain.call_at_block(block_hash, &function, &params).await {
-				Ok(Some(result)) => {
-					let output: String = HexString::from_bytes(&result).into();
+			// Try proxy for Metadata_* calls to the upstream (JIT-compiled runtime),
+			// but only for blocks at or before the fork point. Fork-local blocks may
+			// have a different runtime due to upgrades.
+			let result = if function.starts_with(runtime_api::METADATA_PREFIX) {
+				let block_number = blockchain.block_number_by_hash(block_hash).await.ok().flatten();
+				if block_number.is_some_and(|n| n <= fork_point) {
+					match blockchain.proxy_state_call(&function, &params, block_hash).await {
+						Ok(r) => Ok(Some(r)),
+						Err(e) => {
+							tracing::debug!(
+								"Upstream proxy failed for {function}, falling back to local: {e}"
+							);
+							blockchain.call_at_block(block_hash, &function, &params).await
+						},
+					}
+				} else {
+					blockchain.call_at_block(block_hash, &function, &params).await
+				}
+			} else {
+				blockchain.call_at_block(block_hash, &function, &params).await
+			};
+
+			let event = match result {
+				Ok(Some(r)) => {
+					let output: String = HexString::from_bytes(&r).into();
 					OperationEvent::OperationCallDone { operation_id: op_id, output }
 				},
 				Ok(None) => OperationEvent::OperationError {
@@ -544,7 +543,10 @@ impl ChainHeadApiServer for ChainHeadApi {
 			handle_clone.operation_count.fetch_sub(1, Ordering::SeqCst);
 		});
 
-		Ok(MethodResponse { result: OperationResult::Started { operation_id } })
+		Ok(MethodResponse {
+			result: OperationResult::Started { operation_id },
+			discarded_items: None,
+		})
 	}
 
 	async fn storage(
@@ -562,7 +564,10 @@ impl ChainHeadApiServer for ChainHeadApi {
 		// Check operation limit
 		let current_ops = handle.operation_count.load(Ordering::SeqCst);
 		if current_ops >= chain_head::MAX_OPERATIONS as u64 {
-			return Ok(MethodResponse { result: OperationResult::LimitReached });
+			return Ok(MethodResponse {
+				result: OperationResult::LimitReached,
+				discarded_items: None,
+			});
 		}
 		handle.operation_count.fetch_add(1, Ordering::SeqCst);
 
@@ -571,6 +576,11 @@ impl ChainHeadApiServer for ChainHeadApi {
 
 		// Parse block hash
 		let block_hash = parse_block_hash(&hash)?;
+
+		tracing::debug!(
+			%follow_subscription, %hash, items_count = items.len(), %operation_id,
+			"chainHead_v1_storage"
+		);
 
 		// Get block number for storage queries
 		let block_number = self
@@ -589,6 +599,10 @@ impl ChainHeadApiServer for ChainHeadApi {
 		tokio::spawn(async move {
 			let mut result_items = Vec::new();
 
+			// Separate items by query type: collect Value/Hash for parallel fetch,
+			// handle others inline.
+			let mut value_hash_items: Vec<(String, Vec<u8>, StorageQueryType)> = Vec::new();
+
 			for item in items {
 				let key_bytes = match hex::decode(item.key.trim_start_matches("0x")) {
 					Ok(b) => b,
@@ -596,61 +610,168 @@ impl ChainHeadApiServer for ChainHeadApi {
 				};
 
 				match item.query_type {
-					StorageQueryType::Value => {
-						let value = match blockchain.storage_at(block_number, &key_bytes).await {
-							Ok(Some(v)) => Some(HexString::from_bytes(&v).into()),
-							Ok(None) => None,
-							Err(_) => None,
-						};
-						result_items.push(StorageResultItem { key: item.key, value, hash: None });
-					},
-					StorageQueryType::Hash => {
-						// Get value and hash it
-						let hash = match blockchain.storage_at(block_number, &key_bytes).await {
-							Ok(Some(v)) => {
-								let hash = sp_core::blake2_256(&v);
-								Some(HexString::from_bytes(&hash).into())
-							},
-							Ok(None) => None,
-							Err(_) => None,
-						};
-						result_items.push(StorageResultItem { key: item.key, value: None, hash });
+					StorageQueryType::Value | StorageQueryType::Hash => {
+						value_hash_items.push((item.key, key_bytes, item.query_type));
 					},
 					StorageQueryType::ClosestDescendantMerkleValue => {
-						// Merkle proofs not supported in fork - return empty result
 						result_items.push(StorageResultItem {
 							key: item.key,
 							value: None,
 							hash: None,
 						});
 					},
-					StorageQueryType::DescendantsValues | StorageQueryType::DescendantsHashes => {
-						// Descendants queries require key enumeration which is not yet implemented.
-						// Return empty result to allow PAPI to not error out.
-						result_items.push(StorageResultItem {
-							key: item.key,
-							value: None,
-							hash: None,
-						});
+					StorageQueryType::DescendantsValues => {
+						tracing::debug!(
+							prefix = %item.key,
+							"chainHead_v1_storage: DescendantsValues query"
+						);
+						match blockchain.storage_keys_by_prefix(&key_bytes, block_hash).await {
+							Ok(keys) => {
+								tracing::debug!(
+									prefix = %item.key,
+									keys_found = keys.len(),
+									"chainHead_v1_storage: DescendantsValues fetching values in parallel"
+								);
+								let futures: Vec<_> = keys
+									.iter()
+									.map(|k| blockchain.storage_at(block_number, k))
+									.collect();
+								let values = futures::future::join_all(futures).await;
+								for (k, v) in keys.into_iter().zip(values) {
+									let value = match v {
+										Ok(Some(val)) => Some(HexString::from_bytes(&val).into()),
+										_ => None,
+									};
+									result_items.push(StorageResultItem {
+										key: HexString::from_bytes(&k).into(),
+										value,
+										hash: None,
+									});
+								}
+							},
+							Err(e) => {
+								tracing::debug!(
+									prefix = %item.key,
+									error = %e,
+									"chainHead_v1_storage: DescendantsValues prefix lookup failed"
+								);
+							},
+						}
 					},
+					StorageQueryType::DescendantsHashes => {
+						tracing::debug!(
+							prefix = %item.key,
+							"chainHead_v1_storage: DescendantsHashes query"
+						);
+						match blockchain.storage_keys_by_prefix(&key_bytes, block_hash).await {
+							Ok(keys) => {
+								tracing::debug!(
+									prefix = %item.key,
+									keys_found = keys.len(),
+									"chainHead_v1_storage: DescendantsHashes fetching values in parallel"
+								);
+								let futures: Vec<_> = keys
+									.iter()
+									.map(|k| blockchain.storage_at(block_number, k))
+									.collect();
+								let values = futures::future::join_all(futures).await;
+								for (k, v) in keys.into_iter().zip(values) {
+									let hash = match v {
+										Ok(Some(val)) => Some(
+											HexString::from_bytes(&sp_core::blake2_256(&val))
+												.into(),
+										),
+										_ => None,
+									};
+									result_items.push(StorageResultItem {
+										key: HexString::from_bytes(&k).into(),
+										value: None,
+										hash,
+									});
+								}
+							},
+							Err(e) => {
+								tracing::debug!(
+									prefix = %item.key,
+									error = %e,
+									"chainHead_v1_storage: DescendantsHashes prefix lookup failed"
+								);
+							},
+						}
+					},
+				}
+			}
+
+			// Fetch Value/Hash items in parallel
+			if !value_hash_items.is_empty() {
+				tracing::debug!(
+					count = value_hash_items.len(),
+					"chainHead_v1_storage: fetching Value/Hash items in parallel"
+				);
+				let futures: Vec<_> = value_hash_items
+					.iter()
+					.map(|(_, key_bytes, _)| blockchain.storage_at(block_number, key_bytes))
+					.collect();
+				let results = futures::future::join_all(futures).await;
+
+				for ((key, _, query_type), result) in value_hash_items.into_iter().zip(results) {
+					match query_type {
+						StorageQueryType::Value => {
+							let value = match result {
+								Ok(Some(v)) => Some(HexString::from_bytes(&v).into()),
+								_ => None,
+							};
+							result_items.push(StorageResultItem { key, value, hash: None });
+						},
+						StorageQueryType::Hash => {
+							let hash = match result {
+								Ok(Some(v)) =>
+									Some(HexString::from_bytes(&sp_core::blake2_256(&v)).into()),
+								_ => None,
+							};
+							result_items.push(StorageResultItem { key, value: None, hash });
+						},
+						_ => unreachable!(),
+					}
 				}
 			}
 
 			// Send storage items if any
 			if !result_items.is_empty() {
-				let _ = event_tx.send(OperationEvent::OperationStorageItems {
+				tracing::debug!(
+					operation_id = %op_id,
+					items_count = result_items.len(),
+					"chainHead_v1_storage: sending OperationStorageItems"
+				);
+				if let Ok(json) =
+					serde_json::to_string_pretty(&OperationEvent::OperationStorageItems {
+						operation_id: op_id.clone(),
+						items: result_items.clone(),
+					}) {
+					tracing::debug!(json = %json, "chainHead_v1_storage: OperationStorageItems JSON");
+				}
+				let sent = event_tx.send(OperationEvent::OperationStorageItems {
 					operation_id: op_id.clone(),
 					items: result_items,
 				});
+				tracing::debug!(
+					success = sent.is_ok(),
+					"chainHead_v1_storage: event_tx send items"
+				);
 			}
 
 			// Send done event
-			let _ = event_tx.send(OperationEvent::OperationStorageDone { operation_id: op_id });
+			let sent =
+				event_tx.send(OperationEvent::OperationStorageDone { operation_id: op_id.clone() });
+			tracing::debug!(operation_id = %op_id, success = sent.is_ok(), "chainHead_v1_storage: event_tx send done");
 
 			handle_clone.operation_count.fetch_sub(1, Ordering::SeqCst);
 		});
 
-		Ok(MethodResponse { result: OperationResult::Started { operation_id } })
+		Ok(MethodResponse {
+			result: OperationResult::Started { operation_id },
+			discarded_items: Some(0),
+		})
 	}
 
 	async fn unpin(
@@ -670,13 +791,9 @@ impl ChainHeadApiServer for ChainHeadApi {
 	async fn continue_op(
 		&self,
 		follow_subscription: String,
-		_operation_id: String,
+		_operation_id: Option<String>,
 	) -> RpcResult<()> {
-		// Validate subscription exists
-		if self.state.get_subscription(&follow_subscription).await.is_none() {
-			return Err(RpcServerError::InvalidSubscription { id: follow_subscription }.into());
-		}
-
+		tracing::debug!(%follow_subscription, "chainHead_v1_continue");
 		// No-op: we don't paginate storage results currently
 		Ok(())
 	}
@@ -684,13 +801,9 @@ impl ChainHeadApiServer for ChainHeadApi {
 	async fn stop_operation(
 		&self,
 		follow_subscription: String,
-		_operation_id: String,
+		_operation_id: Option<String>,
 	) -> RpcResult<()> {
-		// Validate subscription exists
-		if self.state.get_subscription(&follow_subscription).await.is_none() {
-			return Err(RpcServerError::InvalidSubscription { id: follow_subscription }.into());
-		}
-
+		tracing::debug!(%follow_subscription, "chainHead_v1_stopOperation");
 		// No-op: operations complete immediately in fork
 		Ok(())
 	}
@@ -728,41 +841,13 @@ mod tests {
 		let hashes = hashes.unwrap();
 		assert!(!hashes.is_empty());
 		let finalized_hash = hashes[0].as_str().unwrap();
+		assert!(finalized_hash.starts_with("0x"));
 
-		// Should receive newBlock event for the fork point block
-		// This is critical for papi-console explorer - it needs newBlock events to populate blocks
-		let new_block_event =
-			sub.next().await.expect("Should receive event").expect("Event should be valid");
-		let new_block_event_type = new_block_event.get("event").and_then(|v| v.as_str());
-		assert_eq!(new_block_event_type, Some("newBlock"));
-
-		// newBlock should have the same hash as the finalized block
-		let new_block_hash = new_block_event.get("blockHash").and_then(|v| v.as_str());
-		assert_eq!(new_block_hash, Some(finalized_hash));
-
-		// Should receive bestBlockChanged event after newBlock
+		// Should receive bestBlockChanged event pointing to the finalized block
 		let best_event =
 			sub.next().await.expect("Should receive event").expect("Event should be valid");
-		let best_event_type = best_event.get("event").and_then(|v| v.as_str());
-		assert_eq!(best_event_type, Some("bestBlockChanged"));
-
-		// Best block should match the finalized hash
-		let best_hash = best_event.get("bestBlockHash").and_then(|v| v.as_str());
-		assert_eq!(best_hash, Some(finalized_hash));
-
-		// Should receive finalized event for the fork point block
-		let finalized_event =
-			sub.next().await.expect("Should receive event").expect("Event should be valid");
-		let finalized_event_type = finalized_event.get("event").and_then(|v| v.as_str());
-		assert_eq!(finalized_event_type, Some("finalized"));
-
-		// Finalized event should contain the fork point hash
-		let finalized_hashes = finalized_event
-			.get("finalizedBlockHashes")
-			.and_then(|v| v.as_array())
-			.expect("Should have finalizedBlockHashes");
-		assert!(!finalized_hashes.is_empty());
-		assert_eq!(finalized_hashes[0].as_str(), Some(finalized_hash));
+		assert_eq!(best_event.get("event").and_then(|v| v.as_str()), Some("bestBlockChanged"));
+		assert_eq!(best_event.get("bestBlockHash").and_then(|v| v.as_str()), Some(finalized_hash));
 	}
 
 	#[tokio::test(flavor = "multi_thread")]

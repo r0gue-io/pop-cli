@@ -44,7 +44,6 @@
 //! ```
 
 use crate::{BlockError, ForkRpcClient, LocalStorageLayer, RemoteStorageLayer, StorageCache};
-use scale::Decode;
 use std::sync::Arc;
 use subxt::{Metadata, config::substrate::H256, ext::codec::Encode};
 use url::Url;
@@ -90,6 +89,7 @@ pub struct Block {
 }
 
 /// Handy type to allow specifying both number and hash as the fork point.
+#[derive(Clone, Copy)]
 pub enum BlockForkPoint {
 	/// Fork at a specific block number.
 	Number(u32),
@@ -161,9 +161,7 @@ impl Block {
 			.unwrap_or_default();
 
 		// Fetch and decode runtime metadata
-		let metadata_bytes = rpc.metadata(block_hash).await?;
-		let metadata = Metadata::decode(&mut metadata_bytes.as_slice())
-			.map_err(|e| BlockError::MetadataDecodingFailed(e.to_string()))?;
+		let metadata = rpc.metadata(block_hash).await?;
 
 		// Create storage layers (metadata is stored in LocalStorageLayer)
 		let remote = RemoteStorageLayer::new(rpc, cache);

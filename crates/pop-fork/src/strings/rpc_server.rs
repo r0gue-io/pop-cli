@@ -31,6 +31,16 @@ pub mod storage {
 	/// Storage item name for Account storage.
 	pub const ACCOUNT_STORAGE: &[u8] = b"Account";
 
+	/// Storage item name for Number storage (block number).
+	#[cfg(test)]
+	pub const NUMBER_STORAGE: &[u8] = b"Number";
+
+	/// Pallet name for Sudo storage queries.
+	pub const SUDO_PALLET: &[u8] = b"Sudo";
+
+	/// Storage item name for Sudo key.
+	pub const SUDO_KEY_STORAGE: &[u8] = b"Key";
+
 	/// Size of nonce field in AccountInfo (u32 = 4 bytes).
 	pub const NONCE_SIZE: usize = 4;
 
@@ -43,6 +53,11 @@ pub mod storage {
 pub mod runtime_api {
 	/// Runtime API method for fetching runtime version.
 	pub const CORE_VERSION: &str = "Core_version";
+
+	/// Prefix shared by all `Metadata_*` runtime API methods.
+	///
+	/// Used to route metadata calls to the upstream proxy for performance.
+	pub const METADATA_PREFIX: &str = "Metadata_";
 
 	/// Runtime API method for fetching metadata.
 	pub const METADATA: &str = "Metadata_metadata";

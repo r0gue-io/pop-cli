@@ -61,6 +61,7 @@ mod block;
 mod blockchain;
 mod builder;
 mod cache;
+pub mod dev;
 pub mod error;
 pub mod executor;
 pub mod inherent;

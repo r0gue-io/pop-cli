@@ -428,8 +428,7 @@ mod tests {
 			let header = rpc.header(block_hash).await.ok()?;
 			let block_number = header.number;
 			let runtime_code = rpc.runtime_code(block_hash).await.ok()?;
-			let metadata_bytes = rpc.metadata(block_hash).await.ok()?;
-			let metadata = Metadata::decode(&mut metadata_bytes.as_slice()).ok()?;
+			let metadata = rpc.metadata(block_hash).await.ok()?;
 			let cache = StorageCache::in_memory().await.ok()?;
 			let remote = RemoteStorageLayer::new(rpc, cache);
 			let storage =

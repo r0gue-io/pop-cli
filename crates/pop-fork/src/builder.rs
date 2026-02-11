@@ -524,7 +524,7 @@ impl BlockBuilder {
 	/// the metadata for the current block (the first block using the new runtime).
 	async fn register_new_metadata(&self) -> Result<(), BlockBuilderError> {
 		let storage = self.storage();
-		let current_block_number = storage.get_latest_block_number();
+		let current_block_number = storage.get_current_block_number();
 
 		// The executor is already running the new runtime (initialized from current state
 		// which includes the parent block's code change), so we can use it directly
