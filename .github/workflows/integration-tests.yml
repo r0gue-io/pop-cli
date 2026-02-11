@@ -113,7 +113,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG="untagged-6ced141ce8b80264048b"
+          PRIMARY_TAG="untagged-6ced141ce8b80264048b"
+          FALLBACK_TAG="v0.47.0"
           if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
             ARCHIVE="ink-node-mac-universal.tar.gz"
             BIN_RELATIVE_PATH="ink-node-mac/ink-node"
@@ -121,11 +122,21 @@ jobs:
             ARCHIVE="ink-node-linux.tar.gz"
             BIN_RELATIVE_PATH="ink-node-linux/ink-node"
           fi
-          URL="https://github.com/use-ink/ink-node/releases/download/${TAG}/${ARCHIVE}"
-          curl --fail --show-error --silent --location \
-            --header "Authorization: Bearer ${GITHUB_TOKEN}" \
-            --output "/tmp/${ARCHIVE}" \
-            "${URL}"
+
+          download_archive() {
+            local tag="$1"
+            local url="https://github.com/use-ink/ink-node/releases/download/${tag}/${ARCHIVE}"
+            curl --fail --show-error --silent --location \
+              --retry 3 \
+              --output "/tmp/${ARCHIVE}" \
+              "${url}"
+          }
+
+          if ! download_archive "${PRIMARY_TAG}"; then
+            echo "Primary ink-node tag '${PRIMARY_TAG}' not available, falling back to '${FALLBACK_TAG}'"
+            download_archive "${FALLBACK_TAG}"
+          fi
+
           rm -rf /tmp/ink-node-dist
           mkdir -p /tmp/ink-node-dist
           tar -xzf "/tmp/${ARCHIVE}" -C /tmp/ink-node-dist
