@@ -13,7 +13,7 @@ use std::fmt::{Display, Formatter, Result};
 use std::path::PathBuf;
 
 #[cfg(feature = "chain")]
-mod chain;
+pub mod chain;
 #[cfg(feature = "contract")]
 mod contract;
 /// Utilities for launching a frontend dev server.

@@ -35,7 +35,7 @@ use std::{
 use strum::{EnumMessage, VariantArray};
 
 const BINARY_NAME: &str = "try-runtime";
-pub(crate) const DEFAULT_BLOCK_HASH: &str = "0x0000000000";
+pub const DEFAULT_BLOCK_HASH: &str = "0x0000000000";
 pub(crate) const DEFAULT_BLOCK_TIME: u64 = 6000;
 pub(crate) const DEFAULT_SNAPSHOT_PATH: &str = "your-parachain.snap";
 const TARGET_BINARY_VERSION: SemanticVersion = SemanticVersion(0, 8, 0);
@@ -160,7 +160,7 @@ pub(crate) fn update_snapshot(
 /// * `cli`: Command line interface.
 /// * `live_state`: The live state to update.
 /// * `state`: The state to update.
-pub(crate) fn update_live_state(
+pub fn update_live_state(
 	cli: &mut impl Cli,
 	live_state: &mut LiveState,
 	state: &mut Option<State>,
@@ -252,7 +252,7 @@ fn guide_user_to_select_state_source(cli: &mut impl Cli) -> anyhow::Result<&Stat
 /// # Arguments
 /// * `cli`: Command line interface.
 /// * `url`: URL of the live node.
-pub(crate) async fn guide_user_to_select_try_state(
+pub async fn guide_user_to_select_try_state(
 	cli: &mut impl Cli,
 	url: Option<String>,
 ) -> anyhow::Result<TryStateSelect> {
@@ -529,8 +529,9 @@ pub(crate) fn collect_args<A: Iterator<Item = String>>(args: A) -> Vec<String> {
 	format_args
 }
 
-#[cfg(test)]
-pub(crate) fn get_mock_snapshot() -> PathBuf {
+#[cfg(any(test, feature = "integration-tests"))]
+#[allow(dead_code)]
+pub fn get_mock_snapshot() -> PathBuf {
 	std::env::current_dir()
 		.unwrap()
 		.join("../../tests/snapshots/base_parachain.snap")
@@ -538,8 +539,9 @@ pub(crate) fn get_mock_snapshot() -> PathBuf {
 		.unwrap()
 }
 
-#[cfg(test)]
-pub(crate) fn get_subcommands() -> Vec<(String, String)> {
+#[cfg(any(test, feature = "integration-tests"))]
+#[allow(dead_code)]
+pub fn get_subcommands() -> Vec<(String, String)> {
 	StateCommand::VARIANTS
 		.iter()
 		.map(|subcommand| {
@@ -551,8 +553,9 @@ pub(crate) fn get_subcommands() -> Vec<(String, String)> {
 		.collect()
 }
 
-#[cfg(test)]
-pub(crate) fn get_try_state_items() -> Vec<(String, String)> {
+#[cfg(any(test, feature = "integration-tests"))]
+#[allow(dead_code)]
+pub fn get_try_state_items() -> Vec<(String, String)> {
 	[
 		TryStateSelect::All,
 		TryStateSelect::None,
@@ -572,7 +575,6 @@ mod tests {
 		common::{binary::SemanticVersion, runtime::get_mock_runtime},
 	};
 	use clap::Parser;
-	use pop_common::test_env::TestNode;
 	use tempfile::tempdir;
 
 	#[derive(Default)]
@@ -633,63 +635,6 @@ mod tests {
 			update_snapshot(&mut cli, None, &mut cmd.state),
 			Err(message) if message.to_string().contains("Invalid path to the snapshot file.")
 		));
-		cli.verify()?;
-		Ok(())
-	}
-
-	#[tokio::test]
-	async fn update_live_state_works() -> anyhow::Result<()> {
-		let node = TestNode::spawn().await?;
-		let node_url = node.ws_url();
-		// Prompt all inputs if not provided.
-		let mut live_state = LiveState::default();
-		let mut cmd = MockCommand::default();
-		let mut cli = MockCli::new()
-			.expect_input("Enter the live chain of your node:", node_url.to_string())
-			.expect_input("Enter the block hash (optional):", DEFAULT_BLOCK_HASH.to_string());
-		update_live_state(&mut cli, &mut live_state, &mut cmd.state)?;
-		match cmd.state {
-			Some(State::Live(ref live_state)) => {
-				assert_eq!(live_state.uri, Some(node_url.to_string()));
-				assert_eq!(
-					live_state.at,
-					Some(DEFAULT_BLOCK_HASH.strip_prefix("0x").unwrap_or_default().to_string())
-				);
-			},
-			_ => panic!("Expected live state"),
-		}
-		cli.verify()?;
-
-		// Prompt for the URI if not provided.
-		let mut live_state =
-			LiveState { at: Some("1234567890abcdef".to_string()), ..Default::default() };
-		let mut cmd = MockCommand::default();
-		let mut cli =
-			MockCli::new().expect_input("Enter the live chain of your node:", node_url.to_string());
-		update_live_state(&mut cli, &mut live_state, &mut cmd.state)?;
-		match cmd.state {
-			Some(State::Live(ref live_state)) => {
-				assert_eq!(live_state.uri, Some(node_url.to_string()));
-				assert_eq!(live_state.at, Some("1234567890abcdef".to_string()));
-			},
-			_ => panic!("Expected live state"),
-		}
-		cli.verify()?;
-
-		// Prompt for the block hash if not provided.
-		let mut live_state = LiveState { uri: Some(node_url.to_string()), ..Default::default() };
-		let mut cmd = MockCommand::default();
-		// Provide the empty block hash.
-		let mut cli =
-			MockCli::new().expect_input("Enter the block hash (optional):", String::default());
-		update_live_state(&mut cli, &mut live_state, &mut cmd.state)?;
-		match cmd.state {
-			Some(State::Live(ref live_state)) => {
-				assert_eq!(live_state.uri, Some(node_url.to_string()));
-				assert_eq!(live_state.at, None);
-			},
-			_ => panic!("Expected live state"),
-		}
 		cli.verify()?;
 		Ok(())
 	}
@@ -771,86 +716,6 @@ mod tests {
 			None,
 		);
 		assert_eq!(guide_user_to_select_state_source(&mut cli)?, &StateCommand::Live);
-		Ok(())
-	}
-
-	#[tokio::test]
-	async fn guide_user_to_select_try_state_works() -> anyhow::Result<()> {
-		let node = TestNode::spawn().await?;
-		let node_url = node.ws_url();
-		let client = set_up_client(node_url).await?;
-		let pallets = get_pallets(&client).await?;
-		let pallet_items: Vec<(String, String)> =
-			pallets.into_iter().map(|pallet| (pallet.name, pallet.docs)).collect();
-
-		for (option, uri, expected) in [
-			(0, None, TryStateSelect::None),
-			(1, None, TryStateSelect::All),
-			(2, None, TryStateSelect::RoundRobin(10)),
-			(
-				3,
-				None,
-				TryStateSelect::Only(
-					["System", "Balances", "Proxy"].iter().map(|s| s.as_bytes().to_vec()).collect(),
-				),
-			),
-			(
-				3,
-				Some(node_url.to_string()),
-				TryStateSelect::Only(
-					[
-						"Assets",
-						"Authorship",
-						"Balances",
-						"RandomnessCollectiveFlip",
-						"Revive",
-						"Sudo",
-						"System",
-						"Timestamp",
-						"TransactionPayment",
-						"Utility",
-					]
-					.iter()
-					.map(|s| s.as_bytes().to_vec())
-					.collect(),
-				),
-			),
-		] {
-			let mut cli = MockCli::new().expect_select(
-				"Select state tests to execute:",
-				Some(true),
-				true,
-				Some(get_try_state_items()),
-				option,
-				None,
-			);
-			if let TryStateSelect::RoundRobin(..) = expected {
-				cli = cli.expect_input("Enter the number of rounds:", "10".to_string());
-			} else if let TryStateSelect::Only(..) = expected {
-				if uri.is_some() {
-					cli = cli.expect_multiselect(
-						"Select pallets (select with SPACE):",
-						Some(true),
-						true,
-						Some(pallet_items.clone()),
-						Some(true),
-					);
-				} else {
-					cli = cli.expect_input(
-						format!(
-							"Enter the pallet names separated by commas:\n{}",
-							style(
-								"Pallet names must be capitalized exactly as defined in the runtime."
-							)
-							.dim()
-						),
-						"System, Balances, Proxy".to_string(),
-					);
-				}
-			}
-			assert_eq!(guide_user_to_select_try_state(&mut cli, uri).await?, expected);
-			cli.verify()?;
-		}
 		Ok(())
 	}
 

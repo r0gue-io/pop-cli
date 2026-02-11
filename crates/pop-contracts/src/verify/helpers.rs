@@ -254,7 +254,6 @@ mod tests {
 		BuildArtifacts, OutputType, Verbosity,
 		metadata::{InkMetadataArtifacts, MetadataArtifacts},
 	};
-	use pop_common::test_env::TestNode;
 	use std::{io::ErrorKind, path::PathBuf};
 	use tempfile::TempDir;
 
@@ -706,16 +705,6 @@ mod tests {
 	// Tests for get_deployed_polkavm_code_hash
 
 	#[tokio::test]
-	async fn get_deployed_polkavm_code_hash_fails_with_invalid_address_format() {
-		// Test with invalid hex address - this fails during address parsing before connecting
-		let node = TestNode::spawn().await.expect("Failed to spawn test node");
-		let result = get_deployed_polkavm_code_hash(node.ws_url(), "invalid_address").await;
-
-		// Should fail during parse_hex_bytes
-		assert!(matches!(result, Err(Error::HexParsing(msg)) if msg == "Odd number of digits"));
-	}
-
-	#[tokio::test]
 	async fn get_deployed_polkavm_code_hash_fails_with_invalid_rpc_endpoint() {
 		// Test with completely invalid URL
 		let result = get_deployed_polkavm_code_hash(
@@ -730,17 +719,32 @@ mod tests {
 		));
 	}
 
-	#[tokio::test]
-	async fn get_deployed_polkavm_code_hash_fails_with_nonexistent_contract_address() {
-		// Use a valid address format that doesn't exist on chain
-		let nonexistent_address = "0x0000000000000000000000000000000000000000";
+	#[cfg(feature = "integration-tests")]
+	mod integration_tests {
+		use super::*;
+		use pop_common::test_env::TestNode;
 
-		let node = TestNode::spawn().await.expect("Failed to spawn test node");
-		let result = get_deployed_polkavm_code_hash(node.ws_url(), nonexistent_address).await;
+		#[tokio::test]
+		async fn get_deployed_polkavm_code_hash_fails_with_invalid_address_format() {
+			// Test with invalid hex address - this fails during address parsing before connecting
+			let node = TestNode::spawn().await.expect("Failed to spawn test node");
+			let result = get_deployed_polkavm_code_hash(node.ws_url(), "invalid_address").await;
 
-		assert!(matches!(
-			result,
-			Err(Error::Verification(msg)) if msg == "`pop` cannot find contract information for the provided contract address. Verification aborted."
-		));
+			assert!(matches!(result, Err(Error::HexParsing(msg)) if msg == "Odd number of digits"));
+		}
+
+		#[tokio::test]
+		async fn get_deployed_polkavm_code_hash_fails_with_nonexistent_contract_address() {
+			// Use a valid address format that doesn't exist on chain
+			let nonexistent_address = "0x0000000000000000000000000000000000000000";
+
+			let node = TestNode::spawn().await.expect("Failed to spawn test node");
+			let result = get_deployed_polkavm_code_hash(node.ws_url(), nonexistent_address).await;
+
+			assert!(matches!(
+				result,
+				Err(Error::Verification(msg)) if msg == "`pop` cannot find contract information for the provided contract address. Verification aborted."
+			));
+		}
 	}
 }

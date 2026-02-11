@@ -6,3 +6,7 @@ pop-fork-node-tests = { max-threads = 1 }
 [[profile.default.overrides]]
 filter = 'binary_id(pop-fork::rpc) or binary_id(pop-fork::timestamp)'
 test-group = 'pop-fork-node-tests'
+
+[[profile.default.overrides]]
+filter = 'binary_id(pop-cli::call_chain) or binary_id(pop-cli::up_chain) or binary_id(pop-cli::common_chain) or binary_id(pop-cli::try_runtime)'
+test-group = 'pop-fork-node-tests'

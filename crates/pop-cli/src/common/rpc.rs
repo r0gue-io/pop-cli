@@ -4,12 +4,14 @@ use crate::{
 	cli::traits::{Cli, Input, Select},
 	common::urls,
 };
-use anyhow::{Result, anyhow};
+use anyhow::Result;
+#[cfg(any(test, not(feature = "integration-tests")))]
+use anyhow::anyhow;
 use serde::Deserialize;
 use std::time::{SystemTime, UNIX_EPOCH};
 use url::Url;
 
-#[cfg(not(test))]
+#[cfg(not(any(test, feature = "integration-tests")))]
 const CHAIN_ENDPOINTS_URL: &str =
 	"https://raw.githubusercontent.com/r0gue-io/polkadot-chains/refs/heads/master/endpoints.json";
 
@@ -17,7 +19,7 @@ const CHAIN_ENDPOINTS_URL: &str =
 #[allow(dead_code)]
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct RPCNode {
+pub struct RPCNode {
 	/// Name of the chain (e.g. "Polkadot Relay", "Kusama Relay").
 	pub name: String,
 	/// List of RPC endpoint URLs that can be used to connect to this chain.
@@ -33,19 +35,20 @@ pub(crate) struct RPCNode {
 }
 
 // Internal function that accepts a URL parameter, making it testable with mockito.
+#[cfg(any(test, not(feature = "integration-tests")))]
 async fn extract_chain_endpoints_from_url(url: &str) -> Result<Vec<RPCNode>> {
 	let response = reqwest::get(url).await?;
 	response.json().await.map_err(|e| anyhow!(e.to_string()))
 }
 
 // Get the RPC endpoints from the maintained source.
-#[cfg(not(test))]
+#[cfg(not(any(test, feature = "integration-tests")))]
 pub(crate) async fn extract_chain_endpoints() -> Result<Vec<RPCNode>> {
 	extract_chain_endpoints_from_url(CHAIN_ENDPOINTS_URL).await
 }
 
 // Do not fetch the RPC endpoints from the maintained source. Used for testing.
-#[cfg(test)]
+#[cfg(any(test, feature = "integration-tests"))]
 pub(crate) async fn extract_chain_endpoints() -> Result<Vec<RPCNode>> {
 	Ok(Vec::new())
 }

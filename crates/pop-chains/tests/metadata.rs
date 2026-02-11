@@ -6,11 +6,12 @@
 
 use anyhow::Result;
 use pop_chains::{
-	Error, Function, Payload, construct_extrinsic, construct_proxy_extrinsic, decode_call_data,
-	encode_call_data, field_to_param, find_callable_by_name, find_pallet_by_name,
-	parse_chain_metadata, set_up_client, sign_and_submit_extrinsic,
+	Action, Error, Function, Payload, construct_extrinsic, construct_proxy_extrinsic,
+	decode_call_data, encode_call_data, field_to_param, find_callable_by_name, find_pallet_by_name,
+	parse_chain_metadata, set_up_client, sign_and_submit_extrinsic, supported_actions,
 };
 use pop_common::test_env::TestNode;
+use scale_value::{ValueDef, stringify::custom_parsers};
 use url::Url;
 
 const ALICE_SURI: &str = "//Alice";
@@ -209,5 +210,60 @@ async fn field_to_param_works() -> Result<()> {
 		Err(Error::CallableNotSupported)
 	));
 
+	Ok(())
+}
+
+#[tokio::test]
+async fn query_storage_works() -> Result<()> {
+	let node = TestNode::spawn().await?;
+	let client = set_up_client(node.ws_url()).await?;
+	let pallets = parse_chain_metadata(&client)?;
+
+	let storage = pallets
+		.iter()
+		.find(|p| p.name == "System")
+		.and_then(|p| p.state.iter().find(|s| s.name == "Number"))
+		.expect("System::Number storage should exist");
+
+	let result = storage.query(&client, vec![]).await?;
+	assert!(result.is_some());
+
+	let value = result.unwrap();
+	assert!(matches!(value.value, ValueDef::Primitive(_)));
+	Ok(())
+}
+
+#[tokio::test]
+async fn query_storage_with_key_works() -> Result<()> {
+	let node = TestNode::spawn().await?;
+	let client = set_up_client(node.ws_url()).await?;
+	let pallets = parse_chain_metadata(&client)?;
+
+	let storage = pallets
+		.iter()
+		.find(|p| p.name == "System")
+		.and_then(|p| p.state.iter().find(|s| s.name == "Account"))
+		.expect("System::Account storage should exist");
+
+	let alice_address = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
+	let account_key = scale_value::stringify::from_str_custom()
+		.add_custom_parser(custom_parsers::parse_ss58)
+		.parse(alice_address)
+		.0
+		.expect("Should parse Alice's address");
+
+	let result = storage.query(&client, vec![account_key]).await?;
+	assert!(result.is_some());
+	Ok(())
+}
+
+#[tokio::test]
+async fn supported_actions_works() -> Result<()> {
+	use Action::*;
+
+	let node = TestNode::spawn().await?;
+	let client: subxt::OnlineClient<subxt::SubstrateConfig> = set_up_client(node.ws_url()).await?;
+	let actions = supported_actions(&parse_chain_metadata(&client)?);
+	assert_eq!(actions, vec![Transfer, CreateAsset, MintAsset, Remark, MapAccount]);
 	Ok(())
 }

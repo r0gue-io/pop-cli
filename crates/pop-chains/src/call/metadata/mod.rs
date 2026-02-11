@@ -1339,67 +1339,6 @@ mod tests {
 		Ok(())
 	}
 
-	#[tokio::test]
-	async fn query_storage_works() -> Result<()> {
-		use crate::{parse_chain_metadata, set_up_client};
-		use pop_common::test_env::TestNode;
-
-		// Spawn a test node
-		let node = TestNode::spawn().await?;
-		let client = set_up_client(node.ws_url()).await?;
-		let pallets = parse_chain_metadata(&client)?;
-
-		// Find a storage item (System::Number is a simple storage item that always exists)
-		let storage = pallets
-			.iter()
-			.find(|p| p.name == "System")
-			.and_then(|p| p.state.iter().find(|s| s.name == "Number"))
-			.expect("System::Number storage should exist");
-
-		// Query the storage (without keys for plain storage)
-		let result = storage.query(&client, vec![]).await?;
-
-		// Should return Some value (block number)
-		assert!(result.is_some());
-		let value = result.unwrap();
-		// The value should be decodable as a block number (u32 or u64)
-		assert!(matches!(value.value, ValueDef::Primitive(_)));
-		Ok(())
-	}
-
-	#[tokio::test]
-	async fn query_storage_with_key_works() -> Result<()> {
-		use crate::{parse_chain_metadata, set_up_client};
-		use pop_common::test_env::TestNode;
-
-		// Spawn a test node
-		let node = TestNode::spawn().await?;
-		let client = set_up_client(node.ws_url()).await?;
-		let pallets = parse_chain_metadata(&client)?;
-
-		// Find a map storage item (System::Account requires a key)
-		let storage = pallets
-			.iter()
-			.find(|p| p.name == "System")
-			.and_then(|p| p.state.iter().find(|s| s.name == "Account"))
-			.expect("System::Account storage should exist");
-
-		// Use Alice's account as the key
-		let alice_address = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
-		let account_key = scale_value::stringify::from_str_custom()
-			.add_custom_parser(custom_parsers::parse_ss58)
-			.parse(alice_address)
-			.0
-			.expect("Should parse Alice's address");
-
-		// Query the storage with the account key
-		let result = storage.query(&client, vec![account_key]).await?;
-
-		// Should return Some value for Alice's account (which should exist in a test chain)
-		assert!(result.is_some());
-		Ok(())
-	}
-
 	#[test]
 	fn render_storage_key_values_with_keys_works() -> Result<()> {
 		// Create test data with keys

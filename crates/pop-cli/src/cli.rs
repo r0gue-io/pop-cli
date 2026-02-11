@@ -3,10 +3,10 @@
 use std::{fmt::Display, io::Result};
 #[cfg(not(test))]
 use std::{thread::sleep, time::Duration};
-#[cfg(test)]
-pub(crate) use tests::MockCli;
+#[cfg(any(test, feature = "integration-tests"))]
+pub use tests::MockCli;
 
-pub(crate) mod traits {
+pub mod traits {
 	use std::{fmt::Display, io::Result};
 
 	/// A command line interface.
@@ -103,7 +103,7 @@ pub(crate) mod traits {
 }
 
 /// A command line interface using cliclack.
-pub(crate) struct Cli;
+pub struct Cli;
 impl traits::Cli for Cli {
 	/// Constructs a new [`Confirm`] prompt.
 	fn confirm(&mut self, prompt: impl Display) -> impl traits::Confirm {
@@ -291,14 +291,14 @@ impl<T: Clone + Eq> traits::Select<T> for Select<T> {
 	}
 }
 
-#[cfg(test)]
-pub(crate) mod tests {
+#[cfg(any(test, feature = "integration-tests"))]
+pub mod tests {
 	use super::traits::*;
 	use std::{fmt::Display, io::Result};
 
 	/// Mock Cli with optional expectations
 	#[derive(Default)]
-	pub(crate) struct MockCli {
+	pub struct MockCli {
 		confirm_expectation: Vec<(String, bool)>,
 		error_expectations: Vec<String>,
 		info_expectations: Vec<String>,
@@ -318,36 +318,36 @@ pub(crate) mod tests {
 
 	#[allow(dead_code)]
 	impl MockCli {
-		pub(crate) fn new() -> Self {
+		pub fn new() -> Self {
 			Self::default()
 		}
 
-		pub(crate) fn expect_confirm(mut self, prompt: impl Display, confirm: bool) -> Self {
+		pub fn expect_confirm(mut self, prompt: impl Display, confirm: bool) -> Self {
 			self.confirm_expectation.insert(0, (prompt.to_string(), confirm));
 			self
 		}
 
-		pub(crate) fn expect_error(mut self, message: impl Display) -> Self {
+		pub fn expect_error(mut self, message: impl Display) -> Self {
 			self.error_expectations.insert(0, message.to_string());
 			self
 		}
 
-		pub(crate) fn expect_input(mut self, prompt: impl Display, input: String) -> Self {
+		pub fn expect_input(mut self, prompt: impl Display, input: String) -> Self {
 			self.input_expectations.insert(0, (prompt.to_string(), input));
 			self
 		}
 
-		pub(crate) fn expect_info(mut self, message: impl Display) -> Self {
+		pub fn expect_info(mut self, message: impl Display) -> Self {
 			self.info_expectations.insert(0, message.to_string());
 			self
 		}
 
-		pub(crate) fn expect_intro(mut self, title: impl Display) -> Self {
+		pub fn expect_intro(mut self, title: impl Display) -> Self {
 			self.intro_expectation = Some(title.to_string());
 			self
 		}
 
-		pub(crate) fn expect_multiselect(
+		pub fn expect_multiselect(
 			mut self,
 			prompt: impl Display,
 			required: Option<bool>,
@@ -360,22 +360,22 @@ pub(crate) mod tests {
 			self
 		}
 
-		pub(crate) fn expect_outro(mut self, message: impl Display) -> Self {
+		pub fn expect_outro(mut self, message: impl Display) -> Self {
 			self.outro_expectation = Some(message.to_string());
 			self
 		}
 
-		pub(crate) fn expect_outro_cancel(mut self, message: impl Display) -> Self {
+		pub fn expect_outro_cancel(mut self, message: impl Display) -> Self {
 			self.outro_cancel_expectation = Some(message.to_string());
 			self
 		}
 
-		pub(crate) fn expect_password(mut self, prompt: impl Display, input: String) -> Self {
+		pub fn expect_password(mut self, prompt: impl Display, input: String) -> Self {
 			self.password_expectations.insert(0, (prompt.to_string(), input));
 			self
 		}
 
-		pub(crate) fn expect_select(
+		pub fn expect_select(
 			mut self,
 			prompt: impl Display,
 			required: Option<bool>,
@@ -390,22 +390,22 @@ pub(crate) mod tests {
 		}
 
 		#[allow(dead_code)]
-		pub(crate) fn expect_success(mut self, message: impl Display) -> Self {
+		pub fn expect_success(mut self, message: impl Display) -> Self {
 			self.success_expectations.push(message.to_string());
 			self
 		}
 
-		pub(crate) fn expect_warning(mut self, message: impl Display) -> Self {
+		pub fn expect_warning(mut self, message: impl Display) -> Self {
 			self.warning_expectations.push(message.to_string());
 			self
 		}
 
-		pub(crate) fn expect_plain(mut self, message: impl Display) -> Self {
+		pub fn expect_plain(mut self, message: impl Display) -> Self {
 			self.plain_expectations.push(message.to_string());
 			self
 		}
 
-		pub(crate) fn verify(self) -> anyhow::Result<()> {
+		pub fn verify(self) -> anyhow::Result<()> {
 			if !self.confirm_expectation.is_empty() {
 				panic!("`{:?}` confirm expectations not satisfied", self.confirm_expectation)
 			}
@@ -671,7 +671,7 @@ pub(crate) mod tests {
 
 	/// Mock multi-select prompt
 	#[allow(dead_code)]
-	pub(crate) struct MockMultiSelect<T> {
+	pub struct MockMultiSelect<T> {
 		required_expectation: Option<bool>,
 		items_expectation: Option<Vec<(String, String)>>,
 		collect: bool,
@@ -680,7 +680,8 @@ pub(crate) mod tests {
 	}
 
 	impl<T> MockMultiSelect<T> {
-		pub(crate) fn default() -> Self {
+		#[allow(clippy::should_implement_trait)]
+		pub fn default() -> Self {
 			Self {
 				required_expectation: None,
 				filter_mode_expectation: None,
@@ -743,7 +744,7 @@ pub(crate) mod tests {
 
 	/// Mock select prompt
 	#[allow(dead_code)]
-	pub(crate) struct MockSelect<T> {
+	pub struct MockSelect<T> {
 		items_expectation: Option<Vec<(String, String)>>,
 		collect: bool,
 		items: Vec<T>,
@@ -753,7 +754,8 @@ pub(crate) mod tests {
 	}
 
 	impl<T> MockSelect<T> {
-		pub(crate) fn default() -> Self {
+		#[allow(clippy::should_implement_trait)]
+		pub fn default() -> Self {
 			Self {
 				items_expectation: None,
 				collect: false,

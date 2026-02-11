@@ -5,7 +5,7 @@ use serde::Serialize;
 use std::fmt::{Display, Formatter, Result};
 
 #[cfg(feature = "chain")]
-pub(crate) mod chain;
+pub mod chain;
 #[cfg(feature = "contract")]
 pub(crate) mod contract;
 

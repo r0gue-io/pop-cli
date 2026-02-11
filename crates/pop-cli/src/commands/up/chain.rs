@@ -36,6 +36,10 @@ type Proxy = Option<String>;
 const HELP_HEADER: &str = "Chain deployment options";
 const PLACEHOLDER_ADDRESS: &str = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty";
 const PDP_API_KEY: &str = "PDP_API_KEY";
+#[cfg(any(test, feature = "integration-tests"))]
+pub const MOCK_PROXIED_ADDRESS: &str = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty";
+#[cfg(any(test, feature = "integration-tests"))]
+pub const MOCK_PROXY_ADDRESS_ID: &str = "Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)";
 
 #[derive(Args, Clone, Default, Serialize)]
 #[clap(next_help_heading = HELP_HEADER)]
@@ -43,40 +47,40 @@ pub struct UpCommand {
 	/// Path to the project.
 	#[serde(skip_serializing)]
 	#[clap(skip)]
-	pub(crate) path: PathBuf,
+	pub path: PathBuf,
 	/// ID to use. If not specified, a new ID will be reserved.
 	#[arg(short, long)]
-	pub(crate) id: Option<u32>,
+	pub id: Option<u32>,
 	/// Flag to skip the registration step and only deploy.
 	#[arg(long, requires = "id")]
-	pub(crate) skip_registration: bool,
+	pub skip_registration: bool,
 	/// Path to the chain spec file. If provided, it will be used to generate genesis artifacts.
 	#[serde(skip_serializing)]
 	#[arg(long = "chain-spec")]
-	pub(crate) chain_spec: Option<PathBuf>,
+	pub chain_spec: Option<PathBuf>,
 	/// Path to the genesis state file. If not specified, it will be generated.
 	#[serde(skip_serializing)]
 	#[arg(short = 'G', long = "genesis-state")]
-	pub(crate) genesis_state: Option<StatePathBuf>,
+	pub genesis_state: Option<StatePathBuf>,
 	/// Path to the genesis code file.  If not specified, it will be generated.
 	#[serde(skip_serializing)]
 	#[arg(short = 'C', long = "genesis-code")]
-	pub(crate) genesis_code: Option<CodePathBuf>,
+	pub genesis_code: Option<CodePathBuf>,
 	/// Websocket endpoint of the relay chain.
 	#[arg(long)]
-	pub(crate) relay_chain_url: Option<Url>,
+	pub relay_chain_url: Option<Url>,
 	/// Proxied address. Your account must be registered as a proxy which can act on behalf of this
 	/// account.
 	#[arg(long = "proxy")]
-	pub(crate) proxied_address: Option<String>,
+	pub proxied_address: Option<String>,
 	/// Build profile [default: release].
 	#[clap(long, value_enum)]
-	pub(crate) profile: Option<Profile>,
+	pub profile: Option<Profile>,
 }
 
 impl UpCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(&mut self, cli: &mut impl Cli) -> Result<()> {
+	pub async fn execute(&mut self, cli: &mut impl Cli) -> Result<()> {
 		cli.intro("Deploy a chain")?;
 		let mut deployment = self.prepare_for_deployment(cli)?;
 		let show_deployment_steps = self.should_show_deployment_steps(&deployment);
@@ -181,7 +185,7 @@ impl UpCommand {
 	}
 
 	// Prepares the chain for registration by setting up its configuration.
-	async fn prepare_for_registration(
+	pub async fn prepare_for_registration(
 		&self,
 		deployment_config: &mut Deployment,
 		show_deployment_steps: bool,
@@ -340,9 +344,9 @@ impl UpCommand {
 
 // Represents the configuration for deployment.
 #[derive(Default)]
-struct Deployment {
-	api: Option<DeploymentApi>,
-	collator_file_id: Option<String>,
+pub struct Deployment {
+	pub api: Option<DeploymentApi>,
+	pub collator_file_id: Option<String>,
 }
 impl Deployment {
 	// Executes the deployment process.
@@ -378,11 +382,11 @@ impl Deployment {
 }
 
 // Represents the configuration for chain registration.
-struct Registration {
-	id: u32,
-	genesis_artifacts: GenesisArtifacts,
-	chain: Chain,
-	proxy: Proxy,
+pub struct Registration {
+	pub id: u32,
+	pub genesis_artifacts: GenesisArtifacts,
+	pub chain: Chain,
+	pub proxy: Proxy,
 }
 impl Registration {
 	// Registers by submitting an extrinsic.
@@ -606,18 +610,28 @@ fn warn_supported_templates(provider: &DeploymentProvider, cli: &mut impl Cli) -
 	Ok(())
 }
 
+/// Creates temporary files to act as `genesis_state` and `genesis_code` files.
+#[cfg(any(test, feature = "integration-tests"))]
+#[allow(dead_code)]
+pub fn create_temp_genesis_files() -> Result<(PathBuf, PathBuf)> {
+	let temp_dir = tempfile::tempdir()?; // Create a temporary directory
+	let genesis_state_path = temp_dir.path().join("genesis_state");
+	let genesis_code_path = temp_dir.path().join("genesis_code.wasm");
+
+	std::fs::write(&genesis_state_path, "0x1234")?;
+	std::fs::write(&genesis_code_path, "0x1234")?;
+
+	Ok((genesis_state_path, genesis_code_path))
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use crate::{cli::MockCli, common::urls};
 	use pop_chains::decode_call_data;
-	use pop_common::test_env::TestNode;
 	use std::fs;
 	use tempfile::tempdir;
 	use url::Url;
-
-	const MOCK_PROXIED_ADDRESS: &str = "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty";
-	const MOCK_PROXY_ADDRESS_ID: &str = "Id(13czcAAt6xgLwZ8k6ZpkrRL5V2pjKEui3v9gHAN9PoxYZDbf)";
 
 	#[test]
 	fn test_up_command_display() {
@@ -748,42 +762,6 @@ mod tests {
 		Ok(())
 	}
 
-	#[tokio::test]
-	async fn prepare_for_registration_works() -> Result<()> {
-		let node = TestNode::spawn().await?;
-		let node_url = node.ws_url();
-		let mut cli = MockCli::new()
-			.expect_select(
-				"Select a chain (type to filter)".to_string(),
-				Some(true),
-				true,
-				Some(vec![
-					("Local".to_string(), "Local node (ws://localhost:9944)".to_string()),
-					("Custom".to_string(), "Type the chain URL manually".to_string()),
-				]),
-				1,
-				None,
-			)
-			.expect_input("Enter the relay chain node URL", node_url.into());
-		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
-		let chain_config = UpCommand {
-			id: Some(2000),
-			genesis_state: Some(genesis_state.clone()),
-			genesis_code: Some(genesis_code.clone()),
-			proxied_address: Some(MOCK_PROXIED_ADDRESS.to_string()),
-			..Default::default()
-		}
-		.prepare_for_registration(&mut Deployment::default(), false, &mut cli)
-		.await?;
-
-		assert_eq!(chain_config.id, 2000);
-		assert_eq!(chain_config.genesis_artifacts.genesis_code_file, Some(genesis_code));
-		assert_eq!(chain_config.genesis_artifacts.genesis_state_file, Some(genesis_state));
-		assert_eq!(chain_config.chain.url, Url::parse(node_url)?);
-		assert_eq!(chain_config.proxy, Some(format!("Id({})", MOCK_PROXIED_ADDRESS)));
-		cli.verify()
-	}
-
 	#[test]
 	fn resolve_proxied_address_works() -> Result<()> {
 		let relay_chain_url = urls::LOCAL;
@@ -849,50 +827,6 @@ mod tests {
 	}
 
 	#[tokio::test]
-	async fn register_fails_wrong_chain() -> Result<()> {
-		let node = TestNode::spawn().await?;
-		let node_url = node.ws_url();
-		let mut cli = MockCli::new()
-            .expect_intro("Deploy a chain")
-            .expect_select(
-                "Select your deployment method:",
-                Some(false),
-                true,
-                Some(
-                    DeploymentProvider::VARIANTS
-                        .iter()
-                        .map(|action| (action.name().to_string(), format_url(action.base_url())))
-                        .chain(std::iter::once((
-                            "Register".to_string(),
-                            "Register the chain on the relay chain without deploying with a provider".to_string(),
-                        )))
-                        .collect::<Vec<_>>(),
-                ),
-                DeploymentProvider::VARIANTS.len(), // Register
-                None,
-            )
-            .expect_info(format!("You will need to sign a transaction to register on {}, using the `Registrar::register` function.", Url::parse(node_url)?.as_str()))
-            .expect_outro_cancel(format!("Failed to find the pallet: Registrar\n{}", style(format!(
-				"Retry registration without reserve or rebuilding the chain specs using: {}", style("`pop up --id 2000 --skip-registration`").bold()
-			)).black()
-			));
-		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
-		UpCommand {
-			id: Some(2000),
-			genesis_state: Some(genesis_state.clone()),
-			genesis_code: Some(genesis_code.clone()),
-			relay_chain_url: Some(Url::parse(node_url)?),
-			path: PathBuf::from("./"),
-			proxied_address: None,
-			..Default::default()
-		}
-		.execute(&mut cli)
-		.await?;
-
-		cli.verify()
-	}
-
-	#[tokio::test]
 	async fn prepare_register_call_data_works() -> Result<()> {
 		let mut cli = MockCli::new();
 		let chain = configure(
@@ -937,47 +871,6 @@ mod tests {
 		let encoded_reserve_extrinsic: &str = "0x1d000073ebf9c947490b9170ea4fd3031ae039452e428531317f76bf0a02124f8166de004600d0070000081234081234";
 		assert_eq!(call_data, decode_call_data(encoded_reserve_extrinsic)?);
 		Ok(())
-	}
-
-	#[tokio::test]
-	async fn reserve_id_fails_wrong_chain() -> Result<()> {
-		let node = TestNode::spawn().await?;
-		let node_url = node.ws_url();
-		let mut cli = MockCli::new()
-            .expect_intro("Deploy a chain")
-            .expect_select(
-                "Select your deployment method:",
-                Some(false),
-                true,
-                Some(
-                    DeploymentProvider::VARIANTS
-                        .iter()
-                        .map(|action| (action.name().to_string(), format_url(action.base_url())))
-                        .chain(std::iter::once((
-                            "Register".to_string(),
-                            "Register the chain on the relay chain without deploying with a provider".to_string(),
-                        )))
-                        .collect::<Vec<_>>(),
-                ),
-                DeploymentProvider::VARIANTS.len(), // Register
-                None,
-            )
-            .expect_info(format!("You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", Url::parse(node_url)?.as_str()))
-            .expect_outro_cancel("Failed to find the pallet: Registrar");
-		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
-		UpCommand {
-			id: None,
-			genesis_state: Some(genesis_state.clone()),
-			genesis_code: Some(genesis_code.clone()),
-			relay_chain_url: Some(Url::parse(node_url)?),
-			path: PathBuf::from("./"),
-			proxied_address: None,
-			..Default::default()
-		}
-		.execute(&mut cli)
-		.await?;
-
-		cli.verify()
 	}
 
 	#[tokio::test]
@@ -1083,17 +976,5 @@ mod tests {
 		));
 		warn_supported_templates(&DeploymentProvider::PDP, &mut cli)?;
 		cli.verify()
-	}
-
-	// Creates temporary files to act as `genesis_state` and `genesis_code` files.
-	fn create_temp_genesis_files() -> Result<(PathBuf, PathBuf)> {
-		let temp_dir = tempdir()?; // Create a temporary directory
-		let genesis_state_path = temp_dir.path().join("genesis_state");
-		let genesis_code_path = temp_dir.path().join("genesis_code.wasm");
-
-		fs::write(&genesis_state_path, "0x1234")?;
-		fs::write(&genesis_code_path, "0x1234")?;
-
-		Ok((genesis_state_path, genesis_code_path))
 	}
 }

@@ -9,7 +9,7 @@ use pop_chains::{OnlineClient, Pallet, SubstrateConfig, parse_chain_metadata, se
 use url::Url;
 
 // Represents a chain and its associated metadata.
-pub(crate) struct Chain {
+pub struct Chain {
 	// Websocket endpoint of the node.
 	pub url: Url,
 	// The client used to interact with the chain.
@@ -19,7 +19,7 @@ pub(crate) struct Chain {
 }
 
 // Configures a chain by resolving the URL and fetching its metadata.
-pub(crate) async fn configure(
+pub async fn configure(
 	select_message: &str,
 	input_message: &str,
 	default_input: &str,
@@ -40,7 +40,7 @@ pub(crate) async fn configure(
 }
 
 // Get available pallets on the chain.
-pub(crate) async fn get_pallets(client: &OnlineClient<SubstrateConfig>) -> Result<Vec<Pallet>> {
+pub async fn get_pallets(client: &OnlineClient<SubstrateConfig>) -> Result<Vec<Pallet>> {
 	// Parse metadata from chain url.
 	let mut pallets = parse_chain_metadata(client)
 		.map_err(|e| anyhow!(format!("Unable to fetch the chain metadata: {e}")))?;
@@ -48,40 +48,4 @@ pub(crate) async fn get_pallets(client: &OnlineClient<SubstrateConfig>) -> Resul
 	pallets.sort_by_key(|pallet| pallet.name.clone());
 	pallets.iter_mut().for_each(|p| p.functions.sort_by_key(|f| f.name.clone()));
 	Ok(pallets)
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use crate::cli::MockCli;
-	use pop_common::test_env::TestNode;
-
-	#[tokio::test]
-	async fn configure_works() -> Result<()> {
-		let node = TestNode::spawn().await?;
-		let select_message = "Select a chain (type to filter)";
-		let input_message = "Enter the URL of the chain:";
-		let mut cli = MockCli::new()
-			.expect_select(
-				select_message.to_string(),
-				Some(true),
-				true,
-				Some(vec![
-					("Local".to_string(), "Local node (ws://localhost:9944)".to_string()),
-					("Custom".to_string(), "Type the chain URL manually".to_string()),
-				]),
-				1,
-				None,
-			)
-			.expect_input(input_message, node.ws_url().into());
-		let chain =
-			configure(select_message, input_message, node.ws_url(), &None, |_| true, &mut cli)
-				.await?;
-		assert_eq!(chain.url, Url::parse(node.ws_url())?);
-		// Get pallets
-		let pallets = get_pallets(&chain.client).await?;
-		assert!(!pallets.is_empty());
-
-		cli.verify()
-	}
 }

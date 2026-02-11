@@ -13,26 +13,26 @@ use std::fmt::{Display, Formatter, Result};
 use up::network::Relay::*;
 
 #[cfg(feature = "chain")]
-pub(crate) mod bench;
-pub(crate) mod build;
+pub mod bench;
+pub mod build;
 #[cfg(any(feature = "chain", feature = "contract"))]
-pub(crate) mod call;
-pub(crate) mod clean;
-pub(crate) mod completion;
-pub(crate) mod convert;
+pub mod call;
+pub mod clean;
+pub mod completion;
+pub mod convert;
 #[cfg(feature = "chain")]
-pub(crate) mod fork;
-pub(crate) mod hash;
+pub mod fork;
+pub mod hash;
 #[cfg(any(feature = "chain", feature = "contract"))]
-pub(crate) mod install;
+pub mod install;
 #[cfg(any(feature = "chain", feature = "contract"))]
-pub(crate) mod new;
-pub(crate) mod test;
+pub mod new;
+pub mod test;
 #[cfg(any(feature = "chain", feature = "contract"))]
-pub(crate) mod up;
-pub(crate) mod upgrade;
+pub mod up;
+pub mod upgrade;
 #[cfg(feature = "contract")]
-pub(crate) mod verify;
+pub mod verify;
 
 #[derive(Subcommand, Serialize)]
 #[command(subcommand_required = true)]

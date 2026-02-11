@@ -143,9 +143,6 @@ pub fn supported_actions(pallets: &[Pallet]) -> Vec<Action> {
 #[cfg(test)]
 mod tests {
 	use super::{Action::*, *};
-	use crate::{parse_chain_metadata, set_up_client};
-	use anyhow::Result;
-	use pop_common::test_env::TestNode;
 	use std::collections::HashMap;
 
 	#[test]
@@ -209,16 +206,5 @@ mod tests {
 		for action in Action::VARIANTS.iter() {
 			assert_eq!(&action.function_name(), pallets.get(action).unwrap(),);
 		}
-	}
-
-	#[tokio::test]
-	async fn supported_actions_works() -> Result<()> {
-		let node = TestNode::spawn().await?;
-		// Test Local Node.
-		let client: subxt::OnlineClient<subxt::SubstrateConfig> =
-			set_up_client(node.ws_url()).await?;
-		let actions = supported_actions(&parse_chain_metadata(&client)?);
-		assert_eq!(actions, vec![Transfer, CreateAsset, MintAsset, Remark, MapAccount]);
-		Ok(())
 	}
 }
