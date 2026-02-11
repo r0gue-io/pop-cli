@@ -100,7 +100,21 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cargo nextest run --locked -p pop-fork --features integration-tests --tests --no-fail-fast --status-level all
+          set -euo pipefail
+          args=()
+          for test_file in crates/pop-fork/tests/*.rs; do
+            test_name="${test_file##*/}"
+            test_name="${test_name%.rs}"
+            args+=(--test "$test_name")
+          done
+
+          cargo nextest run \
+            --locked \
+            -p pop-fork \
+            --features integration-tests \
+            "${args[@]}" \
+            --no-fail-fast \
+            --status-level all
 
   contract-integration-tests:
     strategy:
@@ -262,4 +276,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cargo nextest run --locked --no-default-features --features "chain,integration-tests" --test chain --test metadata --test fork --no-fail-fast --nocapture --status-level all
+          cargo nextest run \
+            --locked \
+            --no-default-features \
+            --features "chain,integration-tests" \
+            --test chain \
+            --test metadata \
+            --test fork \
+            --test call_chain \
+            --test up_chain \
+            --test common_chain \
+            --test try_runtime \
+            --no-fail-fast \
+            --nocapture \
+            --status-level all
