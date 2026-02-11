@@ -19,8 +19,8 @@
 //! # Run with the integration-tests feature enabled
 //! cargo nextest run -p pop-fork --features integration-tests --test rpc
 //!
-//! # For reliable execution, run sequentially to avoid concurrent node downloads
-//! cargo nextest run -p pop-fork --features integration-tests --test rpc -j 1
+//! # Run in parallel
+//! cargo nextest run -p pop-fork --features integration-tests --test rpc
 //! ```
 
 #![cfg(feature = "integration-tests")]
@@ -94,8 +94,8 @@ async fn fetch_metadata() {
 	let hash = client.finalized_head().await.unwrap();
 	let metadata = client.metadata(hash).await.unwrap();
 
-	// Metadata should be substantial
-	assert!(metadata.len() > 1000);
+	// Decoded metadata should contain pallets
+	assert!(metadata.pallets().len() > 0);
 }
 
 #[tokio::test]
