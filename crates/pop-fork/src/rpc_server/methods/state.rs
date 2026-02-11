@@ -17,6 +17,7 @@ use jsonrpsee::{
 	core::{RpcResult, SubscriptionResult},
 	proc_macros::rpc,
 };
+use log::{debug, warn};
 use scale::Decode;
 use std::sync::Arc;
 use tokio::sync::broadcast;
@@ -506,6 +507,8 @@ impl StateApiServer for StateApi {
 		// Also keep original hex keys for response formatting
 		let subscribed_keys_hex: Vec<String> = keys.unwrap_or_default();
 
+		debug!("[state] Storage subscription accepted for {} keys", subscribed_keys.len());
+
 		// Send initial values
 		let head_hash = blockchain.head_hash().await;
 		let block_hex = format!("0x{}", hex::encode(head_hash.as_bytes()));
@@ -542,17 +545,27 @@ impl StateApiServer for StateApi {
 
 					_ = token.cancelled() => break,
 
-					_ = sink.closed() => break,
+					_ = sink.closed() => {
+						debug!("[state] Storage subscriber disconnected");
+						break;
+					},
 
 					event = receiver.recv() => {
 						match event {
-							Ok(BlockchainEvent::NewBlock { hash, modified_keys, .. }) => {
+							Ok(BlockchainEvent::NewBlock { number, hash, modified_keys, .. }) => {
 								// Filter to keys we're watching that were modified
 								let affected_indices: Vec<usize> = subscribed_keys.iter()
 									.enumerate()
 									.filter(|(_, k)| modified_keys.iter().any(|mk| mk == *k))
 									.map(|(i, _)| i)
 									.collect();
+
+								debug!(
+									"[state] Block #{number}: {}/{} subscribed keys affected ({} modified total)",
+									affected_indices.len(),
+									subscribed_keys.len(),
+									modified_keys.len()
+								);
 
 								if affected_indices.is_empty() {
 									continue;
@@ -573,14 +586,24 @@ impl StateApiServer for StateApi {
 								let change_set = StorageChangeSet { block: block_hex, changes };
 								let msg = match jsonrpsee::SubscriptionMessage::from_json(&change_set) {
 									Ok(m) => m,
-									Err(_) => continue,
+									Err(e) => {
+										warn!("[state] Failed to serialize storage change for #{number}: {e}");
+										continue;
+									},
 								};
 								if sink.send(msg).await.is_err() {
+									debug!("[state] Storage subscriber disconnected during send");
 									break;
 								}
 							}
-							Err(broadcast::error::RecvError::Lagged(_)) => continue,
-							Err(broadcast::error::RecvError::Closed) => break,
+							Err(broadcast::error::RecvError::Lagged(n)) => {
+								warn!("[state] Storage subscriber lagged, skipped {n} events");
+								continue;
+							}
+							Err(broadcast::error::RecvError::Closed) => {
+								debug!("[state] Broadcast channel closed");
+								break;
+							}
 						}
 					}
 				}
@@ -672,6 +695,7 @@ mod tests {
 	async fn state_get_metadata_returns_metadata() {
 		let ctx = TestContext::for_rpc_server().await;
 		let client = WsClientBuilder::default()
+			.request_timeout(std::time::Duration::from_secs(120))
 			.build(&ctx.ws_url())
 			.await
 			.expect("Failed to connect");
@@ -696,6 +720,7 @@ mod tests {
 	async fn state_get_metadata_at_block_hash() {
 		let ctx = TestContext::for_rpc_server().await;
 		let client = WsClientBuilder::default()
+			.request_timeout(std::time::Duration::from_secs(120))
 			.build(&ctx.ws_url())
 			.await
 			.expect("Failed to connect");

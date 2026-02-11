@@ -756,6 +756,88 @@ impl StorageCache {
 		}
 	}
 
+	/// Commit a batch of local storage changes in a single transaction.
+	///
+	/// For each entry: upserts the key into `local_keys`, closes the previous value
+	/// (sets `valid_until`), and inserts the new value. Wrapping everything in one
+	/// transaction avoids per-operation fsync overhead, reducing commit time from
+	/// tens of seconds to sub-second.
+	pub async fn commit_local_changes(
+		&self,
+		entries: &[(&[u8], Option<&[u8]>)],
+		block_number: u32,
+	) -> Result<(), CacheError> {
+		use crate::schema::{local_keys::columns as lkc, local_values::columns as lvc};
+
+		if entries.is_empty() {
+			return Ok(());
+		}
+
+		// Clone entries into owned data so they can move into the async closure.
+		let owned: Vec<(Vec<u8>, Option<Vec<u8>>)> =
+			entries.iter().map(|(k, v)| (k.to_vec(), v.map(|val| val.to_vec()))).collect();
+
+		let mut attempts = 0;
+		loop {
+			let owned = owned.clone();
+			let mut conn = self.get_conn().await?;
+
+			let res = conn
+				.transaction::<_, DieselError, _>(move |conn| {
+					Box::pin(async move {
+						for (key, value) in &owned {
+							// Upsert key
+							diesel::insert_into(local_keys::table)
+								.values(NewLocalKeyRow { key })
+								.on_conflict(lkc::key)
+								.do_nothing()
+								.execute(conn)
+								.await?;
+
+							let key_id: i32 = local_keys::table
+								.filter(lkc::key.eq(key.as_slice()))
+								.select(lkc::id)
+								.first(conn)
+								.await?;
+
+							// Close previous value
+							diesel::update(
+								local_values::table
+									.filter(lvc::key_id.eq(key_id))
+									.filter(lvc::valid_until.is_null()),
+							)
+							.set(lvc::valid_until.eq(Some(block_number as i64)))
+							.execute(conn)
+							.await?;
+
+							// Insert new value
+							let row = NewLocalValueRow {
+								key_id,
+								value: value.clone(),
+								valid_from: block_number as i64,
+								valid_until: None,
+							};
+							diesel::insert_into(local_values::table)
+								.values(&row)
+								.execute(conn)
+								.await?;
+						}
+						Ok(())
+					})
+				})
+				.await;
+
+			match res {
+				Ok(_) => return Ok(()),
+				Err(e) if is_locked_error(&e) && attempts < MAX_LOCK_RETRIES => {
+					retry_conn(&mut attempts).await;
+					continue;
+				},
+				Err(e) => return Err(e.into()),
+			}
+		}
+	}
+
 	/// Clear all local storage data (both local_keys and local_values tables).
 	///
 	/// This removes all locally tracked key-value pairs and their validity history.
@@ -1043,6 +1125,42 @@ impl StorageCache {
 		}
 
 		Ok(query.load::<Vec<u8>>(&mut conn).await?)
+	}
+
+	/// Find the next cached key after `key` that matches `prefix`.
+	///
+	/// Uses a range query (`key > current AND key >= prefix AND key < prefix+1`)
+	/// for efficient lookup on SQLite's B-tree index.
+	///
+	/// # Returns
+	/// * `Ok(Some(next_key))` - The next key after `key` matching the prefix
+	/// * `Ok(None)` - No more keys with this prefix after `key`
+	pub async fn next_key_from_cache(
+		&self,
+		block_hash: H256,
+		prefix: &[u8],
+		key: &[u8],
+	) -> Result<Option<Vec<u8>>, CacheError> {
+		use crate::schema::storage::columns as sc;
+
+		let mut conn = self.get_conn().await?;
+		let prefix_end = increment_prefix(prefix);
+
+		let mut query = storage::table
+			.filter(sc::block_hash.eq(block_hash.as_bytes()))
+			.filter(sc::key.gt(key))
+			.filter(sc::key.ge(prefix))
+			.filter(sc::is_empty.eq(false))
+			.select(sc::key)
+			.order(sc::key.asc())
+			.limit(1)
+			.into_boxed();
+
+		if let Some(ref end) = prefix_end {
+			query = query.filter(sc::key.lt(end));
+		}
+
+		Ok(query.first::<Vec<u8>>(&mut conn).await.optional()?)
 	}
 
 	/// Count cached keys matching a prefix.
@@ -1535,6 +1653,37 @@ mod tests {
 		assert_eq!(cache.count_keys_by_prefix(block_hash, b"prefix_a:").await.unwrap(), 3);
 		assert_eq!(cache.count_keys_by_prefix(block_hash, b"prefix_b:").await.unwrap(), 1);
 		assert_eq!(cache.count_keys_by_prefix(block_hash, b"prefix_c:").await.unwrap(), 0);
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn next_key_from_cache_works() {
+		let cache = StorageCache::in_memory().await.unwrap();
+		let block_hash = H256::from([20u8; 32]);
+
+		// Insert keys with a prefix
+		let entries: Vec<(&[u8], Option<&[u8]>)> = vec![
+			(b"prefix:aaa", Some(b"v1")),
+			(b"prefix:bbb", Some(b"v2")),
+			(b"prefix:ccc", Some(b"v3")),
+			(b"other:ddd", Some(b"v4")),
+		];
+		cache.set_storage_batch(block_hash, &entries).await.unwrap();
+
+		// Next key after "prefix:aaa" with prefix "prefix:" should be "prefix:bbb"
+		let next = cache.next_key_from_cache(block_hash, b"prefix:", b"prefix:aaa").await.unwrap();
+		assert_eq!(next, Some(b"prefix:bbb".to_vec()));
+
+		// Next key after "prefix:bbb" should be "prefix:ccc"
+		let next = cache.next_key_from_cache(block_hash, b"prefix:", b"prefix:bbb").await.unwrap();
+		assert_eq!(next, Some(b"prefix:ccc".to_vec()));
+
+		// Next key after "prefix:ccc" should be None (no more keys)
+		let next = cache.next_key_from_cache(block_hash, b"prefix:", b"prefix:ccc").await.unwrap();
+		assert!(next.is_none());
+
+		// Next key from the very start with prefix "prefix:" should be "prefix:aaa"
+		let next = cache.next_key_from_cache(block_hash, b"prefix:", b"prefix:").await.unwrap();
+		assert_eq!(next, Some(b"prefix:aaa".to_vec()));
 	}
 
 	#[test]

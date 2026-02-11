@@ -2,6 +2,13 @@
 
 //! String constants for the builder module.
 
+/// Number of keys to fetch per pallet during warmup/prefetch.
+///
+/// Intentionally smaller than the speculative prefetch page size (1000) to
+/// keep the initial warmup lightweight. Each pallet gets at most this many
+/// keys pre-fetched.
+pub const PREFETCH_PAGE_SIZE: u32 = 200;
+
 /// Runtime API method names used during block building.
 pub mod runtime_api {
 	/// Runtime method to initialize a new block.

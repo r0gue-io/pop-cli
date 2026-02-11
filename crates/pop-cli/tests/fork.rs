@@ -114,7 +114,11 @@ async fn fork_and_transfer_balance() -> Result<()> {
 	let mut attempts = 0;
 	let client = loop {
 		sleep(Duration::from_secs(2)).await;
-		match WsClientBuilder::default().build(&fork_ws_url).await {
+		match WsClientBuilder::default()
+			.request_timeout(Duration::from_secs(120))
+			.build(&fork_ws_url)
+			.await
+		{
 			Ok(c) => break c,
 			Err(_) => {
 				attempts += 1;

@@ -59,12 +59,12 @@ use subxt::{
 	},
 	config::substrate::H256,
 };
-use tokio::sync::{RwLock, Semaphore};
+use tokio::sync::{Mutex, RwLock, Semaphore};
 use url::Url;
 
 /// Maximum number of concurrent upstream RPC calls for heavy storage methods.
 ///
-/// Limits parallelism for `storage()`, `storage_batch()`, and `storage_keys_paged()` to prevent
+/// Limits parallelism for `storage_batch()` and `storage_keys_paged()` to prevent
 /// overwhelming the upstream WebSocket endpoint when many callers (e.g., polkadot.js sending 14
 /// concurrent `state_queryStorageAt` requests) hit the RPC server at once.
 const MAX_CONCURRENT_UPSTREAM_CALLS: usize = 4;
@@ -96,6 +96,11 @@ pub struct ForkRpcClient {
 	endpoint: Url,
 	/// Semaphore limiting concurrent upstream calls for heavy storage methods.
 	upstream_semaphore: Arc<Semaphore>,
+	/// Lock that serializes reconnection attempts so only one task reconnects
+	/// at a time. Without this, a dropped upstream connection causes every
+	/// concurrent task to call `reconnect()` simultaneously (thundering herd),
+	/// overwhelming the endpoint with dozens of parallel WebSocket handshakes.
+	reconnect_lock: Arc<Mutex<()>>,
 }
 
 impl std::fmt::Debug for ForkRpcClient {
@@ -120,27 +125,49 @@ impl ForkRpcClient {
 			legacy: Arc::new(RwLock::new(legacy)),
 			endpoint: endpoint.clone(),
 			upstream_semaphore: Arc::new(Semaphore::new(MAX_CONCURRENT_UPSTREAM_CALLS)),
+			reconnect_lock: Arc::new(Mutex::new(())),
 		})
 	}
 
 	/// Create a new connection to the endpoint.
+	///
+	/// Builds a jsonrpsee WS client with raised message-size limits so that
+	/// large `state_queryStorageAt` responses (common when batch-fetching
+	/// hundreds of storage keys) don't hit soketto's default 10 MB cap.
 	async fn create_connection(
 		endpoint: &Url,
 	) -> Result<LegacyRpcMethods<SubstrateConfig>, RpcClientError> {
-		let client = RpcClient::from_url(endpoint.as_str()).await.map_err(|e| {
-			RpcClientError::ConnectionFailed {
+		use jsonrpsee::ws_client::WsClientBuilder;
+
+		let client = WsClientBuilder::default()
+			.max_response_size(u32::MAX)
+			.build(endpoint.as_str())
+			.await
+			.map_err(|e| RpcClientError::ConnectionFailed {
 				endpoint: endpoint.to_string(),
 				message: e.to_string(),
-			}
-		})?;
-		Ok(LegacyRpcMethods::new(client))
+			})?;
+		let rpc_client = RpcClient::new(client);
+		Ok(LegacyRpcMethods::new(rpc_client))
 	}
 
 	/// Reconnect to the upstream RPC endpoint.
 	///
 	/// Creates a fresh WebSocket connection, replacing the existing one. All clones
 	/// of this client share the connection, so reconnecting affects all of them.
+	///
+	/// Serialized via `reconnect_lock`: only one task performs the actual reconnection.
+	/// Other concurrent callers wait for the lock, then verify the connection is alive
+	/// before attempting another reconnect (avoiding the thundering herd problem).
 	pub async fn reconnect(&self) -> Result<(), RpcClientError> {
+		let _guard = self.reconnect_lock.lock().await;
+
+		// Another task may have already reconnected while we waited for the lock.
+		// Do a cheap liveness check before creating a new connection.
+		if self.legacy.read().await.system_chain().await.is_ok() {
+			return Ok(());
+		}
+
 		let new_legacy = Self::create_connection(&self.endpoint).await?;
 		*self.legacy.write().await = new_legacy;
 		Ok(())
@@ -305,6 +332,7 @@ impl ForkRpcClient {
 		}
 
 		let _permit = self.upstream_semaphore.acquire().await.expect("semaphore closed");
+
 		let result = self
 			.legacy
 			.read()
@@ -351,6 +379,7 @@ impl ForkRpcClient {
 		at: H256,
 	) -> Result<Vec<Vec<u8>>, RpcClientError> {
 		let _permit = self.upstream_semaphore.acquire().await.expect("semaphore closed");
+
 		self.legacy
 			.read()
 			.await

@@ -31,18 +31,20 @@
 //! ```
 
 use crate::{
-	Block, BlockBuilderError, RuntimeExecutor, inherent::InherentProvider,
-	strings::inherent::timestamp as strings,
+	Block, BlockBuilderError, RuntimeExecutor,
+	inherent::InherentProvider,
+	strings::inherent::timestamp::{
+		self as strings,
+		slot_duration::{
+			PARACHAIN_FALLBACK_MS as DEFAULT_PARA_SLOT_DURATION_MS,
+			RELAY_CHAIN_FALLBACK_MS as DEFAULT_RELAY_SLOT_DURATION_MS,
+		},
+	},
 };
 use async_trait::async_trait;
 use scale::{Compact, Decode, Encode};
+use std::sync::atomic::{AtomicU64, Ordering};
 use subxt::Metadata;
-
-/// Default slot duration for relay chains (6 seconds).
-const DEFAULT_RELAY_SLOT_DURATION_MS: u64 = 6_000;
-
-/// Default slot duration for parachains (12 seconds).
-const DEFAULT_PARA_SLOT_DURATION_MS: u64 = 12_000;
 
 /// Extrinsic format version for unsigned/bare extrinsics.
 /// Version 5 is current; version 4 is legacy.
@@ -66,10 +68,13 @@ const EXTRINSIC_FORMAT_VERSION: u8 = 5;
 /// The pallet and call indices are looked up dynamically from the runtime
 /// metadata, making this provider work across different runtimes without
 /// manual configuration.
-#[derive(Debug, Clone)]
 pub struct TimestampInherent {
-	/// Slot duration in milliseconds.
+	/// Slot duration in milliseconds (fallback value).
 	slot_duration_ms: u64,
+	/// Cached slot duration detected from the runtime.
+	/// Initialized during warmup or lazily on first `provide()` call.
+	/// A value of 0 means "not yet detected".
+	cached_slot_duration: AtomicU64,
 }
 
 impl TimestampInherent {
@@ -79,7 +84,7 @@ impl TimestampInherent {
 	///
 	/// * `slot_duration_ms` - Slot duration in milliseconds
 	pub fn new(slot_duration_ms: u64) -> Self {
-		Self { slot_duration_ms }
+		Self { slot_duration_ms, cached_slot_duration: AtomicU64::new(0) }
 	}
 
 	/// Create with default settings for relay chains (6-second slots).
@@ -237,15 +242,22 @@ impl InherentProvider for TimestampInherent {
 
 		let call_index = call_variant.index;
 
-		// Get slot duration: try runtime API/constants, fall back to configured value
+		// Get slot duration from cache (populated during warmup) or detect from runtime.
 		let storage = parent.storage();
-		let slot_duration = Self::get_slot_duration_from_runtime(
-			executor,
-			storage,
-			&metadata,
-			self.slot_duration_ms,
-		)
-		.await;
+		let slot_duration = match self.cached_slot_duration.load(Ordering::Acquire) {
+			0 => {
+				let duration = Self::get_slot_duration_from_runtime(
+					executor,
+					storage,
+					&metadata,
+					self.slot_duration_ms,
+				)
+				.await;
+				self.cached_slot_duration.store(duration, Ordering::Release);
+				duration
+			},
+			cached => cached,
+		};
 
 		// Read current timestamp from parent block storage
 		let key = Self::timestamp_now_key();
@@ -275,7 +287,7 @@ impl InherentProvider for TimestampInherent {
 		// Calculate new timestamp
 		let new_timestamp = current_timestamp.saturating_add(slot_duration);
 
-		log::info!(
+		log::debug!(
 			"[Timestamp] current_timestamp={current_timestamp}, slot_duration={slot_duration}, new_timestamp={new_timestamp}"
 		);
 
@@ -286,6 +298,31 @@ impl InherentProvider for TimestampInherent {
 		let extrinsic = Self::encode_inherent_extrinsic(call);
 
 		Ok(vec![extrinsic])
+	}
+
+	async fn warmup(&self, parent: &Block, executor: &RuntimeExecutor) {
+		let metadata = match parent.metadata().await {
+			Ok(m) => m,
+			Err(e) => {
+				log::warn!("[Timestamp] Warmup: failed to get metadata: {e}");
+				return;
+			},
+		};
+		let storage = parent.storage();
+		let duration = Self::get_slot_duration_from_runtime(
+			executor,
+			storage,
+			&metadata,
+			self.slot_duration_ms,
+		)
+		.await;
+		self.cached_slot_duration.store(duration, Ordering::Release);
+		log::debug!("[Timestamp] Warmup: cached slot_duration={duration}ms");
+	}
+
+	fn invalidate_cache(&self) {
+		self.cached_slot_duration.store(0, Ordering::Release);
+		log::debug!("[Timestamp] Cache invalidated (runtime upgrade detected)");
 	}
 }
 

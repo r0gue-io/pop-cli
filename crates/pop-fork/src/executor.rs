@@ -255,43 +255,53 @@ impl RuntimeExecutor {
 		Ok(executor)
 	}
 
-	/// Execute a runtime call.
+	/// Create a new `HostVmPrototype` optimized for repeated execution.
+	///
+	/// Uses `ExecHint::ValidateAndCompile` which enables ahead-of-time compilation,
+	/// making subsequent calls faster. This is ideal for block building where the
+	/// same runtime is called multiple times (initialize, apply extrinsics, finalize).
+	pub fn create_prototype(&self) -> Result<HostVmPrototype, ExecutorError> {
+		Ok(HostVmPrototype::new(HostConfig {
+			module: &self.runtime_code,
+			heap_pages: self.heap_pages,
+			exec_hint: ExecHint::ValidateAndCompile,
+			allow_unresolved_imports: self.config.allow_unresolved_imports,
+		})?)
+	}
+
+	/// Execute a runtime call, optionally reusing an existing VM prototype.
+	///
+	/// When `prototype` is `Some`, it is reused instead of creating a new one from
+	/// raw WASM bytes. This avoids re-parsing and re-validating the WASM module on
+	/// each call, which is significant for large runtimes (~2.5MB for Asset Hub).
+	///
+	/// Returns the call result along with the recovered prototype (if available)
+	/// for reuse in subsequent calls.
 	///
 	/// # Arguments
 	///
-	/// * `method` - The runtime method to call (e.g., "Core_version", "Metadata_metadata").
+	/// * `prototype` - An existing VM prototype to reuse, or `None` to create a fresh one.
+	/// * `method` - The runtime method to call.
 	/// * `args` - SCALE-encoded arguments for the method.
 	/// * `storage` - Storage layer for reading state from the forked chain.
-	///
-	/// # Returns
-	///
-	/// Returns the call result including output bytes and storage diff.
-	///
-	/// # Common Runtime Methods
-	///
-	/// | Method | Purpose |
-	/// |--------|---------|
-	/// | `Core_version` | Get runtime version |
-	/// | `Core_initialize_block` | Initialize a new block |
-	/// | `BlockBuilder_apply_extrinsic` | Apply a transaction |
-	/// | `BlockBuilder_finalize_block` | Finalize block, get header |
-	/// | `Metadata_metadata` | Get runtime metadata |
-	pub async fn call(
+	pub async fn call_with_prototype(
 		&self,
+		prototype: Option<HostVmPrototype>,
 		method: &str,
 		args: &[u8],
 		storage: &LocalStorageLayer,
-	) -> Result<RuntimeCallResult, ExecutorError> {
-		// Create VM prototype
-		let vm_proto = HostVmPrototype::new(HostConfig {
-			module: &self.runtime_code,
-			heap_pages: self.heap_pages,
-			exec_hint: ExecHint::ValidateAndExecuteOnce,
-			allow_unresolved_imports: self.config.allow_unresolved_imports,
-		})?;
+	) -> (Result<RuntimeCallResult, ExecutorError>, Option<HostVmPrototype>) {
+		// Reuse the provided prototype or create a fresh one
+		let vm_proto = match prototype {
+			Some(proto) => proto,
+			None => match self.create_prototype() {
+				Ok(proto) => proto,
+				Err(e) => return (Err(e), None),
+			},
+		};
 
 		// Start the runtime call
-		let mut vm = runtime_call::run(runtime_call::Config {
+		let mut vm = match runtime_call::run(runtime_call::Config {
 			virtual_machine: vm_proto,
 			function_to_call: method,
 			parameter: iter::once(args),
@@ -302,11 +312,18 @@ impl RuntimeExecutor {
 				runtime_call::StorageProofSizeBehavior::ConstantReturnValue(
 					self.config.storage_proof_size,
 				),
-		})
-		.map_err(|(err, _)| ExecutorError::StartError {
-			method: method.to_string(),
-			message: err.to_string(),
-		})?;
+		}) {
+			Ok(vm) => vm,
+			Err((err, proto)) => {
+				return (
+					Err(ExecutorError::StartError {
+						method: method.to_string(),
+						message: err.to_string(),
+					}),
+					Some(proto),
+				);
+			},
+		};
 
 		// Track storage changes during execution
 		let mut storage_changes: BTreeMap<Vec<u8>, Option<Vec<u8>>> = BTreeMap::new();
@@ -334,16 +351,25 @@ impl RuntimeExecutor {
 								},
 							);
 
-							Ok(RuntimeCallResult {
-								output: success.virtual_machine.value().as_ref().to_vec(),
-								storage_diff: storage_changes.into_iter().collect(),
-								offchain_storage_diff: offchain_storage_changes
-									.into_iter()
-									.collect(),
-								logs,
-							})
+							// Extract output before consuming the virtual machine
+							let output = success.virtual_machine.value().as_ref().to_vec();
+							let proto = success.virtual_machine.into_prototype();
+							(
+								Ok(RuntimeCallResult {
+									output,
+									storage_diff: storage_changes.into_iter().collect(),
+									offchain_storage_diff: offchain_storage_changes
+										.into_iter()
+										.collect(),
+									logs,
+								}),
+								Some(proto),
+							)
 						},
-						Err(err) => Err(err.into()),
+						Err(err) => {
+							let proto = err.prototype;
+							(Err(err.detail.into()), Some(proto))
+						},
 					};
 				},
 
@@ -365,18 +391,20 @@ impl RuntimeExecutor {
 					} else {
 						// Fetch from storage backend at the latest block
 						let block_number = storage.get_current_block_number();
-						let value = storage.get(block_number, &key).await.map_err(|e| {
-							ExecutorError::StorageError {
-								key: hex::encode(&key),
-								message: e.to_string(),
-							}
-						})?;
+						let value = match storage.get(block_number, &key).await {
+							Ok(v) => v,
+							Err(e) => {
+								return (
+									Err(ExecutorError::StorageError {
+										key: hex::encode(&key),
+										message: e.to_string(),
+									}),
+									None,
+								);
+							},
+						};
 						let none_placeholder: Option<(Once<[u8; 0]>, TrieEntryVersion)> = None;
 						match value {
-							// A local shared value can be empty, just flagging that a key was
-							// manually deleted. Some(()) is encoded as empty bytes, so we need to
-							// distinguish where we return an empty existing key and a non-existent
-							// key
 							Some(value) if value.value.is_some() => req.inject_value(Some((
 								iter::once(ArcLocalSharedValue(value)),
 								TrieEntryVersion::V1,
@@ -387,13 +415,19 @@ impl RuntimeExecutor {
 				},
 
 				RuntimeCall::ClosestDescendantMerkleValue(req) => {
-					// We don't have merkle values - let smoldot calculate them
-					req.resume_unknown()
+					// Inject a fake Merkle value instead of recursively computing it.
+					// These requests are only for unchanged subtrees (smoldot guarantees
+					// the diff has no descendant entries). Calling resume_unknown() would
+					// force smoldot to walk the entire subtree via StorageGet/NextKey
+					// calls to the remote storage, which is the most expensive part of
+					// BlockBuilder_finalize_block. Since pop-fork blocks are never
+					// validated by a real node, the resulting fake state root is acceptable.
+					static FAKE_MERKLE: [u8; 32] = [0u8; 32];
+					req.inject_merkle_value(Some(&FAKE_MERKLE))
 				},
 
-				RuntimeCall::NextKey(req) => {
+				RuntimeCall::NextKey(req) =>
 					if req.branch_nodes() {
-						// Root calculation - skip
 						req.inject_key(None::<Vec<_>>.map(|x| x.into_iter()))
 					} else {
 						let prefix = if let Some(child) = req.child_trie() {
@@ -414,16 +448,21 @@ impl RuntimeExecutor {
 							nibbles_to_bytes_suffix_extend(req.key()).collect::<Vec<_>>()
 						};
 
-						let next = storage.next_key(&prefix, &key).await.map_err(|e| {
-							ExecutorError::StorageError {
-								key: hex::encode(&key),
-								message: e.to_string(),
-							}
-						})?;
+						let next = match storage.next_key(&prefix, &key).await {
+							Ok(v) => v,
+							Err(e) => {
+								return (
+									Err(ExecutorError::StorageError {
+										key: hex::encode(&key),
+										message: e.to_string(),
+									}),
+									None,
+								);
+							},
+						};
 
 						req.inject_key(next.map(|k| bytes_to_nibbles(k.into_iter())))
-					}
-				},
+					},
 
 				RuntimeCall::SignatureVerification(req) => match self.config.signature_mock {
 					SignatureMockMode::MagicSignature => {
@@ -447,7 +486,6 @@ impl RuntimeExecutor {
 
 				RuntimeCall::Offchain(ctx) => match ctx {
 					OffchainContext::StorageGet(req) => {
-						// Check local offchain changes first
 						let key = req.key().as_ref().to_vec();
 						let value = offchain_storage_changes.get(&key).cloned().flatten();
 						req.inject_value(value)
@@ -469,7 +507,6 @@ impl RuntimeExecutor {
 						req.resume(replace)
 					},
 					OffchainContext::Timestamp(req) => {
-						// Return current time in milliseconds
 						let timestamp = std::time::SystemTime::now()
 							.duration_since(std::time::UNIX_EPOCH)
 							.map(|d| d.as_millis() as u64)
@@ -477,7 +514,6 @@ impl RuntimeExecutor {
 						req.inject_timestamp(timestamp)
 					},
 					OffchainContext::RandomSeed(req) => {
-						// Generate random seed using blake2
 						let seed = sp_core::blake2_256(
 							&std::time::SystemTime::now()
 								.duration_since(std::time::UNIX_EPOCH)
@@ -486,10 +522,7 @@ impl RuntimeExecutor {
 						);
 						req.inject_random_seed(seed)
 					},
-					OffchainContext::SubmitTransaction(req) => {
-						// We don't support submitting transactions from offchain workers
-						req.resume(false)
-					},
+					OffchainContext::SubmitTransaction(req) => req.resume(false),
 				},
 
 				RuntimeCall::LogEmit(req) => {
@@ -513,6 +546,36 @@ impl RuntimeExecutor {
 				},
 			}
 		}
+	}
+
+	/// Execute a runtime call.
+	///
+	/// # Arguments
+	///
+	/// * `method` - The runtime method to call (e.g., "Core_version", "Metadata_metadata").
+	/// * `args` - SCALE-encoded arguments for the method.
+	/// * `storage` - Storage layer for reading state from the forked chain.
+	///
+	/// # Returns
+	///
+	/// Returns the call result including output bytes and storage diff.
+	///
+	/// # Common Runtime Methods
+	///
+	/// | Method | Purpose |
+	/// |--------|---------|
+	/// | `Core_version` | Get runtime version |
+	/// | `Core_initialize_block` | Initialize a new block |
+	/// | `BlockBuilder_apply_extrinsic` | Apply a transaction |
+	/// | `BlockBuilder_finalize_block` | Finalize block, get header |
+	/// | `Metadata_metadata` | Get runtime metadata |
+	pub async fn call(
+		&self,
+		method: &str,
+		args: &[u8],
+		storage: &LocalStorageLayer,
+	) -> Result<RuntimeCallResult, ExecutorError> {
+		self.call_with_prototype(None, method, args, storage).await.0
 	}
 
 	/// Get the runtime version from the WASM code.

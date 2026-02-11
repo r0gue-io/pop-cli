@@ -92,7 +92,7 @@ impl Default for RpcServerConfig {
 impl RpcServerConfig {
 	/// Create a config with a specific port.
 	pub fn with_port(port: u16) -> Self {
-		Self { port: Some(port), max_connections: 100 }
+		Self { port: Some(port), ..Default::default() }
 	}
 }
 
@@ -133,6 +133,8 @@ impl ForkRpcServer {
 				.set_id_provider(RandomStringIdProvider::new(SUBSCRIPTION_ID_LENGTH))
 				.set_rpc_middleware(RpcServiceBuilder::new().layer_fn(RpcLogger))
 				.max_connections(config.max_connections)
+				.max_request_body_size(u32::MAX)
+				.max_response_body_size(u32::MAX)
 				.build(addr)
 				.await
 				.map_err(|e| RpcServerError::ServerStart(e.to_string()))?;
@@ -149,6 +151,8 @@ impl ForkRpcServer {
 					.set_id_provider(RandomStringIdProvider::new(SUBSCRIPTION_ID_LENGTH))
 					.set_rpc_middleware(RpcServiceBuilder::new().layer_fn(RpcLogger))
 					.max_connections(config.max_connections)
+					.max_request_body_size(u32::MAX)
+					.max_response_body_size(u32::MAX)
 					.build(addr)
 					.await
 				{
@@ -170,6 +174,8 @@ impl ForkRpcServer {
 						.set_id_provider(RandomStringIdProvider::new(SUBSCRIPTION_ID_LENGTH))
 						.set_rpc_middleware(RpcServiceBuilder::new().layer_fn(RpcLogger))
 						.max_connections(config.max_connections)
+						.max_request_body_size(u32::MAX)
+						.max_response_body_size(u32::MAX)
 						.build(addr)
 						.await
 						.map_err(|e| RpcServerError::ServerStart(e.to_string()))?;
