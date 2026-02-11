@@ -95,6 +95,19 @@ jobs:
         with:
           name: nextest-archive
 
+      - name: Ensure Docker is running
+        shell: bash
+        run: |
+          sudo systemctl start docker
+          for _ in {1..30}; do
+            if docker info >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Docker did not become ready in time" >&2
+          exit 1
+
       - name: Run tests with coverage
         run: |
           cargo llvm-cov nextest \
