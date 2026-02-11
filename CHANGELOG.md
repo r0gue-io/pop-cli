@@ -39,6 +39,7 @@ All notable changes to this project will be documented in this file.
 - Add shell completion command (#912)
 - *(pop fork)* Well-known chains, --at flag, and better detach (#930)
 - Make `pop fork --endpoint` optional with interactive prompt (#928)
+- *(pop-fork)* Optimize block building with prefetch, warmup, and extrinsic inclusion (#935)
 
 ### 🐛 Fixes
 
@@ -74,6 +75,7 @@ All notable changes to this project will be documented in this file.
 
 - Prepend 0.13.0 changelog
 - Remove git-cliff marker
+- Update 0.13.0 changelog
 
 ### 🎨 Styling
 
