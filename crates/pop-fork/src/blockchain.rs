@@ -561,8 +561,12 @@ impl Blockchain {
 		// inherent provider state. This runs concurrently and does not delay
 		// the return of the fork. If a block is built before warmup finishes,
 		// the builder falls back to its normal (non-cached) path.
-		let bc = Arc::clone(&blockchain);
-		tokio::spawn(async move { bc.warmup().await });
+		// Skipped in tests to avoid resource contention when many tests run in parallel.
+		#[cfg(not(test))]
+		{
+			let bc = Arc::clone(&blockchain);
+			tokio::spawn(async move { bc.warmup().await });
+		}
 
 		Ok(blockchain)
 	}

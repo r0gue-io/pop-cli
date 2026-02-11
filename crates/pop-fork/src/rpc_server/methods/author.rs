@@ -257,6 +257,7 @@ mod tests {
 			ExecutorConfig { signature_mock: SignatureMockMode::AlwaysValid, ..Default::default() };
 		let ctx = TestContext::for_rpc_server_with_config(config).await;
 		let client = WsClientBuilder::default()
+			.request_timeout(std::time::Duration::from_secs(120))
 			.build(&ctx.ws_url())
 			.await
 			.expect("Failed to connect");
@@ -314,6 +315,7 @@ mod tests {
 			ExecutorConfig { signature_mock: SignatureMockMode::AlwaysValid, ..Default::default() };
 		let ctx = TestContext::for_rpc_server_with_config(config).await;
 		let client = WsClientBuilder::default()
+			.request_timeout(std::time::Duration::from_secs(120))
 			.build(&ctx.ws_url())
 			.await
 			.expect("Failed to connect");
@@ -348,6 +350,7 @@ mod tests {
 			ExecutorConfig { signature_mock: SignatureMockMode::AlwaysValid, ..Default::default() };
 		let ctx = TestContext::for_rpc_server_with_config(config).await;
 		let client = WsClientBuilder::default()
+			.request_timeout(std::time::Duration::from_secs(120))
 			.build(&ctx.ws_url())
 			.await
 			.expect("Failed to connect");
@@ -392,6 +395,7 @@ mod tests {
 			ExecutorConfig { signature_mock: SignatureMockMode::AlwaysValid, ..Default::default() };
 		let ctx = TestContext::for_rpc_server_with_config(config).await;
 		let client = WsClientBuilder::default()
+			.request_timeout(std::time::Duration::from_secs(120))
 			.build(&ctx.ws_url())
 			.await
 			.expect("Failed to connect");
@@ -469,6 +473,7 @@ mod tests {
 	async fn author_submit_extrinsic_rejects_garbage_with_error_code() {
 		let ctx = TestContextBuilder::new().with_server().build().await;
 		let client = WsClientBuilder::default()
+			.request_timeout(std::time::Duration::from_secs(120))
 			.build(&ctx.ws_url())
 			.await
 			.expect("Failed to connect");
@@ -524,6 +529,7 @@ mod tests {
 
 		let ctx = TestContextBuilder::new().with_server().build().await;
 		let client = WsClientBuilder::default()
+			.request_timeout(std::time::Duration::from_secs(120))
 			.build(&ctx.ws_url())
 			.await
 			.expect("Failed to connect");

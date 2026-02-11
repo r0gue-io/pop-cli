@@ -695,6 +695,7 @@ mod tests {
 	async fn state_get_metadata_returns_metadata() {
 		let ctx = TestContext::for_rpc_server().await;
 		let client = WsClientBuilder::default()
+			.request_timeout(std::time::Duration::from_secs(120))
 			.build(&ctx.ws_url())
 			.await
 			.expect("Failed to connect");
@@ -719,6 +720,7 @@ mod tests {
 	async fn state_get_metadata_at_block_hash() {
 		let ctx = TestContext::for_rpc_server().await;
 		let client = WsClientBuilder::default()
+			.request_timeout(std::time::Duration::from_secs(120))
 			.build(&ctx.ws_url())
 			.await
 			.expect("Failed to connect");

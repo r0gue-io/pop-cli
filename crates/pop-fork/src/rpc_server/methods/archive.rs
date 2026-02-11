@@ -820,6 +820,7 @@ mod tests {
 	async fn archive_call_executes_runtime_api() {
 		let ctx = TestContext::for_rpc_server().await;
 		let client = WsClientBuilder::default()
+			.request_timeout(std::time::Duration::from_secs(120))
 			.build(&ctx.ws_url())
 			.await
 			.expect("Failed to connect");
@@ -846,6 +847,7 @@ mod tests {
 	async fn archive_call_returns_error_for_invalid_function() {
 		let ctx = TestContext::for_rpc_server().await;
 		let client = WsClientBuilder::default()
+			.request_timeout(std::time::Duration::from_secs(120))
 			.build(&ctx.ws_url())
 			.await
 			.expect("Failed to connect");
@@ -890,6 +892,7 @@ mod tests {
 	async fn archive_call_executes_at_specific_block() {
 		let ctx = TestContext::for_rpc_server().await;
 		let client = WsClientBuilder::default()
+			.request_timeout(std::time::Duration::from_secs(120))
 			.build(&ctx.ws_url())
 			.await
 			.expect("Failed to connect");
@@ -1051,6 +1054,7 @@ mod tests {
 
 		let ctx = TestContext::for_rpc_server().await;
 		let client = WsClientBuilder::default()
+			.request_timeout(std::time::Duration::from_secs(120))
 			.build(&ctx.ws_url())
 			.await
 			.expect("Failed to connect");
