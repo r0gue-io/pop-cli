@@ -32,7 +32,7 @@ concurrency:
 jobs:
   pop-fork-integration-tests:
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         os:
           - ubuntu-latest
@@ -73,7 +73,8 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         uses: Swatinem/rust-cache@v2
         with:
-          save-if: false
+          cache-all-crates: true
+          save-if: true
           shared-key: pop-cache
 
       - name: Rust Cache MacOS
@@ -82,7 +83,7 @@ jobs:
         with:
           cache-all-crates: true
           shared-key: pop-cache
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: true
 
       - name: Install packages (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -156,6 +157,7 @@ jobs:
 
   contract-integration-tests:
     strategy:
+      fail-fast: true
       matrix:
         os:
           - ubuntu-latest
@@ -191,14 +193,16 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         uses: Swatinem/rust-cache@v2
         with:
-          save-if: false
+          cache-all-crates: true
+          save-if: true
           shared-key: pop-cache
 
       - name: Rust Cache MacOS
         if: matrix.os == 'macos-latest'
         uses: Swatinem/rust-cache@v2
         with:
-          save-if: false
+          cache-all-crates: true
+          save-if: true
           shared-key: pop-cache
 
       - name: Install packages (Linux)
@@ -246,6 +250,7 @@ jobs:
 
   chain-integration-tests:
     strategy:
+      fail-fast: true
       matrix:
         os:
           - ubuntu-latest
@@ -281,7 +286,8 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         uses: Swatinem/rust-cache@v2
         with:
-          save-if: false
+          cache-all-crates: true
+          save-if: true
           shared-key: pop-cache
 
       - name: Rust Cache MacOS
@@ -290,7 +296,7 @@ jobs:
         with:
           cache-all-crates: true
           shared-key: pop-cache
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: true
 
       - name: Install packages (Linux)
         if: matrix.os == 'ubuntu-latest'
