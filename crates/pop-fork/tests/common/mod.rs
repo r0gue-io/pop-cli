@@ -3,6 +3,7 @@
 //! Pop-fork integration scenarios grouped by subsystem.
 
 #![cfg(feature = "integration-tests")]
+#![allow(dead_code)]
 
 use pop_fork::{
 	rpc_server::test_scenarios::{
@@ -14,7 +15,7 @@ use pop_fork::{
 };
 use std::future::Future;
 
-async fn run_block_tests() {
+pub async fn run_block_tests() {
 	block::fork_point_with_hash_creates_block_with_correct_metadata().await;
 	block::fork_point_with_non_existent_hash_returns_error().await;
 	block::fork_point_with_number_creates_block_with_correct_metadata().await;
@@ -24,7 +25,7 @@ async fn run_block_tests() {
 	block::child_storage_inherits_parent_modifications().await;
 }
 
-async fn run_blockchain_tests() {
+pub async fn run_blockchain_tests() {
 	blockchain::fork_creates_blockchain_with_correct_fork_point().await;
 	blockchain::fork_at_creates_blockchain_at_specific_block().await;
 	blockchain::fork_with_invalid_endpoint_fails().await;
@@ -71,7 +72,7 @@ async fn run_blockchain_tests() {
 	blockchain::build_block_result_tracks_failed_extrinsics().await;
 }
 
-async fn run_builder_tests() {
+pub async fn run_builder_tests() {
 	builder::new_creates_builder_with_empty_extrinsics().await;
 	builder::initialize_succeeds_and_modifies_storage().await;
 	builder::initialize_twice_fails().await;
@@ -87,7 +88,7 @@ async fn run_builder_tests() {
 	builder::create_next_header_includes_digest_items().await;
 }
 
-async fn run_executor_tests() {
+pub async fn run_executor_tests() {
 	executor::core_version_executes_successfully().await;
 	executor::metadata_executes_successfully().await;
 	executor::with_config_applies_custom_settings().await;
@@ -98,7 +99,7 @@ async fn run_executor_tests() {
 	executor::runtime_version_extracts_version_info().await;
 }
 
-async fn run_local_tests_part_1() {
+pub async fn run_local_tests() {
 	local::new_creates_empty_layer().await;
 	local::get_returns_local_modification().await;
 	local::get_non_existent_block_returns_none().await;
@@ -140,9 +141,6 @@ async fn run_local_tests_part_1() {
 	local::diff_returns_all_modifications().await;
 	local::diff_includes_deletions().await;
 	local::diff_excludes_prefix_deleted_keys().await;
-}
-
-async fn run_local_tests_part_2() {
 	local::commit_writes_to_cache().await;
 	local::commit_preserves_modifications().await;
 	local::commit_with_deletions().await;
@@ -167,7 +165,7 @@ async fn run_local_tests_part_2() {
 	local::has_code_changed_at_tracks_modification_block_correctly().await;
 }
 
-async fn run_remote_tests() {
+pub async fn run_remote_tests() {
 	remote::get_fetches_and_caches().await;
 	remote::get_caches_empty_values().await;
 	remote::get_batch_fetches_mixed().await;
@@ -182,7 +180,7 @@ async fn run_remote_tests() {
 	remote::fetch_and_cache_block_by_number_verifies_parent_chain().await;
 }
 
-async fn run_rpc_tests() {
+pub async fn run_rpc_tests() {
 	rpc::connect_to_node().await;
 	rpc::fetch_finalized_head().await;
 	rpc::fetch_header().await;
@@ -200,7 +198,7 @@ async fn run_rpc_tests() {
 	rpc::fetch_storage_batch_empty_keys().await;
 }
 
-async fn run_rpc_server_archive_tests() {
+pub async fn run_rpc_server_archive_tests() {
 	let ctx = TestContext::for_rpc_server().await;
 	let ws_url = ctx.ws_url();
 	let unknown_hash = "0x0000000000000000000000000000000000000000000000000000000000000001";
@@ -544,7 +542,7 @@ async fn run_rpc_server_archive_tests() {
 	.await;
 }
 
-async fn run_rpc_server_author_tests() {
+pub async fn run_rpc_server_author_tests() {
 	let config = pop_fork::ExecutorConfig {
 		signature_mock: pop_fork::SignatureMockMode::AlwaysValid,
 		..Default::default()
@@ -589,7 +587,7 @@ async fn run_rpc_server_author_tests() {
 	.await;
 }
 
-async fn run_rpc_server_chain_tests() {
+pub async fn run_rpc_server_chain_tests() {
 	let ctx = TestContext::for_rpc_server().await;
 	ctx.blockchain().build_empty_block().await.expect("Failed to build block");
 	let head_number = ctx.blockchain().head_number().await;
@@ -662,7 +660,7 @@ async fn run_rpc_server_chain_tests() {
 	.await;
 }
 
-async fn run_rpc_server_chain_head_tests() {
+pub async fn run_rpc_server_chain_head_tests() {
 	let ctx = TestContext::for_rpc_server().await;
 	rpc_server_chain_head::follow_returns_subscription_and_initialized_event_at(&ctx.ws_url())
 		.await;
@@ -670,7 +668,7 @@ async fn run_rpc_server_chain_head_tests() {
 	rpc_server_chain_head::invalid_subscription_returns_error_at(&ctx.ws_url()).await;
 }
 
-async fn run_rpc_server_chain_spec_tests() {
+pub async fn run_rpc_server_chain_spec_tests() {
 	let ctx = TestContext::for_rpc_server().await;
 	chain_spec::chain_spec_chain_name_returns_string(&ctx.ws_url(), "ink-node").await;
 	let _ = chain_spec::chain_spec_genesis_hash_returns_valid_hex_hash(&ctx.ws_url(), None).await;
@@ -678,7 +676,7 @@ async fn run_rpc_server_chain_spec_tests() {
 	chain_spec::chain_spec_properties_returns_json_or_null(&ctx.ws_url(), None).await;
 }
 
-async fn run_rpc_server_state_tests() {
+pub async fn run_rpc_server_state_tests() {
 	let ctx = TestContext::for_rpc_server().await;
 	let key_hex = format!(
 		"0x{}",
@@ -708,7 +706,7 @@ async fn run_rpc_server_state_tests() {
 	.await;
 }
 
-async fn run_rpc_server_system_tests() {
+pub async fn run_rpc_server_system_tests() {
 	let ctx = TestContext::for_rpc_server().await;
 	rpc_server_system::chain_works_at(&ctx.ws_url(), "ink-node").await;
 	rpc_server_system::name_works_at(&ctx.ws_url(), "pop-fork").await;
@@ -720,13 +718,13 @@ async fn run_rpc_server_system_tests() {
 	rpc_server_system::account_next_index_invalid_address_returns_error_at(&ctx.ws_url()).await;
 }
 
-async fn run_timestamp_tests() {
+pub async fn run_timestamp_tests() {
 	timestamp::get_slot_duration_falls_back_when_aura_api_unavailable().await;
 	timestamp::get_slot_duration_from_live_aura_chain().await;
 	timestamp::get_slot_duration_from_live_babe_chain().await;
 }
 
-fn run_group<F>(thread_name: &str, scenario_group: F)
+pub fn run_group<F>(thread_name: &str, scenario_group: F)
 where
 	F: Future<Output = ()> + Send + 'static,
 {
@@ -743,84 +741,4 @@ where
 		.expect("integration thread should spawn");
 
 	handle.join().expect("integration thread should complete");
-}
-
-#[test]
-fn pop_fork_block_scenarios() {
-	run_group("pop-fork-block", run_block_tests());
-}
-
-#[test]
-fn pop_fork_blockchain_scenarios() {
-	run_group("pop-fork-blockchain", run_blockchain_tests());
-}
-
-#[test]
-fn pop_fork_builder_scenarios() {
-	run_group("pop-fork-builder", run_builder_tests());
-}
-
-#[test]
-fn pop_fork_executor_scenarios() {
-	run_group("pop-fork-executor", run_executor_tests());
-}
-
-#[test]
-fn pop_fork_local_scenarios_part_1() {
-	run_group("pop-fork-local-1", run_local_tests_part_1());
-}
-
-#[test]
-fn pop_fork_local_scenarios_part_2() {
-	run_group("pop-fork-local-2", run_local_tests_part_2());
-}
-
-#[test]
-fn pop_fork_remote_scenarios() {
-	run_group("pop-fork-remote", run_remote_tests());
-}
-
-#[test]
-fn pop_fork_rpc_client_scenarios() {
-	run_group("pop-fork-rpc", run_rpc_tests());
-}
-
-#[test]
-fn pop_fork_rpc_server_archive_scenarios() {
-	run_group("pop-fork-rpc-archive", run_rpc_server_archive_tests());
-}
-
-#[test]
-fn pop_fork_rpc_server_author_scenarios() {
-	run_group("pop-fork-rpc-author", run_rpc_server_author_tests());
-}
-
-#[test]
-fn pop_fork_rpc_server_chain_scenarios() {
-	run_group("pop-fork-rpc-chain", run_rpc_server_chain_tests());
-}
-
-#[test]
-fn pop_fork_rpc_server_chain_head_scenarios() {
-	run_group("pop-fork-rpc-chain-head", run_rpc_server_chain_head_tests());
-}
-
-#[test]
-fn pop_fork_rpc_server_chain_spec_scenarios() {
-	run_group("pop-fork-rpc-chain-spec", run_rpc_server_chain_spec_tests());
-}
-
-#[test]
-fn pop_fork_rpc_server_state_scenarios() {
-	run_group("pop-fork-rpc-state", run_rpc_server_state_tests());
-}
-
-#[test]
-fn pop_fork_rpc_server_system_scenarios() {
-	run_group("pop-fork-rpc-system", run_rpc_server_system_tests());
-}
-
-#[test]
-fn pop_fork_timestamp_scenarios() {
-	run_group("pop-fork-timestamp", run_timestamp_tests());
 }

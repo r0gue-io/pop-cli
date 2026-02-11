@@ -1,8 +1,0 @@
-# Serialize pop-fork tests that spawn TestNode (ink-node) processes to avoid
-# overwhelming CI runners with concurrent node instances.
-[test-groups]
-pop-fork-node-tests = { max-threads = 1 }
-
-[[profile.default.overrides]]
-filter = 'binary_id(pop-fork::fork)'
-test-group = 'pop-fork-node-tests'

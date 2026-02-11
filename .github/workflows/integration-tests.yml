@@ -98,6 +98,21 @@ jobs:
         with:
           tool: cargo-nextest
 
+      - name: Set up Homebrew (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Install Pop from Homebrew
+        run: |
+          brew install r0gue-io/pop-cli/pop
+          pop --version
+
+      - name: Start detached ink-node
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pop up ink-node --detach --skip-confirm
+
       - name: Run pop-fork integration tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -106,9 +121,16 @@ jobs:
             --locked \
             -p pop-fork \
             --features integration-tests \
-            --test fork \
+            --test core \
+            --test rpc_server \
             --no-fail-fast \
             --status-level all
+
+      - name: Stop detached ink-node
+        if: always()
+        run: |
+          pkill ink-node || true
+          pkill eth-rpc || true
 
   contract-integration-tests:
     strategy:
