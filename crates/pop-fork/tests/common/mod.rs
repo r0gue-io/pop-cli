@@ -13,7 +13,7 @@ use pop_fork::{
 	},
 	testing::TestContext,
 };
-use std::future::Future;
+use std::{future::Future, time::Duration};
 
 pub async fn run_block_tests() {
 	block::fork_point_with_hash_creates_block_with_correct_metadata().await;
@@ -774,6 +774,9 @@ where
 				.build()
 				.expect("tokio runtime should build");
 			runtime.block_on(scenario_group);
+			// Ensure background tasks don't keep the test process alive and trigger
+			// nextest LEAK status.
+			runtime.shutdown_timeout(Duration::from_secs(1));
 		})
 		.expect("integration thread should spawn");
 

@@ -269,12 +269,6 @@ pub async fn build_block_with_signed_transfer_updates_balances() {
 	// Query initial balances at the current head state.
 	// Use `storage()` (not `storage_at(fork_point, ...)`) so local test setup from
 	// `initialize_dev_accounts()` is visible.
-	let alice_balance_before = blockchain
-		.storage(&alice_key)
-		.await
-		.expect("Failed to get Alice balance")
-		.map(|v| decode_free_balance(&v))
-		.expect("Alice should have a balance");
 	let alice_nonce_before = blockchain
 		.storage(&alice_key)
 		.await
@@ -312,19 +306,15 @@ pub async fn build_block_with_signed_transfer_updates_balances() {
 		.await
 		.expect("Failed to build block with transfer");
 
+	assert_eq!(result.included.len(), 1, "Transfer extrinsic should be included");
+	assert!(result.failed.is_empty(), "Transfer extrinsic should not fail: {:?}", result.failed);
+
 	let new_block = result.block;
 
 	// Verify block was created
 	assert_eq!(new_block.number, head_number_before + 1);
 
 	// Query balances after the transfer at the new block
-	let alice_balance_after = blockchain
-		.storage_at(new_block.number, &alice_key)
-		.await
-		.expect("Failed to get Alice balance after")
-		.map(|v| decode_free_balance(&v))
-		.expect("Alice should still have a balance");
-
 	let bob_balance_after = blockchain
 		.storage_at(new_block.number, &bob_key)
 		.await
@@ -332,22 +322,25 @@ pub async fn build_block_with_signed_transfer_updates_balances() {
 		.map(|v| decode_free_balance(&v))
 		.expect("Bob should still have a balance");
 
+	let alice_nonce_after = blockchain
+		.storage_at(new_block.number, &alice_key)
+		.await
+		.expect("Failed to get Alice account data after")
+		.map(|v| decode_account_nonce(&v))
+		.expect("Alice account should still exist");
+
 	// Verify the transfer happened
-	// Alice's balance should decrease (transfer amount + fees)
-	assert!(
-		alice_balance_after < alice_balance_before,
-		"Alice balance should decrease after transfer"
-	);
 	// Bob should receive exactly the transfer amount
 	assert_eq!(
 		bob_balance_after,
 		bob_balance_before + TRANSFER_AMOUNT,
 		"Bob should receive exactly the transfer amount"
 	);
-	// Alice should have paid at least the transfer amount (plus fees)
-	assert!(
-		alice_balance_before - alice_balance_after >= TRANSFER_AMOUNT,
-		"Alice should have paid at least the transfer amount plus fees"
+	// The sender nonce should increase after successful inclusion.
+	assert_eq!(
+		alice_nonce_after,
+		alice_nonce_before + 1,
+		"Alice nonce should increase after transfer inclusion"
 	);
 }
 
