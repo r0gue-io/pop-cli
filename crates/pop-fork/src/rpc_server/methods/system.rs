@@ -16,6 +16,41 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use sp_core::crypto::{AccountId32, Ss58Codec};
 use std::sync::Arc;
 
+#[async_trait::async_trait]
+pub trait SystemBlockchain: Send + Sync {
+	fn chain_name(&self) -> &str;
+	async fn chain_properties(&self) -> Option<serde_json::Value>;
+	async fn head_number(&self) -> u32;
+	async fn storage_at(
+		&self,
+		block_number: u32,
+		key: &[u8],
+	) -> Result<Option<Vec<u8>>, crate::BlockchainError>;
+}
+
+#[async_trait::async_trait]
+impl SystemBlockchain for Blockchain {
+	fn chain_name(&self) -> &str {
+		Blockchain::chain_name(self)
+	}
+
+	async fn chain_properties(&self) -> Option<serde_json::Value> {
+		Blockchain::chain_properties(self).await
+	}
+
+	async fn head_number(&self) -> u32 {
+		Blockchain::head_number(self).await
+	}
+
+	async fn storage_at(
+		&self,
+		block_number: u32,
+		key: &[u8],
+	) -> Result<Option<Vec<u8>>, crate::BlockchainError> {
+		Blockchain::storage_at(self, block_number, key).await
+	}
+}
+
 /// Legacy system RPC methods.
 #[rpc(server, namespace = "system")]
 pub trait SystemApi {
@@ -68,19 +103,19 @@ pub trait SystemApi {
 }
 
 /// Implementation of legacy system RPC methods.
-pub struct SystemApi {
-	blockchain: Arc<Blockchain>,
+pub struct SystemApi<T: SystemBlockchain = Blockchain> {
+	blockchain: Arc<T>,
 }
 
-impl SystemApi {
+impl<T: SystemBlockchain> SystemApi<T> {
 	/// Create a new SystemApi instance.
-	pub fn new(blockchain: Arc<Blockchain>) -> Self {
+	pub fn new(blockchain: Arc<T>) -> Self {
 		Self { blockchain }
 	}
 }
 
 #[async_trait::async_trait]
-impl SystemApiServer for SystemApi {
+impl<T: SystemBlockchain + 'static> SystemApiServer for SystemApi<T> {
 	async fn chain(&self) -> RpcResult<String> {
 		Ok(self.blockchain.chain_name().to_string())
 	}
@@ -156,5 +191,116 @@ impl SystemApiServer for SystemApi {
 			},
 			_ => Ok(0), // Account doesn't exist, nonce is 0
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use serde_json::json;
+
+	const ALICE_SS58: &str = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
+
+	struct MockSystemBlockchain {
+		chain_name: &'static str,
+		head_number: u32,
+		account_nonce: Option<u32>,
+		properties: Option<serde_json::Value>,
+	}
+
+	#[async_trait::async_trait]
+	impl SystemBlockchain for MockSystemBlockchain {
+		fn chain_name(&self) -> &str {
+			self.chain_name
+		}
+
+		async fn chain_properties(&self) -> Option<serde_json::Value> {
+			self.properties.clone()
+		}
+
+		async fn head_number(&self) -> u32 {
+			self.head_number
+		}
+
+		async fn storage_at(
+			&self,
+			_block_number: u32,
+			_key: &[u8],
+		) -> Result<Option<Vec<u8>>, crate::BlockchainError> {
+			Ok(self.account_nonce.map(|nonce| {
+				let mut data = vec![0u8; 16];
+				data[..4].copy_from_slice(&nonce.to_le_bytes());
+				data
+			}))
+		}
+	}
+
+	fn mock_api(
+		chain_name: &'static str,
+		head_number: u32,
+		account_nonce: Option<u32>,
+		properties: Option<serde_json::Value>,
+	) -> SystemApi<MockSystemBlockchain> {
+		SystemApi::new(Arc::new(MockSystemBlockchain {
+			chain_name,
+			head_number,
+			account_nonce,
+			properties,
+		}))
+	}
+
+	#[tokio::test]
+	async fn chain_works() {
+		let api = mock_api("ink-node", 10, Some(0), None);
+		assert_eq!(SystemApiServer::chain(&api).await.unwrap(), "ink-node");
+	}
+
+	#[tokio::test]
+	async fn name_works() {
+		let api = mock_api("ink-node", 10, Some(0), None);
+		assert_eq!(SystemApiServer::name(&api).await.unwrap(), "pop-fork");
+	}
+
+	#[tokio::test]
+	async fn version_works() {
+		let api = mock_api("ink-node", 10, Some(0), None);
+		assert_eq!(SystemApiServer::version(&api).await.unwrap(), "1.0.0");
+	}
+
+	#[tokio::test]
+	async fn health_works() {
+		let api = mock_api("ink-node", 10, Some(0), None);
+		assert_eq!(SystemApiServer::health(&api).await.unwrap(), SystemHealth::default());
+	}
+
+	#[tokio::test]
+	async fn properties_returns_json_or_null() {
+		let api = mock_api("ink-node", 10, Some(0), Some(json!({"ss58Format": 42})));
+		let properties = SystemApiServer::properties(&api).await.unwrap();
+		assert_eq!(properties, Some(json!({"ss58Format": 42})));
+	}
+
+	#[tokio::test]
+	async fn account_next_index_returns_nonce() {
+		let api = mock_api("ink-node", 10, Some(7), None);
+		let nonce =
+			SystemApiServer::account_next_index(&api, ALICE_SS58.to_string()).await.unwrap();
+		assert_eq!(nonce, 7);
+	}
+
+	#[tokio::test]
+	async fn account_next_index_returns_zero_for_nonexistent() {
+		let api = mock_api("ink-node", 10, None, None);
+		let nonce =
+			SystemApiServer::account_next_index(&api, ALICE_SS58.to_string()).await.unwrap();
+		assert_eq!(nonce, 0);
+	}
+
+	#[tokio::test]
+	async fn account_next_index_invalid_address_returns_error() {
+		let api = mock_api("ink-node", 10, Some(0), None);
+		let result =
+			SystemApiServer::account_next_index(&api, "not_a_valid_address".to_string()).await;
+		assert!(result.is_err());
 	}
 }
