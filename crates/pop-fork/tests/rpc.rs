@@ -43,16 +43,14 @@ const SYSTEM_NUMBER_KEY: &str = "26aa394eea5630e07c48ae0c9558cef702a5c1b19ab7a04
 const SYSTEM_PARENT_HASH_KEY: &str =
 	"26aa394eea5630e07c48ae0c9558cef734abf5cb34d6244378cddbf18e849d96";
 
-#[tokio::test]
-async fn connect_to_node() {
+pub async fn connect_to_node() {
 	let node = TestNode::spawn().await.expect("Failed to spawn test node");
 	let endpoint: Url = node.ws_url().parse().unwrap();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
 	assert_eq!(client.endpoint(), &endpoint);
 }
 
-#[tokio::test]
-async fn fetch_finalized_head() {
+pub async fn fetch_finalized_head() {
 	let node = TestNode::spawn().await.expect("Failed to spawn test node");
 	let endpoint: Url = node.ws_url().parse().unwrap();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
@@ -61,8 +59,7 @@ async fn fetch_finalized_head() {
 	assert_eq!(hash.as_bytes().len(), 32);
 }
 
-#[tokio::test]
-async fn fetch_header() {
+pub async fn fetch_header() {
 	let node = TestNode::spawn().await.expect("Failed to spawn test node");
 	let endpoint: Url = node.ws_url().parse().unwrap();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
@@ -72,8 +69,7 @@ async fn fetch_header() {
 	assert_eq!(header.state_root.as_bytes().len(), 32);
 }
 
-#[tokio::test]
-async fn fetch_storage() {
+pub async fn fetch_storage() {
 	let node = TestNode::spawn().await.expect("Failed to spawn test node");
 	let endpoint: Url = node.ws_url().parse().unwrap();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
@@ -86,8 +82,7 @@ async fn fetch_storage() {
 	assert!(value.is_some());
 }
 
-#[tokio::test]
-async fn fetch_metadata() {
+pub async fn fetch_metadata() {
 	let node = TestNode::spawn().await.expect("Failed to spawn test node");
 	let endpoint: Url = node.ws_url().parse().unwrap();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
@@ -98,8 +93,7 @@ async fn fetch_metadata() {
 	assert!(metadata.pallets().len() > 0);
 }
 
-#[tokio::test]
-async fn fetch_runtime_code() {
+pub async fn fetch_runtime_code() {
 	let node = TestNode::spawn().await.expect("Failed to spawn test node");
 	let endpoint: Url = node.ws_url().parse().unwrap();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
@@ -111,8 +105,7 @@ async fn fetch_runtime_code() {
 	assert!(code.len() > 10_000, "Runtime code should be substantial, got {} bytes", code.len());
 }
 
-#[tokio::test]
-async fn fetch_storage_keys_paged() {
+pub async fn fetch_storage_keys_paged() {
 	let node = TestNode::spawn().await.expect("Failed to spawn test node");
 	let endpoint: Url = node.ws_url().parse().unwrap();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
@@ -129,8 +122,7 @@ async fn fetch_storage_keys_paged() {
 	}
 }
 
-#[tokio::test]
-async fn fetch_storage_batch() {
+pub async fn fetch_storage_batch() {
 	let node = TestNode::spawn().await.expect("Failed to spawn test node");
 	let endpoint: Url = node.ws_url().parse().unwrap();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
@@ -147,8 +139,7 @@ async fn fetch_storage_batch() {
 	assert!(values[1].is_some());
 }
 
-#[tokio::test]
-async fn fetch_system_chain() {
+pub async fn fetch_system_chain() {
 	let node = TestNode::spawn().await.expect("Failed to spawn test node");
 	let endpoint: Url = node.ws_url().parse().unwrap();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
@@ -159,8 +150,7 @@ async fn fetch_system_chain() {
 	assert!(!chain_name.is_empty());
 }
 
-#[tokio::test]
-async fn fetch_system_properties() {
+pub async fn fetch_system_properties() {
 	let node = TestNode::spawn().await.expect("Failed to spawn test node");
 	let endpoint: Url = node.ws_url().parse().unwrap();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
@@ -173,8 +163,7 @@ async fn fetch_system_properties() {
 // Error path tests
 // =============================================================================
 
-#[tokio::test]
-async fn connect_to_invalid_endpoint_fails() {
+pub async fn connect_to_invalid_endpoint_fails() {
 	// Use a port that's unlikely to have anything listening
 	let endpoint: Url = "ws://127.0.0.1:19999".parse().unwrap();
 	let result = ForkRpcClient::connect(&endpoint).await;
@@ -187,8 +176,7 @@ async fn connect_to_invalid_endpoint_fails() {
 	);
 }
 
-#[tokio::test]
-async fn fetch_header_non_existent_block_fails() {
+pub async fn fetch_header_non_existent_block_fails() {
 	let node = TestNode::spawn().await.expect("Failed to spawn test node");
 	let endpoint: Url = node.ws_url().parse().unwrap();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
@@ -205,8 +193,7 @@ async fn fetch_header_non_existent_block_fails() {
 	);
 }
 
-#[tokio::test]
-async fn fetch_storage_non_existent_key_returns_none() {
+pub async fn fetch_storage_non_existent_key_returns_none() {
 	let node = TestNode::spawn().await.expect("Failed to spawn test node");
 	let endpoint: Url = node.ws_url().parse().unwrap();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
@@ -220,8 +207,7 @@ async fn fetch_storage_non_existent_key_returns_none() {
 	assert!(result.is_none());
 }
 
-#[tokio::test]
-async fn fetch_storage_batch_with_mixed_keys() {
+pub async fn fetch_storage_batch_with_mixed_keys() {
 	let node = TestNode::spawn().await.expect("Failed to spawn test node");
 	let endpoint: Url = node.ws_url().parse().unwrap();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();
@@ -240,8 +226,7 @@ async fn fetch_storage_batch_with_mixed_keys() {
 	assert!(values[1].is_none(), "Fabricated key should not exist");
 }
 
-#[tokio::test]
-async fn fetch_storage_batch_empty_keys() {
+pub async fn fetch_storage_batch_empty_keys() {
 	let node = TestNode::spawn().await.expect("Failed to spawn test node");
 	let endpoint: Url = node.ws_url().parse().unwrap();
 	let client = ForkRpcClient::connect(&endpoint).await.unwrap();

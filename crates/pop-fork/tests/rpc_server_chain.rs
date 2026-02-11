@@ -10,8 +10,7 @@ use pop_fork::{
 	testing::TestContext,
 };
 
-#[tokio::test(flavor = "multi_thread")]
-async fn chain_get_block_hash_returns_head_hash() {
+pub async fn chain_get_block_hash_returns_head_hash() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -36,8 +35,7 @@ async fn chain_get_block_hash_returns_head_hash() {
 	assert_eq!(hash, format!("0x{}", hex::encode(expected_hash.as_bytes())));
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn chain_get_block_hash_returns_none_hash() {
+pub async fn chain_get_block_hash_returns_none_hash() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -56,8 +54,7 @@ async fn chain_get_block_hash_returns_none_hash() {
 	assert_eq!(hash.unwrap(), format!("0x{}", hex::encode(expected_hash.as_bytes())));
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn chain_get_block_hash_returns_fork_point_hash() {
+pub async fn chain_get_block_hash_returns_fork_point_hash() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -80,8 +77,7 @@ async fn chain_get_block_hash_returns_fork_point_hash() {
 	assert_eq!(hash.unwrap(), format!("0x{}", hex::encode(expected_hash.as_bytes())));
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn chain_get_block_hash_returns_historical_hash() {
+pub async fn chain_get_block_hash_returns_historical_hash() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -110,8 +106,7 @@ async fn chain_get_block_hash_returns_historical_hash() {
 	}
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn chain_get_header_returns_valid_header() {
+pub async fn chain_get_header_returns_valid_header() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -135,8 +130,7 @@ async fn chain_get_header_returns_valid_header() {
 	assert_eq!(header.number, format!("0x{:x}", block.number));
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn chain_get_header_returns_head_when_no_hash() {
+pub async fn chain_get_header_returns_head_when_no_hash() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -154,8 +148,7 @@ async fn chain_get_header_returns_head_when_no_hash() {
 	assert_eq!(header.unwrap().number, format!("0x{:x}", block.number));
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn chain_get_header_for_fork_point() {
+pub async fn chain_get_header_for_fork_point() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -174,8 +167,7 @@ async fn chain_get_header_for_fork_point() {
 	assert_eq!(header.unwrap().number, format!("0x{:x}", ctx.blockchain().fork_point_number()));
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn chain_get_block_returns_full_block() {
+pub async fn chain_get_block_returns_full_block() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -212,8 +204,7 @@ async fn chain_get_block_returns_full_block() {
 	);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn chain_get_block_returns_head_when_no_hash() {
+pub async fn chain_get_block_returns_head_when_no_hash() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -239,8 +230,7 @@ async fn chain_get_block_returns_head_when_no_hash() {
 	);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn chain_get_finalized_head_returns_head_hash() {
+pub async fn chain_get_finalized_head_returns_head_hash() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -258,8 +248,7 @@ async fn chain_get_finalized_head_returns_head_hash() {
 	assert_eq!(hash, format!("0x{}", hex::encode(expected_hash.as_bytes())));
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn chain_get_finalized_head_updates_after_block() {
+pub async fn chain_get_finalized_head_updates_after_block() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())

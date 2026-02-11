@@ -40,6 +40,7 @@ use crate::{
 use pop_common::test_env::TestNode;
 use std::sync::Arc;
 use subxt::{Metadata, config::substrate::H256};
+use tokio::sync::OnceCell;
 use url::Url;
 
 /// Well-known storage keys for testing.
@@ -116,9 +117,6 @@ pub mod helpers {
 ///
 /// Use [`TestContextBuilder`] or the convenience constructors to create.
 pub struct TestContext {
-	/// The spawned test node (kept alive for the test duration).
-	#[allow(dead_code)]
-	pub node: TestNode,
 	/// WebSocket endpoint URL.
 	pub endpoint: Url,
 	/// RPC client (if requested).
@@ -141,6 +139,20 @@ pub struct TestContext {
 	pub txpool: Option<Arc<TxPool>>,
 	/// Runtime executor (if requested).
 	pub executor: Option<RuntimeExecutor>,
+}
+
+static SHARED_TEST_NODE_WS_URL: OnceCell<String> = OnceCell::const_new();
+
+async fn shared_test_node_ws_url() -> String {
+	SHARED_TEST_NODE_WS_URL
+		.get_or_init(|| async {
+			let node = TestNode::spawn().await.expect("Failed to spawn shared test node");
+			let ws_url = node.ws_url().to_string();
+			let _ = Box::leak(Box::new(node));
+			ws_url
+		})
+		.await
+		.clone()
 }
 
 impl TestContext {
@@ -355,9 +367,7 @@ impl TestContextBuilder {
 
 	/// Build the test context.
 	pub async fn build(self) -> TestContext {
-		// Spawn test node
-		let node = TestNode::spawn().await.expect("Failed to spawn test node");
-		let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
+		let endpoint: Url = shared_test_node_ws_url().await.parse().expect("Invalid WebSocket URL");
 
 		// Initialize RPC client if needed
 		let rpc = if self.with_rpc || self.with_block_info || self.with_metadata {
@@ -454,7 +464,6 @@ impl TestContextBuilder {
 		};
 
 		TestContext {
-			node,
 			endpoint,
 			rpc,
 			cache,

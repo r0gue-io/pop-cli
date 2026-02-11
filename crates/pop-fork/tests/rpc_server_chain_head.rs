@@ -7,8 +7,7 @@
 use jsonrpsee::{core::client::SubscriptionClientT, rpc_params, ws_client::WsClientBuilder};
 use pop_fork::testing::TestContext;
 
-#[tokio::test(flavor = "multi_thread")]
-async fn follow_returns_subscription_and_initialized_event() {
+pub async fn follow_returns_subscription_and_initialized_event() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default().build(&ctx.ws_url()).await.unwrap();
 
@@ -42,8 +41,7 @@ async fn follow_returns_subscription_and_initialized_event() {
 	assert_eq!(best_event.get("bestBlockHash").and_then(|v| v.as_str()), Some(finalized_hash));
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn header_returns_header_for_valid_subscription() {
+pub async fn header_returns_header_for_valid_subscription() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default().build(&ctx.ws_url()).await.unwrap();
 
@@ -67,8 +65,7 @@ async fn header_returns_header_for_valid_subscription() {
 	assert!(block_hash.starts_with("0x"));
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn invalid_subscription_returns_error() {
+pub async fn invalid_subscription_returns_error() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default().build(&ctx.ws_url()).await.unwrap();
 

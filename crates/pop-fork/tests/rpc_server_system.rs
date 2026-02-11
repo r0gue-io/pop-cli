@@ -7,8 +7,7 @@
 use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
 use pop_fork::{rpc_server::types::SystemHealth, testing::TestContext};
 
-#[tokio::test(flavor = "multi_thread")]
-async fn chain_works() {
+pub async fn chain_works() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -25,8 +24,7 @@ async fn chain_works() {
 	assert_eq!(name, "ink-node");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn name_works() {
+pub async fn name_works() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -41,8 +39,7 @@ async fn name_works() {
 	assert_eq!(name, "pop-fork");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn version_works() {
+pub async fn version_works() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -55,8 +52,7 @@ async fn version_works() {
 	assert_eq!(version, "1.0.0");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn health_works() {
+pub async fn health_works() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -70,8 +66,7 @@ async fn health_works() {
 	assert_eq!(health, SystemHealth::default());
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn chain_spec_chain_name() {
+pub async fn chain_spec_chain_name() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -88,8 +83,7 @@ async fn chain_spec_chain_name() {
 	assert_eq!(name, "ink-node");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn properties_returns_json_or_null() {
+pub async fn properties_returns_json_or_null() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -111,8 +105,7 @@ async fn properties_returns_json_or_null() {
 /// Well-known dev account: Alice
 const ALICE_SS58: &str = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
 
-#[tokio::test(flavor = "multi_thread")]
-async fn account_next_index_returns_nonce() {
+pub async fn account_next_index_returns_nonce() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -129,8 +122,7 @@ async fn account_next_index_returns_nonce() {
 	assert!(nonce < u32::MAX, "Nonce should be a valid value");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn account_next_index_returns_zero_for_nonexistent() {
+pub async fn account_next_index_returns_zero_for_nonexistent() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -150,8 +142,7 @@ async fn account_next_index_returns_zero_for_nonexistent() {
 	assert_eq!(nonce, 0, "Nonexistent account should have nonce 0");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn account_next_index_invalid_address_returns_error() {
+pub async fn account_next_index_invalid_address_returns_error() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())

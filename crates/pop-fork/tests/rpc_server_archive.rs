@@ -15,8 +15,7 @@ use pop_fork::{
 const SYSTEM_PALLET: &[u8] = b"System";
 const NUMBER_STORAGE: &[u8] = b"Number";
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_finalized_height_returns_correct_value() {
+pub async fn archive_finalized_height_returns_correct_value() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -44,8 +43,7 @@ async fn archive_finalized_height_returns_correct_value() {
 	assert_eq!(height, expected_block_height + 1);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_genesis_hash_returns_valid_hash() {
+pub async fn archive_genesis_hash_returns_valid_hash() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -72,8 +70,7 @@ async fn archive_genesis_hash_returns_valid_hash() {
 	assert_eq!(hash, expected);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_hash_by_height_returns_hash_at_different_heights() {
+pub async fn archive_hash_by_height_returns_hash_at_different_heights() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -139,8 +136,7 @@ async fn archive_hash_by_height_returns_hash_at_different_heights() {
 	}
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_hash_by_height_returns_none_for_unknown_height() {
+pub async fn archive_hash_by_height_returns_none_for_unknown_height() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -156,8 +152,7 @@ async fn archive_hash_by_height_returns_none_for_unknown_height() {
 	assert!(result.is_none(), "Should return none array for unknown height");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_header_returns_header_for_head_hash() {
+pub async fn archive_header_returns_header_for_head_hash() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -179,8 +174,7 @@ async fn archive_header_returns_header_for_head_hash() {
 	assert!(header_hex.starts_with("0x"), "Header should be hex-encoded");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_header_returns_none_for_unknown_hash() {
+pub async fn archive_header_returns_none_for_unknown_hash() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -198,8 +192,7 @@ async fn archive_header_returns_none_for_unknown_hash() {
 	assert!(header.is_none(), "Should return None for unknown hash");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_header_returns_header_for_fork_point() {
+pub async fn archive_header_returns_header_for_fork_point() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -218,8 +211,7 @@ async fn archive_header_returns_header_for_fork_point() {
 	assert!(header_hex.starts_with("0x"), "Header should be hex-encoded");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_header_returns_header_for_parent_block() {
+pub async fn archive_header_returns_header_for_parent_block() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -242,8 +234,7 @@ async fn archive_header_returns_header_for_parent_block() {
 	assert!(header_hex.starts_with("0x"), "Header should be hex-encoded");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_header_is_idempotent_over_finalized_blocks() {
+pub async fn archive_header_is_idempotent_over_finalized_blocks() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -280,8 +271,7 @@ async fn archive_header_is_idempotent_over_finalized_blocks() {
 	assert_eq!(header_1, header_2, "Header should be idempotent");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_body_returns_extrinsics_for_valid_hashes() {
+pub async fn archive_body_returns_extrinsics_for_valid_hashes() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -312,8 +302,7 @@ async fn archive_body_returns_extrinsics_for_valid_hashes() {
 	assert_ne!(fork_point_body.unwrap(), body.unwrap());
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_body_is_idempotent_over_finalized_blocks() {
+pub async fn archive_body_is_idempotent_over_finalized_blocks() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -350,8 +339,7 @@ async fn archive_body_is_idempotent_over_finalized_blocks() {
 	assert_eq!(body_1, body_2);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_body_returns_none_for_unknown_hash() {
+pub async fn archive_body_returns_none_for_unknown_hash() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -368,8 +356,7 @@ async fn archive_body_returns_none_for_unknown_hash() {
 	assert!(body.is_none(), "Should return None for unknown hash");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_call_executes_runtime_api() {
+pub async fn archive_call_executes_runtime_api() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.request_timeout(std::time::Duration::from_secs(120))
@@ -395,8 +382,7 @@ async fn archive_call_executes_runtime_api() {
 	assert!(value.unwrap().starts_with("0x"), "Value should be hex-encoded");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_call_returns_error_for_invalid_function() {
+pub async fn archive_call_returns_error_for_invalid_function() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.request_timeout(std::time::Duration::from_secs(120))
@@ -420,8 +406,7 @@ async fn archive_call_returns_error_for_invalid_function() {
 	assert!(result.get("error").is_some(), "Should have error field");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_call_returns_null_for_unknown_block() {
+pub async fn archive_call_returns_null_for_unknown_block() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -440,8 +425,7 @@ async fn archive_call_returns_null_for_unknown_block() {
 	assert!(result.is_none(), "Should return null for unknown block hash");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_call_executes_at_specific_block() {
+pub async fn archive_call_executes_at_specific_block() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.request_timeout(std::time::Duration::from_secs(120))
@@ -479,8 +463,7 @@ async fn archive_call_executes_at_specific_block() {
 	assert_eq!(head_result.get("success").and_then(|v| v.as_bool()), Some(true));
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_call_rejects_invalid_hex_hash() {
+pub async fn archive_call_rejects_invalid_hex_hash() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -495,8 +478,7 @@ async fn archive_call_rejects_invalid_hex_hash() {
 	assert!(result.is_err(), "Should reject invalid hex hash");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_storage_returns_value_for_existing_key() {
+pub async fn archive_storage_returns_value_for_existing_key() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -530,8 +512,7 @@ async fn archive_storage_returns_value_for_existing_key() {
 	}
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_storage_returns_none_for_nonexistent_key() {
+pub async fn archive_storage_returns_none_for_nonexistent_key() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -562,8 +543,7 @@ async fn archive_storage_returns_none_for_nonexistent_key() {
 	}
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_header_rejects_invalid_hex() {
+pub async fn archive_header_rejects_invalid_hex() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -577,8 +557,7 @@ async fn archive_header_rejects_invalid_hex() {
 	assert!(result.is_err(), "Should reject invalid hex");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_call_rejects_invalid_hex_parameters() {
+pub async fn archive_call_rejects_invalid_hex_parameters() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -600,8 +579,7 @@ async fn archive_call_rejects_invalid_hex_parameters() {
 ///
 /// `Core_initialize_block` writes to `System::Number` and other storage keys during
 /// block initialization. This test verifies those changes are discarded after the call.
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_call_does_not_persist_storage_changes() {
+pub async fn archive_call_does_not_persist_storage_changes() {
 	use pop_fork::{DigestItem, consensus_engine, create_next_header};
 
 	let ctx = TestContext::for_rpc_server().await;
@@ -665,8 +643,7 @@ async fn archive_call_does_not_persist_storage_changes() {
 	);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_storage_returns_hash_when_requested() {
+pub async fn archive_storage_returns_hash_when_requested() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -704,8 +681,7 @@ async fn archive_storage_returns_hash_when_requested() {
 	}
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_storage_queries_at_specific_block() {
+pub async fn archive_storage_queries_at_specific_block() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -753,8 +729,7 @@ async fn archive_storage_queries_at_specific_block() {
 	}
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_storage_returns_error_for_unknown_block() {
+pub async fn archive_storage_returns_error_for_unknown_block() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -780,8 +755,7 @@ async fn archive_storage_returns_error_for_unknown_block() {
 	}
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_storage_diff_detects_modified_value() {
+pub async fn archive_storage_diff_detects_modified_value() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -825,8 +799,7 @@ async fn archive_storage_diff_detects_modified_value() {
 	}
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_storage_diff_returns_empty_for_unchanged_keys() {
+pub async fn archive_storage_diff_returns_empty_for_unchanged_keys() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -867,8 +840,7 @@ async fn archive_storage_diff_returns_empty_for_unchanged_keys() {
 	}
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_storage_diff_returns_added_for_new_key() {
+pub async fn archive_storage_diff_returns_added_for_new_key() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -912,8 +884,7 @@ async fn archive_storage_diff_returns_added_for_new_key() {
 	}
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_storage_diff_returns_deleted_for_removed_key() {
+pub async fn archive_storage_diff_returns_deleted_for_removed_key() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -957,8 +928,7 @@ async fn archive_storage_diff_returns_deleted_for_removed_key() {
 	}
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_storage_diff_returns_hash_when_requested() {
+pub async fn archive_storage_diff_returns_hash_when_requested() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -1004,8 +974,7 @@ async fn archive_storage_diff_returns_hash_when_requested() {
 	}
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_storage_diff_returns_error_for_unknown_hash() {
+pub async fn archive_storage_diff_returns_error_for_unknown_hash() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -1032,8 +1001,7 @@ async fn archive_storage_diff_returns_error_for_unknown_hash() {
 	}
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_storage_diff_returns_error_for_unknown_previous_hash() {
+pub async fn archive_storage_diff_returns_error_for_unknown_previous_hash() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -1060,8 +1028,7 @@ async fn archive_storage_diff_returns_error_for_unknown_previous_hash() {
 	}
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_storage_diff_uses_parent_when_previous_hash_omitted() {
+pub async fn archive_storage_diff_uses_parent_when_previous_hash_omitted() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -1106,8 +1073,7 @@ async fn archive_storage_diff_uses_parent_when_previous_hash_omitted() {
 	}
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn archive_storage_diff_handles_multiple_items() {
+pub async fn archive_storage_diff_handles_multiple_items() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())

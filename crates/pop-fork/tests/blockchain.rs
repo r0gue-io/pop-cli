@@ -16,8 +16,7 @@ use pop_fork::{
 use subxt::config::substrate::H256;
 use url::Url;
 
-#[tokio::test(flavor = "multi_thread")]
-async fn fork_creates_blockchain_with_correct_fork_point() {
+pub async fn fork_creates_blockchain_with_correct_fork_point() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -32,8 +31,7 @@ async fn fork_creates_blockchain_with_correct_fork_point() {
 	assert_eq!(blockchain.head_hash().await, blockchain.fork_point());
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn fork_at_creates_blockchain_at_specific_block() {
+pub async fn fork_at_creates_blockchain_at_specific_block() {
 	let ctx = TestContext::minimal().await;
 
 	// First fork to get the current block number
@@ -50,8 +48,7 @@ async fn fork_at_creates_blockchain_at_specific_block() {
 	assert_eq!(blockchain2.fork_point_number(), fork_number);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn fork_with_invalid_endpoint_fails() {
+pub async fn fork_with_invalid_endpoint_fails() {
 	let invalid_endpoint: Url = "ws://localhost:19999".parse().unwrap();
 
 	let result = Blockchain::fork(&invalid_endpoint, None).await;
@@ -59,8 +56,7 @@ async fn fork_with_invalid_endpoint_fails() {
 	assert!(result.is_err());
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn fork_at_with_invalid_block_number_fails() {
+pub async fn fork_at_with_invalid_block_number_fails() {
 	let ctx = TestContext::minimal().await;
 
 	let result = Blockchain::fork_at(&ctx.endpoint, None, Some(u32::MAX.into())).await;
@@ -68,8 +64,7 @@ async fn fork_at_with_invalid_block_number_fails() {
 	assert!(result.is_err());
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn fork_detects_relay_chain_type() {
+pub async fn fork_detects_relay_chain_type() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -79,8 +74,7 @@ async fn fork_detects_relay_chain_type() {
 	assert_eq!(*blockchain.chain_type(), ChainType::RelayChain);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn fork_retrieves_chain_name() {
+pub async fn fork_retrieves_chain_name() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -90,8 +84,7 @@ async fn fork_retrieves_chain_name() {
 	assert!(!blockchain.chain_name().is_empty());
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn build_empty_block_advances_chain() {
+pub async fn build_empty_block_advances_chain() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -114,8 +107,7 @@ async fn build_empty_block_advances_chain() {
 	assert_eq!(new_block.parent_hash, initial_hash);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn build_multiple_empty_blocks_creates_chain() {
+pub async fn build_multiple_empty_blocks_creates_chain() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -133,8 +125,7 @@ async fn build_multiple_empty_blocks_creates_chain() {
 	assert_eq!(blockchain.head_number().await, fork_number + 3);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn storage_returns_value_for_existing_key() {
+pub async fn storage_returns_value_for_existing_key() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -153,8 +144,7 @@ async fn storage_returns_value_for_existing_key() {
 	assert!(value.is_some());
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn storage_returns_none_for_nonexistent_key() {
+pub async fn storage_returns_none_for_nonexistent_key() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -167,8 +157,7 @@ async fn storage_returns_none_for_nonexistent_key() {
 	assert!(value.is_none());
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn storage_at_queries_specific_block() {
+pub async fn storage_at_queries_specific_block() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -195,8 +184,7 @@ async fn storage_at_queries_specific_block() {
 	assert!(value.is_some());
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn call_executes_runtime_api() {
+pub async fn call_executes_runtime_api() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -209,8 +197,7 @@ async fn call_executes_runtime_api() {
 	assert!(!result.is_empty());
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn head_returns_current_block() {
+pub async fn head_returns_current_block() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -222,8 +209,7 @@ async fn head_returns_current_block() {
 	assert_eq!(head.hash, blockchain.head_hash().await);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn head_updates_after_building_block() {
+pub async fn head_updates_after_building_block() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -251,8 +237,7 @@ async fn head_updates_after_building_block() {
 /// 3. Build a signed extrinsic (balance transfer from Alice to Bob)
 /// 4. Build a block containing the transaction
 /// 5. Verify the new block state reflects the transfer
-#[tokio::test(flavor = "multi_thread")]
-async fn build_block_with_signed_transfer_updates_balances() {
+pub async fn build_block_with_signed_transfer_updates_balances() {
 	use pop_fork::{ExecutorConfig, SignatureMockMode};
 	use scale::{Compact, Encode};
 
@@ -350,8 +335,7 @@ async fn build_block_with_signed_transfer_updates_balances() {
 	);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn block_body_returns_extrinsics_for_head() {
+pub async fn block_body_returns_extrinsics_for_head() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -369,8 +353,7 @@ async fn block_body_returns_extrinsics_for_head() {
 	assert!(!extrinsics.is_empty(), "Built block should have inherent extrinsics");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn block_body_returns_extrinsics_for_parent_block() {
+pub async fn block_body_returns_extrinsics_for_parent_block() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -388,8 +371,7 @@ async fn block_body_returns_extrinsics_for_parent_block() {
 	assert!(!extrinsics.is_empty(), "Parent block should have inherent extrinsics");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn block_body_returns_extrinsics_for_fork_point_from_remote() {
+pub async fn block_body_returns_extrinsics_for_fork_point_from_remote() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -405,8 +387,7 @@ async fn block_body_returns_extrinsics_for_fork_point_from_remote() {
 	assert!(!body.unwrap().is_empty(), "Should contain body");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn block_body_returns_none_for_unknown_hash() {
+pub async fn block_body_returns_none_for_unknown_hash() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -420,8 +401,7 @@ async fn block_body_returns_none_for_unknown_hash() {
 	assert!(body.is_none(), "Should return None for unknown hash");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn block_header_returns_header_for_head() {
+pub async fn block_header_returns_header_for_head() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -439,8 +419,7 @@ async fn block_header_returns_header_for_head() {
 	assert!(!header_bytes.is_empty(), "Built block should have a header");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn block_header_returns_header_for_different_blocks() {
+pub async fn block_header_returns_header_for_different_blocks() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -464,8 +443,7 @@ async fn block_header_returns_header_for_different_blocks() {
 	assert_ne!(header_1, header_2);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn block_header_returns_header_for_fork_point() {
+pub async fn block_header_returns_header_for_fork_point() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -484,8 +462,7 @@ async fn block_header_returns_header_for_fork_point() {
 	assert!(!header.unwrap().is_empty(), "Should contain header");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn block_header_returns_none_for_unknown_hash() {
+pub async fn block_header_returns_none_for_unknown_hash() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -502,8 +479,7 @@ async fn block_header_returns_none_for_unknown_hash() {
 	assert!(header.is_none(), "Should return None for unknown hash");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn block_header_returns_header_for_historical_block() {
+pub async fn block_header_returns_header_for_historical_block() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -531,8 +507,7 @@ async fn block_header_returns_header_for_historical_block() {
 	}
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn block_hash_at_returns_hash_for_head() {
+pub async fn block_hash_at_returns_hash_for_head() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -548,8 +523,7 @@ async fn block_hash_at_returns_hash_for_head() {
 	assert_eq!(hash.unwrap(), block.hash, "Hash should match head block hash");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn block_hash_at_returns_hash_for_parent_block() {
+pub async fn block_hash_at_returns_hash_for_parent_block() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -566,8 +540,7 @@ async fn block_hash_at_returns_hash_for_parent_block() {
 	assert_eq!(hash.unwrap(), block1.hash, "Hash should match first block hash");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn block_hash_at_returns_hash_for_fork_point() {
+pub async fn block_hash_at_returns_hash_for_fork_point() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -586,8 +559,7 @@ async fn block_hash_at_returns_hash_for_fork_point() {
 	assert_eq!(hash.unwrap(), fork_point_hash, "Hash should match fork point hash");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn block_hash_at_returns_hash_for_block_before_fork_point() {
+pub async fn block_hash_at_returns_hash_for_block_before_fork_point() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -606,8 +578,7 @@ async fn block_hash_at_returns_hash_for_block_before_fork_point() {
 	}
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn block_hash_at_returns_none_for_future_block() {
+pub async fn block_hash_at_returns_none_for_future_block() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -624,8 +595,7 @@ async fn block_hash_at_returns_none_for_future_block() {
 	assert!(hash.is_none(), "Should return None for future block number");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn block_number_by_hash_returns_number_for_head() {
+pub async fn block_number_by_hash_returns_number_for_head() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -643,8 +613,7 @@ async fn block_number_by_hash_returns_number_for_head() {
 	assert_eq!(number, Some(block.number));
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn block_number_by_hash_returns_number_for_parent() {
+pub async fn block_number_by_hash_returns_number_for_parent() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -663,8 +632,7 @@ async fn block_number_by_hash_returns_number_for_parent() {
 	assert_eq!(number, Some(block1.number));
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn block_number_by_hash_returns_number_for_fork_point() {
+pub async fn block_number_by_hash_returns_number_for_fork_point() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -681,8 +649,7 @@ async fn block_number_by_hash_returns_number_for_fork_point() {
 	assert_eq!(number, Some(fork_number));
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn block_number_by_hash_returns_none_for_unknown() {
+pub async fn block_number_by_hash_returns_none_for_unknown() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -697,8 +664,7 @@ async fn block_number_by_hash_returns_none_for_unknown() {
 	assert!(number.is_none());
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn block_number_by_hash_returns_number_for_historical_block() {
+pub async fn block_number_by_hash_returns_number_for_historical_block() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -722,8 +688,7 @@ async fn block_number_by_hash_returns_number_for_historical_block() {
 	}
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn call_at_block_executes_at_head() {
+pub async fn call_at_block_executes_at_head() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -745,8 +710,7 @@ async fn call_at_block_executes_at_head() {
 	assert!(!result.unwrap().is_empty(), "Result should not be empty");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn call_at_block_executes_at_fork_point() {
+pub async fn call_at_block_executes_at_fork_point() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -768,8 +732,7 @@ async fn call_at_block_executes_at_fork_point() {
 	assert!(!result.unwrap().is_empty(), "Result should not be empty");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn call_at_block_executes_at_parent_block() {
+pub async fn call_at_block_executes_at_parent_block() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -789,8 +752,7 @@ async fn call_at_block_executes_at_parent_block() {
 	assert!(!result.unwrap().is_empty(), "Result should not be empty");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn call_at_block_returns_none_for_unknown_hash() {
+pub async fn call_at_block_returns_none_for_unknown_hash() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -807,8 +769,7 @@ async fn call_at_block_returns_none_for_unknown_hash() {
 	assert!(result.is_none(), "Should return None for unknown hash");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn call_at_block_executes_at_historical_block() {
+pub async fn call_at_block_executes_at_historical_block() {
 	let ctx = TestContext::minimal().await;
 
 	let blockchain =
@@ -841,8 +802,7 @@ async fn call_at_block_executes_at_historical_block() {
 ///
 /// `Core_initialize_block` writes to `System::Number` and other storage keys during
 /// block initialization. This test verifies those changes are discarded after the call.
-#[tokio::test(flavor = "multi_thread")]
-async fn call_at_block_does_not_persist_storage() {
+pub async fn call_at_block_does_not_persist_storage() {
 	use pop_fork::{DigestItem, consensus_engine, create_next_header};
 
 	let ctx = TestContext::minimal().await;
@@ -899,8 +859,7 @@ async fn call_at_block_does_not_persist_storage() {
 	);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn validate_extrinsic_accepts_valid_transfer() {
+pub async fn validate_extrinsic_accepts_valid_transfer() {
 	use pop_fork::{ExecutorConfig, SignatureMockMode};
 	use scale::{Compact, Encode};
 
@@ -934,8 +893,7 @@ async fn validate_extrinsic_accepts_valid_transfer() {
 	assert!(result.is_ok(), "Valid extrinsic should pass validation: {:?}", result);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn validate_extrinsic_rejects_garbage() {
+pub async fn validate_extrinsic_rejects_garbage() {
 	let ctx = TestContext::minimal().await;
 	let blockchain =
 		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
@@ -947,8 +905,7 @@ async fn validate_extrinsic_rejects_garbage() {
 	assert!(result.is_err(), "Garbage should fail validation");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn build_block_result_tracks_included_extrinsics() {
+pub async fn build_block_result_tracks_included_extrinsics() {
 	use pop_fork::{ExecutorConfig, SignatureMockMode};
 	use scale::{Compact, Encode};
 
@@ -987,8 +944,7 @@ async fn build_block_result_tracks_included_extrinsics() {
 	assert_eq!(result.included[0], extrinsic);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn build_block_result_tracks_failed_extrinsics() {
+pub async fn build_block_result_tracks_failed_extrinsics() {
 	use pop_fork::{ExecutorConfig, SignatureMockMode};
 	use scale::{Compact, Encode};
 

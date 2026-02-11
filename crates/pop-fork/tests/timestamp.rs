@@ -79,8 +79,7 @@ async fn create_context_with_fallbacks(endpoints: &[&str]) -> Option<RemoteTestC
 	None
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn get_slot_duration_falls_back_when_aura_api_unavailable() {
+pub async fn get_slot_duration_falls_back_when_aura_api_unavailable() {
 	let ctx = create_local_context().await;
 
 	let slot_duration = TimestampInherent::get_slot_duration_from_runtime(
@@ -97,8 +96,7 @@ async fn get_slot_duration_falls_back_when_aura_api_unavailable() {
 	);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn get_slot_duration_from_live_aura_chain() {
+pub async fn get_slot_duration_from_live_aura_chain() {
 	let ctx = match create_context_with_fallbacks(ASSET_HUB_PASEO_ENDPOINTS).await {
 		Some(ctx) => ctx,
 		None => return,
@@ -118,8 +116,7 @@ async fn get_slot_duration_from_live_aura_chain() {
 	);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn get_slot_duration_from_live_babe_chain() {
+pub async fn get_slot_duration_from_live_babe_chain() {
 	let ctx = match create_context_with_fallbacks(PASEO_RELAY_ENDPOINTS).await {
 		Some(ctx) => ctx,
 		None => return,

@@ -54,8 +54,7 @@ async fn create_executor_context_with_config(config: ExecutorConfig) -> Executor
 	ExecutorTestContext { base, executor, storage, block_hash, block_number }
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn core_version_executes_successfully() {
+pub async fn core_version_executes_successfully() {
 	let ctx = create_executor_context().await;
 
 	let result = ctx
@@ -72,8 +71,7 @@ async fn core_version_executes_successfully() {
 	assert!(version.spec_version > 0, "spec_version should be positive");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn metadata_executes_successfully() {
+pub async fn metadata_executes_successfully() {
 	let ctx = create_executor_context().await;
 
 	let result = ctx
@@ -90,8 +88,7 @@ async fn metadata_executes_successfully() {
 	assert!(result.storage_diff.is_empty(), "Metadata_metadata should not modify storage");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn with_config_applies_custom_settings() {
+pub async fn with_config_applies_custom_settings() {
 	let config = ExecutorConfig {
 		signature_mock: SignatureMockMode::AlwaysValid,
 		allow_unresolved_imports: false,
@@ -109,8 +106,7 @@ async fn with_config_applies_custom_settings() {
 	assert!(!result.output.is_empty(), "Should return output with custom config");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn logs_are_captured_during_execution() {
+pub async fn logs_are_captured_during_execution() {
 	let config = ExecutorConfig { max_log_level: 5, ..Default::default() };
 	let ctx = create_executor_context_with_config(config).await;
 
@@ -123,8 +119,7 @@ async fn logs_are_captured_during_execution() {
 	assert!(result.output.len() > 1000, "Metadata should still be returned");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn core_initialize_block_modifies_storage() {
+pub async fn core_initialize_block_modifies_storage() {
 	let ctx = create_executor_context().await;
 	let next_block_number = ctx.block_number + 1;
 
@@ -176,8 +171,7 @@ async fn core_initialize_block_modifies_storage() {
 	);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn storage_reads_from_accumulated_changes() {
+pub async fn storage_reads_from_accumulated_changes() {
 	let ctx = create_executor_context().await;
 
 	#[derive(Encode)]
@@ -213,8 +207,7 @@ async fn storage_reads_from_accumulated_changes() {
 	assert!(!result.storage_diff.is_empty(), "Should have storage changes");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn storage_changes_persist_across_calls() {
+pub async fn storage_changes_persist_across_calls() {
 	let ctx = create_executor_context().await;
 
 	#[derive(Encode)]
@@ -266,8 +259,7 @@ async fn storage_changes_persist_across_calls() {
 	assert!(stored_value.is_some(), "System::Number should be set after Core_initialize_block");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn runtime_version_extracts_version_info() {
+pub async fn runtime_version_extracts_version_info() {
 	let ctx = create_executor_context().await;
 
 	let version = ctx.executor.runtime_version().expect("runtime_version should succeed");

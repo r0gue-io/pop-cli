@@ -7,8 +7,7 @@
 use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
 use pop_fork::testing::TestContext;
 
-#[tokio::test(flavor = "multi_thread")]
-async fn chain_spec_chain_name_returns_string() {
+pub async fn chain_spec_chain_name_returns_string() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -27,8 +26,7 @@ async fn chain_spec_chain_name_returns_string() {
 	assert_eq!(name, "ink-node");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn chain_spec_genesis_hash_returns_valid_hex_hash() {
+pub async fn chain_spec_genesis_hash_returns_valid_hex_hash() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -45,8 +43,7 @@ async fn chain_spec_genesis_hash_returns_valid_hex_hash() {
 	assert_eq!(hash.len(), 66, "Hash should be 0x + 64 hex chars");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn chain_spec_genesis_hash_matches_archive() {
+pub async fn chain_spec_genesis_hash_matches_archive() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -69,8 +66,7 @@ async fn chain_spec_genesis_hash_matches_archive() {
 	assert_eq!(chain_spec_hash, archive_hash, "chainSpec and archive genesis hashes should match");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn chain_spec_properties_returns_json_or_null() {
+pub async fn chain_spec_properties_returns_json_or_null() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())

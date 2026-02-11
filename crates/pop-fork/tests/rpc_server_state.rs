@@ -10,8 +10,7 @@ use pop_fork::{
 	testing::{TestContext, accounts::ALICE, helpers::account_storage_key},
 };
 
-#[tokio::test(flavor = "multi_thread")]
-async fn state_get_storage_returns_value() {
+pub async fn state_get_storage_returns_value() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -33,8 +32,7 @@ async fn state_get_storage_returns_value() {
 	assert!(value.len() > 2, "Value should not be empty");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn state_get_storage_at_block_hash() {
+pub async fn state_get_storage_at_block_hash() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -59,8 +57,7 @@ async fn state_get_storage_at_block_hash() {
 	assert!(result.is_some(), "Alice's account should exist at block");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn state_get_storage_returns_none_for_nonexistent_key() {
+pub async fn state_get_storage_returns_none_for_nonexistent_key() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -78,8 +75,7 @@ async fn state_get_storage_returns_none_for_nonexistent_key() {
 	assert!(result.is_none(), "Nonexistent key should return None");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn state_get_metadata_returns_metadata() {
+pub async fn state_get_metadata_returns_metadata() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.request_timeout(std::time::Duration::from_secs(120))
@@ -103,8 +99,7 @@ async fn state_get_metadata_returns_metadata() {
 	);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn state_get_metadata_at_block_hash() {
+pub async fn state_get_metadata_at_block_hash() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.request_timeout(std::time::Duration::from_secs(120))
@@ -125,8 +120,7 @@ async fn state_get_metadata_at_block_hash() {
 	assert!(result.len() > 1000, "Metadata should be substantial in size");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn state_get_runtime_version_returns_version() {
+pub async fn state_get_runtime_version_returns_version() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -144,8 +138,7 @@ async fn state_get_runtime_version_returns_version() {
 	assert!(result.spec_version > 0, "Spec version should be positive");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn state_get_runtime_version_at_block_hash() {
+pub async fn state_get_runtime_version_at_block_hash() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -165,8 +158,7 @@ async fn state_get_runtime_version_at_block_hash() {
 	assert!(result.spec_version > 0, "Spec version should be positive");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn state_get_storage_invalid_hex_returns_error() {
+pub async fn state_get_storage_invalid_hex_returns_error() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -179,8 +171,7 @@ async fn state_get_storage_invalid_hex_returns_error() {
 	assert!(result.is_err(), "Should fail with invalid hex key");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn state_get_storage_invalid_block_hash_returns_error() {
+pub async fn state_get_storage_invalid_block_hash_returns_error() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())

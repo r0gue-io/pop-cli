@@ -45,8 +45,7 @@ async fn build_transfer_call_data(blockchain: &Blockchain) -> Vec<u8> {
 	call_data
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn author_submit_extrinsic_builds_block_immediately() {
+pub async fn author_submit_extrinsic_builds_block_immediately() {
 	let config =
 		ExecutorConfig { signature_mock: SignatureMockMode::AlwaysValid, ..Default::default() };
 	let ctx = TestContext::for_rpc_server_with_config(config).await;
@@ -103,8 +102,7 @@ async fn author_submit_extrinsic_builds_block_immediately() {
 	assert_ne!(alice_balance_after, alice_balance_before);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn author_pending_extrinsics_empty_after_submit() {
+pub async fn author_pending_extrinsics_empty_after_submit() {
 	let config =
 		ExecutorConfig { signature_mock: SignatureMockMode::AlwaysValid, ..Default::default() };
 	let ctx = TestContext::for_rpc_server_with_config(config).await;
@@ -135,8 +133,7 @@ async fn author_pending_extrinsics_empty_after_submit() {
 	assert!(pending.is_empty(), "Pending extrinsics should be empty after submit in instant mode");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn author_submit_extrinsic_returns_correct_hash() {
+pub async fn author_submit_extrinsic_returns_correct_hash() {
 	let config =
 		ExecutorConfig { signature_mock: SignatureMockMode::AlwaysValid, ..Default::default() };
 	let ctx = TestContext::for_rpc_server_with_config(config).await;
@@ -163,8 +160,7 @@ async fn author_submit_extrinsic_returns_correct_hash() {
 	assert_eq!(hash, format!("0x{}", hex::encode(expected_hash.as_bytes())));
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn author_submit_extrinsic_invalid_hex() {
+pub async fn author_submit_extrinsic_invalid_hex() {
 	let ctx = TestContext::for_rpc_server().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -178,8 +174,7 @@ async fn author_submit_extrinsic_invalid_hex() {
 	assert!(result.is_err(), "Should fail with invalid hex");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn author_submit_and_watch_sends_lifecycle_events() {
+pub async fn author_submit_and_watch_sends_lifecycle_events() {
 	let config =
 		ExecutorConfig { signature_mock: SignatureMockMode::AlwaysValid, ..Default::default() };
 	let ctx = TestContext::for_rpc_server_with_config(config).await;
@@ -255,8 +250,7 @@ async fn author_submit_and_watch_sends_lifecycle_events() {
 	assert_eq!(new_block_number, initial_block_number + 1, "Block should have been built");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn author_submit_extrinsic_rejects_garbage_with_error_code() {
+pub async fn author_submit_extrinsic_rejects_garbage_with_error_code() {
 	let ctx = TestContextBuilder::new().with_server().build().await;
 	let client = WsClientBuilder::default()
 		.request_timeout(RPC_REQUEST_TIMEOUT)
@@ -277,16 +271,15 @@ async fn author_submit_extrinsic_rejects_garbage_with_error_code() {
 	let err_str = err.to_string();
 	// Error should indicate invalid transaction
 	assert!(
-		err_str.contains("1010") ||
-			err_str.contains("1011") ||
-			err_str.contains("invalid") ||
-			err_str.contains("Invalid"),
+		err_str.contains("1010")
+			|| err_str.contains("1011")
+			|| err_str.contains("invalid")
+			|| err_str.contains("Invalid"),
 		"Error should indicate transaction invalidity: {err_str}"
 	);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn author_submit_extrinsic_does_not_build_block_on_validation_failure() {
+pub async fn author_submit_extrinsic_does_not_build_block_on_validation_failure() {
 	let ctx = TestContextBuilder::new().with_server().build().await;
 	let client = WsClientBuilder::default()
 		.build(&ctx.ws_url())
@@ -309,8 +302,7 @@ async fn author_submit_extrinsic_does_not_build_block_on_validation_failure() {
 	);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn author_submit_and_watch_sends_invalid_on_validation_failure() {
+pub async fn author_submit_and_watch_sends_invalid_on_validation_failure() {
 	let ctx = TestContextBuilder::new().with_server().build().await;
 	let client = WsClientBuilder::default()
 		.request_timeout(RPC_REQUEST_TIMEOUT)

@@ -49,8 +49,7 @@ async fn create_test_context_with_config(
 	BlockBuilderTestContext { base, block, executor }
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn new_creates_builder_with_empty_extrinsics() {
+pub async fn new_creates_builder_with_empty_extrinsics() {
 	let ctx = create_test_context().await;
 	let header = create_next_header(&ctx.block, vec![]);
 
@@ -58,8 +57,7 @@ async fn new_creates_builder_with_empty_extrinsics() {
 	assert!(builder.extrinsics().is_empty());
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn initialize_succeeds_and_modifies_storage() {
+pub async fn initialize_succeeds_and_modifies_storage() {
 	let ctx = create_test_context().await;
 	let header = create_next_header(&ctx.block, vec![]);
 
@@ -70,8 +68,7 @@ async fn initialize_succeeds_and_modifies_storage() {
 	assert!(!result.storage_diff.is_empty());
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn initialize_twice_fails() {
+pub async fn initialize_twice_fails() {
 	let ctx = create_test_context().await;
 	let header = create_next_header(&ctx.block, vec![]);
 
@@ -82,8 +79,7 @@ async fn initialize_twice_fails() {
 	assert!(matches!(result, Err(BlockBuilderError::AlreadyInitialized)));
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn apply_inherents_without_providers_returns_empty() {
+pub async fn apply_inherents_without_providers_returns_empty() {
 	let ctx = create_test_context().await;
 	let header = create_next_header(&ctx.block, vec![]);
 
@@ -94,8 +90,7 @@ async fn apply_inherents_without_providers_returns_empty() {
 	assert!(results.is_empty());
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn apply_inherents_before_initialize_fails() {
+pub async fn apply_inherents_before_initialize_fails() {
 	let ctx = create_test_context().await;
 	let header = create_next_header(&ctx.block, vec![]);
 
@@ -104,8 +99,7 @@ async fn apply_inherents_before_initialize_fails() {
 	assert!(matches!(result, Err(BlockBuilderError::NotInitialized)));
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn apply_extrinsic_before_initialize_fails() {
+pub async fn apply_extrinsic_before_initialize_fails() {
 	let ctx = create_test_context().await;
 	let header = create_next_header(&ctx.block, vec![]);
 
@@ -114,8 +108,7 @@ async fn apply_extrinsic_before_initialize_fails() {
 	assert!(matches!(result, Err(BlockBuilderError::NotInitialized)));
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn finalize_before_initialize_fails() {
+pub async fn finalize_before_initialize_fails() {
 	let ctx = create_test_context().await;
 	let header = create_next_header(&ctx.block, vec![]);
 
@@ -124,8 +117,7 @@ async fn finalize_before_initialize_fails() {
 	assert!(matches!(result, Err(BlockBuilderError::NotInitialized)));
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn apply_inherents_twice_fails() {
+pub async fn apply_inherents_twice_fails() {
 	let ctx = create_test_context().await;
 	let header = create_next_header(&ctx.block, vec![]);
 
@@ -137,8 +129,7 @@ async fn apply_inherents_twice_fails() {
 	assert!(matches!(result, Err(BlockBuilderError::InherentsAlreadyApplied)));
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn apply_extrinsic_before_inherents_fails() {
+pub async fn apply_extrinsic_before_inherents_fails() {
 	let ctx = create_test_context().await;
 	let header = create_next_header(&ctx.block, vec![]);
 
@@ -149,8 +140,7 @@ async fn apply_extrinsic_before_inherents_fails() {
 	assert!(matches!(result, Err(BlockBuilderError::InherentsNotApplied)));
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn finalize_before_inherents_fails() {
+pub async fn finalize_before_inherents_fails() {
 	let ctx = create_test_context().await;
 	let header = create_next_header(&ctx.block, vec![]);
 
@@ -161,8 +151,7 @@ async fn finalize_before_inherents_fails() {
 	assert!(matches!(result, Err(BlockBuilderError::InherentsNotApplied)));
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn finalize_produces_child_block() {
+pub async fn finalize_produces_child_block() {
 	let ctx = create_test_context().await;
 	let parent_number = ctx.block.number;
 	let parent_hash = ctx.block.hash;
@@ -183,8 +172,7 @@ async fn finalize_produces_child_block() {
 	assert!(!new_block.header.is_empty());
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn create_next_header_increments_block_number() {
+pub async fn create_next_header_increments_block_number() {
 	let ctx = create_test_context().await;
 
 	let header_bytes = create_next_header(&ctx.block, vec![]);
@@ -192,8 +180,7 @@ async fn create_next_header_increments_block_number() {
 	assert_eq!(&header_bytes[0..32], ctx.block.hash.as_bytes());
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn create_next_header_includes_digest_items() {
+pub async fn create_next_header_includes_digest_items() {
 	let ctx = create_test_context().await;
 
 	let slot: u64 = 12345;

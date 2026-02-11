@@ -10,8 +10,7 @@ use pop_fork::testing::{
 };
 use std::time::Duration;
 
-#[tokio::test(flavor = "multi_thread")]
-async fn get_fetches_and_caches() {
+pub async fn get_fetches_and_caches() {
 	let ctx = TestContext::for_remote().await;
 	let layer = ctx.remote();
 	let block_hash = ctx.block_hash();
@@ -28,8 +27,7 @@ async fn get_fetches_and_caches() {
 	assert_eq!(value1, value2);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn get_caches_empty_values() {
+pub async fn get_caches_empty_values() {
 	let ctx = TestContext::for_remote().await;
 	let layer = ctx.remote();
 	let block_hash = ctx.block_hash();
@@ -42,8 +40,7 @@ async fn get_caches_empty_values() {
 	assert_eq!(cached, Some(None), "Empty value should be cached as Some(None)");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn get_batch_fetches_mixed() {
+pub async fn get_batch_fetches_mixed() {
 	let ctx = TestContext::for_remote().await;
 	let layer = ctx.remote();
 	let block_hash = ctx.block_hash();
@@ -66,8 +63,7 @@ async fn get_batch_fetches_mixed() {
 	}
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn get_batch_uses_cache() {
+pub async fn get_batch_uses_cache() {
 	let ctx = TestContext::for_remote().await;
 	let layer = ctx.remote();
 	let block_hash = ctx.block_hash();
@@ -84,8 +80,7 @@ async fn get_batch_uses_cache() {
 	assert!(results[1].is_some(), "Uncached value should be fetched");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn prefetch_prefix() {
+pub async fn prefetch_prefix() {
 	let ctx = TestContext::for_remote().await;
 	let layer = ctx.remote();
 	let block_hash = ctx.block_hash();
@@ -99,8 +94,7 @@ async fn prefetch_prefix() {
 	assert!(cached.is_some(), "Prefetched key should be cached");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn layer_is_cloneable() {
+pub async fn layer_is_cloneable() {
 	let ctx = TestContext::for_remote().await;
 	let layer = ctx.remote();
 	let block_hash = ctx.block_hash();
@@ -112,8 +106,7 @@ async fn layer_is_cloneable() {
 	assert_eq!(value1, value2);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn accessor_methods() {
+pub async fn accessor_methods() {
 	let ctx = TestContext::for_remote().await;
 	let layer = ctx.remote();
 	let block_hash = ctx.block_hash();
@@ -122,8 +115,7 @@ async fn accessor_methods() {
 	assert!(layer.rpc().endpoint().as_str().starts_with("ws://"));
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn fetch_and_cache_block_by_number_caches_block() {
+pub async fn fetch_and_cache_block_by_number_caches_block() {
 	let ctx = TestContext::for_remote().await;
 	let layer = ctx.remote();
 
@@ -152,8 +144,7 @@ async fn fetch_and_cache_block_by_number_caches_block() {
 	assert_eq!(cached_block.header, block_row.header);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn fetch_and_cache_block_by_number_non_existent() {
+pub async fn fetch_and_cache_block_by_number_non_existent() {
 	let ctx = TestContext::for_remote().await;
 	let layer = ctx.remote();
 
@@ -165,8 +156,7 @@ async fn fetch_and_cache_block_by_number_non_existent() {
 	assert!(cached.is_none(), "Non-existent block should not be cached");
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn fetch_and_cache_block_by_number_multiple_blocks() {
+pub async fn fetch_and_cache_block_by_number_multiple_blocks() {
 	let ctx = TestContext::for_remote().await;
 	let layer = ctx.remote();
 
@@ -187,8 +177,7 @@ async fn fetch_and_cache_block_by_number_multiple_blocks() {
 	}
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn fetch_and_cache_block_by_number_idempotent() {
+pub async fn fetch_and_cache_block_by_number_idempotent() {
 	let ctx = TestContext::for_remote().await;
 	let layer = ctx.remote();
 
@@ -202,8 +191,7 @@ async fn fetch_and_cache_block_by_number_idempotent() {
 	assert_eq!(result1.header, result2.header);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn fetch_and_cache_block_by_number_verifies_parent_chain() {
+pub async fn fetch_and_cache_block_by_number_verifies_parent_chain() {
 	let ctx = TestContext::for_remote().await;
 	let layer = ctx.remote();
 
