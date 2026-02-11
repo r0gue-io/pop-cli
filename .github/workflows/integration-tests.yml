@@ -74,7 +74,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-          save-if: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           shared-key: pop-cache
 
       - name: Rust Cache MacOS
@@ -83,7 +83,7 @@ jobs:
         with:
           cache-all-crates: true
           shared-key: pop-cache
-          save-if: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install packages (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -194,7 +194,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-          save-if: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           shared-key: pop-cache
 
       - name: Rust Cache MacOS
@@ -202,7 +202,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-          save-if: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           shared-key: pop-cache
 
       - name: Install packages (Linux)
@@ -287,7 +287,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-          save-if: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           shared-key: pop-cache
 
       - name: Rust Cache MacOS
@@ -296,7 +296,7 @@ jobs:
         with:
           cache-all-crates: true
           shared-key: pop-cache
-          save-if: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install packages (Linux)
         if: matrix.os == 'ubuntu-latest'
