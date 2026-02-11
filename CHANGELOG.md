@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.13.0] - 2026-02-09
+## [0.13.0] - 2026-02-11
 
 ### 🚀 Features
 
@@ -37,6 +37,8 @@ All notable changes to this project will be documented in this file.
 - Add network cleanup and metadata output (#909)
 - Pop-fork (#920)
 - Add shell completion command (#912)
+- *(pop fork)* Well-known chains, --at flag, and better detach (#930)
+- Make `pop fork --endpoint` optional with interactive prompt (#928)
 
 ### 🐛 Fixes
 
@@ -56,6 +58,7 @@ All notable changes to this project will be documented in this file.
 - Vec for calling chains (#907)
 - Handle parachain names in up network (#925)
 - Remove unused import in metadata test
+- *(pop-fork)* Optimize RPC performance for polkadot.js (#931)
 
 ### 🚜 Refactor
 
@@ -66,6 +69,11 @@ All notable changes to this project will be documented in this file.
 - Find available random port if needed (#887)
 - Rename rollup <-> chain (#883)
 - Remove deprecated call contract dev flag
+
+### 📚 Documentation
+
+- Prepend 0.13.0 changelog
+- Remove git-cliff marker
 
 ### 🎨 Styling
 
@@ -82,6 +90,7 @@ All notable changes to this project will be documented in this file.
 - Add tests partitions (#852)
 - Shared cache (#864)
 - *(release)* Bump workspace deps to 0.13.0
+- Min improvements to AGENTS.md (#932)
 
 ## [0.12.1] - 2025-11-15
 
