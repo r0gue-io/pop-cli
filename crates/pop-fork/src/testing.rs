@@ -161,7 +161,7 @@ pub mod helpers {
 		inner.push(0x00); // CheckMortality: immortal
 		inner.extend(Compact(nonce).encode()); // CheckNonce
 		inner.extend(Compact(0u128).encode()); // ChargeTransactionPayment
-		inner.push(0x00); // EthSetOrigin: None
+		// `EthSetOrigin` is a zero-sized extension in ink-node v0.47.0 (encodes to no bytes).
 		inner.extend(call_data);
 		let mut extrinsic = Compact(inner.len() as u32).encode();
 		extrinsic.extend(inner);
