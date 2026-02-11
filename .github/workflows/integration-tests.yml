@@ -32,10 +32,16 @@ concurrency:
 jobs:
   pop-fork-integration-tests:
     strategy:
+      fail-fast: false
       matrix:
         os:
           - ubuntu-latest
           - macos-latest
+        shard:
+          - core-local
+          - blockchain-archive
+          - rpc-remote-executor
+          - rpc-servers
     runs-on: ${{ matrix.os }}
     steps:
       - name: Free up space on runner (Linux)
@@ -102,11 +108,43 @@ jobs:
         run: |
           set -euo pipefail
           args=()
-          for test_file in crates/pop-fork/tests/*.rs; do
-            test_name="${test_file##*/}"
-            test_name="${test_name%.rs}"
-            args+=(--test "$test_name")
-          done
+          case "${{ matrix.shard }}" in
+            core-local)
+              args=(
+                --test local
+              )
+              ;;
+            blockchain-archive)
+              args=(
+                --test blockchain
+                --test rpc_server_archive
+              )
+              ;;
+            rpc-remote-executor)
+              args=(
+                --test rpc
+                --test builder
+                --test remote
+                --test executor
+                --test block
+              )
+              ;;
+            rpc-servers)
+              args=(
+                --test rpc_server_chain
+                --test rpc_server_system
+                --test rpc_server_state
+                --test rpc_server_author
+                --test rpc_server_chain_spec
+                --test rpc_server_chain_head
+                --test timestamp
+              )
+              ;;
+            *)
+              echo "Unknown shard: ${{ matrix.shard }}" >&2
+              exit 1
+              ;;
+          esac
 
           cargo nextest run \
             --locked \
