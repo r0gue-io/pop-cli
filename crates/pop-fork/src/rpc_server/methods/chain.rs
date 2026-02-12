@@ -22,6 +22,61 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
+#[async_trait::async_trait]
+pub trait ChainBlockchain: Send + Sync {
+	async fn head_number(&self) -> u32;
+	async fn head_hash(&self) -> subxt::utils::H256;
+	async fn block_hash_at(
+		&self,
+		number: u32,
+	) -> Result<Option<subxt::utils::H256>, crate::BlockchainError>;
+	async fn block_header(
+		&self,
+		hash: subxt::utils::H256,
+	) -> Result<Option<Vec<u8>>, crate::BlockchainError>;
+	async fn block_body(
+		&self,
+		hash: subxt::utils::H256,
+	) -> Result<Option<Vec<Vec<u8>>>, crate::BlockchainError>;
+	fn subscribe_events(&self) -> broadcast::Receiver<BlockchainEvent>;
+}
+
+#[async_trait::async_trait]
+impl ChainBlockchain for Blockchain {
+	async fn head_number(&self) -> u32 {
+		Blockchain::head_number(self).await
+	}
+
+	async fn head_hash(&self) -> subxt::utils::H256 {
+		Blockchain::head_hash(self).await
+	}
+
+	async fn block_hash_at(
+		&self,
+		number: u32,
+	) -> Result<Option<subxt::utils::H256>, crate::BlockchainError> {
+		Blockchain::block_hash_at(self, number).await
+	}
+
+	async fn block_header(
+		&self,
+		hash: subxt::utils::H256,
+	) -> Result<Option<Vec<u8>>, crate::BlockchainError> {
+		Blockchain::block_header(self, hash).await
+	}
+
+	async fn block_body(
+		&self,
+		hash: subxt::utils::H256,
+	) -> Result<Option<Vec<Vec<u8>>>, crate::BlockchainError> {
+		Blockchain::block_body(self, hash).await
+	}
+
+	fn subscribe_events(&self) -> broadcast::Receiver<BlockchainEvent> {
+		Blockchain::subscribe_events(self)
+	}
+}
+
 /// Legacy chain RPC methods.
 #[rpc(server, namespace = "chain")]
 pub trait ChainApi {
@@ -62,20 +117,20 @@ pub trait ChainApi {
 }
 
 /// Implementation of legacy chain RPC methods.
-pub struct ChainApi {
-	blockchain: Arc<Blockchain>,
+pub struct ChainApi<T: ChainBlockchain = Blockchain> {
+	blockchain: Arc<T>,
 	shutdown_token: CancellationToken,
 }
 
-impl ChainApi {
+impl<T: ChainBlockchain> ChainApi<T> {
 	/// Create a new ChainApi instance.
-	pub fn new(blockchain: Arc<Blockchain>, shutdown_token: CancellationToken) -> Self {
+	pub fn new(blockchain: Arc<T>, shutdown_token: CancellationToken) -> Self {
 		Self { blockchain, shutdown_token }
 	}
 }
 
 #[async_trait::async_trait]
-impl ChainApiServer for ChainApi {
+impl<T: ChainBlockchain + 'static> ChainApiServer for ChainApi<T> {
 	async fn get_block_hash(&self, block_number: Option<u32>) -> RpcResult<Option<String>> {
 		let number = match block_number {
 			Some(n) => n,
@@ -152,10 +207,11 @@ impl ChainApiServer for ChainApi {
 				warn!("[chain] getBlock: body not found for 0x{}", hex::encode(&block_hash.0[..8]));
 				return Ok(None);
 			},
-			Err(e) =>
+			Err(e) => {
 				return Err(
 					RpcServerError::Internal(format!("Failed to fetch block body: {e}")).into()
-				),
+				);
+			},
 		};
 
 		Ok(Some(SignedBlock { block: BlockData { header, extrinsics }, justifications: None }))
@@ -202,8 +258,9 @@ impl ChainApiServer for ChainApi {
 					header_bytes.len()
 				),
 			},
-			Ok(None) =>
-				warn!("[chain] No header found for head hash 0x{}", hex::encode(&head_hash.0[..4])),
+			Ok(None) => {
+				warn!("[chain] No header found for head hash 0x{}", hex::encode(&head_hash.0[..4]))
+			},
 			Err(e) => warn!("[chain] Failed to fetch initial head header: {e}"),
 		}
 
@@ -283,283 +340,178 @@ impl ChainApiServer for ChainApi {
 
 #[cfg(test)]
 mod tests {
-	use crate::{
-		rpc_server::types::{RpcHeader, SignedBlock},
-		testing::TestContext,
-	};
-	use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
+	use super::*;
+	use crate::rpc_server::test_scenarios::chain as scenario;
+	use jsonrpsee::server::ServerBuilder;
+	use scale::Encode;
+	use subxt::config::substrate::{Digest, DynamicHasher256, H256, SubstrateHeader};
 
-	#[tokio::test(flavor = "multi_thread")]
-	async fn chain_get_block_hash_returns_head_hash() {
-		let ctx = TestContext::for_rpc_server().await;
-		let client = WsClientBuilder::default()
-			.build(&ctx.ws_url())
-			.await
-			.expect("Failed to connect");
-
-		// Build a block so we have something beyond fork point
-		ctx.blockchain().build_empty_block().await.expect("Failed to build block");
-
-		let head_number = ctx.blockchain().head_number().await;
-		let expected_hash = ctx.blockchain().head_hash().await;
-
-		// Query with explicit block number
-		let hash: Option<String> = client
-			.request("chain_getBlockHash", rpc_params![head_number])
-			.await
-			.expect("RPC call failed");
-
-		assert!(hash.is_some(), "Should return hash for head block");
-		let hash = hash.unwrap();
-		assert!(hash.starts_with("0x"), "Hash should start with 0x");
-		assert_eq!(hash, format!("0x{}", hex::encode(expected_hash.as_bytes())));
+	fn mock_hash(byte: u8) -> H256 {
+		H256::from([byte; 32])
 	}
 
-	#[tokio::test(flavor = "multi_thread")]
-	async fn chain_get_block_hash_returns_none_hash() {
-		let ctx = TestContext::for_rpc_server().await;
-		let client = WsClientBuilder::default()
-			.build(&ctx.ws_url())
-			.await
-			.expect("Failed to connect");
-
-		let expected_hash = ctx.blockchain().head_hash().await;
-
-		// Query without block number (should return head)
-		let hash: Option<String> = client
-			.request("chain_getBlockHash", rpc_params![])
-			.await
-			.expect("RPC call failed");
-
-		assert!(hash.is_some(), "Should return hash when no block number provided");
-		assert_eq!(hash.unwrap(), format!("0x{}", hex::encode(expected_hash.as_bytes())));
+	fn encode_header(number: u32, parent: H256) -> Vec<u8> {
+		let header = SubstrateHeader::<u32, DynamicHasher256> {
+			parent_hash: parent,
+			number,
+			state_root: mock_hash(7),
+			extrinsics_root: mock_hash(8),
+			digest: Digest::default(),
+		};
+		header.encode()
 	}
 
-	#[tokio::test(flavor = "multi_thread")]
-	async fn chain_get_block_hash_returns_fork_point_hash() {
-		let ctx = TestContext::for_rpc_server().await;
-		let client = WsClientBuilder::default()
-			.build(&ctx.ws_url())
-			.await
-			.expect("Failed to connect");
-
-		let fork_point_number = ctx.blockchain().fork_point_number();
-		let expected_hash = ctx.blockchain().fork_point();
-
-		ctx.blockchain().build_empty_block().await.unwrap();
-		ctx.blockchain().build_empty_block().await.unwrap();
-		ctx.blockchain().build_empty_block().await.unwrap();
-
-		let hash: Option<String> = client
-			.request("chain_getBlockHash", rpc_params![fork_point_number])
-			.await
-			.expect("RPC call failed");
-
-		assert!(hash.is_some(), "Should return hash for fork point");
-		assert_eq!(hash.unwrap(), format!("0x{}", hex::encode(expected_hash.as_bytes())));
+	struct MockChainBlockchain {
+		head_number: u32,
+		head_hash: H256,
+		header_by_hash: std::collections::HashMap<H256, Vec<u8>>,
+		body_by_hash: std::collections::HashMap<H256, Vec<Vec<u8>>>,
+		hash_by_number: std::collections::HashMap<u32, H256>,
 	}
 
-	#[tokio::test(flavor = "multi_thread")]
-	async fn chain_get_block_hash_returns_historical_hash() {
-		let ctx = TestContext::for_rpc_server().await;
-		let client = WsClientBuilder::default()
-			.build(&ctx.ws_url())
-			.await
-			.expect("Failed to connect");
+	#[async_trait::async_trait]
+	impl ChainBlockchain for MockChainBlockchain {
+		async fn head_number(&self) -> u32 {
+			self.head_number
+		}
 
-		let fork_point_number = ctx.blockchain().fork_point_number();
+		async fn head_hash(&self) -> H256 {
+			self.head_hash
+		}
 
-		ctx.blockchain().build_empty_block().await.unwrap();
-		ctx.blockchain().build_empty_block().await.unwrap();
-		ctx.blockchain().build_empty_block().await.unwrap();
+		async fn block_hash_at(&self, number: u32) -> Result<Option<H256>, crate::BlockchainError> {
+			Ok(self.hash_by_number.get(&number).copied())
+		}
 
-		// Only test if fork point is > 0 (has blocks before it)
-		if fork_point_number > 0 {
-			let historical_number = fork_point_number - 1;
+		async fn block_header(
+			&self,
+			hash: H256,
+		) -> Result<Option<Vec<u8>>, crate::BlockchainError> {
+			Ok(self.header_by_hash.get(&hash).cloned())
+		}
 
-			let hash: Option<String> = client
-				.request("chain_getBlockHash", rpc_params![historical_number])
-				.await
-				.expect("RPC call failed");
+		async fn block_body(
+			&self,
+			hash: H256,
+		) -> Result<Option<Vec<Vec<u8>>>, crate::BlockchainError> {
+			Ok(self.body_by_hash.get(&hash).cloned())
+		}
 
-			assert!(hash.is_some(), "Should return hash for historical block");
-			let hash = hash.unwrap();
-			assert!(hash.starts_with("0x"), "Hash should start with 0x");
-			assert_eq!(hash.len(), 66, "Hash should be 0x + 64 hex chars");
+		fn subscribe_events(&self) -> broadcast::Receiver<BlockchainEvent> {
+			let (_, rx) = broadcast::channel(1);
+			rx
 		}
 	}
 
-	#[tokio::test(flavor = "multi_thread")]
+	fn mock_api() -> ChainApi<MockChainBlockchain> {
+		let head_hash = mock_hash(1);
+		let parent_hash = mock_hash(2);
+		let mut header_by_hash = std::collections::HashMap::new();
+		header_by_hash.insert(head_hash, encode_header(10, parent_hash));
+
+		let mut body_by_hash = std::collections::HashMap::new();
+		body_by_hash.insert(head_hash, vec![vec![0xaa, 0xbb], vec![0xcc]]);
+
+		let mut hash_by_number = std::collections::HashMap::new();
+		hash_by_number.insert(10, head_hash);
+
+		let blockchain = MockChainBlockchain {
+			head_number: 10,
+			head_hash,
+			header_by_hash,
+			body_by_hash,
+			hash_by_number,
+		};
+		ChainApi::new(Arc::new(blockchain), CancellationToken::new())
+	}
+
+	async fn start_mock_server() -> (String, jsonrpsee::server::ServerHandle) {
+		let server =
+			ServerBuilder::default().build("127.0.0.1:0").await.expect("server should bind");
+		let addr = server.local_addr().expect("server should expose local addr");
+		let handle = server.start(ChainApiServer::into_rpc(mock_api()));
+		(format!("ws://{}", addr), handle)
+	}
+
+	#[tokio::test]
+	async fn chain_get_block_hash_returns_head_hash() {
+		let (ws_url, handle) = start_mock_server().await;
+		scenario::chain_get_block_hash_returns_head_hash(
+			&ws_url,
+			10,
+			&format!("0x{}", "01".repeat(32)),
+		)
+		.await;
+		handle.stop().expect("server should stop");
+	}
+
+	#[tokio::test]
+	async fn chain_get_block_hash_returns_none_hash() {
+		let (ws_url, handle) = start_mock_server().await;
+		scenario::chain_get_block_hash_returns_none_hash(&ws_url, 999).await;
+		handle.stop().expect("server should stop");
+	}
+
+	#[tokio::test]
+	async fn chain_get_block_hash_without_number_returns_head_hash() {
+		let (ws_url, handle) = start_mock_server().await;
+		scenario::chain_get_block_hash_without_number_returns_head_hash(
+			&ws_url,
+			&format!("0x{}", "01".repeat(32)),
+		)
+		.await;
+		handle.stop().expect("server should stop");
+	}
+
+	#[tokio::test]
 	async fn chain_get_header_returns_valid_header() {
-		let ctx = TestContext::for_rpc_server().await;
-		let client = WsClientBuilder::default()
-			.build(&ctx.ws_url())
-			.await
-			.expect("Failed to connect");
-
-		// Build a block
-		let block = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
-		let hash = format!("0x{}", hex::encode(block.hash.as_bytes()));
-
-		let header: Option<RpcHeader> = client
-			.request("chain_getHeader", rpc_params![hash])
-			.await
-			.expect("RPC call failed");
-
-		assert!(header.is_some(), "Should return header");
-		let header = header.unwrap();
-
-		// Verify header fields are properly formatted as hex strings
-		assert_eq!(header.parent_hash, format!("0x{}", hex::encode(block.parent_hash.as_bytes())));
-		assert_eq!(header.number, format!("0x{:x}", block.number));
+		let (ws_url, handle) = start_mock_server().await;
+		scenario::chain_get_header_returns_valid_header(
+			&ws_url,
+			&format!("0x{}", "01".repeat(32)),
+			"0xa",
+			&format!("0x{}", "02".repeat(32)),
+		)
+		.await;
+		handle.stop().expect("server should stop");
 	}
 
-	#[tokio::test(flavor = "multi_thread")]
+	#[tokio::test]
 	async fn chain_get_header_returns_head_when_no_hash() {
-		let ctx = TestContext::for_rpc_server().await;
-		let client = WsClientBuilder::default()
-			.build(&ctx.ws_url())
-			.await
-			.expect("Failed to connect");
-
-		// Build a block
-		let block = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
-
-		// Query without hash (should return head)
-		let header: Option<RpcHeader> =
-			client.request("chain_getHeader", rpc_params![]).await.expect("RPC call failed");
-
-		assert!(header.is_some(), "Should return header when no hash provided");
-		assert_eq!(header.unwrap().number, format!("0x{:x}", block.number));
+		let (ws_url, handle) = start_mock_server().await;
+		scenario::chain_get_header_returns_head_when_no_hash(&ws_url, "0xa").await;
+		handle.stop().expect("server should stop");
 	}
 
-	#[tokio::test(flavor = "multi_thread")]
-	async fn chain_get_header_for_fork_point() {
-		let ctx = TestContext::for_rpc_server().await;
-		let client = WsClientBuilder::default()
-			.build(&ctx.ws_url())
-			.await
-			.expect("Failed to connect");
-
-		let fork_point_hash = ctx.blockchain().fork_point();
-		let hash = format!("0x{}", hex::encode(fork_point_hash.as_bytes()));
-
-		let header: Option<RpcHeader> = client
-			.request("chain_getHeader", rpc_params![hash])
-			.await
-			.expect("RPC call failed");
-
-		assert!(header.is_some(), "Should return header for fork point");
-		assert_eq!(header.unwrap().number, format!("0x{:x}", ctx.blockchain().fork_point_number()));
-	}
-
-	#[tokio::test(flavor = "multi_thread")]
+	#[tokio::test]
 	async fn chain_get_block_returns_full_block() {
-		let ctx = TestContext::for_rpc_server().await;
-		let client = WsClientBuilder::default()
-			.build(&ctx.ws_url())
-			.await
-			.expect("Failed to connect");
-
-		// Build a block
-		let block = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
-		let hash = format!("0x{}", hex::encode(block.hash.as_bytes()));
-
-		let signed_block: Option<SignedBlock> = client
-			.request("chain_getBlock", rpc_params![hash])
-			.await
-			.expect("RPC call failed");
-
-		assert!(signed_block.is_some(), "Should return full block");
-		let signed_block = signed_block.unwrap();
-
-		// Verify block structure (header fields are hex strings in RPC format)
-		assert_eq!(
-			signed_block.block.header.parent_hash,
-			format!("0x{}", hex::encode(block.parent_hash.as_bytes()))
-		);
-		assert_eq!(signed_block.block.header.number, format!("0x{:x}", block.number));
-
-		// Extrinsics should be present (at least inherents)
-		assert_eq!(
-			signed_block.block.extrinsics,
-			block
-				.extrinsics
-				.iter()
-				.map(|ext_bytes| format!("0x{}", hex::encode(ext_bytes)))
-				.collect::<Vec<_>>()
-		);
+		let (ws_url, handle) = start_mock_server().await;
+		scenario::chain_get_block_returns_full_block(
+			&ws_url,
+			&format!("0x{}", "01".repeat(32)),
+			"0xa",
+			&format!("0x{}", "02".repeat(32)),
+			&["0xaabb".to_string(), "0xcc".to_string()],
+		)
+		.await;
+		handle.stop().expect("server should stop");
 	}
 
-	#[tokio::test(flavor = "multi_thread")]
+	#[tokio::test]
 	async fn chain_get_block_returns_head_when_no_hash() {
-		let ctx = TestContext::for_rpc_server().await;
-		let client = WsClientBuilder::default()
-			.build(&ctx.ws_url())
-			.await
-			.expect("Failed to connect");
-
-		// Build a block
-		let block = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
-
-		// Query without hash
-		let signed_block: Option<SignedBlock> =
-			client.request("chain_getBlock", rpc_params![]).await.expect("RPC call failed");
-
-		let signed_block = signed_block.unwrap();
-		assert_eq!(signed_block.block.header.number, format!("0x{:x}", block.number));
-		assert_eq!(
-			signed_block.block.extrinsics,
-			block
-				.extrinsics
-				.iter()
-				.map(|ext_bytes| format!("0x{}", hex::encode(ext_bytes)))
-				.collect::<Vec<_>>()
-		);
+		let (ws_url, handle) = start_mock_server().await;
+		scenario::chain_get_block_returns_head_when_no_hash(&ws_url, "0xa").await;
+		handle.stop().expect("server should stop");
 	}
 
-	#[tokio::test(flavor = "multi_thread")]
+	#[tokio::test]
 	async fn chain_get_finalized_head_returns_head_hash() {
-		let ctx = TestContext::for_rpc_server().await;
-		let client = WsClientBuilder::default()
-			.build(&ctx.ws_url())
-			.await
-			.expect("Failed to connect");
-
-		let expected_hash = ctx.blockchain().head_hash().await;
-
-		let hash: String = client
-			.request("chain_getFinalizedHead", rpc_params![])
-			.await
-			.expect("RPC call failed");
-
-		assert!(hash.starts_with("0x"), "Hash should start with 0x");
-		assert_eq!(hash, format!("0x{}", hex::encode(expected_hash.as_bytes())));
-	}
-
-	#[tokio::test(flavor = "multi_thread")]
-	async fn chain_get_finalized_head_updates_after_block() {
-		let ctx = TestContext::for_rpc_server().await;
-		let client = WsClientBuilder::default()
-			.build(&ctx.ws_url())
-			.await
-			.expect("Failed to connect");
-
-		let hash_before: String = client
-			.request("chain_getFinalizedHead", rpc_params![])
-			.await
-			.expect("RPC call failed");
-
-		// Build a new block
-		let new_block = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
-
-		let hash_after: String = client
-			.request("chain_getFinalizedHead", rpc_params![])
-			.await
-			.expect("RPC call failed");
-
-		// Hash should have changed
-		assert_ne!(hash_before, hash_after, "Finalized head should update after new block");
-		assert_eq!(hash_after, format!("0x{}", hex::encode(new_block.hash.as_bytes())));
+		let (ws_url, handle) = start_mock_server().await;
+		scenario::chain_get_finalized_head_returns_head_hash(
+			&ws_url,
+			&format!("0x{}", "01".repeat(32)),
+		)
+		.await;
+		handle.stop().expect("server should stop");
 	}
 }
