@@ -5,11 +5,15 @@
 //! Integration tests for rpc_server author methods.
 
 use crate::{
-	Blockchain,
+	Blockchain, ExecutorConfig, SignatureMockMode,
 	testing::{
-		accounts::BOB,
+		TestContext, TestContextBuilder,
+		accounts::{ALICE, BOB},
 		constants::TRANSFER_AMOUNT,
-		helpers::{build_mock_signed_extrinsic_v4, build_mock_signed_extrinsic_v4_with_nonce},
+		helpers::{
+			account_storage_key, build_mock_signed_extrinsic_v4,
+			build_mock_signed_extrinsic_v4_with_nonce, decode_account_nonce,
+		},
 	},
 };
 use jsonrpsee::{
@@ -22,6 +26,79 @@ use std::time::Duration;
 
 const RPC_REQUEST_TIMEOUT: Duration = Duration::from_secs(400);
 const SUBSCRIPTION_EVENT_TIMEOUT: Duration = Duration::from_secs(400);
+
+async fn author_context_with_dev_accounts() -> TestContext {
+	let config =
+		ExecutorConfig { signature_mock: SignatureMockMode::AlwaysValid, ..Default::default() };
+	let ctx = TestContext::for_rpc_server_with_config(config).await;
+	ctx.blockchain()
+		.initialize_dev_accounts()
+		.await
+		.expect("Failed to initialize dev accounts");
+	ctx
+}
+
+async fn alice_nonce(blockchain: &Blockchain) -> u64 {
+	let alice_key = account_storage_key(&ALICE);
+	blockchain
+		.storage(&alice_key)
+		.await
+		.expect("Failed to read Alice account")
+		.map(|v| decode_account_nonce(&v))
+		.unwrap_or(0) as u64
+}
+
+pub async fn author_submit_extrinsic_returns_correct_hash() {
+	let ctx = author_context_with_dev_accounts().await;
+	let base_nonce = alice_nonce(ctx.blockchain()).await;
+	let ext_hex = build_transfer_extrinsic_hex_with_nonce(ctx.blockchain(), base_nonce).await;
+	let expected_hash = format!(
+		"0x{}",
+		hex::encode(sp_core::blake2_256(
+			&hex::decode(ext_hex.trim_start_matches("0x")).expect("extrinsic hex should decode")
+		))
+	);
+	author_submit_extrinsic_returns_correct_hash_at(&ctx.ws_url(), &ext_hex, &expected_hash).await;
+}
+
+pub async fn author_pending_extrinsics_empty_after_submit() {
+	let ctx = author_context_with_dev_accounts().await;
+	let base_nonce = alice_nonce(ctx.blockchain()).await;
+	let ext_hex = build_transfer_extrinsic_hex_with_nonce(ctx.blockchain(), base_nonce).await;
+	author_pending_extrinsics_empty_after_submit_at(&ctx.ws_url(), &ext_hex).await;
+}
+
+pub async fn author_submit_extrinsic_invalid_hex() {
+	let ctx = TestContext::for_rpc_server().await;
+	author_submit_extrinsic_invalid_hex_at(&ctx.ws_url()).await;
+}
+
+pub async fn author_submit_extrinsic_rejects_garbage_with_error_code() {
+	let ctx = TestContextBuilder::new().with_server().build().await;
+	author_submit_extrinsic_rejects_garbage_with_error_code_at(&ctx.ws_url(), "0xdeadbeef").await;
+}
+
+pub async fn author_submit_and_watch_sends_lifecycle_events() {
+	let ctx = author_context_with_dev_accounts().await;
+	let base_nonce = alice_nonce(ctx.blockchain()).await;
+	let ext_hex = build_transfer_extrinsic_hex_with_nonce(ctx.blockchain(), base_nonce).await;
+	author_submit_and_watch_sends_lifecycle_events_at(&ctx.ws_url(), &ext_hex).await;
+}
+
+pub async fn author_submit_extrinsic_does_not_build_block_on_validation_failure() {
+	let ctx = TestContextBuilder::new().with_server().build().await;
+	author_submit_extrinsic_does_not_build_block_on_validation_failure_at(
+		&ctx.ws_url(),
+		"0xdeadbeef",
+	)
+	.await;
+}
+
+pub async fn author_submit_and_watch_sends_invalid_on_validation_failure() {
+	let ctx = TestContextBuilder::new().with_server().build().await;
+	author_submit_and_watch_sends_invalid_on_validation_failure_at(&ctx.ws_url(), "0xdeadbeef")
+		.await;
+}
 
 pub async fn author_submit_extrinsic_returns_correct_hash_at(
 	ws_url: &str,

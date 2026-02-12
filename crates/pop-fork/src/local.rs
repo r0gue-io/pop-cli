@@ -633,9 +633,9 @@ impl LocalStorageLayer {
 	/// Set a storage value visible from the fork point onwards.
 	///
 	/// Unlike [`Self::set`], which records the modification at the current working block,
-	/// this marks the entry with `last_modification_block = first_forked_block_number` so
-	/// it is visible for any query at a fork-local block (block_number >
-	/// first_forked_block_number), but not for historical pre-fork queries.
+	/// this marks the entry with `last_modification_block = first_forked_block_number - 1`
+	/// (saturating at 0) so it is visible immediately at the fork head and for any later
+	/// fork-local query, but not for historical pre-fork queries.
 	/// This is used for injecting initial state (e.g., dev accounts, sudo key)
 	/// that should be readable before any block is built.
 	///
@@ -645,11 +645,12 @@ impl LocalStorageLayer {
 	pub fn set_initial(&self, key: &[u8], value: Option<&[u8]>) -> Result<(), LocalStorageError> {
 		let mut modifications_lock =
 			self.modifications.write().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
+		let initial_visibility_block = self.first_forked_block_number.saturating_sub(ONE_BLOCK);
 
 		modifications_lock.insert(
 			key.to_vec(),
 			Some(Arc::new(LocalSharedValue {
-				last_modification_block: self.first_forked_block_number,
+				last_modification_block: initial_visibility_block,
 				value: value.map(|v| v.to_vec()),
 			})),
 		);
@@ -837,7 +838,8 @@ impl LocalStorageLayer {
 	/// Batch version of [`Self::set_initial`].
 	///
 	/// Sets multiple storage values visible from the fork point onwards, using
-	/// `last_modification_block = first_forked_block_number`. See [`Self::set_initial`]
+	/// `last_modification_block = first_forked_block_number - 1` (saturating at 0).
+	/// See [`Self::set_initial`]
 	/// for details.
 	pub fn set_batch_initial(
 		&self,
@@ -849,12 +851,13 @@ impl LocalStorageLayer {
 
 		let mut modifications_lock =
 			self.modifications.write().map_err(|e| LocalStorageError::Lock(e.to_string()))?;
+		let initial_visibility_block = self.first_forked_block_number.saturating_sub(ONE_BLOCK);
 
 		for (key, value) in entries {
 			modifications_lock.insert(
 				key.to_vec(),
 				Some(Arc::new(LocalSharedValue {
-					last_modification_block: self.first_forked_block_number,
+					last_modification_block: initial_visibility_block,
 					value: value.map(|v| v.to_vec()),
 				})),
 			);

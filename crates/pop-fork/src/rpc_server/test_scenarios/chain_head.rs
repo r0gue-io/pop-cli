@@ -2,11 +2,27 @@
 
 #![allow(missing_docs)]
 
+use crate::testing::TestContext;
 use jsonrpsee::{
 	core::client::{ClientT, SubscriptionClientT},
 	rpc_params,
 	ws_client::WsClientBuilder,
 };
+
+pub async fn follow_returns_subscription_and_initialized_event() {
+	let ctx = TestContext::for_rpc_server().await;
+	follow_returns_subscription_and_initialized_event_at(&ctx.ws_url()).await;
+}
+
+pub async fn header_returns_header_for_valid_subscription() {
+	let ctx = TestContext::for_rpc_server().await;
+	header_returns_header_for_valid_subscription_at(&ctx.ws_url()).await;
+}
+
+pub async fn invalid_subscription_returns_error() {
+	let ctx = TestContext::for_rpc_server().await;
+	invalid_subscription_returns_error_at(&ctx.ws_url()).await;
+}
 
 pub async fn follow_returns_subscription_and_initialized_event_at(ws_url: &str) {
 	let client = WsClientBuilder::default().build(ws_url).await.expect("Failed to connect");

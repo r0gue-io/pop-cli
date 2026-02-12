@@ -2,8 +2,109 @@
 
 #![allow(missing_docs)]
 
-use crate::rpc_server::types::{RpcHeader, SignedBlock};
+use crate::{
+	rpc_server::types::{RpcHeader, SignedBlock},
+	testing::TestContext,
+};
 use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
+
+pub async fn scenario_chain_get_block_hash_returns_head_hash() {
+	let ctx = TestContext::for_rpc_server().await;
+	ctx.blockchain().build_empty_block().await.expect("Failed to build block");
+	let head_number = ctx.blockchain().head_number().await;
+	let expected_initial_head_hash =
+		format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
+	chain_get_block_hash_returns_head_hash(&ctx.ws_url(), head_number, &expected_initial_head_hash)
+		.await;
+}
+
+pub async fn scenario_chain_get_block_hash_returns_none_hash() {
+	let ctx = TestContext::for_rpc_server().await;
+	let head_number = ctx.blockchain().head_number().await;
+	chain_get_block_hash_returns_none_hash(&ctx.ws_url(), head_number + 999).await;
+}
+
+pub async fn scenario_chain_get_block_hash_without_number_returns_head_hash() {
+	let ctx = TestContext::for_rpc_server().await;
+	ctx.blockchain().build_empty_block().await.expect("Failed to build block");
+	let expected_initial_head_hash =
+		format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
+	chain_get_block_hash_without_number_returns_head_hash(
+		&ctx.ws_url(),
+		&expected_initial_head_hash,
+	)
+	.await;
+}
+
+pub async fn scenario_chain_get_header_returns_valid_header() {
+	let ctx = TestContext::for_rpc_server().await;
+	let block = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
+	let block_hash_hex = format!("0x{}", hex::encode(block.hash.as_bytes()));
+	let parent_hash_hex = format!("0x{}", hex::encode(block.parent_hash.as_bytes()));
+	let number_hex = format!("0x{:x}", block.number);
+	chain_get_header_returns_valid_header(
+		&ctx.ws_url(),
+		&block_hash_hex,
+		&number_hex,
+		&parent_hash_hex,
+	)
+	.await;
+}
+
+pub async fn scenario_chain_get_header_returns_number() {
+	let ctx = TestContext::for_rpc_server().await;
+	chain_get_header_returns_number(
+		&ctx.ws_url(),
+		&format!("0x{}", hex::encode(ctx.blockchain().fork_point().as_bytes())),
+		&format!("0x{:x}", ctx.blockchain().fork_point_number()),
+	)
+	.await;
+}
+
+pub async fn scenario_chain_get_header_returns_head_when_no_hash() {
+	let ctx = TestContext::for_rpc_server().await;
+	let block = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
+	let number_hex = format!("0x{:x}", block.number);
+	chain_get_header_returns_head_when_no_hash(&ctx.ws_url(), &number_hex).await;
+}
+
+pub async fn scenario_chain_get_block_returns_full_block() {
+	let ctx = TestContext::for_rpc_server().await;
+	let block = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
+	let block_hash_hex = format!("0x{}", hex::encode(block.hash.as_bytes()));
+	let parent_hash_hex = format!("0x{}", hex::encode(block.parent_hash.as_bytes()));
+	let number_hex = format!("0x{:x}", block.number);
+	let expected_extrinsics = block
+		.extrinsics
+		.iter()
+		.map(|ext| format!("0x{}", hex::encode(ext)))
+		.collect::<Vec<_>>();
+	chain_get_block_returns_full_block(
+		&ctx.ws_url(),
+		&block_hash_hex,
+		&number_hex,
+		&parent_hash_hex,
+		&expected_extrinsics,
+	)
+	.await;
+}
+
+pub async fn scenario_chain_get_block_returns_head_when_no_hash() {
+	let ctx = TestContext::for_rpc_server().await;
+	let block = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
+	let number_hex = format!("0x{:x}", block.number);
+	chain_get_block_returns_head_when_no_hash(&ctx.ws_url(), &number_hex).await;
+}
+
+pub async fn scenario_chain_get_finalized_head_returns_head_hash() {
+	let ctx = TestContext::for_rpc_server().await;
+	let new_block = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
+	chain_get_finalized_head_returns_head_hash(
+		&ctx.ws_url(),
+		&format!("0x{}", hex::encode(new_block.hash.as_bytes())),
+	)
+	.await;
+}
 
 pub async fn chain_get_block_hash_returns_head_hash(
 	ws_url: &str,

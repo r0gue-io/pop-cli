@@ -15,7 +15,7 @@ use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
 const SYSTEM_PALLET: &[u8] = b"System";
 const NUMBER_STORAGE: &[u8] = b"Number";
 
-async fn archive_finalized_height_returns_correct_value() {
+pub async fn archive_finalized_height_returns_correct_value() {
 	let ctx = TestContext::for_rpc_server().await;
 	let expected_block_height = ctx.blockchain().head_number().await;
 	archive_finalized_height_returns_correct_value_at(&ctx.ws_url(), expected_block_height).await;
@@ -35,7 +35,7 @@ pub async fn archive_finalized_height_returns_correct_value_at(ws_url: &str, exp
 	assert_eq!(height, expected_height);
 }
 
-async fn archive_genesis_hash_returns_valid_hash() {
+pub async fn archive_genesis_hash_returns_valid_hash() {
 	let ctx = TestContext::for_rpc_server().await;
 	let expected_hash = ctx
 		.blockchain()
@@ -62,7 +62,7 @@ pub async fn archive_genesis_hash_returns_valid_hash_at(ws_url: &str, expected_h
 	assert_eq!(hash, expected_hash_hex);
 }
 
-async fn archive_hash_by_height_returns_hash_at_different_heights() {
+pub async fn archive_hash_by_height_returns_hash_at_different_heights() {
 	let ctx = TestContext::for_rpc_server().await;
 
 	let block_1 = ctx.blockchain().build_empty_block().await.unwrap();
@@ -122,7 +122,7 @@ pub async fn archive_hash_by_height_returns_hash_at_height_at(
 	assert_eq!(result[0], expected_hash_hex);
 }
 
-async fn archive_hash_by_height_returns_none_for_unknown_height() {
+pub async fn archive_hash_by_height_returns_none_for_unknown_height() {
 	let ctx = TestContext::for_rpc_server().await;
 	archive_hash_by_height_returns_none_for_unknown_height_at(&ctx.ws_url(), 999_999_999u32).await;
 }
@@ -136,7 +136,7 @@ pub async fn archive_hash_by_height_returns_none_for_unknown_height_at(ws_url: &
 	assert!(result.is_none(), "Should return none array for unknown height");
 }
 
-async fn archive_header_returns_header_for_head_hash() {
+pub async fn archive_header_returns_header_for_head_hash() {
 	let ctx = TestContext::for_rpc_server().await;
 
 	// Build a block so we have a locally-built header
@@ -146,19 +146,19 @@ async fn archive_header_returns_header_for_head_hash() {
 	archive_header_returns_header_for_hash_at(&ctx.ws_url(), &head_hash).await;
 }
 
-async fn archive_header_returns_none_for_unknown_hash() {
+pub async fn archive_header_returns_none_for_unknown_hash() {
 	let ctx = TestContext::for_rpc_server().await;
 	let unknown_hash = "0x0000000000000000000000000000000000000000000000000000000000000001";
 	archive_header_returns_none_for_unknown_hash_at(&ctx.ws_url(), unknown_hash).await;
 }
 
-async fn archive_header_returns_header_for_fork_point() {
+pub async fn archive_header_returns_header_for_fork_point() {
 	let ctx = TestContext::for_rpc_server().await;
 	let fork_point_hash = format!("0x{}", hex::encode(ctx.blockchain().fork_point().0));
 	archive_header_returns_header_for_hash_at(&ctx.ws_url(), &fork_point_hash).await;
 }
 
-async fn archive_header_returns_header_for_parent_block() {
+pub async fn archive_header_returns_header_for_parent_block() {
 	let ctx = TestContext::for_rpc_server().await;
 
 	// Build two blocks
@@ -189,7 +189,7 @@ pub async fn archive_header_returns_none_for_unknown_hash_at(ws_url: &str, unkno
 	assert!(header.is_none(), "Should return None for unknown hash");
 }
 
-async fn archive_header_is_idempotent_over_finalized_blocks() {
+pub async fn archive_header_is_idempotent_over_finalized_blocks() {
 	let ctx = TestContext::for_rpc_server().await;
 
 	// Build a few blocks
@@ -232,7 +232,7 @@ pub async fn archive_header_is_idempotent_for_hash_at(ws_url: &str, hash_hex: &s
 	assert_eq!(header_1, header_2, "Header should be idempotent");
 }
 
-async fn archive_body_returns_extrinsics_for_valid_hashes() {
+pub async fn archive_body_returns_extrinsics_for_valid_hashes() {
 	let ctx = TestContext::for_rpc_server().await;
 
 	let fork_point_hash = format!("0x{}", hex::encode(ctx.blockchain().fork_point().0));
@@ -252,7 +252,7 @@ async fn archive_body_returns_extrinsics_for_valid_hashes() {
 	assert_ne!(fork_point_body, body);
 }
 
-async fn archive_body_is_idempotent_over_finalized_blocks() {
+pub async fn archive_body_is_idempotent_over_finalized_blocks() {
 	let ctx = TestContext::for_rpc_server().await;
 
 	// Build a few blocks
@@ -282,7 +282,7 @@ async fn archive_body_is_idempotent_over_finalized_blocks() {
 	.await;
 }
 
-async fn archive_body_returns_none_for_unknown_hash() {
+pub async fn archive_body_returns_none_for_unknown_hash() {
 	let ctx = TestContext::for_rpc_server().await;
 	let unknown_hash = "0x0000000000000000000000000000000000000000000000000000000000000001";
 	archive_body_returns_none_for_unknown_hash_at(&ctx.ws_url(), unknown_hash).await;
@@ -322,13 +322,13 @@ pub async fn archive_body_returns_none_for_unknown_hash_at(ws_url: &str, unknown
 	assert!(body.is_none(), "Should return None for unknown hash");
 }
 
-async fn archive_call_executes_runtime_api() {
+pub async fn archive_call_executes_runtime_api() {
 	let ctx = TestContext::for_rpc_server().await;
 	let head_hash = format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
 	archive_call_executes_runtime_api_at(&ctx.ws_url(), &head_hash, "Core_version", "0x").await;
 }
 
-async fn archive_call_returns_error_for_invalid_function() {
+pub async fn archive_call_returns_error_for_invalid_function() {
 	let ctx = TestContext::for_rpc_server().await;
 	let head_hash = format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
 	archive_call_returns_error_for_invalid_function_at(
@@ -340,7 +340,7 @@ async fn archive_call_returns_error_for_invalid_function() {
 	.await;
 }
 
-async fn archive_call_returns_null_for_unknown_block() {
+pub async fn archive_call_returns_null_for_unknown_block() {
 	let ctx = TestContext::for_rpc_server().await;
 	let unknown_hash = "0x0000000000000000000000000000000000000000000000000000000000000001";
 	archive_call_returns_null_for_unknown_block_at(
@@ -352,7 +352,7 @@ async fn archive_call_returns_null_for_unknown_block() {
 	.await;
 }
 
-async fn archive_call_executes_at_specific_block() {
+pub async fn archive_call_executes_at_specific_block() {
 	let ctx = TestContext::for_rpc_server().await;
 	// Get fork point hash
 	let fork_hash = format!("0x{}", hex::encode(ctx.blockchain().fork_point().as_bytes()));
@@ -365,7 +365,7 @@ async fn archive_call_executes_at_specific_block() {
 	archive_call_executes_runtime_api_at(&ctx.ws_url(), &head_hash, "Core_version", "0x").await;
 }
 
-async fn archive_call_rejects_invalid_hex_hash() {
+pub async fn archive_call_rejects_invalid_hex_hash() {
 	let ctx = TestContext::for_rpc_server().await;
 	archive_call_rejects_invalid_hex_hash_at(&ctx.ws_url(), "not_valid_hex", "Core_version", "0x")
 		.await;
@@ -440,7 +440,7 @@ pub async fn archive_call_rejects_invalid_hex_hash_at(
 	assert!(result.is_err(), "Should reject invalid hex hash");
 }
 
-async fn archive_storage_returns_value_for_existing_key() {
+pub async fn archive_storage_returns_value_for_existing_key() {
 	let ctx = TestContext::for_rpc_server().await;
 	let head_hash = format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
 	let mut key = Vec::new();
@@ -475,7 +475,7 @@ pub async fn archive_storage_returns_value_for_existing_key_at(
 	}
 }
 
-async fn archive_storage_returns_none_for_nonexistent_key() {
+pub async fn archive_storage_returns_none_for_nonexistent_key() {
 	let ctx = TestContext::for_rpc_server().await;
 	let head_hash = format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
 	let key_hex = format!("0x{}", hex::encode(b"nonexistent_key_12345"));
@@ -507,7 +507,7 @@ pub async fn archive_storage_returns_none_for_nonexistent_key_at(
 	}
 }
 
-async fn archive_header_rejects_invalid_hex() {
+pub async fn archive_header_rejects_invalid_hex() {
 	let ctx = TestContext::for_rpc_server().await;
 	archive_header_rejects_invalid_hex_at(&ctx.ws_url(), "not_valid_hex").await;
 }
@@ -519,7 +519,7 @@ pub async fn archive_header_rejects_invalid_hex_at(ws_url: &str, invalid_hash: &
 	assert!(result.is_err(), "Should reject invalid hex");
 }
 
-async fn archive_call_rejects_invalid_hex_parameters() {
+pub async fn archive_call_rejects_invalid_hex_parameters() {
 	let ctx = TestContext::for_rpc_server().await;
 	let head_hash = format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
 	archive_call_rejects_invalid_hex_parameters_at(&ctx.ws_url(), &head_hash, "Core_version").await;
@@ -542,7 +542,7 @@ pub async fn archive_call_rejects_invalid_hex_parameters_at(
 ///
 /// `Core_initialize_block` writes to `System::Number` and other storage keys during
 /// block initialization. This test verifies those changes are discarded after the call.
-async fn archive_call_does_not_persist_storage_changes() {
+pub async fn archive_call_does_not_persist_storage_changes() {
 	use crate::{DigestItem, consensus_engine, create_next_header};
 
 	let ctx = TestContext::for_rpc_server().await;
@@ -618,7 +618,7 @@ pub async fn archive_call_does_not_persist_storage_changes_at(
 	);
 }
 
-async fn archive_storage_returns_hash_when_requested() {
+pub async fn archive_storage_returns_hash_when_requested() {
 	let ctx = TestContext::for_rpc_server().await;
 	let head_hash = format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
 	let mut key = Vec::new();
@@ -657,7 +657,7 @@ pub async fn archive_storage_returns_hash_when_requested_at(
 	}
 }
 
-async fn archive_storage_queries_at_specific_block() {
+pub async fn archive_storage_queries_at_specific_block() {
 	let ctx = TestContext::for_rpc_server().await;
 	// Build a block to change state
 	ctx.blockchain().build_empty_block().await.unwrap();
@@ -717,7 +717,7 @@ pub async fn archive_storage_queries_at_specific_block_at(
 	}
 }
 
-async fn archive_storage_returns_error_for_unknown_block() {
+pub async fn archive_storage_returns_error_for_unknown_block() {
 	let ctx = TestContext::for_rpc_server().await;
 	let unknown_hash = "0x0000000000000000000000000000000000000000000000000000000000000001";
 	archive_storage_returns_error_for_unknown_block_at(&ctx.ws_url(), unknown_hash, "0x1234").await;
@@ -746,7 +746,7 @@ pub async fn archive_storage_returns_error_for_unknown_block_at(
 	}
 }
 
-async fn archive_storage_diff_detects_modified_value() {
+pub async fn archive_storage_diff_detects_modified_value() {
 	let ctx = TestContext::for_rpc_server().await;
 	let test_key = b"test_storage_diff_key";
 	let test_key_hex = format!("0x{}", hex::encode(test_key));
@@ -800,7 +800,7 @@ pub async fn archive_storage_diff_detects_modified_value_at(
 	}
 }
 
-async fn archive_storage_diff_returns_empty_for_unchanged_keys() {
+pub async fn archive_storage_diff_returns_empty_for_unchanged_keys() {
 	let ctx = TestContext::for_rpc_server().await;
 	let test_key = b"test_unchanged_key";
 	let test_key_hex = format!("0x{}", hex::encode(test_key));
@@ -849,7 +849,7 @@ pub async fn archive_storage_diff_returns_empty_for_unchanged_keys_at(
 	}
 }
 
-async fn archive_storage_diff_returns_added_for_new_key() {
+pub async fn archive_storage_diff_returns_added_for_new_key() {
 	let ctx = TestContext::for_rpc_server().await;
 	// Build first block without the key
 	let block1 = ctx.blockchain().build_empty_block().await.expect("Failed to build block");
@@ -901,7 +901,7 @@ pub async fn archive_storage_diff_returns_added_for_new_key_at(
 	}
 }
 
-async fn archive_storage_diff_returns_deleted_for_removed_key() {
+pub async fn archive_storage_diff_returns_deleted_for_removed_key() {
 	let ctx = TestContext::for_rpc_server().await;
 	// Add a key and build first block
 	let test_key = b"test_deleted_key";
@@ -954,7 +954,7 @@ pub async fn archive_storage_diff_returns_deleted_for_removed_key_at(
 	}
 }
 
-async fn archive_storage_diff_returns_hash_when_requested() {
+pub async fn archive_storage_diff_returns_hash_when_requested() {
 	let ctx = TestContext::for_rpc_server().await;
 	let test_key = b"test_hash_key";
 	let test_key_hex = format!("0x{}", hex::encode(test_key));
@@ -1009,7 +1009,7 @@ pub async fn archive_storage_diff_returns_hash_when_requested_at(
 	}
 }
 
-async fn archive_storage_diff_returns_error_for_unknown_hash() {
+pub async fn archive_storage_diff_returns_error_for_unknown_hash() {
 	let ctx = TestContext::for_rpc_server().await;
 	let unknown_hash = "0x0000000000000000000000000000000000000000000000000000000000000001";
 	let valid_hash = format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
@@ -1046,7 +1046,7 @@ pub async fn archive_storage_diff_returns_error_for_unknown_hash_at(
 	}
 }
 
-async fn archive_storage_diff_returns_error_for_unknown_previous_hash() {
+pub async fn archive_storage_diff_returns_error_for_unknown_previous_hash() {
 	let ctx = TestContext::for_rpc_server().await;
 	let valid_hash = format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
 	let unknown_hash = "0x0000000000000000000000000000000000000000000000000000000000000001";
@@ -1083,7 +1083,7 @@ pub async fn archive_storage_diff_returns_error_for_unknown_previous_hash_at(
 	}
 }
 
-async fn archive_storage_diff_uses_parent_when_previous_hash_omitted() {
+pub async fn archive_storage_diff_uses_parent_when_previous_hash_omitted() {
 	let ctx = TestContext::for_rpc_server().await;
 	let test_key = b"test_parent_key";
 	let test_key_hex = format!("0x{}", hex::encode(test_key));
@@ -1136,7 +1136,7 @@ pub async fn archive_storage_diff_uses_parent_when_previous_hash_omitted_at(
 	}
 }
 
-async fn archive_storage_diff_handles_multiple_items() {
+pub async fn archive_storage_diff_handles_multiple_items() {
 	let ctx = TestContext::for_rpc_server().await;
 	// Create test keys
 	let added_key = b"test_multi_added";

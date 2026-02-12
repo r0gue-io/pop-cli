@@ -2,11 +2,51 @@
 
 #![allow(missing_docs)]
 
-use crate::rpc_server::types::SystemHealth;
+use crate::{rpc_server::types::SystemHealth, testing::TestContext};
 use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
 
 const ALICE_SS58: &str = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
 const NONEXISTENT_ACCOUNT: &str = "5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM";
+
+pub async fn chain_works() {
+	let ctx = TestContext::for_rpc_server().await;
+	chain_works_at(&ctx.ws_url(), "ink-node").await;
+}
+
+pub async fn name_works() {
+	let ctx = TestContext::for_rpc_server().await;
+	name_works_at(&ctx.ws_url(), "pop-fork").await;
+}
+
+pub async fn version_works() {
+	let ctx = TestContext::for_rpc_server().await;
+	version_works_at(&ctx.ws_url(), "1.0.0").await;
+}
+
+pub async fn health_works() {
+	let ctx = TestContext::for_rpc_server().await;
+	health_works_at(&ctx.ws_url()).await;
+}
+
+pub async fn properties_returns_json_or_null() {
+	let ctx = TestContext::for_rpc_server().await;
+	properties_returns_json_or_null_at(&ctx.ws_url()).await;
+}
+
+pub async fn account_next_index_returns_nonce() {
+	let ctx = TestContext::for_rpc_server().await;
+	account_next_index_returns_nonce_at(&ctx.ws_url()).await;
+}
+
+pub async fn account_next_index_returns_zero_for_nonexistent() {
+	let ctx = TestContext::for_rpc_server().await;
+	account_next_index_returns_zero_for_nonexistent_at(&ctx.ws_url()).await;
+}
+
+pub async fn account_next_index_invalid_address_returns_error() {
+	let ctx = TestContext::for_rpc_server().await;
+	account_next_index_invalid_address_returns_error_at(&ctx.ws_url()).await;
+}
 
 pub async fn chain_works_at(ws_url: &str, expected_chain: &str) {
 	let client = WsClientBuilder::default().build(ws_url).await.expect("Failed to connect");

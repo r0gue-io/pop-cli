@@ -62,6 +62,12 @@ use subxt::{
 use tokio::sync::{Mutex, RwLock, Semaphore};
 use url::Url;
 
+/// WebSocket connect timeout for upstream RPC clients.
+///
+/// CI runners can be slow to accept WebSocket upgrades under load; a longer
+/// timeout reduces flaky connection failures.
+const WS_CONNECT_TIMEOUT_SECS: u64 = 30;
+
 /// Maximum number of concurrent upstream RPC calls for heavy storage methods.
 ///
 /// Limits parallelism for `storage_batch()` and `storage_keys_paged()` to prevent
@@ -141,6 +147,7 @@ impl ForkRpcClient {
 
 		let client = WsClientBuilder::default()
 			.max_response_size(u32::MAX)
+			.connection_timeout(std::time::Duration::from_secs(WS_CONNECT_TIMEOUT_SECS))
 			.build(endpoint.as_str())
 			.await
 			.map_err(|e| RpcClientError::ConnectionFailed {

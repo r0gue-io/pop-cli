@@ -2,8 +2,64 @@
 
 #![allow(missing_docs)]
 
-use crate::rpc_server::types::RuntimeVersion;
+use crate::{
+	rpc_server::types::RuntimeVersion,
+	testing::{TestContext, accounts, helpers},
+};
 use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
+
+pub async fn state_get_storage_returns_value() {
+	let ctx = TestContext::for_rpc_server().await;
+	let key_hex = format!("0x{}", hex::encode(helpers::account_storage_key(&accounts::ALICE)));
+	state_get_storage_returns_value_at(&ctx.ws_url(), &key_hex).await;
+}
+
+pub async fn state_get_storage_at_block_hash() {
+	let ctx = TestContext::for_rpc_server().await;
+	let key_hex = format!("0x{}", hex::encode(helpers::account_storage_key(&accounts::ALICE)));
+	let block = ctx.blockchain().build_empty_block().await.expect("block build should work");
+	ctx.blockchain().build_empty_block().await.expect("block build should work");
+	let block_hash_hex = format!("0x{}", hex::encode(block.hash.as_bytes()));
+	state_get_storage_at_block_hash_at(&ctx.ws_url(), &key_hex, &block_hash_hex).await;
+}
+
+pub async fn state_get_storage_returns_none_for_nonexistent_key() {
+	let ctx = TestContext::for_rpc_server().await;
+	state_get_storage_returns_none_for_nonexistent_key_at(&ctx.ws_url()).await;
+}
+
+pub async fn state_get_metadata_returns_metadata() {
+	let ctx = TestContext::for_rpc_server().await;
+	state_get_metadata_returns_metadata_at(&ctx.ws_url()).await;
+}
+
+pub async fn state_get_metadata_at_block_hash() {
+	let ctx = TestContext::for_rpc_server().await;
+	let head_hash_hex = format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
+	state_get_metadata_at_block_hash_at(&ctx.ws_url(), &head_hash_hex).await;
+}
+
+pub async fn state_get_runtime_version_returns_version() {
+	let ctx = TestContext::for_rpc_server().await;
+	state_get_runtime_version_returns_version_at(&ctx.ws_url()).await;
+}
+
+pub async fn state_get_runtime_version_at_block_hash() {
+	let ctx = TestContext::for_rpc_server().await;
+	let head_hash_hex = format!("0x{}", hex::encode(ctx.blockchain().head_hash().await.as_bytes()));
+	state_get_runtime_version_at_block_hash_at(&ctx.ws_url(), &head_hash_hex).await;
+}
+
+pub async fn state_get_storage_invalid_hex_returns_error() {
+	let ctx = TestContext::for_rpc_server().await;
+	state_get_storage_invalid_hex_returns_error_at(&ctx.ws_url()).await;
+}
+
+pub async fn state_get_storage_invalid_block_hash_returns_error() {
+	let ctx = TestContext::for_rpc_server().await;
+	let key_hex = format!("0x{}", hex::encode(helpers::account_storage_key(&accounts::ALICE)));
+	state_get_storage_invalid_block_hash_returns_error_at(&ctx.ws_url(), &key_hex).await;
+}
 
 pub async fn state_get_storage_returns_value_at(ws_url: &str, key_hex: &str) {
 	let client = WsClientBuilder::default().build(ws_url).await.expect("Failed to connect");

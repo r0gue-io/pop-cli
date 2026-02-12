@@ -9493,6 +9493,7 @@ dependencies = [
  "jsonrpsee",
  "log",
  "parity-scale-codec",
+ "paste",
  "pop-common",
  "scale-value",
  "serde",

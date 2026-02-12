@@ -45,6 +45,7 @@ serde_json.workspace = true
 pop-common = { path = "../pop-common", version = "0.12.1" }
 
 [dev-dependencies]
+paste.workspace = true
 tempfile.workspace = true
 tokio-test.workspace = true
 scale.workspace = true

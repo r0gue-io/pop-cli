@@ -2,7 +2,28 @@
 
 #![allow(missing_docs)]
 
+use crate::testing::TestContext;
 use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
+
+pub async fn scenario_chain_spec_chain_name_returns_string() {
+	let ctx = TestContext::for_rpc_server().await;
+	chain_spec_chain_name_returns_string(&ctx.ws_url(), "ink-node").await;
+}
+
+pub async fn scenario_chain_spec_genesis_hash_returns_valid_hex_hash() {
+	let ctx = TestContext::for_rpc_server().await;
+	let _ = chain_spec_genesis_hash_returns_valid_hex_hash(&ctx.ws_url(), None).await;
+}
+
+pub async fn scenario_chain_spec_genesis_hash_matches_archive() {
+	let ctx = TestContext::for_rpc_server().await;
+	chain_spec_genesis_hash_matches_archive(&ctx.ws_url()).await;
+}
+
+pub async fn scenario_chain_spec_properties_returns_json_or_null() {
+	let ctx = TestContext::for_rpc_server().await;
+	chain_spec_properties_returns_json_or_null(&ctx.ws_url(), None).await;
+}
 
 pub async fn chain_spec_chain_name_returns_string(ws_url: &str, expected: &str) {
 	let client = WsClientBuilder::default().build(ws_url).await.expect("Failed to connect");
