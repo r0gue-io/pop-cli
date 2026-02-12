@@ -162,6 +162,17 @@ const ASSET_HUB_WESTEND_RPC_URLS: &[&str] =
 	&["wss://westend-asset-hub-rpc.polkadot.io", "wss://asset-hub-westend-rpc.n.dwellir.com"];
 
 impl SupportedChains {
+	/// Returns whether this chain is a relay chain.
+	pub fn is_relay(&self) -> bool {
+		matches!(
+			self,
+			SupportedChains::PASEO |
+				SupportedChains::WESTEND |
+				SupportedChains::KUSAMA |
+				SupportedChains::POLKADOT
+		)
+	}
+
 	/// Selects a RPC URL for the chain.
 	pub fn get_rpc_url(&self) -> Option<String> {
 		let chain_urls = self.rpc_urls();
