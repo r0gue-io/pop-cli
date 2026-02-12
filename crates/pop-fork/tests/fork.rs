@@ -21,7 +21,7 @@ where
 		.build()
 		.expect("tokio runtime should build");
 	runtime.block_on(future);
-	runtime.shutdown_timeout(Duration::from_secs(1));
+	runtime.shutdown_timeout(Duration::from_secs(30));
 }
 
 macro_rules! scenario_tests {
