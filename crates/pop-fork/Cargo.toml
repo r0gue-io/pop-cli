@@ -38,6 +38,7 @@ smoldot.workspace = true
 # RPC Server
 futures.workspace = true
 jsonrpsee.workspace = true
+paste = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 
@@ -50,4 +51,4 @@ tokio-test.workspace = true
 scale.workspace = true
 
 [features]
-integration-tests = []
+integration-tests = ["dep:paste"]
