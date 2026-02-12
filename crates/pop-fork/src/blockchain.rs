@@ -59,6 +59,7 @@ use crate::{
 	},
 };
 use scale::Decode;
+use scale_info::{PortableRegistry, TypeDef, TypeDefPrimitive};
 use std::{
 	path::Path,
 	sync::{
@@ -73,6 +74,74 @@ use url::Url;
 /// Minimum interval (in seconds) between reconnection log messages at DEBUG level.
 /// More frequent reconnections are logged at TRACE to reduce noise.
 const RECONNECT_LOG_DEBOUNCE_SECS: u64 = 30;
+const TYPE_RESOLVE_MAX_DEPTH: usize = 8;
+
+fn infer_account_id_len_from_type(
+	registry: &PortableRegistry,
+	ty_id: u32,
+	depth: usize,
+) -> Option<usize> {
+	if depth > TYPE_RESOLVE_MAX_DEPTH {
+		return None;
+	}
+
+	let ty = registry.resolve(ty_id)?;
+
+	if let Some(last_segment) = ty.path.segments.last().map(String::as_str) {
+		match last_segment {
+			"AccountId20" | "H160" => return Some(20),
+			"AccountId32" | "H256" => return Some(32),
+			_ => {},
+		}
+	}
+
+	match &ty.type_def {
+		TypeDef::Array(array) => {
+			if matches!(array.len, 20 | 32) {
+				let element_ty = registry.resolve(array.type_param.id)?;
+				if matches!(element_ty.type_def, TypeDef::Primitive(TypeDefPrimitive::U8)) {
+					return Some(array.len as usize);
+				}
+			}
+			None
+		},
+		TypeDef::Composite(composite) if composite.fields.len() == 1 =>
+			infer_account_id_len_from_type(registry, composite.fields[0].ty.id, depth + 1),
+		TypeDef::Variant(variant) => {
+			let mut inferred_len = None;
+			for var in &variant.variants {
+				for field in &var.fields {
+					if let Some(len) = infer_account_id_len_from_type(registry, field.ty.id, depth + 1)
+					{
+						if inferred_len.is_some() && inferred_len != Some(len) {
+							return None;
+						}
+						inferred_len = Some(len);
+					}
+				}
+			}
+			inferred_len
+		},
+		_ => None,
+	}
+}
+
+fn sudo_account_id_len(metadata: &subxt::Metadata) -> Option<usize> {
+	let sudo_pallet = metadata.pallet_by_name("Sudo")?;
+	let sudo_storage = sudo_pallet.storage()?;
+	let sudo_key = sudo_storage.entry_by_name("Key")?;
+	infer_account_id_len_from_type(metadata.types(), sudo_key.entry_type().value_ty(), 0)
+}
+
+fn select_sudo_account<'a>(
+	accounts: &'a [(&'a str, Vec<u8>)],
+	expected_len: Option<usize>,
+) -> (&'a str, &'a [u8]) {
+	let selected = expected_len
+		.and_then(|len| accounts.iter().find(|(_, account)| account.len() == len))
+		.unwrap_or_else(|| accounts.first().expect("initialize_dev_accounts requires dev accounts"));
+	(selected.0, selected.1.as_slice())
+}
 
 pub type BlockBody = Vec<Vec<u8>>;
 
@@ -1783,7 +1852,7 @@ impl Blockchain {
 		head.storage_mut().set(key, value).unwrap();
 	}
 
-	/// Fund well-known dev accounts and optionally set the first account as sudo.
+	/// Fund well-known dev accounts and optionally set sudo.
 	///
 	/// Detects the chain type from the `isEthereum` chain property:
 	/// - **Ethereum chains**: funds both Substrate (Alice, Bob, ...) and Ethereum (Alith,
@@ -1794,7 +1863,8 @@ impl Blockchain {
 	/// - If it already exists on-chain, patches its free balance
 	/// - If it does not exist, creates a fresh `AccountInfo`
 	///
-	/// If the chain has a `Sudo` pallet, sets the first dev account as sudo.
+	/// If the chain has a `Sudo` pallet, sets sudo to a dev account matching the runtime's
+	/// account-id width (20-byte or 32-byte), with first-account fallback.
 	pub async fn initialize_dev_accounts(&self) -> Result<(), BlockchainError> {
 		use crate::dev::{
 			DEV_BALANCE, ETHEREUM_DEV_ACCOUNTS, SUBSTRATE_DEV_ACCOUNTS, account_storage_key,
@@ -1852,15 +1922,16 @@ impl Blockchain {
 			log::debug!("Funded dev account: {name} (0x{})", hex::encode(addr));
 		}
 
-		// Set the first dev account as sudo if the Sudo pallet exists.
+		// Set sudo if the Sudo pallet exists.
 		let metadata = head.metadata().await?;
 		if metadata.pallet_by_name("Sudo").is_some() {
 			let key = sudo_key_storage_key();
-			let sudo_account = &accounts[0].1;
+			let expected_len = sudo_account_id_len(metadata.as_ref());
+			let (sudo_name, sudo_account) = select_sudo_account(&accounts, expected_len);
 			head.storage_mut()
 				.set_initial(&key, Some(sudo_account))
 				.map_err(BlockError::from)?;
-			log::debug!("Set {} as sudo key (0x{})", accounts[0].0, hex::encode(&accounts[0].1));
+			log::debug!("Set {} as sudo key (0x{})", sudo_name, hex::encode(sudo_account));
 		}
 
 		Ok(())
@@ -1975,5 +2046,32 @@ mod tests {
 				assert_eq!(err.reason(), "Nonce too low (already used)");
 			},
 		}
+	}
+
+	#[test]
+	fn select_sudo_account_prefers_matching_account_length() {
+		let accounts =
+			vec![("Alice", vec![0u8; 32]), ("Bob", vec![1u8; 32]), ("Alith", vec![2u8; 20])];
+
+		let (name_20, account_20) = select_sudo_account(&accounts, Some(20));
+		assert_eq!(name_20, "Alith");
+		assert_eq!(account_20.len(), 20);
+
+		let (name_32, account_32) = select_sudo_account(&accounts, Some(32));
+		assert_eq!(name_32, "Alice");
+		assert_eq!(account_32.len(), 32);
+	}
+
+	#[test]
+	fn select_sudo_account_falls_back_to_first_account() {
+		let accounts = vec![("Alice", vec![0u8; 32]), ("Alith", vec![2u8; 20])];
+
+		let (name_none, account_none) = select_sudo_account(&accounts, None);
+		assert_eq!(name_none, "Alice");
+		assert_eq!(account_none.len(), 32);
+
+		let (name_unknown, account_unknown) = select_sudo_account(&accounts, Some(64));
+		assert_eq!(name_unknown, "Alice");
+		assert_eq!(account_unknown.len(), 32);
 	}
 }

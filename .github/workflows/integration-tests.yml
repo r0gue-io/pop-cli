@@ -323,10 +323,111 @@ jobs:
           cargo nextest run \
             --release \
             --locked \
-            --no-default-features \
-            --features "chain,integration-tests" \
+            -p pop-chains \
+            --features integration-tests \
             --test chain \
             --test metadata \
+            --no-fail-fast \
+            --nocapture \
+            --status-level all
+
+  pop-cli-integration-tests:
+    strategy:
+      fail-fast: true
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Free up space on runner (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          set -xeuo pipefail
+          sudo rm -rf /usr/local/lib/android &
+          sudo rm -rf /usr/share/dotnet &
+          sudo rm -rf /usr/share/swift &
+          if command -v docker &> /dev/null; then
+            sudo docker image prune -af &
+          fi
+          sudo apt-get clean &
+          wait
+
+      - uses: actions/checkout@v4
+
+      - name: Install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          default: true
+          target: wasm32-unknown-unknown
+          components: rust-src
+
+      - name: Rust Cache Linux
+        if: matrix.os == 'ubuntu-latest'
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          shared-key: pop-cache
+
+      - name: Rust Cache MacOS
+        if: matrix.os == 'macos-latest'
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-all-crates: true
+          shared-key: pop-cache
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Install packages (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+          protoc --version
+
+      - name: Install packages (macOS)
+        if: matrix.os == 'macos-latest'
+        run: |
+          brew install protobuf
+          protoc --version
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      - name: Run pop-cli integration tests
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          extra_contract_args=()
+          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            extra_contract_args=(-- --skip verifiable_contract_lifecycle)
+          fi
+
+          cargo nextest run \
+            --release \
+            --locked \
+            --no-default-features \
+            --features "contract,integration-tests" \
+            -p pop-cli \
+            --test contract \
+            --no-fail-fast \
+            --nocapture \
+            --status-level all \
+            "${extra_contract_args[@]}"
+
+          cargo nextest run \
+            --release \
+            --locked \
+            --no-default-features \
+            --features "chain,integration-tests" \
+            -p pop-cli \
+            --test chain \
+            --test fork \
             --no-fail-fast \
             --nocapture \
             --status-level all

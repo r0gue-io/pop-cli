@@ -9495,6 +9495,7 @@ dependencies = [
  "parity-scale-codec",
  "paste",
  "pop-common",
+ "scale-info",
  "scale-value",
  "serde",
  "serde_json",
