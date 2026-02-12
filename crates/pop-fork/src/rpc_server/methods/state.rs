@@ -23,122 +23,6 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 
-#[async_trait::async_trait]
-pub trait StateBlockchain: Send + Sync {
-	async fn head_number(&self) -> u32;
-	async fn head_hash(&self) -> subxt::utils::H256;
-	async fn block_number_by_hash(
-		&self,
-		hash: subxt::utils::H256,
-	) -> Result<Option<u32>, crate::BlockchainError>;
-	async fn storage_at(
-		&self,
-		block_number: u32,
-		key: &[u8],
-	) -> Result<Option<Vec<u8>>, crate::BlockchainError>;
-	async fn call_at_block(
-		&self,
-		hash: subxt::utils::H256,
-		method: &str,
-		params: &[u8],
-	) -> Result<Option<Vec<u8>>, crate::BlockchainError>;
-	fn fork_point_number(&self) -> u32;
-	async fn proxy_state_call(
-		&self,
-		method: &str,
-		params: &[u8],
-		at_hash: subxt::utils::H256,
-	) -> Result<Vec<u8>, crate::BlockchainError>;
-	async fn storage_keys_paged(
-		&self,
-		prefix: &[u8],
-		count: u32,
-		start_key: Option<&[u8]>,
-		at: Option<subxt::utils::H256>,
-	) -> Result<Vec<Vec<u8>>, crate::BlockchainError>;
-	async fn storage_batch(
-		&self,
-		block_hash: subxt::utils::H256,
-		keys: &[&[u8]],
-	) -> Result<Vec<Option<Vec<u8>>>, crate::BlockchainError>;
-	async fn storage(&self, key: &[u8]) -> Result<Option<Vec<u8>>, crate::BlockchainError>;
-	fn subscribe_events(&self) -> broadcast::Receiver<BlockchainEvent>;
-}
-
-#[async_trait::async_trait]
-impl StateBlockchain for Blockchain {
-	async fn head_number(&self) -> u32 {
-		Blockchain::head_number(self).await
-	}
-
-	async fn head_hash(&self) -> subxt::utils::H256 {
-		Blockchain::head_hash(self).await
-	}
-
-	async fn block_number_by_hash(
-		&self,
-		hash: subxt::utils::H256,
-	) -> Result<Option<u32>, crate::BlockchainError> {
-		Blockchain::block_number_by_hash(self, hash).await
-	}
-
-	async fn storage_at(
-		&self,
-		block_number: u32,
-		key: &[u8],
-	) -> Result<Option<Vec<u8>>, crate::BlockchainError> {
-		Blockchain::storage_at(self, block_number, key).await
-	}
-
-	async fn call_at_block(
-		&self,
-		hash: subxt::utils::H256,
-		method: &str,
-		params: &[u8],
-	) -> Result<Option<Vec<u8>>, crate::BlockchainError> {
-		Blockchain::call_at_block(self, hash, method, params).await
-	}
-
-	fn fork_point_number(&self) -> u32 {
-		Blockchain::fork_point_number(self)
-	}
-
-	async fn proxy_state_call(
-		&self,
-		method: &str,
-		params: &[u8],
-		at_hash: subxt::utils::H256,
-	) -> Result<Vec<u8>, crate::BlockchainError> {
-		Blockchain::proxy_state_call(self, method, params, at_hash).await
-	}
-
-	async fn storage_keys_paged(
-		&self,
-		prefix: &[u8],
-		count: u32,
-		start_key: Option<&[u8]>,
-		at: Option<subxt::utils::H256>,
-	) -> Result<Vec<Vec<u8>>, crate::BlockchainError> {
-		Blockchain::storage_keys_paged(self, prefix, count, start_key, at).await
-	}
-
-	async fn storage_batch(
-		&self,
-		block_hash: subxt::utils::H256,
-		keys: &[&[u8]],
-	) -> Result<Vec<Option<Vec<u8>>>, crate::BlockchainError> {
-		Blockchain::storage_batch(self, block_hash, keys).await
-	}
-
-	async fn storage(&self, key: &[u8]) -> Result<Option<Vec<u8>>, crate::BlockchainError> {
-		Blockchain::storage(self, key).await
-	}
-
-	fn subscribe_events(&self) -> broadcast::Receiver<BlockchainEvent> {
-		Blockchain::subscribe_events(self)
-	}
-}
-
 /// Legacy state RPC methods.
 #[rpc(server, namespace = "state")]
 pub trait StateApi {
@@ -194,20 +78,20 @@ pub trait StateApi {
 }
 
 /// Implementation of legacy state RPC methods.
-pub struct StateApi<T: StateBlockchain = Blockchain> {
-	blockchain: Arc<T>,
+pub struct StateApi {
+	blockchain: Arc<Blockchain>,
 	shutdown_token: CancellationToken,
 }
 
-impl<T: StateBlockchain> StateApi<T> {
+impl StateApi {
 	/// Create a new StateApi instance.
-	pub fn new(blockchain: Arc<T>, shutdown_token: CancellationToken) -> Self {
+	pub fn new(blockchain: Arc<Blockchain>, shutdown_token: CancellationToken) -> Self {
 		Self { blockchain, shutdown_token }
 	}
 }
 
 #[async_trait::async_trait]
-impl<T: StateBlockchain + 'static> StateApiServer for StateApi<T> {
+impl StateApiServer for StateApi {
 	async fn get_storage(&self, key: String, at: Option<String>) -> RpcResult<Option<String>> {
 		let block_number = match at {
 			Some(hash) => {
@@ -237,7 +121,7 @@ impl<T: StateBlockchain + 'static> StateApiServer for StateApi<T> {
 	async fn get_metadata(&self, at: Option<String>) -> RpcResult<String> {
 		let block_hash = match at {
 			Some(hash) => parse_block_hash(&hash)?,
-			None => self.blockchain.head_hash().await,
+			None => self.blockchain.head().await.hash,
 		};
 		// Fetch real metadata via runtime call
 		// The runtime returns SCALE-encoded Vec<u8>, so we need to decode it
@@ -271,9 +155,8 @@ impl<T: StateBlockchain + 'static> StateApiServer for StateApi<T> {
 				(num, parsed)
 			},
 			None => {
-				let head_number = self.blockchain.head_number().await;
-				let head_hash = self.blockchain.head_hash().await;
-				(head_number, head_hash)
+				let head = self.blockchain.head().await;
+				(head.number, head.hash)
 			},
 		};
 
@@ -397,9 +280,8 @@ impl<T: StateBlockchain + 'static> StateApiServer for StateApi<T> {
 				(num, parsed)
 			},
 			None => {
-				let head_number = self.blockchain.head_number().await;
-				let head_hash = self.blockchain.head_hash().await;
-				(head_number, head_hash)
+				let head = self.blockchain.head().await;
+				(head.number, head.hash)
 			},
 		};
 
@@ -449,9 +331,8 @@ impl<T: StateBlockchain + 'static> StateApiServer for StateApi<T> {
 				(num, parsed)
 			},
 			None => {
-				let head_number = self.blockchain.head_number().await;
-				let head_hash = self.blockchain.head_hash().await;
-				(head_number, head_hash)
+				let head = self.blockchain.head().await;
+				(head.number, head.hash)
 			},
 		};
 
@@ -730,5 +611,202 @@ impl<T: StateBlockchain + 'static> StateApiServer for StateApi<T> {
 		});
 
 		Ok(())
+	}
+}
+
+#[cfg(test)]
+mod tests {
+
+	use crate::{
+		rpc_server::types::RuntimeVersion,
+		testing::{TestContext, accounts::ALICE, helpers::account_storage_key},
+	};
+	use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn state_get_storage_returns_value() {
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
+
+		// Query Alice's account storage (should exist on dev chain)
+		let key = account_storage_key(&ALICE);
+		let key_hex = format!("0x{}", hex::encode(&key));
+
+		let result: Option<String> = client
+			.request("state_getStorage", rpc_params![key_hex])
+			.await
+			.expect("RPC call failed");
+
+		assert!(result.is_some(), "Alice's account should exist");
+		let value = result.unwrap();
+		assert!(value.starts_with("0x"), "Value should be hex encoded");
+		assert!(value.len() > 2, "Value should not be empty");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn state_get_storage_at_block_hash() {
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
+
+		let block = ctx.blockchain().build_empty_block().await.unwrap();
+		ctx.blockchain().build_empty_block().await.unwrap();
+
+		// Get current head hash
+		let block_hash_hex = format!("0x{}", hex::encode(block.hash.as_bytes()));
+
+		// Query Alice's account storage at specific block
+		let key = account_storage_key(&ALICE);
+		let key_hex = format!("0x{}", hex::encode(&key));
+
+		let result: Option<String> = client
+			.request("state_getStorage", rpc_params![key_hex, block_hash_hex])
+			.await
+			.expect("RPC call failed");
+
+		assert!(result.is_some(), "Alice's account should exist at block");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn state_get_storage_returns_none_for_nonexistent_key() {
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
+
+		// Query a nonexistent storage key
+		let fake_key = "0x0000000000000000000000000000000000000000000000000000000000000000";
+
+		let result: Option<String> = client
+			.request("state_getStorage", rpc_params![fake_key])
+			.await
+			.expect("RPC call failed");
+
+		assert!(result.is_none(), "Nonexistent key should return None");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn state_get_metadata_returns_metadata() {
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.request_timeout(std::time::Duration::from_secs(120))
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
+
+		let result: String = client
+			.request("state_getMetadata", rpc_params![])
+			.await
+			.expect("RPC call failed");
+
+		assert!(result.starts_with("0x"), "Metadata should be hex encoded");
+		// Metadata is large, just check it's substantial
+		assert!(result.len() > 1000, "Metadata should be substantial in size");
+		// Verify metadata magic number "meta" (0x6d657461) is at the start
+		assert!(
+			result.starts_with("0x6d657461"),
+			"Metadata should start with magic number 'meta' (0x6d657461), got: {}",
+			&result[..20.min(result.len())]
+		);
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn state_get_metadata_at_block_hash() {
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.request_timeout(std::time::Duration::from_secs(120))
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
+
+		// Get current head hash
+		let head_hash = ctx.blockchain().head_hash().await;
+		let head_hash_hex = format!("0x{}", hex::encode(head_hash.as_bytes()));
+
+		let result: String = client
+			.request("state_getMetadata", rpc_params![head_hash_hex])
+			.await
+			.expect("RPC call failed");
+
+		assert!(result.starts_with("0x"), "Metadata should be hex encoded");
+		assert!(result.len() > 1000, "Metadata should be substantial in size");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn state_get_runtime_version_returns_version() {
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
+
+		let result: RuntimeVersion = client
+			.request("state_getRuntimeVersion", rpc_params![])
+			.await
+			.expect("RPC call failed");
+
+		// Verify we got a valid runtime version
+		assert!(!result.spec_name.is_empty(), "Spec name should not be empty");
+		assert!(!result.impl_name.is_empty(), "Impl name should not be empty");
+		assert!(result.spec_version > 0, "Spec version should be positive");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn state_get_runtime_version_at_block_hash() {
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
+
+		// Get current head hash
+		let head_hash = ctx.blockchain().head_hash().await;
+		let head_hash_hex = format!("0x{}", hex::encode(head_hash.as_bytes()));
+
+		let result: RuntimeVersion = client
+			.request("state_getRuntimeVersion", rpc_params![head_hash_hex])
+			.await
+			.expect("RPC call failed");
+
+		assert!(!result.spec_name.is_empty(), "Spec name should not be empty");
+		assert!(result.spec_version > 0, "Spec version should be positive");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn state_get_storage_invalid_hex_returns_error() {
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
+
+		let result: Result<Option<String>, _> =
+			client.request("state_getStorage", rpc_params!["not_valid_hex"]).await;
+
+		assert!(result.is_err(), "Should fail with invalid hex key");
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn state_get_storage_invalid_block_hash_returns_error() {
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
+
+		let key = account_storage_key(&ALICE);
+		let key_hex = format!("0x{}", hex::encode(&key));
+		let invalid_hash = "0x0000000000000000000000000000000000000000000000000000000000000000";
+
+		let result: Result<Option<String>, _> =
+			client.request("state_getStorage", rpc_params![key_hex, invalid_hash]).await;
+
+		assert!(result.is_err(), "Should fail with invalid block hash");
 	}
 }
