@@ -221,6 +221,7 @@ jobs:
         run: |
           if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
             cargo nextest run \
+            --release \
             --locked \
             --no-default-features \
             --features "contract,integration-tests" \
@@ -231,6 +232,7 @@ jobs:
             -- --skip verifiable_contract_lifecycle
           else
             cargo nextest run \
+            --release \
             --locked \
             --no-default-features \
             --features "contract,integration-tests" \
@@ -313,6 +315,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cargo nextest run \
+            --release \
             --locked \
             --no-default-features \
             --features "chain,integration-tests" \
