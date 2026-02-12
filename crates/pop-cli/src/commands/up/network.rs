@@ -183,6 +183,11 @@ pub(crate) struct BuildCommand<const FILTER: u8> {
 }
 
 impl<const FILTER: u8> BuildCommand<FILTER> {
+	/// Injects a parachain into the command's parachain list.
+	pub(crate) fn inject_parachain(&mut self, chain: Box<dyn ChainT>) {
+		self.parachain.get_or_insert_with(Vec::new).push(chain);
+	}
+
 	/// Executes the command.
 	pub(crate) async fn execute(
 		&mut self,

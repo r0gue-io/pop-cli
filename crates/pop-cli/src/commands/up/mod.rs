@@ -80,6 +80,10 @@ pub(crate) enum Command {
 	#[cfg(feature = "chain")]
 	#[clap()]
 	Westend(network::BuildCommand<WESTEND>),
+	/// Launch a local Paseo network with Asset Hub.
+	#[cfg(feature = "chain")]
+	#[clap(name = "asset-hub")]
+	AssetHub(network::BuildCommand<PASEO>),
 	/// Launch a frontend dev server.
 	#[clap(alias = "f")]
 	Frontend(frontend::FrontendCommand),
@@ -140,6 +144,8 @@ impl Display for Command {
 			Command::Polkadot(_) => write!(f, "polkadot"),
 			#[cfg(feature = "chain")]
 			Command::Westend(_) => write!(f, "westend"),
+			#[cfg(feature = "chain")]
+			Command::AssetHub(_) => write!(f, "asset-hub"),
 			Command::Frontend(_) => write!(f, "frontend"),
 			#[cfg(feature = "contract")]
 			Command::InkNode(_) => write!(f, "ink-node"),

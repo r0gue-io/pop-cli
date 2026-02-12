@@ -78,6 +78,7 @@ impl DeploymentProvider {
 
 /// Supported chains with its public RPC endpoints.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumString, Display, VariantArray, clap::ValueEnum)]
+#[allow(non_camel_case_types)]
 pub enum SupportedChains {
 	/// Paseo.
 	PASEO,
@@ -87,6 +88,18 @@ pub enum SupportedChains {
 	KUSAMA,
 	/// Polkadot.
 	POLKADOT,
+	/// Asset Hub (Polkadot).
+	#[value(name = "asset-hub-polkadot")]
+	ASSET_HUB_POLKADOT,
+	/// Asset Hub (Kusama).
+	#[value(name = "asset-hub-kusama")]
+	ASSET_HUB_KUSAMA,
+	/// Asset Hub (Paseo).
+	#[value(name = "asset-hub-paseo", alias = "asset-hub")]
+	ASSET_HUB_PASEO,
+	/// Asset Hub (Westend).
+	#[value(name = "asset-hub-westend")]
+	ASSET_HUB_WESTEND,
 }
 
 // Define static constants for RPC URLs
@@ -122,6 +135,32 @@ const POLKADOT_RPC_URLS: &[&str] = &[
 	"wss://polkadot.dotters.network",
 ];
 
+const ASSET_HUB_POLKADOT_RPC_URLS: &[&str] = &[
+	"wss://polkadot-asset-hub-rpc.polkadot.io",
+	"wss://asset-hub-polkadot-rpc.n.dwellir.com",
+	"wss://sys.ibp.network/asset-hub-polkadot",
+	"wss://rpc-asset-hub-polkadot.luckyfriday.io",
+	"wss://asset-hub-polkadot.dotters.network",
+];
+
+const ASSET_HUB_KUSAMA_RPC_URLS: &[&str] = &[
+	"wss://kusama-asset-hub-rpc.polkadot.io",
+	"wss://asset-hub-kusama-rpc.n.dwellir.com",
+	"wss://sys.ibp.network/asset-hub-kusama",
+	"wss://rpc-asset-hub-kusama.luckyfriday.io",
+	"wss://asset-hub-kusama.dotters.network",
+];
+
+const ASSET_HUB_PASEO_RPC_URLS: &[&str] = &[
+	"wss://asset-hub-paseo.dotters.network",
+	"wss://sys.ibp.network/asset-hub-paseo",
+	"wss://asset-hub-paseo-rpc.n.dwellir.com",
+	"wss://sys.turboflakes.io/asset-hub-paseo",
+];
+
+const ASSET_HUB_WESTEND_RPC_URLS: &[&str] =
+	&["wss://westend-asset-hub-rpc.polkadot.io", "wss://asset-hub-westend-rpc.n.dwellir.com"];
+
 impl SupportedChains {
 	/// Selects a RPC URL for the chain.
 	pub fn get_rpc_url(&self) -> Option<String> {
@@ -141,6 +180,10 @@ impl SupportedChains {
 			SupportedChains::WESTEND => WESTEND_RPC_URLS,
 			SupportedChains::KUSAMA => KUSAMA_RPC_URLS,
 			SupportedChains::POLKADOT => POLKADOT_RPC_URLS,
+			SupportedChains::ASSET_HUB_POLKADOT => ASSET_HUB_POLKADOT_RPC_URLS,
+			SupportedChains::ASSET_HUB_KUSAMA => ASSET_HUB_KUSAMA_RPC_URLS,
+			SupportedChains::ASSET_HUB_PASEO => ASSET_HUB_PASEO_RPC_URLS,
+			SupportedChains::ASSET_HUB_WESTEND => ASSET_HUB_WESTEND_RPC_URLS,
 		}
 	}
 }
