@@ -405,7 +405,7 @@ async fn wait_for_rpc_endpoints_ready_with_timeout(
 				let name = name.clone();
 				async move {
 					match timeout(per_attempt_timeout, check_node_health(&uri)).await {
-						Ok(Ok(())) => Some(name),
+						Ok(Ok(())) => Some((name, uri)),
 						_ => None,
 					}
 				}
@@ -414,7 +414,7 @@ async fn wait_for_rpc_endpoints_ready_with_timeout(
 
 		let ready: Vec<_> = futures::future::join_all(checks).await.into_iter().flatten().collect();
 
-		pending.retain(|(name, _)| !ready.contains(name));
+		pending.retain(|endpoint| !ready.contains(endpoint));
 
 		if !pending.is_empty() {
 			sleep(backoff).await;
