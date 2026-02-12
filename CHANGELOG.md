@@ -2,6 +2,98 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.13.0] - 2026-02-11
+
+### 🚀 Features
+
+- Use in-house polkadot-sdk version fetching (#775)
+- Pass more flags to call command after deploying contract (#776)
+- Remove salt from pop up contract (#781)
+- Clean running processes (#780)
+- Validate contract input (#784)
+- Upgrade psvm to 0.3.1 (#792)
+- Display ink-node url (#801)
+- Query mappings in contracts (#779)
+- Allow dev to specify the package manager in frontend templates (#802)
+- Build detects sol abi (#808)
+- Build debian package (#817)
+- Chain metadata (#818)
+- Detect running docker on runtime deterministic builds (#811)
+- Allow to clean ink-node by specifying a list of ports (#874)
+- Introduce a flake for nixOS users (#777)
+- List templates (#880)
+- Add ci for contracts (#878)
+- Require signer for pop up when skipping confirmation (#884)
+- Deploy local node (#882)
+- Allow building contracts in workspace (#860)
+- Add configuration for cargo-binstall (#891)
+- Upload to ubuntu ppa (#886)
+- Install pkg-config in ubuntu (#879)
+- Limit to 40 the maximum list length (#893)
+- Display commands (#881)
+- Upgrade rust version to 1.93 (#865)
+- Contract verification (#797)
+- Pacman (#910)
+- Add network cleanup and metadata output (#909)
+- Pop-fork (#920)
+- Add shell completion command (#912)
+- *(pop fork)* Well-known chains, --at flag, and better detach (#930)
+- Make `pop fork --endpoint` optional with interactive prompt (#928)
+- *(pop-fork)* Optimize block building with prefetch, warmup, and extrinsic inclusion (#935)
+
+### 🐛 Fixes
+
+- Parachain_lifecycle integration test (#778)
+- Test compilation issues without default features (#774)
+- Display full contract event (#782)
+- Do not delete ink-node logs if detached (#786)
+- Bug to deploy contract with salt (#787)
+- Terminate local node after deployment (#791)
+- *(telemetry)* Allow website_id endpoint to be overridden from hardcoded constants. (#809)
+- Skip storage deposit estimation when using wallet signing (#816)
+- Allow both --path and -p (#859)
+- Add timeout for docker info (#861)
+- Default to pop call chain (#877)
+- Network selection index (#892)
+- Make pop new naming consistent (#814)
+- Vec for calling chains (#907)
+- Handle parachain names in up network (#925)
+- Remove unused import in metadata test
+- *(pop-fork)* Optimize RPC performance for polkadot.js (#931)
+
+### 🚜 Refactor
+
+- Hide sensitive info (#798)
+- Remove the code to receive the contract address from wallet signing portal (#813)
+- Remove comments for local debugging in integration tests (#866)
+- Allow multiple pids to be provided (#888)
+- Find available random port if needed (#887)
+- Rename rollup <-> chain (#883)
+- Remove deprecated call contract dev flag
+
+### 📚 Documentation
+
+- Prepend 0.13.0 changelog
+- Remove git-cliff marker
+- Update 0.13.0 changelog
+
+### 🎨 Styling
+
+- Rustfmt
+
+### 🧪 Testing
+
+- Harden polkadot rpc for metadata test
+- Remove deprecated weight-flag test
+
+### ⚙️ Miscellaneous Tasks
+
+- Update to 0.12.1 (#760)
+- Add tests partitions (#852)
+- Shared cache (#864)
+- *(release)* Bump workspace deps to 0.13.0
+- Min improvements to AGENTS.md (#932)
+
 ## [0.12.1] - 2025-11-15
 
 ### 🐛 Fixes
