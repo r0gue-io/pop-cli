@@ -132,6 +132,7 @@ jobs:
           POP_FORK_TEST_NODE_WS_URL: ws://127.0.0.1:9944
         run: |
           cargo nextest run \
+            --release \
             --locked \
             -p pop-fork \
             --features integration-tests \
