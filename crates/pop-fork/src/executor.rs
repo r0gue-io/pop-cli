@@ -681,4 +681,412 @@ mod tests {
 		let mode = SignatureMockMode::default();
 		assert_eq!(mode, SignatureMockMode::None);
 	}
+
+	/// Integration tests that execute runtime calls against a local test node.
+	///
+	/// These tests verify that the executor can correctly execute Substrate runtime
+	/// methods against real chain state. They spawn a local test node and fetch
+	/// actual runtime code to ensure end-to-end functionality.
+	mod sequential {
+		use crate::{LocalStorageLayer, testing::TestContext};
+		use scale::Encode;
+		use subxt::config::substrate::H256;
+
+		use super::*;
+
+		/// Test context holding all layers needed for execution.
+		struct ExecutorTestContext {
+			#[allow(dead_code)]
+			base: TestContext,
+			executor: RuntimeExecutor,
+			storage: LocalStorageLayer,
+			block_hash: H256,
+			block_number: u32,
+		}
+
+		/// Creates a fully initialized executor test context.
+		async fn create_executor_context() -> ExecutorTestContext {
+			create_executor_context_with_config(ExecutorConfig::default()).await
+		}
+
+		/// Creates an executor test context with a custom configuration.
+		async fn create_executor_context_with_config(
+			config: ExecutorConfig,
+		) -> ExecutorTestContext {
+			let base = TestContext::for_local().await;
+
+			let block_hash = base.block_hash();
+			let block_number = base.block_number();
+			let header = base.rpc().header(block_hash).await.expect("Failed to get header");
+
+			// Fetch runtime code from the chain
+			let runtime_code =
+				base.rpc().runtime_code(block_hash).await.expect("Failed to fetch runtime code");
+
+			// Cache the block for storage layer
+			base.cache()
+				.cache_block(block_hash, block_number, header.parent_hash, &header.encode())
+				.await
+				.expect("Failed to cache block");
+
+			// Set up LocalStorageLayer
+			let storage = LocalStorageLayer::new(
+				base.remote().clone(),
+				block_number,
+				block_hash,
+				base.metadata().clone(),
+			);
+
+			// Create executor with custom config
+			let executor = RuntimeExecutor::with_config(runtime_code, None, config)
+				.expect("Failed to create executor");
+
+			ExecutorTestContext { base, executor, storage, block_hash, block_number }
+		}
+
+		/// Executes `Core_version` against a live test node and verifies the result.
+		///
+		/// `Core_version` is a fundamental runtime API that returns the runtime's version
+		/// information. This test verifies that:
+		/// 1. The executor can successfully execute a runtime call
+		/// 2. The output is non-empty (contains SCALE-encoded RuntimeVersion)
+		/// 3. The runtime version can be extracted from the executor
+		#[tokio::test(flavor = "multi_thread")]
+		async fn core_version_executes_successfully() {
+			let ctx = create_executor_context().await;
+
+			// Execute Core_version - this is a read-only call with no arguments
+			let result = ctx
+				.executor
+				.call("Core_version", &[], &ctx.storage)
+				.await
+				.expect("Core_version execution failed");
+
+			// Verify we got output
+			assert!(!result.output.is_empty(), "Core_version should return non-empty output");
+
+			// Core_version is read-only, should have no storage changes
+			assert!(result.storage_diff.is_empty(), "Core_version should not modify storage");
+
+			// Verify we can also get the version directly from the executor
+			let version = ctx.executor.runtime_version().expect("Failed to get runtime version");
+			assert!(!version.spec_name.is_empty(), "spec_name should not be empty");
+			assert!(version.spec_version > 0, "spec_version should be positive");
+		}
+
+		/// Executes `Metadata_metadata` against a live test node and verifies the result.
+		///
+		/// `Metadata_metadata` returns the runtime's metadata, which describes all pallets,
+		/// storage items, calls, and events. This is typically one of the largest runtime
+		/// calls in terms of output size.
+		///
+		/// This test verifies that:
+		/// 1. The executor can handle large output (metadata is typically hundreds of KB)
+		/// 2. The output contains valid metadata (starts with expected magic bytes)
+		/// 3. No storage modifications occur (metadata is read-only)
+		#[tokio::test(flavor = "multi_thread")]
+		async fn metadata_executes_successfully() {
+			let ctx = create_executor_context().await;
+
+			// Execute Metadata_metadata - this is a read-only call with no arguments
+			let result = ctx
+				.executor
+				.call("Metadata_metadata", &[], &ctx.storage)
+				.await
+				.expect("Metadata_metadata execution failed");
+
+			// Metadata is typically large (hundreds of KB)
+			assert!(
+				result.output.len() > 1000,
+				"Metadata should be larger than 1KB, got {} bytes",
+				result.output.len()
+			);
+
+			// Metadata_metadata is read-only, should have no storage changes
+			assert!(result.storage_diff.is_empty(), "Metadata_metadata should not modify storage");
+		}
+
+		/// Verifies that `with_config` correctly applies custom configuration.
+		///
+		/// This test creates an executor with a custom configuration and verifies
+		/// that the configuration affects execution behavior.
+		#[tokio::test(flavor = "multi_thread")]
+		async fn with_config_applies_custom_settings() {
+			// Create executor with custom config - high log level to capture all logs
+			let config = ExecutorConfig {
+				signature_mock: SignatureMockMode::AlwaysValid,
+				allow_unresolved_imports: false,
+				max_log_level: 5, // Trace level
+				storage_proof_size: 1024,
+			};
+
+			let ctx = create_executor_context_with_config(config).await;
+
+			// Execute a simple call to verify executor works with custom config
+			let result = ctx
+				.executor
+				.call("Core_version", &[], &ctx.storage)
+				.await
+				.expect("Core_version with custom config failed");
+
+			assert!(!result.output.is_empty(), "Should return output with custom config");
+		}
+
+		/// Verifies that logs are captured during runtime execution.
+		///
+		/// This test creates an executor with trace-level logging enabled and
+		/// verifies that any runtime logs are captured in the result.
+		#[tokio::test(flavor = "multi_thread")]
+		async fn logs_are_captured_during_execution() {
+			// Create executor with max log level to capture all possible logs
+			let config = ExecutorConfig {
+				max_log_level: 5, // Trace - capture everything
+				..Default::default()
+			};
+
+			let ctx = create_executor_context_with_config(config).await;
+
+			// Execute Metadata_metadata which may emit logs during execution
+			let result = ctx
+				.executor
+				.call("Metadata_metadata", &[], &ctx.storage)
+				.await
+				.expect("Metadata_metadata execution failed");
+
+			// Log the number of captured logs for debugging
+			// Note: Whether logs are emitted depends on the runtime implementation
+			println!("Captured {} runtime logs", result.logs.len());
+			for log in &result.logs {
+				println!(
+					"  [{:?}] {}: {}",
+					log.level,
+					log.target.as_deref().unwrap_or("unknown"),
+					log.message
+				);
+			}
+
+			// The test passes regardless of log count - we're verifying the
+			// log capture mechanism works, not that specific logs are emitted
+			assert!(result.output.len() > 1000, "Metadata should still be returned");
+		}
+
+		/// Verifies that `Core_initialize_block` triggers storage writes.
+		///
+		/// Block initialization sets up the block environment including:
+		/// - System::Number (current block number)
+		/// - System::ParentHash (hash of parent block)
+		/// - System::Digest (block digest items)
+		///
+		/// This exercises the storage write path in the executor.
+		#[tokio::test(flavor = "multi_thread")]
+		async fn core_initialize_block_modifies_storage() {
+			let ctx = create_executor_context().await;
+
+			// Create a header for the next block
+			// The header format follows the Substrate Header structure
+			let next_block_number = ctx.block_number + 1;
+
+			// Construct a minimal header for initialization
+			// Header = (parent_hash, number, state_root, extrinsics_root, digest)
+			#[derive(Encode)]
+			struct Header {
+				parent_hash: H256,
+				#[codec(compact)]
+				number: u32,
+				state_root: H256,
+				extrinsics_root: H256,
+				digest: Vec<DigestItem>,
+			}
+
+			#[derive(Encode)]
+			enum DigestItem {
+				#[codec(index = 6)]
+				PreRuntime([u8; 4], Vec<u8>),
+			}
+
+			let header = Header {
+				parent_hash: ctx.block_hash,
+				number: next_block_number,
+				state_root: H256::zero(),      // Will be computed by runtime
+				extrinsics_root: H256::zero(), // Will be computed by runtime
+				digest: vec![
+					// Add a pre-runtime digest for Aura slot (required by most runtimes)
+					DigestItem::PreRuntime(*b"aura", 0u64.encode()),
+				],
+			};
+
+			let result = ctx
+				.executor
+				.call("Core_initialize_block", &header.encode(), &ctx.storage)
+				.await
+				.expect("Core_initialize_block execution failed");
+
+			// Block initialization MUST write to storage
+			assert!(
+				!result.storage_diff.is_empty(),
+				"Core_initialize_block should modify storage, got {} changes",
+				result.storage_diff.len()
+			);
+
+			// Verify System::Number was updated
+			// System::Number key = twox128("System") ++ twox128("Number")
+			let system_prefix = sp_core::twox_128(b"System");
+			let number_key = sp_core::twox_128(b"Number");
+			let system_number_key: Vec<u8> =
+				[system_prefix.as_slice(), number_key.as_slice()].concat();
+
+			let has_number_update =
+				result.storage_diff.iter().any(|(key, _)| key == &system_number_key);
+
+			assert!(
+				has_number_update,
+				"Core_initialize_block should update System::Number. Keys modified: {:?}",
+				result.storage_diff.iter().map(|(k, _)| hex::encode(k)).collect::<Vec<_>>()
+			);
+
+			println!("Core_initialize_block modified {} storage keys", result.storage_diff.len());
+		}
+
+		/// Verifies that the executor handles storage reads from accumulated changes.
+		///
+		/// During block building, the runtime may read back values it has written
+		/// within the same execution. This tests that the executor correctly serves
+		/// reads from the in-flight storage changes before falling back to the
+		/// storage layer.
+		#[tokio::test(flavor = "multi_thread")]
+		async fn storage_reads_from_accumulated_changes() {
+			let ctx = create_executor_context().await;
+
+			// Core_initialize_block writes to storage and may read back some values
+			// during the same execution (e.g., reading System::Number after setting it)
+
+			#[derive(Encode)]
+			struct Header {
+				parent_hash: H256,
+				#[codec(compact)]
+				number: u32,
+				state_root: H256,
+				extrinsics_root: H256,
+				digest: Vec<DigestItem>,
+			}
+
+			#[derive(Encode)]
+			enum DigestItem {
+				#[codec(index = 6)]
+				PreRuntime([u8; 4], Vec<u8>),
+			}
+
+			let header = Header {
+				parent_hash: ctx.block_hash,
+				number: ctx.block_number + 1,
+				state_root: H256::zero(),
+				extrinsics_root: H256::zero(),
+				digest: vec![DigestItem::PreRuntime(*b"aura", 0u64.encode())],
+			};
+
+			let result = ctx
+				.executor
+				.call("Core_initialize_block", &header.encode(), &ctx.storage)
+				.await
+				.expect("Core_initialize_block execution failed");
+
+			// If we get here without errors, the storage read-back mechanism works
+			// The runtime successfully read values it had written during execution
+			assert!(!result.storage_diff.is_empty(), "Should have storage changes");
+		}
+
+		/// Verifies storage changes are properly applied between calls.
+		///
+		/// This exercises:
+		/// - Storage writes during initialization
+		/// - Applying storage changes to the local layer
+		/// - Subsequent reads seeing the applied changes
+		#[tokio::test(flavor = "multi_thread")]
+		async fn storage_changes_persist_across_calls() {
+			let ctx = create_executor_context().await;
+
+			#[derive(Encode)]
+			struct Header {
+				parent_hash: H256,
+				#[codec(compact)]
+				number: u32,
+				state_root: H256,
+				extrinsics_root: H256,
+				digest: Vec<DigestItem>,
+			}
+
+			#[derive(Encode)]
+			enum DigestItem {
+				#[codec(index = 6)]
+				PreRuntime([u8; 4], Vec<u8>),
+			}
+
+			let header = Header {
+				parent_hash: ctx.block_hash,
+				number: ctx.block_number + 1,
+				state_root: H256::zero(),
+				extrinsics_root: H256::zero(),
+				digest: vec![DigestItem::PreRuntime(*b"aura", 0u64.encode())],
+			};
+
+			// Step 1: Initialize block
+			let init_result = ctx
+				.executor
+				.call("Core_initialize_block", &header.encode(), &ctx.storage)
+				.await
+				.expect("Core_initialize_block failed");
+
+			assert!(!init_result.storage_diff.is_empty(), "Init should write storage");
+
+			// Apply initialization changes to storage layer
+			for (key, value) in &init_result.storage_diff {
+				ctx.storage.set(key, value.as_deref()).expect("Failed to apply storage change");
+			}
+
+			// Step 2: Verify changes were applied by reading them back
+			// The System::Number key should now have our block number
+			let system_prefix = sp_core::twox_128(b"System");
+			let number_key = sp_core::twox_128(b"Number");
+			let system_number_key: Vec<u8> =
+				[system_prefix.as_slice(), number_key.as_slice()].concat();
+
+			let block_num = ctx.storage.get_current_block_number();
+			let stored_value = ctx
+				.storage
+				.get(block_num, &system_number_key)
+				.await
+				.expect("Failed to read System::Number");
+
+			assert!(
+				stored_value.is_some(),
+				"System::Number should be set after Core_initialize_block"
+			);
+
+			println!(
+				"Storage changes persist: {} keys modified, System::Number set",
+				init_result.storage_diff.len()
+			);
+		}
+
+		/// Verifies runtime_version extracts version without execution.
+		///
+		/// This tests the fast path that reads version info from WASM custom
+		/// sections without actually executing any runtime code.
+		#[tokio::test(flavor = "multi_thread")]
+		async fn runtime_version_extracts_version_info() {
+			let ctx = create_executor_context().await;
+
+			let version = ctx.executor.runtime_version().expect("runtime_version should succeed");
+
+			// Verify all version fields are populated
+			assert!(!version.spec_name.is_empty(), "spec_name should not be empty");
+			assert!(!version.impl_name.is_empty(), "impl_name should not be empty");
+			assert!(version.spec_version > 0, "spec_version should be positive");
+
+			println!(
+				"Runtime version: {} v{} (impl: {} v{})",
+				version.spec_name, version.spec_version, version.impl_name, version.impl_version
+			);
+		}
+	}
 }

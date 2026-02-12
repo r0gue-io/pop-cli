@@ -59,7 +59,7 @@ jobs:
 
       - name: Build and archive instrumented tests
         run: |
-          source <(cargo llvm-cov show-env --export-prefix --target x86_64-unknown-linux-gnu --coverage-target-only)
+          source <(cargo llvm-cov show-env --export-prefix)
           cargo nextest archive --locked --workspace --lib --bins --archive-file nextest-archive.tar.zst
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -94,19 +94,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: nextest-archive
-
-      - name: Ensure Docker is running
-        shell: bash
-        run: |
-          sudo systemctl start docker
-          for _ in {1..30}; do
-            if docker info >/dev/null 2>&1; then
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "Docker did not become ready in time" >&2
-          exit 1
 
       - name: Run tests with coverage
         run: |
@@ -158,13 +145,13 @@ jobs:
 
       - name: Setup llvm-cov environment and extract test binaries
         run: |
-          source <(cargo llvm-cov show-env --export-prefix --target x86_64-unknown-linux-gnu --coverage-target-only)
+          source <(cargo llvm-cov show-env --export-prefix)
           mkdir -p target/llvm-cov-target
           tar --zstd -xf nextest-archive.tar.zst --strip-components=1 -C target/llvm-cov-target
 
       - name: Generate merged coverage report
         run: |
-          source <(cargo llvm-cov show-env --export-prefix --target x86_64-unknown-linux-gnu --coverage-target-only)
+          source <(cargo llvm-cov show-env --export-prefix)
           cargo llvm-cov report --codecov --output-path codecov.json
 
       - name: Upload to codecov.io

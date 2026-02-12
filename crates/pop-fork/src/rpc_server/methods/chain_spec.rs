@@ -10,28 +10,6 @@ use crate::{Blockchain, rpc_server::RpcServerError};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use std::sync::Arc;
 
-#[async_trait::async_trait]
-pub trait ChainSpecBlockchain: Send + Sync {
-	fn chain_name(&self) -> &str;
-	async fn genesis_hash(&self) -> Result<String, crate::BlockchainError>;
-	async fn chain_properties(&self) -> Option<serde_json::Value>;
-}
-
-#[async_trait::async_trait]
-impl ChainSpecBlockchain for Blockchain {
-	fn chain_name(&self) -> &str {
-		Blockchain::chain_name(self)
-	}
-
-	async fn genesis_hash(&self) -> Result<String, crate::BlockchainError> {
-		Blockchain::genesis_hash(self).await
-	}
-
-	async fn chain_properties(&self) -> Option<serde_json::Value> {
-		Blockchain::chain_properties(self).await
-	}
-}
-
 /// chainSpec RPC methods (v1 spec).
 ///
 /// All values returned by these methods are immutable and cached after first fetch.
@@ -60,19 +38,19 @@ pub trait ChainSpecApi {
 }
 
 /// Implementation of chainSpec RPC methods.
-pub struct ChainSpecApi<T: ChainSpecBlockchain = Blockchain> {
-	blockchain: Arc<T>,
+pub struct ChainSpecApi {
+	blockchain: Arc<Blockchain>,
 }
 
-impl<T: ChainSpecBlockchain> ChainSpecApi<T> {
+impl ChainSpecApi {
 	/// Create a new ChainSpecApi instance.
-	pub fn new(blockchain: Arc<T>) -> Self {
+	pub fn new(blockchain: Arc<Blockchain>) -> Self {
 		Self { blockchain }
 	}
 }
 
 #[async_trait::async_trait]
-impl<T: ChainSpecBlockchain + 'static> ChainSpecApiServer for ChainSpecApi<T> {
+impl ChainSpecApiServer for ChainSpecApi {
 	async fn chain_name(&self) -> RpcResult<String> {
 		Ok(self.blockchain.chain_name().to_string())
 	}
@@ -90,88 +68,92 @@ impl<T: ChainSpecBlockchain + 'static> ChainSpecApiServer for ChainSpecApi<T> {
 
 #[cfg(test)]
 mod tests {
-	use super::*;
-	use crate::rpc_server::test_scenarios::chain_spec as scenario;
-	use jsonrpsee::server::ServerBuilder;
-	use serde_json::json;
 
-	struct MockChainSpecBlockchain {
-		name: &'static str,
-		genesis: String,
-		properties: Option<serde_json::Value>,
-	}
+	use crate::testing::TestContext;
+	use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
 
-	#[async_trait::async_trait]
-	impl ChainSpecBlockchain for MockChainSpecBlockchain {
-		fn chain_name(&self) -> &str {
-			self.name
-		}
-
-		async fn genesis_hash(&self) -> Result<String, crate::BlockchainError> {
-			Ok(self.genesis.clone())
-		}
-
-		async fn chain_properties(&self) -> Option<serde_json::Value> {
-			self.properties.clone()
-		}
-	}
-
-	#[tokio::test]
+	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_spec_chain_name_returns_string() {
-		let api = ChainSpecApi::new(Arc::new(MockChainSpecBlockchain {
-			name: "ink-node",
-			genesis: format!("0x{}", "ab".repeat(32)),
-			properties: None,
-		}));
-		let server =
-			ServerBuilder::default().build("127.0.0.1:0").await.expect("server should bind");
-		let addr = server.local_addr().expect("server should expose local addr");
-		let handle = server.start(ChainSpecApiServer::into_rpc(api));
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
-		scenario::chain_spec_chain_name_returns_string(&format!("ws://{}", addr), "ink-node").await;
-		handle.stop().expect("server should stop");
+		let name: String = client
+			.request("chainSpec_v1_chainName", rpc_params![])
+			.await
+			.expect("RPC call failed");
+
+		// Chain name should not be empty
+		assert!(!name.is_empty(), "Chain name should not be empty");
+
+		// Should match blockchain's chain_name
+		assert_eq!(name, "ink-node");
 	}
 
-	#[tokio::test]
+	#[tokio::test(flavor = "multi_thread")]
 	async fn chain_spec_genesis_hash_returns_valid_hex_hash() {
-		let expected = format!("0x{}", "ab".repeat(32));
-		let api = ChainSpecApi::new(Arc::new(MockChainSpecBlockchain {
-			name: "ink-node",
-			genesis: expected.clone(),
-			properties: None,
-		}));
-		let server =
-			ServerBuilder::default().build("127.0.0.1:0").await.expect("server should bind");
-		let addr = server.local_addr().expect("server should expose local addr");
-		let handle = server.start(ChainSpecApiServer::into_rpc(api));
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
-		let got = scenario::chain_spec_genesis_hash_returns_valid_hex_hash(
-			&format!("ws://{}", addr),
-			Some(&expected),
-		)
-		.await;
-		assert_eq!(got, expected);
-		handle.stop().expect("server should stop");
+		let hash: String = client
+			.request("chainSpec_v1_genesisHash", rpc_params![])
+			.await
+			.expect("RPC call failed");
+
+		// Hash should be properly formatted
+		assert!(hash.starts_with("0x"), "Hash should start with 0x");
+		assert_eq!(hash.len(), 66, "Hash should be 0x + 64 hex chars");
 	}
 
-	#[tokio::test]
-	async fn chain_spec_properties_returns_json_or_null() {
-		let props = json!({"tokenSymbol":"UNIT","tokenDecimals":12});
-		let api = ChainSpecApi::new(Arc::new(MockChainSpecBlockchain {
-			name: "ink-node",
-			genesis: format!("0x{}", "ab".repeat(32)),
-			properties: Some(props.clone()),
-		}));
-		let server =
-			ServerBuilder::default().build("127.0.0.1:0").await.expect("server should bind");
-		let addr = server.local_addr().expect("server should expose local addr");
-		let handle = server.start(ChainSpecApiServer::into_rpc(api));
+	#[tokio::test(flavor = "multi_thread")]
+	async fn chain_spec_genesis_hash_matches_archive() {
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
 
-		scenario::chain_spec_properties_returns_json_or_null(
-			&format!("ws://{}", addr),
-			Some(props),
-		)
-		.await;
-		handle.stop().expect("server should stop");
+		// Get genesis hash via chainSpec
+		let chain_spec_hash: String = client
+			.request("chainSpec_v1_genesisHash", rpc_params![])
+			.await
+			.expect("chainSpec RPC call failed");
+
+		// Get genesis hash via archive
+		let archive_hash: String = client
+			.request("archive_v1_genesisHash", rpc_params![])
+			.await
+			.expect("archive RPC call failed");
+
+		// Both should return the same value
+		assert_eq!(
+			chain_spec_hash, archive_hash,
+			"chainSpec and archive genesis hashes should match"
+		);
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn chain_spec_properties_returns_json_or_null() {
+		let ctx = TestContext::for_rpc_server().await;
+		let client = WsClientBuilder::default()
+			.build(&ctx.ws_url())
+			.await
+			.expect("Failed to connect");
+
+		let properties: Option<serde_json::Value> = client
+			.request("chainSpec_v1_properties", rpc_params![])
+			.await
+			.expect("RPC call failed");
+
+		// Properties can be Some or None, both are valid
+		// If present, should be an object
+		if let Some(props) = &properties {
+			assert!(props.is_object(), "Properties should be a JSON object");
+		}
 	}
 }

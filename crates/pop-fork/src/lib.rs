@@ -74,7 +74,7 @@ mod schema;
 mod strings;
 mod txpool;
 
-#[cfg(any(test, feature = "integration-tests"))]
+#[cfg(test)]
 pub mod testing;
 
 pub use block::{Block, BlockForkPoint};

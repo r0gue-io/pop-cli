@@ -37,54 +37,10 @@ use crate::{
 	TxPool,
 	rpc_server::{ForkRpcServer, RpcServerConfig},
 };
-#[cfg(test)]
 use pop_common::test_env::TestNode;
 use std::sync::Arc;
 use subxt::{Metadata, config::substrate::H256};
-#[cfg(test)]
-use tokio::sync::OnceCell;
 use url::Url;
-
-const SHARED_TEST_NODE_WS_URL: &str = "ws://127.0.0.1:9944";
-
-#[cfg(test)]
-static UNIT_TEST_NODE_WS_URL: OnceCell<String> = OnceCell::const_new();
-
-#[cfg(test)]
-async fn unit_test_node_ws_url() -> String {
-	UNIT_TEST_NODE_WS_URL
-		.get_or_init(|| async {
-			let node = TestNode::spawn().await.expect("Failed to spawn shared test node");
-			let ws_url = node.ws_url().to_string();
-			let _ = Box::leak(Box::new(node));
-			ws_url
-		})
-		.await
-		.clone()
-}
-
-async fn resolve_test_endpoint() -> Url {
-	if let Ok(ws_url) = std::env::var("POP_FORK_TEST_NODE_WS_URL") {
-		return ws_url.parse().expect("POP_FORK_TEST_NODE_WS_URL must be a valid WebSocket URL");
-	}
-
-	let default_endpoint: Url = SHARED_TEST_NODE_WS_URL.parse().expect("Invalid WebSocket URL");
-	if ForkRpcClient::connect(&default_endpoint).await.is_ok() {
-		return default_endpoint;
-	}
-
-	#[cfg(test)]
-	{
-		unit_test_node_ws_url().await.parse().expect("Invalid unit test WebSocket URL")
-	}
-
-	#[cfg(not(test))]
-	panic!(
-		"No test node reachable at {}. Start one with `pop up ink-node --detach --skip-confirm` \
-or set POP_FORK_TEST_NODE_WS_URL",
-		SHARED_TEST_NODE_WS_URL
-	);
-}
 
 /// Well-known storage keys for testing.
 pub mod constants {
@@ -135,34 +91,20 @@ pub mod helpers {
 		)
 	}
 
-	/// Decode AccountInfo and extract account nonce.
-	pub fn decode_account_nonce(data: &[u8]) -> u32 {
-		u32::from_le_bytes(data[0..4].try_into().expect("need 4 bytes for u32"))
-	}
-
 	/// Build a mock V4 signed extrinsic with dummy signature (from Alice).
 	///
 	/// This creates a structurally valid extrinsic that works with
 	/// `SignatureMockMode::AlwaysValid`.
 	pub fn build_mock_signed_extrinsic_v4(call_data: &[u8]) -> Vec<u8> {
-		build_mock_signed_extrinsic_v4_with_nonce(call_data, 0)
-	}
-
-	/// Build a mock V4 signed extrinsic with dummy signature and explicit nonce.
-	///
-	/// This is useful for test suites that submit multiple extrinsics from the same
-	/// account to one long-lived chain instance.
-	pub fn build_mock_signed_extrinsic_v4_with_nonce(call_data: &[u8], nonce: u64) -> Vec<u8> {
 		let mut inner = Vec::new();
 		inner.push(0x84); // Version: signed (0x80) + v4 (0x04)
 		inner.push(0x00); // MultiAddress::Id variant
 		inner.extend(ALICE);
-		inner.push(0x01); // MultiSignature::Sr25519 variant
-		inner.extend([0u8; 64]); // Dummy sr25519 signature (works with AlwaysValid)
+		inner.extend([0u8; 64]); // Dummy signature (works with AlwaysValid)
 		inner.push(0x00); // CheckMortality: immortal
-		inner.extend(Compact(nonce).encode()); // CheckNonce
+		inner.extend(Compact(0u64).encode()); // CheckNonce
 		inner.extend(Compact(0u128).encode()); // ChargeTransactionPayment
-		// `EthSetOrigin` is a zero-sized extension in ink-node v0.47.0 (encodes to no bytes).
+		inner.push(0x00); // EthSetOrigin: None
 		inner.extend(call_data);
 		let mut extrinsic = Compact(inner.len() as u32).encode();
 		extrinsic.extend(inner);
@@ -174,6 +116,9 @@ pub mod helpers {
 ///
 /// Use [`TestContextBuilder`] or the convenience constructors to create.
 pub struct TestContext {
+	/// The spawned test node (kept alive for the test duration).
+	#[allow(dead_code)]
+	pub node: TestNode,
 	/// WebSocket endpoint URL.
 	pub endpoint: Url,
 	/// RPC client (if requested).
@@ -410,7 +355,9 @@ impl TestContextBuilder {
 
 	/// Build the test context.
 	pub async fn build(self) -> TestContext {
-		let endpoint = resolve_test_endpoint().await;
+		// Spawn test node
+		let node = TestNode::spawn().await.expect("Failed to spawn test node");
+		let endpoint: Url = node.ws_url().parse().expect("Invalid WebSocket URL");
 
 		// Initialize RPC client if needed
 		let rpc = if self.with_rpc || self.with_block_info || self.with_metadata {
@@ -507,6 +454,7 @@ impl TestContextBuilder {
 		};
 
 		TestContext {
+			node,
 			endpoint,
 			rpc,
 			cache,
