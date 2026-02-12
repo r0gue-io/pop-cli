@@ -24,9 +24,12 @@ use std::{
 	collections::HashMap,
 	ffi::OsStr,
 	path::{Path, PathBuf},
-	time::Duration,
+	time::{Duration, Instant},
 };
 use tokio::time::sleep;
+
+use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
+use tokio::time::timeout;
 
 /// Launch a local network by specifying a network configuration file.
 #[derive(Args, Clone, Default, Serialize)]
@@ -351,6 +354,92 @@ impl<const FILTER: u8> TypedValueParser for SupportedChains<FILTER> {
 	}
 }
 
+/// Polls RPC endpoints to verify they are ready.
+async fn wait_for_rpc_endpoints_ready(
+	endpoints: &[(String, String)],
+	progress: &ProgressBar,
+) -> Result<(), anyhow::Error> {
+	wait_for_rpc_endpoints_ready_with_timeout(
+		endpoints,
+		progress,
+		Duration::from_secs(60),
+		Duration::from_secs(5),
+	)
+	.await
+}
+
+/// Polls RPC endpoints to verify they are ready with configurable timeouts.
+async fn wait_for_rpc_endpoints_ready_with_timeout(
+	endpoints: &[(String, String)],
+	progress: &ProgressBar,
+	total_timeout: Duration,
+	per_attempt_timeout: Duration,
+) -> Result<(), anyhow::Error> {
+	let start = Instant::now();
+
+	let mut backoff = Duration::from_secs(1);
+	let mut pending: Vec<_> = endpoints.iter().collect();
+	let mut attempt = 0;
+
+	while !pending.is_empty() {
+		if start.elapsed() >= total_timeout {
+			return Err(anyhow::anyhow!(
+				"Timeout waiting for {} node(s) to become ready: {}",
+				pending.len(),
+				pending.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>().join(", ")
+			));
+		}
+
+		attempt += 1;
+		progress.set_message(format!(
+			"Waiting for {} node(s) to be ready (attempt {})...",
+			pending.len(),
+			attempt
+		));
+
+		// Check all pending in parallel
+		let checks: Vec<_> = pending
+			.iter()
+			.map(|(name, uri)| {
+				let uri = uri.clone();
+				let name = name.clone();
+				async move {
+					match timeout(per_attempt_timeout, check_node_health(&uri)).await {
+						Ok(Ok(())) => Some(name),
+						_ => None,
+					}
+				}
+			})
+			.collect();
+
+		let ready: Vec<_> = futures::future::join_all(checks).await.into_iter().flatten().collect();
+
+		pending.retain(|(name, _)| !ready.contains(name));
+
+		if !pending.is_empty() {
+			sleep(backoff).await;
+			backoff = std::cmp::min(
+				Duration::from_secs_f64(backoff.as_secs_f64() * 1.5),
+				Duration::from_secs(5),
+			);
+		}
+	}
+
+	Ok(())
+}
+
+/// Checks if a node's RPC endpoint is healthy.
+async fn check_node_health(uri: &str) -> Result<(), anyhow::Error> {
+	let client = WsClientBuilder::default()
+		.request_timeout(Duration::from_secs(3))
+		.build(uri)
+		.await?;
+
+	let _: serde_json::Value = client.request("system_health", rpc_params![]).await?;
+
+	Ok(())
+}
+
 /// Executes the command.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn spawn(
@@ -521,8 +610,44 @@ pub(crate) async fn spawn(
 			}
 
 			if detach {
+				// Extract endpoints while Network is available
+				let endpoints: Vec<(String, String)> = {
+					let mut eps = Vec::new();
+					for node in network.relaychain().nodes() {
+						eps.push((node.name().to_string(), node.ws_uri().to_string()));
+					}
+					for chain in network.parachains() {
+						for node in chain.collators() {
+							eps.push((node.name().to_string(), node.ws_uri().to_string()));
+						}
+					}
+					eps
+				};
+
 				network.detach().await;
 				std::mem::forget(network);
+
+				// Health check with progress feedback
+				{
+					let health_progress = spinner();
+					health_progress.start("Verifying network nodes are ready...");
+
+					match wait_for_rpc_endpoints_ready(&endpoints, &health_progress).await {
+						Ok(()) => {
+							health_progress.stop("✅ All nodes are ready and responding");
+							cli.info("✅ All nodes are ready and responding")?;
+						},
+						Err(e) => {
+							health_progress.stop("⚠️ Some nodes may still be starting");
+							cli.warning(format!(
+								"Could not verify all nodes are ready: {}
+The network is running. Check endpoints manually if needed.",
+								e
+							))?;
+						},
+					}
+				}
+
 				cli.info(format!(
 					"ℹ️ base dir: {0}\nℹ️ zombie.json: {0}/zombie.json",
 					base_dir.display()
@@ -932,5 +1057,88 @@ cumulus-client-collator = "0.14"
 
 		// Cleanup
 		fs::remove_dir_all(&base).ok();
+	}
+
+	#[tokio::test]
+	async fn test_check_node_health_unreachable_endpoint() {
+		// Test with an unreachable endpoint
+		let uri = "ws://127.0.0.1:1"; // Port 1 is typically unreachable
+		let result = check_node_health(uri).await;
+
+		// Should return an error since the endpoint is unreachable
+		assert!(result.is_err());
+	}
+
+	#[tokio::test]
+	async fn test_check_node_health_invalid_uri() {
+		// Test with an invalid URI
+		let uri = "not-a-valid-uri";
+		let result = check_node_health(uri).await;
+
+		// Should return an error due to invalid URI
+		assert!(result.is_err());
+	}
+
+	#[tokio::test]
+	async fn test_wait_for_rpc_endpoints_ready_empty_list() {
+		// Test with empty endpoint list
+		let endpoints: Vec<(String, String)> = vec![];
+		let progress = ProgressBar::new(1);
+
+		let result = wait_for_rpc_endpoints_ready(&endpoints, &progress).await;
+
+		// Should succeed immediately with empty list
+		assert!(result.is_ok());
+	}
+
+	#[tokio::test]
+	async fn test_wait_for_rpc_endpoints_ready_timeout() {
+		// Test with unreachable endpoints to trigger timeout
+		let endpoints = vec![
+			("alice".to_string(), "ws://127.0.0.1:1".to_string()),
+			("bob".to_string(), "ws://127.0.0.1:2".to_string()),
+		];
+		let progress = ProgressBar::new(1);
+
+		// Use short timeout for faster test execution
+		let result = wait_for_rpc_endpoints_ready_with_timeout(
+			&endpoints,
+			&progress,
+			Duration::from_secs(3),     // 3 second total timeout
+			Duration::from_millis(500), // 500ms per attempt
+		)
+		.await;
+
+		// Should timeout and return an error
+		assert!(result.is_err());
+
+		// Error message should contain node names
+		let err_msg = result.unwrap_err().to_string();
+		assert!(err_msg.contains("Timeout waiting for"));
+		assert!(err_msg.contains("alice") || err_msg.contains("bob"));
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn test_wait_for_rpc_endpoints_ready_mixed_endpoints() {
+		// Test with mix of invalid URIs
+		let endpoints = vec![
+			("invalid1".to_string(), "not-a-uri".to_string()),
+			("invalid2".to_string(), "ws://127.0.0.1:1".to_string()),
+		];
+		let progress = ProgressBar::new(1);
+
+		// Use short timeout for faster test execution
+		let result = wait_for_rpc_endpoints_ready_with_timeout(
+			&endpoints,
+			&progress,
+			Duration::from_secs(3),     // 3 second total timeout
+			Duration::from_millis(500), // 500ms per attempt
+		)
+		.await;
+
+		// Should timeout since no endpoints are reachable
+		assert!(result.is_err());
+		let err_msg = result.unwrap_err().to_string();
+		assert!(err_msg.contains("Timeout waiting for"));
 	}
 }
