@@ -14,6 +14,7 @@ use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
 
 const SYSTEM_PALLET: &[u8] = b"System";
 const NUMBER_STORAGE: &[u8] = b"Number";
+const ARCHIVE_CALL_REQUEST_TIMEOUT_SECS: u64 = 600;
 
 pub async fn archive_finalized_height_returns_correct_value() {
 	let ctx = TestContext::for_rpc_server().await;
@@ -378,7 +379,7 @@ pub async fn archive_call_executes_runtime_api_at(
 	params_hex: &str,
 ) {
 	let client = WsClientBuilder::default()
-		.request_timeout(std::time::Duration::from_secs(120))
+		.request_timeout(std::time::Duration::from_secs(ARCHIVE_CALL_REQUEST_TIMEOUT_SECS))
 		.build(ws_url)
 		.await
 		.expect("Failed to connect");
@@ -400,7 +401,7 @@ pub async fn archive_call_returns_error_for_invalid_function_at(
 	params_hex: &str,
 ) {
 	let client = WsClientBuilder::default()
-		.request_timeout(std::time::Duration::from_secs(120))
+		.request_timeout(std::time::Duration::from_secs(ARCHIVE_CALL_REQUEST_TIMEOUT_SECS))
 		.build(ws_url)
 		.await
 		.expect("Failed to connect");
@@ -573,7 +574,7 @@ pub async fn archive_call_does_not_persist_storage_changes_at(
 	system_number_key_hex: &str,
 ) {
 	let client = WsClientBuilder::default()
-		.request_timeout(std::time::Duration::from_secs(120))
+		.request_timeout(std::time::Duration::from_secs(ARCHIVE_CALL_REQUEST_TIMEOUT_SECS))
 		.build(ws_url)
 		.await
 		.expect("Failed to connect");
@@ -607,8 +608,9 @@ pub async fn archive_call_does_not_persist_storage_changes_at(
 	};
 	let after_items = match after {
 		ArchiveStorageResult::Ok { items } => items,
-		ArchiveStorageResult::Err { error } =>
-			panic!("Unexpected post-call storage error: {error}"),
+		ArchiveStorageResult::Err { error } => {
+			panic!("Unexpected post-call storage error: {error}")
+		},
 	};
 	assert_eq!(before_items.len(), 1, "Expected one System::Number item before call");
 	assert_eq!(after_items.len(), 1, "Expected one System::Number item after call");

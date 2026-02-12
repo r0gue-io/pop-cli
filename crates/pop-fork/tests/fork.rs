@@ -10,27 +10,14 @@ use pop_fork::rpc_server::test_scenarios::{
 	chain_head as rpc_server_chain_head, chain_spec, executor, local, remote, rpc,
 	state as rpc_server_state, system as rpc_server_system, timestamp,
 };
-use std::{future::Future, time::Duration};
-
-fn run_async<F>(future: F)
-where
-	F: Future<Output = ()>,
-{
-	let runtime = tokio::runtime::Builder::new_multi_thread()
-		.enable_all()
-		.build()
-		.expect("tokio runtime should build");
-	runtime.block_on(future);
-	runtime.shutdown_timeout(Duration::from_secs(30));
-}
 
 macro_rules! scenario_tests {
 	($($module:ident::$scenario:ident),+ $(,)?) => {
 		paste! {
 			$(
-				#[test]
-				fn [<$module _ $scenario>]() {
-					run_async($module::$scenario());
+				#[tokio::test(flavor = "multi_thread")]
+				async fn [<$module _ $scenario>]() {
+					$module::$scenario().await;
 				}
 			)+
 		}
