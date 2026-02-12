@@ -864,26 +864,21 @@ impl Blockchain {
 	///
 	/// The block's extrinsics as raw bytes, or `None` if the block is not found.
 	pub async fn block_body(&self, hash: H256) -> Result<Option<BlockBody>, BlockchainError> {
-		// First, check if it matches any locally-built block (but not the fork point,
-		// which has empty extrinsics since we don't fetch them during fork)
+		// First, check if it matches any local block in the fork chain (including
+		// the fork point, whose extrinsics are loaded during fork creation).
 		let head = self.head.read().await;
 
 		// Traverse the parent chain to find the block
 		let mut current: Option<&Block> = Some(&head);
 		while let Some(block) = current {
 			if block.hash == hash {
-				// If this is the fork point (no parent), we need to fetch from remote
-				// because fork point's extrinsics are not stored locally
-				if block.parent.is_none() {
-					break; // Fall through to remote fetch
-				}
 				return Ok(Some(block.extrinsics.clone()));
 			}
 			current = block.parent.as_deref();
 		}
 		drop(head);
 
-		// Not found locally or is fork point - fetch from remote with reconnect
+		// Not found locally - fetch from remote with reconnect
 		match self.remote.block_body(hash).await {
 			Ok(body) => Ok(body),
 			Err(first_err) =>

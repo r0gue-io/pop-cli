@@ -14,12 +14,12 @@ use pop_fork::rpc_server::test_scenarios::{
 macro_rules! scenario_tests {
 	($($module:ident::$scenario:ident),+ $(,)?) => {
 		paste! {
-			$(
-				#[tokio::test(flavor = "multi_thread")]
-				async fn [<$module _ $scenario>]() {
-					$module::$scenario().await;
-				}
-			)+
+				$(
+					#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+					async fn [<$module _ $scenario>]() {
+						$module::$scenario().await;
+					}
+				)+
 		}
 	};
 }

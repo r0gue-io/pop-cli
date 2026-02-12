@@ -16,14 +16,38 @@ use crate::{
 		},
 	},
 };
+use std::sync::Arc;
 use subxt::config::substrate::H256;
+#[cfg(all(feature = "integration-tests", not(test)))]
+use tokio::sync::OnceCell;
 use url::Url;
 
-pub async fn fork_creates_blockchain_with_correct_fork_point() {
-	let ctx = TestContext::minimal().await;
+#[cfg(all(feature = "integration-tests", not(test)))]
+static SHARED_READONLY_BLOCKCHAIN: OnceCell<Arc<Blockchain>> = OnceCell::const_new();
 
-	let blockchain =
-		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+async fn readonly_blockchain() -> Arc<Blockchain> {
+	#[cfg(all(feature = "integration-tests", not(test)))]
+	{
+		return SHARED_READONLY_BLOCKCHAIN
+			.get_or_init(|| async {
+				let ctx = TestContext::minimal().await;
+				Blockchain::fork(&ctx.endpoint, None)
+					.await
+					.expect("Failed to fork shared readonly blockchain")
+			})
+			.await
+			.clone();
+	}
+
+	#[cfg(any(test, not(feature = "integration-tests")))]
+	{
+		let ctx = TestContext::minimal().await;
+		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain")
+	}
+}
+
+pub async fn fork_creates_blockchain_with_correct_fork_point() {
+	let blockchain = readonly_blockchain().await;
 
 	// Fork point should be set
 	assert!(blockchain.fork_point_number() > 0 || blockchain.fork_point_number() == 0);
@@ -68,20 +92,14 @@ pub async fn fork_at_with_invalid_block_number_fails() {
 }
 
 pub async fn fork_detects_relay_chain_type() {
-	let ctx = TestContext::minimal().await;
-
-	let blockchain =
-		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+	let blockchain = readonly_blockchain().await;
 
 	// Test node is a relay chain (no ParachainSystem pallet)
 	assert_eq!(*blockchain.chain_type(), ChainType::RelayChain);
 }
 
 pub async fn fork_retrieves_chain_name() {
-	let ctx = TestContext::minimal().await;
-
-	let blockchain =
-		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+	let blockchain = readonly_blockchain().await;
 
 	// Chain name should not be empty
 	assert!(!blockchain.chain_name().is_empty());
@@ -129,10 +147,7 @@ pub async fn build_multiple_empty_blocks_creates_chain() {
 }
 
 pub async fn storage_returns_value_for_existing_key() {
-	let ctx = TestContext::minimal().await;
-
-	let blockchain =
-		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+	let blockchain = readonly_blockchain().await;
 
 	// Query System::Number storage (should exist)
 	let key = {
@@ -148,10 +163,7 @@ pub async fn storage_returns_value_for_existing_key() {
 }
 
 pub async fn storage_returns_none_for_nonexistent_key() {
-	let ctx = TestContext::minimal().await;
-
-	let blockchain =
-		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+	let blockchain = readonly_blockchain().await;
 
 	let nonexistent_key = b"nonexistent_key_12345";
 
@@ -188,10 +200,7 @@ pub async fn storage_at_queries_specific_block() {
 }
 
 pub async fn call_executes_runtime_api() {
-	let ctx = TestContext::minimal().await;
-
-	let blockchain =
-		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+	let blockchain = readonly_blockchain().await;
 
 	// Call Core_version runtime API
 	let result = blockchain.call("Core_version", &[]).await.expect("Failed to call runtime API");
@@ -201,10 +210,7 @@ pub async fn call_executes_runtime_api() {
 }
 
 pub async fn head_returns_current_block() {
-	let ctx = TestContext::minimal().await;
-
-	let blockchain =
-		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+	let blockchain = readonly_blockchain().await;
 
 	let head = blockchain.head().await;
 
@@ -384,10 +390,7 @@ pub async fn block_body_returns_extrinsics_for_parent_block() {
 }
 
 pub async fn block_body_returns_extrinsics_for_fork_point_from_remote() {
-	let ctx = TestContext::minimal().await;
-
-	let blockchain =
-		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+	let blockchain = readonly_blockchain().await;
 
 	let fork_point_hash = blockchain.fork_point();
 
@@ -400,10 +403,7 @@ pub async fn block_body_returns_extrinsics_for_fork_point_from_remote() {
 }
 
 pub async fn block_body_returns_none_for_unknown_hash() {
-	let ctx = TestContext::minimal().await;
-
-	let blockchain =
-		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+	let blockchain = readonly_blockchain().await;
 
 	// Use a fabricated hash that doesn't exist
 	let unknown_hash = H256::from([0xde; 32]);
@@ -456,10 +456,7 @@ pub async fn block_header_returns_header_for_different_blocks() {
 }
 
 pub async fn block_header_returns_header_for_fork_point() {
-	let ctx = TestContext::minimal().await;
-
-	let blockchain =
-		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+	let blockchain = readonly_blockchain().await;
 
 	let fork_point_hash = blockchain.fork_point();
 
@@ -475,10 +472,7 @@ pub async fn block_header_returns_header_for_fork_point() {
 }
 
 pub async fn block_header_returns_none_for_unknown_hash() {
-	let ctx = TestContext::minimal().await;
-
-	let blockchain =
-		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+	let blockchain = readonly_blockchain().await;
 
 	// Use a fabricated hash that doesn't exist
 	let unknown_hash = H256::from([0xde; 32]);
@@ -492,10 +486,7 @@ pub async fn block_header_returns_none_for_unknown_hash() {
 }
 
 pub async fn block_header_returns_header_for_historical_block() {
-	let ctx = TestContext::minimal().await;
-
-	let blockchain =
-		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+	let blockchain = readonly_blockchain().await;
 
 	let fork_number = blockchain.fork_point_number();
 
@@ -553,10 +544,7 @@ pub async fn block_hash_at_returns_hash_for_parent_block() {
 }
 
 pub async fn block_hash_at_returns_hash_for_fork_point() {
-	let ctx = TestContext::minimal().await;
-
-	let blockchain =
-		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+	let blockchain = readonly_blockchain().await;
 
 	let fork_point_number = blockchain.fork_point_number();
 	let fork_point_hash = blockchain.fork_point();
@@ -572,10 +560,7 @@ pub async fn block_hash_at_returns_hash_for_fork_point() {
 }
 
 pub async fn block_hash_at_returns_hash_for_block_before_fork_point() {
-	let ctx = TestContext::minimal().await;
-
-	let blockchain =
-		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+	let blockchain = readonly_blockchain().await;
 
 	let fork_point_number = blockchain.fork_point_number();
 
@@ -591,10 +576,7 @@ pub async fn block_hash_at_returns_hash_for_block_before_fork_point() {
 }
 
 pub async fn block_hash_at_returns_none_for_future_block() {
-	let ctx = TestContext::minimal().await;
-
-	let blockchain =
-		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+	let blockchain = readonly_blockchain().await;
 
 	let head_number = blockchain.head_number().await;
 
@@ -645,10 +627,7 @@ pub async fn block_number_by_hash_returns_number_for_parent() {
 }
 
 pub async fn block_number_by_hash_returns_number_for_fork_point() {
-	let ctx = TestContext::minimal().await;
-
-	let blockchain =
-		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+	let blockchain = readonly_blockchain().await;
 
 	let fork_hash = blockchain.fork_point();
 	let fork_number = blockchain.fork_point_number();
@@ -662,10 +641,7 @@ pub async fn block_number_by_hash_returns_number_for_fork_point() {
 }
 
 pub async fn block_number_by_hash_returns_none_for_unknown() {
-	let ctx = TestContext::minimal().await;
-
-	let blockchain =
-		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+	let blockchain = readonly_blockchain().await;
 
 	let unknown_hash = H256::from_slice(&[0u8; 32]);
 	let number = blockchain
@@ -677,10 +653,7 @@ pub async fn block_number_by_hash_returns_none_for_unknown() {
 }
 
 pub async fn block_number_by_hash_returns_number_for_historical_block() {
-	let ctx = TestContext::minimal().await;
-
-	let blockchain =
-		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+	let blockchain = readonly_blockchain().await;
 
 	// Get a block before the fork point (if available)
 	let fork_number = blockchain.fork_point_number();
