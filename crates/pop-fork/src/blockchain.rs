@@ -111,7 +111,8 @@ fn infer_account_id_len_from_type(
 			let mut inferred_len = None;
 			for var in &variant.variants {
 				for field in &var.fields {
-					if let Some(len) = infer_account_id_len_from_type(registry, field.ty.id, depth + 1)
+					if let Some(len) =
+						infer_account_id_len_from_type(registry, field.ty.id, depth + 1)
 					{
 						if inferred_len.is_some() && inferred_len != Some(len) {
 							return None;
@@ -139,7 +140,9 @@ fn select_sudo_account<'a>(
 ) -> (&'a str, &'a [u8]) {
 	let selected = expected_len
 		.and_then(|len| accounts.iter().find(|(_, account)| account.len() == len))
-		.unwrap_or_else(|| accounts.first().expect("initialize_dev_accounts requires dev accounts"));
+		.unwrap_or_else(|| {
+			accounts.first().expect("initialize_dev_accounts requires dev accounts")
+		});
 	(selected.0, selected.1.as_slice())
 }
 

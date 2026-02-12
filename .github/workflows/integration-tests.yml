@@ -403,31 +403,21 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          extra_contract_args=()
+          extra_nextest_args=()
           if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            extra_contract_args=(-- --skip verifiable_contract_lifecycle)
+            extra_nextest_args=(-- --skip verifiable_contract_lifecycle)
           fi
 
           cargo nextest run \
             --release \
             --locked \
             --no-default-features \
-            --features "contract,integration-tests" \
+            --features "chain,contract,integration-tests" \
             -p pop-cli \
             --test contract \
-            --no-fail-fast \
-            --nocapture \
-            --status-level all \
-            "${extra_contract_args[@]}"
-
-          cargo nextest run \
-            --release \
-            --locked \
-            --no-default-features \
-            --features "chain,integration-tests" \
-            -p pop-cli \
             --test chain \
             --test fork \
             --no-fail-fast \
             --nocapture \
-            --status-level all
+            --status-level all \
+            "${extra_nextest_args[@]}"
