@@ -59,16 +59,13 @@ pub async fn fork_creates_blockchain_with_correct_fork_point() {
 }
 
 pub async fn fork_at_creates_blockchain_at_specific_block() {
-	let ctx = TestContext::minimal().await;
-
-	// First fork to get the current block number
-	let blockchain =
-		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+	// Reuse a shared readonly fork to avoid repeated setup.
+	let blockchain = readonly_blockchain().await;
 
 	let fork_number = blockchain.fork_point_number();
 
 	// Fork at a specific block number (same as current for test node)
-	let blockchain2 = Blockchain::fork_at(&ctx.endpoint, None, Some(fork_number.into()))
+	let blockchain2 = Blockchain::fork_at(blockchain.endpoint(), None, Some(fork_number.into()))
 		.await
 		.expect("Failed to fork at specific block");
 
@@ -84,9 +81,9 @@ pub async fn fork_with_invalid_endpoint_fails() {
 }
 
 pub async fn fork_at_with_invalid_block_number_fails() {
-	let ctx = TestContext::minimal().await;
+	let blockchain = readonly_blockchain().await;
 
-	let result = Blockchain::fork_at(&ctx.endpoint, None, Some(u32::MAX.into())).await;
+	let result = Blockchain::fork_at(blockchain.endpoint(), None, Some(u32::MAX.into())).await;
 
 	assert!(result.is_err());
 }
@@ -738,10 +735,7 @@ pub async fn call_at_block_executes_at_parent_block() {
 }
 
 pub async fn call_at_block_returns_none_for_unknown_hash() {
-	let ctx = TestContext::minimal().await;
-
-	let blockchain =
-		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+	let blockchain = readonly_blockchain().await;
 
 	// Use a fabricated hash that doesn't exist
 	let unknown_hash = H256::from([0xde; 32]);
@@ -755,10 +749,7 @@ pub async fn call_at_block_returns_none_for_unknown_hash() {
 }
 
 pub async fn call_at_block_executes_at_historical_block() {
-	let ctx = TestContext::minimal().await;
-
-	let blockchain =
-		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+	let blockchain = readonly_blockchain().await;
 
 	let fork_number = blockchain.fork_point_number();
 
@@ -890,9 +881,7 @@ pub async fn validate_extrinsic_accepts_valid_transfer() {
 }
 
 pub async fn validate_extrinsic_rejects_garbage() {
-	let ctx = TestContext::minimal().await;
-	let blockchain =
-		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
+	let blockchain = readonly_blockchain().await;
 
 	// Submit garbage bytes
 	let garbage = vec![0xde, 0xad, 0xbe, 0xef];
