@@ -25,7 +25,7 @@ pub async fn run_block_tests() {
 	block::child_storage_inherits_parent_modifications().await;
 }
 
-pub async fn run_blockchain_tests() {
+pub async fn run_blockchain_basics_tests() {
 	blockchain::fork_creates_blockchain_with_correct_fork_point().await;
 	blockchain::fork_at_creates_blockchain_at_specific_block().await;
 	blockchain::fork_with_invalid_endpoint_fails().await;
@@ -37,10 +37,11 @@ pub async fn run_blockchain_tests() {
 	blockchain::storage_returns_value_for_existing_key().await;
 	blockchain::storage_returns_none_for_nonexistent_key().await;
 	blockchain::storage_at_queries_specific_block().await;
-	blockchain::call_executes_runtime_api().await;
 	blockchain::head_returns_current_block().await;
 	blockchain::head_updates_after_building_block().await;
-	blockchain::build_block_with_signed_transfer_updates_balances().await;
+}
+
+pub async fn run_blockchain_queries_tests() {
 	blockchain::block_body_returns_extrinsics_for_head().await;
 	blockchain::block_body_returns_extrinsics_for_parent_block().await;
 	blockchain::block_body_returns_extrinsics_for_fork_point_from_remote().await;
@@ -60,12 +61,20 @@ pub async fn run_blockchain_tests() {
 	blockchain::block_number_by_hash_returns_number_for_fork_point().await;
 	blockchain::block_number_by_hash_returns_none_for_unknown().await;
 	blockchain::block_number_by_hash_returns_number_for_historical_block().await;
+}
+
+pub async fn run_blockchain_runtime_call_tests() {
+	blockchain::call_executes_runtime_api().await;
 	blockchain::call_at_block_executes_at_head().await;
 	blockchain::call_at_block_executes_at_fork_point().await;
 	blockchain::call_at_block_executes_at_parent_block().await;
 	blockchain::call_at_block_returns_none_for_unknown_hash().await;
 	blockchain::call_at_block_executes_at_historical_block().await;
 	blockchain::call_at_block_does_not_persist_storage().await;
+}
+
+pub async fn run_blockchain_extrinsic_tests() {
+	blockchain::build_block_with_signed_transfer_updates_balances().await;
 	blockchain::validate_extrinsic_accepts_valid_transfer().await;
 	blockchain::validate_extrinsic_rejects_garbage().await;
 	blockchain::build_block_result_tracks_included_extrinsics().await;
