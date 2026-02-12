@@ -126,6 +126,25 @@ jobs:
           nohup "/tmp/ink-node-dist/${BIN_RELATIVE_PATH}" --dev --tmp --rpc-port=9944 \
             >/tmp/ink-node.log 2>&1 &
 
+      - name: Wait for ink-node RPC readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          ready=0
+          for _ in $(seq 1 30); do
+            if nc -z 127.0.0.1 9944; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+
+          if [[ $ready -ne 1 ]]; then
+            echo "ink-node RPC did not become ready within 30 seconds" >&2
+            tail -n 200 /tmp/ink-node.log || true
+            exit 1
+          fi
+
       - name: Run pop-fork integration tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -219,28 +238,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            cargo nextest run \
+          cargo nextest run \
             --release \
             --locked \
-            --no-default-features \
-            --features "contract,integration-tests" \
-            --test contract \
+            -p pop-contracts \
+            --features integration-tests \
+            --test contracts \
             --no-fail-fast \
             --nocapture \
-            --status-level all \
-            -- --skip verifiable_contract_lifecycle
-          else
-            cargo nextest run \
-            --release \
-            --locked \
-            --no-default-features \
-            --features "contract,integration-tests" \
-            --test contract \
-            --no-fail-fast \
-            --nocapture \
-            --status-level all  
-          fi
+            --status-level all
 
   chain-integration-tests:
     strategy:

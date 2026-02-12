@@ -44,6 +44,7 @@ use subxt::{Metadata, config::substrate::H256};
 use tokio::sync::OnceCell;
 use url::Url;
 
+#[cfg(not(test))]
 const SHARED_TEST_NODE_WS_URL: &str = "ws://127.0.0.1:9944";
 
 static RESOLVED_TEST_ENDPOINT: OnceCell<Url> = OnceCell::const_new();
@@ -76,9 +77,12 @@ async fn resolve_test_endpoint_uncached() -> Url {
 		return ws_url.parse().expect("POP_FORK_TEST_NODE_WS_URL must be a valid WebSocket URL");
 	}
 
-	let default_endpoint: Url = SHARED_TEST_NODE_WS_URL.parse().expect("Invalid WebSocket URL");
-	if ForkRpcClient::connect(&default_endpoint).await.is_ok() {
-		return default_endpoint;
+	#[cfg(not(test))]
+	{
+		let shared_endpoint: Url = SHARED_TEST_NODE_WS_URL.parse().expect("Invalid WebSocket URL");
+		if ForkRpcClient::connect(&shared_endpoint).await.is_ok() {
+			return shared_endpoint;
+		}
 	}
 
 	#[cfg(test)]
