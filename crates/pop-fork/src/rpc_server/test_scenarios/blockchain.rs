@@ -676,8 +676,7 @@ pub async fn call_at_block_executes_at_head() {
 	let blockchain =
 		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
 
-	blockchain.build_empty_block().await.unwrap();
-	blockchain.build_empty_block().await.unwrap();
+	// One local block is enough to validate head-based execution.
 	blockchain.build_empty_block().await.unwrap();
 
 	let head_hash = blockchain.head_hash().await;
@@ -698,8 +697,7 @@ pub async fn call_at_block_executes_at_fork_point() {
 	let blockchain =
 		Blockchain::fork(&ctx.endpoint, None).await.expect("Failed to fork blockchain");
 
-	blockchain.build_empty_block().await.unwrap();
-	blockchain.build_empty_block().await.unwrap();
+	// Advance once locally, then execute against the remote fork point.
 	blockchain.build_empty_block().await.unwrap();
 
 	let fork_hash = blockchain.fork_point();
