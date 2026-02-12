@@ -72,7 +72,7 @@ Chains:
 
 Utilities:
 
-- `pop convert address --address <value>`
+- `pop convert address <value>`
 - `pop clean node --all`
 - `pop clean network --all`
 
