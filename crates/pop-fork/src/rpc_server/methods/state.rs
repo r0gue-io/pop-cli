@@ -25,6 +25,7 @@ use tokio_util::sync::CancellationToken;
 
 #[async_trait::async_trait]
 pub trait StateBlockchain: Send + Sync {
+	async fn head_snapshot(&self) -> (u32, subxt::utils::H256);
 	async fn head_number(&self) -> u32;
 	async fn head_hash(&self) -> subxt::utils::H256;
 	async fn block_number_by_hash(
@@ -67,6 +68,11 @@ pub trait StateBlockchain: Send + Sync {
 
 #[async_trait::async_trait]
 impl StateBlockchain for Blockchain {
+	async fn head_snapshot(&self) -> (u32, subxt::utils::H256) {
+		let head = Blockchain::head(self).await;
+		(head.number, head.hash)
+	}
+
 	async fn head_number(&self) -> u32 {
 		Blockchain::head_number(self).await
 	}
@@ -270,11 +276,7 @@ impl<T: StateBlockchain + 'static> StateApiServer for StateApi<T> {
 					})?;
 				(num, parsed)
 			},
-			None => {
-				let head_number = self.blockchain.head_number().await;
-				let head_hash = self.blockchain.head_hash().await;
-				(head_number, head_hash)
-			},
+			None => self.blockchain.head_snapshot().await,
 		};
 
 		// For blocks at or before the fork point, proxy Core_version to the upstream
@@ -396,11 +398,7 @@ impl<T: StateBlockchain + 'static> StateApiServer for StateApi<T> {
 					})?;
 				(num, parsed)
 			},
-			None => {
-				let head_number = self.blockchain.head_number().await;
-				let head_hash = self.blockchain.head_hash().await;
-				(head_number, head_hash)
-			},
+			None => self.blockchain.head_snapshot().await,
 		};
 
 		// Proxy metadata runtime API calls to the upstream RPC for performance,
@@ -448,11 +446,7 @@ impl<T: StateBlockchain + 'static> StateApiServer for StateApi<T> {
 					})?;
 				(num, parsed)
 			},
-			None => {
-				let head_number = self.blockchain.head_number().await;
-				let head_hash = self.blockchain.head_hash().await;
-				(head_number, head_hash)
-			},
+			None => self.blockchain.head_snapshot().await,
 		};
 
 		jsonrpsee::tracing::debug!(
