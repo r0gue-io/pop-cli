@@ -85,11 +85,6 @@ pub struct CallContractCommand {
 	/// Submit an extrinsic for on-chain execution.
 	#[arg(short = 'x', long)]
 	pub(crate) execute: bool,
-	/// Enables developer mode, bypassing certain user prompts for faster testing.
-	/// Recommended for testing and local development only.
-	#[deprecated(since = "0.12.0", note = "Use `--skip-confirm`, will be removed in v0.13.0")]
-	#[arg(name = "dev", short, long, default_value = "false", conflicts_with = "skip_confirm")]
-	dev_mode: bool,
 	/// Whether the contract was just deployed or not.
 	#[arg(hide = true, long, default_value = "false")]
 	pub(crate) deployed: bool,
@@ -101,7 +96,6 @@ pub struct CallContractCommand {
 	storage_mapping_key: Option<String>,
 }
 
-#[allow(deprecated)]
 impl Default for CallContractCommand {
 	fn default() -> Self {
 		Self {
@@ -117,7 +111,6 @@ impl Default for CallContractCommand {
 			suri: Some("//Alice".to_string()),
 			use_wallet: false,
 			execute: false,
-			dev_mode: false,
 			deployed: false,
 			skip_confirm: false,
 			storage_mapping_key: None,
@@ -280,14 +273,7 @@ impl CallContractCommand {
 		Ok(())
 	}
 
-	#[allow(deprecated)]
 	fn configure_message(&mut self, message: &ContractFunction, cli: &mut impl Cli) -> Result<()> {
-		// TODO: Remove with release v0.13.0:
-		if self.dev_mode {
-			cli.warning("The `--dev` flag is deprecated. Use `--skip-confirm` instead.")?;
-			self.skip_confirm = true;
-		}
-
 		resolve_function_args(message, cli, &mut self.args, self.skip_confirm)?;
 
 		// Resolve value.
@@ -704,7 +690,6 @@ mod tests {
 			suri: None,
 			use_wallet: false,
 			execute: false,
-			dev_mode: false,
 			deployed: false,
 			skip_confirm: false,
 			storage_mapping_key: None,
@@ -761,59 +746,6 @@ mod tests {
 		command.configure_message(&message, &mut cli)?;
 
 		assert_eq!(command.args, vec!["10".to_string(), "20".to_string()]);
-		cli.verify()
-	}
-
-	// Remove in v0.13.0
-	#[test]
-	#[allow(deprecated)]
-	fn configure_message_warns_for_deprecated_dev_flag() -> Result<()> {
-		let message = ContractFunction {
-			label: "run".into(),
-			payable: false,
-			args: vec![],
-			docs: String::new(),
-			default: false,
-			mutates: true,
-		};
-
-		let mut command = CallContractCommand { dev_mode: true, ..Default::default() };
-		let mut cli = MockCli::new()
-			.expect_warning("The `--dev` flag is deprecated. Use `--skip-confirm` instead.");
-
-		command.configure_message(&message, &mut cli)?;
-
-		assert!(command.skip_confirm);
-		assert!(command.dev_mode);
-		cli.verify()
-	}
-
-	// Remove in v0.13.0
-	#[test]
-	#[allow(deprecated)]
-	fn configure_message_converts_deprecated_weight_flags() -> Result<()> {
-		let message = ContractFunction {
-			label: "run".into(),
-			payable: false,
-			args: vec![],
-			docs: String::new(),
-			default: false,
-			mutates: true,
-		};
-
-		let mut command = CallContractCommand {
-			gas_limit: Some(12345),
-			proof_size: Some(5000),
-			skip_confirm: true,
-			..Default::default()
-		};
-
-		let mut cli = MockCli::new();
-
-		command.configure_message(&message, &mut cli)?;
-
-		assert_eq!(command.gas_limit, Some(12345));
-		assert_eq!(command.proof_size, Some(5000));
 		cli.verify()
 	}
 
@@ -874,7 +806,6 @@ mod tests {
 			suri: None,
 			use_wallet: false,
 			execute: false,
-			dev_mode: false,
 			deployed: false,
 			skip_confirm: false,
 			storage_mapping_key: None,
@@ -959,7 +890,6 @@ mod tests {
 			suri: Some("//Alice".to_string()),
 			use_wallet: false,
 			execute: false,
-			dev_mode: false,
 			deployed: false,
 			skip_confirm: true,
 			storage_mapping_key: None,
@@ -1025,7 +955,6 @@ mod tests {
 			suri: None,
 			use_wallet: false,
 			execute: false,
-			dev_mode: false,
 			deployed: false,
 			skip_confirm: false,
 			storage_mapping_key: None,
@@ -1086,7 +1015,6 @@ mod tests {
 			suri: None,
 			use_wallet: false,
 			execute: false,
-			dev_mode: false,
 			deployed: false,
 			skip_confirm: false,
 			storage_mapping_key: None,
@@ -1115,7 +1043,6 @@ mod tests {
 			suri: None,
 			use_wallet: false,
 			execute: false,
-			dev_mode: false,
 			deployed: false,
 			skip_confirm: false,
 			storage_mapping_key: None,
@@ -1150,7 +1077,6 @@ mod tests {
 			suri: None,
 			use_wallet: false,
 			execute: false,
-			dev_mode: false,
 			deployed: false,
 			skip_confirm: false,
 			storage_mapping_key: None,
@@ -1199,7 +1125,6 @@ mod tests {
 			suri: None,
 			use_wallet: false,
 			execute: false,
-			dev_mode: false,
 			deployed: false,
 			skip_confirm: false,
 			storage_mapping_key: None,
@@ -1246,7 +1171,6 @@ mod tests {
 			suri: None,
 			use_wallet: false,
 			execute: false,
-			dev_mode: false,
 			deployed: false,
 			skip_confirm: false,
 			storage_mapping_key: None,
@@ -1297,7 +1221,6 @@ mod tests {
 			suri: Some("//Alice".to_string()),
 			use_wallet: false,
 			execute: false,
-			dev_mode: false,
 			deployed: true,
 			skip_confirm: false,
 			storage_mapping_key: None,
@@ -1353,7 +1276,6 @@ mod tests {
 			suri: Some("//Alice".to_string()),
 			use_wallet: false,
 			execute: false,
-			dev_mode: false,
 			deployed: true,
 			skip_confirm: false,
 			storage_mapping_key: None,
