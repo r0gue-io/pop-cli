@@ -46,7 +46,7 @@ contract-metadata.workspace = true
 scale-info.workspace = true
 
 # pop
-pop-chains = { path = "../pop-chains" }
+pop-chains = { path = "../pop-chains", version = "0.13.0" }
 pop-common = { path = "../pop-common", version = "0.13.0" }
 
 [dev-dependencies]
