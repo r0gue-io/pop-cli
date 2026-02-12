@@ -43,7 +43,7 @@ Treat output containing these markers as failure, even if exit code is `0`:
 - `pop new contract` does not accept `-y`.
 - `pop new chain` does not accept `-y`.
 - `pop up <contract-dir> --skip-confirm` requires all constructor args via `--args`.
-- `pop call contract` cannot combine `--dev` with `--skip-confirm`.
+- `pop call contract` requires `--gas` and `--proof-size` together; passing only one fails argument validation.
 - `pop call chain --function` expects runtime/source naming and commonly requires `snake_case` (example: `transfer_keep_alive`).
 - For calls expecting `MultiAddress` (example: `Balances.transfer_keep_alive`), pass destination as `Id(0x...)`.
 - `pop up <contract-dir>` may own local node lifecycle and terminate it; for stable multi-step flows use explicit non-default node ports and explicit `--url`.
