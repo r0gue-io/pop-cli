@@ -129,6 +129,7 @@ jobs:
       - name: Run pop-fork integration tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          POP_FORK_TEST_NODE_WS_URL: ws://127.0.0.1:9944
         run: |
           cargo nextest run \
             --locked \

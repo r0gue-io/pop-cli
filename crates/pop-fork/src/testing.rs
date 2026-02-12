@@ -41,11 +41,12 @@ use crate::{
 use pop_common::test_env::TestNode;
 use std::sync::Arc;
 use subxt::{Metadata, config::substrate::H256};
-#[cfg(test)]
 use tokio::sync::OnceCell;
 use url::Url;
 
 const SHARED_TEST_NODE_WS_URL: &str = "ws://127.0.0.1:9944";
+
+static RESOLVED_TEST_ENDPOINT: OnceCell<Url> = OnceCell::const_new();
 
 #[cfg(test)]
 static UNIT_TEST_NODE_WS_URL: OnceCell<String> = OnceCell::const_new();
@@ -64,6 +65,13 @@ async fn unit_test_node_ws_url() -> String {
 }
 
 async fn resolve_test_endpoint() -> Url {
+	RESOLVED_TEST_ENDPOINT
+		.get_or_init(|| async { resolve_test_endpoint_uncached().await })
+		.await
+		.clone()
+}
+
+async fn resolve_test_endpoint_uncached() -> Url {
 	if let Ok(ws_url) = std::env::var("POP_FORK_TEST_NODE_WS_URL") {
 		return ws_url.parse().expect("POP_FORK_TEST_NODE_WS_URL must be a valid WebSocket URL");
 	}
@@ -476,7 +484,7 @@ impl TestContextBuilder {
 			let blockchain_ref = blockchain.clone().expect("Blockchain required for server");
 			let txpool_ref = txpool.clone().expect("TxPool required for server");
 			Some(
-				ForkRpcServer::start(blockchain_ref, txpool_ref, RpcServerConfig::default())
+				ForkRpcServer::start(blockchain_ref, txpool_ref, RpcServerConfig::with_port(0))
 					.await
 					.expect("Failed to start RPC server"),
 			)

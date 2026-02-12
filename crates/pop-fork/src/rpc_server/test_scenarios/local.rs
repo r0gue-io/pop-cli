@@ -11,7 +11,6 @@ use crate::{
 		constants::{SYSTEM_NUMBER_KEY, SYSTEM_PALLET_PREFIX, SYSTEM_PARENT_HASH_KEY},
 	},
 };
-use std::time::Duration;
 use subxt::ext::codec::Decode;
 
 /// Helper to create a LocalStorageLayer with proper block hash and number
@@ -480,9 +479,6 @@ pub async fn get_batch_retrieves_unmodified_value_from_remote_at_past_forked_blo
 pub async fn get_batch_historical_block() {
 	let ctx = TestContext::for_local().await;
 	let layer = create_layer(&ctx);
-
-	// Wait for some blocks to be finalized
-	std::thread::sleep(Duration::from_secs(30));
 
 	// Query a block that's not in cache
 	let block_number = ctx.block_number();

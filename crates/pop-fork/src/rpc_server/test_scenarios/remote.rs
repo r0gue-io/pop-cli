@@ -8,7 +8,6 @@ use crate::testing::{
 	TestContext,
 	constants::{SYSTEM_NUMBER_KEY, SYSTEM_PALLET_PREFIX, SYSTEM_PARENT_HASH_KEY},
 };
-use std::time::Duration;
 
 pub async fn get_fetches_and_caches() {
 	let ctx = TestContext::for_remote().await;
@@ -160,8 +159,6 @@ pub async fn fetch_and_cache_block_by_number_multiple_blocks() {
 	let ctx = TestContext::for_remote().await;
 	let layer = ctx.remote();
 
-	std::thread::sleep(Duration::from_secs(30));
-
 	let finalized_hash = layer.rpc().finalized_head().await.unwrap();
 	let finalized_header = layer.rpc().header(finalized_hash).await.unwrap();
 	let finalized_number = finalized_header.number;
@@ -194,8 +191,6 @@ pub async fn fetch_and_cache_block_by_number_idempotent() {
 pub async fn fetch_and_cache_block_by_number_verifies_parent_chain() {
 	let ctx = TestContext::for_remote().await;
 	let layer = ctx.remote();
-
-	std::thread::sleep(Duration::from_secs(30));
 
 	let finalized_hash = layer.rpc().finalized_head().await.unwrap();
 	let finalized_header = layer.rpc().header(finalized_hash).await.unwrap();

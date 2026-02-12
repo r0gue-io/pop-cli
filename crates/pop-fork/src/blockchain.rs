@@ -562,7 +562,7 @@ impl Blockchain {
 		// the return of the fork. If a block is built before warmup finishes,
 		// the builder falls back to its normal (non-cached) path.
 		// Skipped in tests to avoid resource contention when many tests run in parallel.
-		#[cfg(not(test))]
+		#[cfg(all(not(test), not(feature = "integration-tests")))]
 		{
 			let bc = Arc::clone(&blockchain);
 			tokio::spawn(async move { bc.warmup().await });
