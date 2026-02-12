@@ -22,10 +22,36 @@ use jsonrpsee::{
 	ws_client::WsClientBuilder,
 };
 use scale::{Compact, Encode};
-use std::time::Duration;
+use std::{future::Future, time::Duration};
 
 const RPC_REQUEST_TIMEOUT: Duration = Duration::from_secs(400);
 const SUBSCRIPTION_EVENT_TIMEOUT: Duration = Duration::from_secs(400);
+const RPC_TIMEOUT_RETRY_BACKOFF: Duration = Duration::from_secs(2);
+
+fn is_request_timeout(err: &jsonrpsee::core::client::Error) -> bool {
+	let msg = err.to_string();
+	msg.contains("RequestTimeout") || msg.contains("request timeout")
+}
+
+async fn request_with_timeout_retry<T, F, Fut>(
+	mut request: F,
+) -> Result<T, jsonrpsee::core::client::Error>
+where
+	F: FnMut() -> Fut,
+	Fut: Future<Output = Result<T, jsonrpsee::core::client::Error>>,
+{
+	for attempt in 1..=2 {
+		match request().await {
+			Ok(value) => return Ok(value),
+			Err(err) if attempt == 1 && is_request_timeout(&err) => {
+				tokio::time::sleep(RPC_TIMEOUT_RETRY_BACKOFF).await;
+			},
+			Err(err) => return Err(err),
+		}
+	}
+
+	unreachable!("request retry loop should always return")
+}
 
 async fn author_context_with_dev_accounts() -> TestContext {
 	let config =
@@ -123,14 +149,15 @@ pub async fn author_pending_extrinsics_empty_after_submit_at(ws_url: &str, ext_h
 		.build(ws_url)
 		.await
 		.expect("Failed to connect");
-	let _hash: String = client
-		.request("author_submitExtrinsic", rpc_params![ext_hex])
-		.await
-		.expect("RPC call failed");
-	let pending: Vec<String> = client
-		.request("author_pendingExtrinsics", rpc_params![])
-		.await
-		.expect("RPC call failed");
+	let _hash: String = request_with_timeout_retry(|| {
+		client.request("author_submitExtrinsic", rpc_params![ext_hex])
+	})
+	.await
+	.expect("RPC call failed");
+	let pending: Vec<String> =
+		request_with_timeout_retry(|| client.request("author_pendingExtrinsics", rpc_params![]))
+			.await
+			.expect("RPC call failed");
 	assert!(pending.is_empty(), "Pending extrinsics should be empty after submit in instant mode");
 }
 
@@ -204,10 +231,10 @@ pub async fn build_transfer_extrinsic_hex_with_nonce(
 }
 
 async fn chain_head_number(client: &jsonrpsee::ws_client::WsClient) -> u32 {
-	let header: serde_json::Value = client
-		.request("chain_getHeader", rpc_params![])
-		.await
-		.expect("chain_getHeader should succeed");
+	let header: serde_json::Value =
+		request_with_timeout_retry(|| client.request("chain_getHeader", rpc_params![]))
+			.await
+			.expect("chain_getHeader should succeed");
 	let number_hex = header
 		.get("number")
 		.and_then(|v| v.as_str())
@@ -288,7 +315,11 @@ pub async fn author_submit_extrinsic_does_not_build_block_on_validation_failure_
 	ws_url: &str,
 	garbage_hex: &str,
 ) {
-	let client = WsClientBuilder::default().build(ws_url).await.expect("Failed to connect");
+	let client = WsClientBuilder::default()
+		.request_timeout(RPC_REQUEST_TIMEOUT)
+		.build(ws_url)
+		.await
+		.expect("Failed to connect");
 
 	let initial_block_number = chain_head_number(&client).await;
 

@@ -135,7 +135,7 @@ jobs:
             -p pop-fork \
             --features integration-tests \
             --test fork \
-            -j 8 \
+            -j 6 \
             --no-fail-fast \
             --status-level all
 
@@ -316,7 +316,6 @@ jobs:
             --features "chain,integration-tests" \
             --test chain \
             --test metadata \
-            --test fork \
             --no-fail-fast \
             --nocapture \
             --status-level all

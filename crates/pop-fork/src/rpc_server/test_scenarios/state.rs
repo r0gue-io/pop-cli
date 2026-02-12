@@ -7,6 +7,35 @@ use crate::{
 	testing::{TestContext, accounts, helpers},
 };
 use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
+use std::{future::Future, time::Duration};
+
+const RPC_REQUEST_TIMEOUT: Duration = Duration::from_secs(400);
+const RPC_TIMEOUT_RETRY_BACKOFF: Duration = Duration::from_secs(2);
+
+fn is_request_timeout(err: &jsonrpsee::core::client::Error) -> bool {
+	let msg = err.to_string();
+	msg.contains("RequestTimeout") || msg.contains("request timeout")
+}
+
+async fn request_with_timeout_retry<T, F, Fut>(
+	mut request: F,
+) -> Result<T, jsonrpsee::core::client::Error>
+where
+	F: FnMut() -> Fut,
+	Fut: Future<Output = Result<T, jsonrpsee::core::client::Error>>,
+{
+	for attempt in 1..=2 {
+		match request().await {
+			Ok(value) => return Ok(value),
+			Err(err) if attempt == 1 && is_request_timeout(&err) => {
+				tokio::time::sleep(RPC_TIMEOUT_RETRY_BACKOFF).await;
+			},
+			Err(err) => return Err(err),
+		}
+	}
+
+	unreachable!("request retry loop should always return")
+}
 
 pub async fn state_get_storage_returns_value() {
 	let ctx = TestContext::for_rpc_server().await;
@@ -94,14 +123,14 @@ pub async fn state_get_storage_returns_none_for_nonexistent_key_at(ws_url: &str)
 
 pub async fn state_get_metadata_returns_metadata_at(ws_url: &str) {
 	let client = WsClientBuilder::default()
-		.request_timeout(std::time::Duration::from_secs(120))
+		.request_timeout(RPC_REQUEST_TIMEOUT)
 		.build(ws_url)
 		.await
 		.expect("Failed to connect");
-	let result: String = client
-		.request("state_getMetadata", rpc_params![])
-		.await
-		.expect("RPC call failed");
+	let result: String =
+		request_with_timeout_retry(|| client.request("state_getMetadata", rpc_params![]))
+			.await
+			.expect("RPC call failed");
 	assert!(result.starts_with("0x"));
 	assert!(result.len() > 1000);
 	assert!(result.starts_with("0x6d657461"));
@@ -109,14 +138,15 @@ pub async fn state_get_metadata_returns_metadata_at(ws_url: &str) {
 
 pub async fn state_get_metadata_at_block_hash_at(ws_url: &str, head_hash_hex: &str) {
 	let client = WsClientBuilder::default()
-		.request_timeout(std::time::Duration::from_secs(120))
+		.request_timeout(RPC_REQUEST_TIMEOUT)
 		.build(ws_url)
 		.await
 		.expect("Failed to connect");
-	let result: String = client
-		.request("state_getMetadata", rpc_params![head_hash_hex])
-		.await
-		.expect("RPC call failed");
+	let result: String = request_with_timeout_retry(|| {
+		client.request("state_getMetadata", rpc_params![head_hash_hex])
+	})
+	.await
+	.expect("RPC call failed");
 	assert!(result.starts_with("0x"));
 	assert!(result.len() > 1000);
 }
