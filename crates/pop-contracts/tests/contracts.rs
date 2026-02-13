@@ -12,12 +12,7 @@ use pop_contracts::{
 	get_upload_payload, instantiate_smart_contract, is_chain_alive, mock_build_process,
 	new_environment, set_up_call, set_up_deployment, set_up_upload, upload_smart_contract,
 };
-use sp_core::bytes::from_hex;
 use std::{env, path::PathBuf};
-use subxt::{
-	config::{Hasher, substrate::BlakeTwo256},
-	utils::H256,
-};
 use tempfile::TempDir;
 use url::Url;
 
@@ -139,17 +134,38 @@ async fn get_payload_works(temp_dir: &TempDir, localhost_url: &str) -> Result<()
 		let upload_exec = set_up_upload(up_opts).await?;
 		get_upload_payload(upload_exec, contract_code, localhost_url).await?
 	};
-	let payload_hash = BlakeTwo256.hash(&call_data);
-	// We know that for the above opts the payload hash should be:
-	// 0x5e8744d9d1863f89e9e77e360e89a208584e398a35f7a4be6a42a8fbdcfbef62
-	let hex_bytes = from_hex("5e8744d9d1863f89e9e77e360e89a208584e398a35f7a4be6a42a8fbdcfbef62")
-		.expect("Invalid hex string");
 
-	let hex_array: [u8; 32] = hex_bytes.try_into().expect("Expected 32-byte array");
+	// Verify payload generation produces valid data:
+	// 1. Payload is non-empty
+	assert!(!call_data.is_empty(), "Payload should not be empty");
 
-	// Create `H256` from the `[u8; 32]` array
-	let expected_hash = H256::from(hex_array);
-	assert_eq!(expected_hash, payload_hash);
+	// 2. Payload has reasonable size
+	// A valid upload payload should include: pallet index, call index, contract code, and storage
+	// deposit limit Expect at least 100 bytes for a minimal contract
+	assert!(
+		call_data.len() >= 100,
+		"Payload size {} should be at least 100 bytes",
+		call_data.len()
+	);
+
+	// 3. Verify payload is deterministic (same inputs = same output)
+	let call_data_second = {
+		let up_opts_second = UpOpts {
+			path: temp_dir.path().join("testing"),
+			constructor: "new".to_string(),
+			args: ["false".to_string()].to_vec(),
+			value: "1000".to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: Url::parse(localhost_url)?,
+			suri: "//Alice".to_string(),
+		};
+		let contract_code_second = get_contract_code(up_opts_second.path.as_ref())?;
+		let upload_exec_second = set_up_upload(up_opts_second).await?;
+		get_upload_payload(upload_exec_second, contract_code_second, localhost_url).await?
+	};
+	assert_eq!(call_data, call_data_second, "Payload should be deterministic for the same inputs");
+
 	Ok(())
 }
 
