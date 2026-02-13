@@ -89,13 +89,13 @@ pub enum SupportedChains {
 	/// Polkadot.
 	POLKADOT,
 	/// Asset Hub (Polkadot).
-	#[value(name = "asset-hub-polkadot")]
+	#[value(name = "asset-hub-polkadot", alias = "asset-hub")]
 	ASSET_HUB_POLKADOT,
 	/// Asset Hub (Kusama).
 	#[value(name = "asset-hub-kusama")]
 	ASSET_HUB_KUSAMA,
 	/// Asset Hub (Paseo).
-	#[value(name = "asset-hub-paseo", alias = "asset-hub")]
+	#[value(name = "asset-hub-paseo")]
 	ASSET_HUB_PASEO,
 	/// Asset Hub (Westend).
 	#[value(name = "asset-hub-westend")]

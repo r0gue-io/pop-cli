@@ -211,9 +211,9 @@ impl Command {
 						#[cfg(feature = "chain")]
 						up::Command::AssetHub(cmd) => {
 							cmd.inject_parachain(Box::new(pop_chains::registry::AssetHub::new(
-								1_000, Paseo,
+								1_000, Polkadot,
 							)));
-							cmd.execute(Paseo, &mut Cli).await
+							cmd.execute(Polkadot, &mut Cli).await
 						},
 						up::Command::Frontend(cmd) => cmd.execute(&mut Cli),
 						#[cfg(feature = "contract")]
