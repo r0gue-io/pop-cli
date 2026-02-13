@@ -16,6 +16,41 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 use sp_core::crypto::{AccountId32, Ss58Codec};
 use std::sync::Arc;
 
+#[async_trait::async_trait]
+pub trait SystemBlockchain: Send + Sync {
+	fn chain_name(&self) -> &str;
+	async fn chain_properties(&self) -> Option<serde_json::Value>;
+	async fn head_number(&self) -> u32;
+	async fn storage_at(
+		&self,
+		block_number: u32,
+		key: &[u8],
+	) -> Result<Option<Vec<u8>>, crate::BlockchainError>;
+}
+
+#[async_trait::async_trait]
+impl SystemBlockchain for Blockchain {
+	fn chain_name(&self) -> &str {
+		Blockchain::chain_name(self)
+	}
+
+	async fn chain_properties(&self) -> Option<serde_json::Value> {
+		Blockchain::chain_properties(self).await
+	}
+
+	async fn head_number(&self) -> u32 {
+		Blockchain::head_number(self).await
+	}
+
+	async fn storage_at(
+		&self,
+		block_number: u32,
+		key: &[u8],
+	) -> Result<Option<Vec<u8>>, crate::BlockchainError> {
+		Blockchain::storage_at(self, block_number, key).await
+	}
+}
+
 /// Legacy system RPC methods.
 #[rpc(server, namespace = "system")]
 pub trait SystemApi {
@@ -68,19 +103,19 @@ pub trait SystemApi {
 }
 
 /// Implementation of legacy system RPC methods.
-pub struct SystemApi {
-	blockchain: Arc<Blockchain>,
+pub struct SystemApi<T: SystemBlockchain = Blockchain> {
+	blockchain: Arc<T>,
 }
 
-impl SystemApi {
+impl<T: SystemBlockchain> SystemApi<T> {
 	/// Create a new SystemApi instance.
-	pub fn new(blockchain: Arc<Blockchain>) -> Self {
+	pub fn new(blockchain: Arc<T>) -> Self {
 		Self { blockchain }
 	}
 }
 
 #[async_trait::async_trait]
-impl SystemApiServer for SystemApi {
+impl<T: SystemBlockchain + 'static> SystemApiServer for SystemApi<T> {
 	async fn chain(&self) -> RpcResult<String> {
 		Ok(self.blockchain.chain_name().to_string())
 	}
@@ -156,172 +191,5 @@ impl SystemApiServer for SystemApi {
 			},
 			_ => Ok(0), // Account doesn't exist, nonce is 0
 		}
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use crate::testing::TestContext;
-	use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
-
-	#[tokio::test(flavor = "multi_thread")]
-	async fn chain_works() {
-		let ctx = TestContext::for_rpc_server().await;
-		let client = WsClientBuilder::default()
-			.build(&ctx.ws_url())
-			.await
-			.expect("Failed to connect");
-
-		let name: String =
-			client.request("system_chain", rpc_params![]).await.expect("RPC call failed");
-
-		// Chain name should not be empty
-		assert!(!name.is_empty(), "Chain name should not be empty");
-
-		// Should match blockchain's chain_name
-		assert_eq!(name, "ink-node");
-	}
-
-	#[tokio::test(flavor = "multi_thread")]
-	async fn name_works() {
-		let ctx = TestContext::for_rpc_server().await;
-		let client = WsClientBuilder::default()
-			.build(&ctx.ws_url())
-			.await
-			.expect("Failed to connect");
-
-		let name: String =
-			client.request("system_name", rpc_params![]).await.expect("RPC call failed");
-
-		// Chain name should not be empty
-		assert!(!name.is_empty(), "Chain name should not be empty");
-
-		assert_eq!(name, "pop-fork");
-	}
-
-	#[tokio::test(flavor = "multi_thread")]
-	async fn version_works() {
-		let ctx = TestContext::for_rpc_server().await;
-		let client = WsClientBuilder::default()
-			.build(&ctx.ws_url())
-			.await
-			.expect("Failed to connect");
-
-		let version: String =
-			client.request("system_version", rpc_params![]).await.expect("RPC call failed");
-
-		assert_eq!(version, "1.0.0");
-	}
-
-	#[tokio::test(flavor = "multi_thread")]
-	async fn health_works() {
-		let ctx = TestContext::for_rpc_server().await;
-		let client = WsClientBuilder::default()
-			.build(&ctx.ws_url())
-			.await
-			.expect("Failed to connect");
-
-		let health: SystemHealth =
-			client.request("system_health", rpc_params![]).await.expect("RPC call failed");
-
-		// Should match blockchain's chain_name
-		assert_eq!(health, SystemHealth::default());
-	}
-
-	#[tokio::test(flavor = "multi_thread")]
-	async fn chain_spec_chain_name() {
-		let ctx = TestContext::for_rpc_server().await;
-		let client = WsClientBuilder::default()
-			.build(&ctx.ws_url())
-			.await
-			.expect("Failed to connect");
-
-		let name: String =
-			client.request("system_chain", rpc_params![]).await.expect("RPC call failed");
-
-		// Chain name should not be empty
-		assert!(!name.is_empty(), "Chain name should not be empty");
-
-		// Should match blockchain's chain_name
-		assert_eq!(name, "ink-node");
-	}
-
-	#[tokio::test(flavor = "multi_thread")]
-	async fn properties_returns_json_or_null() {
-		let ctx = TestContext::for_rpc_server().await;
-		let client = WsClientBuilder::default()
-			.build(&ctx.ws_url())
-			.await
-			.expect("Failed to connect");
-
-		let properties: Option<serde_json::Value> = client
-			.request("system_properties", rpc_params![])
-			.await
-			.expect("RPC call failed");
-
-		// Properties can be Some or None, both are valid
-		// If present, should be an object
-		if let Some(props) = &properties {
-			assert!(props.is_object(), "Properties should be a JSON object");
-		}
-	}
-
-	/// Well-known dev account: Alice
-	const ALICE_SS58: &str = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
-
-	#[tokio::test(flavor = "multi_thread")]
-	async fn account_next_index_returns_nonce() {
-		let ctx = TestContext::for_rpc_server().await;
-		let client = WsClientBuilder::default()
-			.build(&ctx.ws_url())
-			.await
-			.expect("Failed to connect");
-
-		// Query Alice's nonce (should be 0 or some positive value on dev chain)
-		let nonce: u32 = client
-			.request("system_accountNextIndex", rpc_params![ALICE_SS58])
-			.await
-			.expect("RPC call failed");
-
-		// Nonce should be a valid u32 (including 0)
-		assert!(nonce < u32::MAX, "Nonce should be a valid value");
-	}
-
-	#[tokio::test(flavor = "multi_thread")]
-	async fn account_next_index_returns_zero_for_nonexistent() {
-		let ctx = TestContext::for_rpc_server().await;
-		let client = WsClientBuilder::default()
-			.build(&ctx.ws_url())
-			.await
-			.expect("Failed to connect");
-
-		// Query a nonexistent account (random valid SS58 address)
-		// This is a valid SS58 address but unlikely to have any balance
-		let nonexistent_account = "5C4hrfjw9DjXZTzV3MwzrrAr9P1MJhSrvWGWqi1eSuyUpnhM";
-
-		let nonce: u32 = client
-			.request("system_accountNextIndex", rpc_params![nonexistent_account])
-			.await
-			.expect("RPC call failed");
-
-		// Nonexistent account should have nonce 0
-		assert_eq!(nonce, 0, "Nonexistent account should have nonce 0");
-	}
-
-	#[tokio::test(flavor = "multi_thread")]
-	async fn account_next_index_invalid_address_returns_error() {
-		let ctx = TestContext::for_rpc_server().await;
-		let client = WsClientBuilder::default()
-			.build(&ctx.ws_url())
-			.await
-			.expect("Failed to connect");
-
-		// Try with an invalid SS58 address
-		let result: Result<u32, _> = client
-			.request("system_accountNextIndex", rpc_params!["not_a_valid_address"])
-			.await;
-
-		assert!(result.is_err(), "Invalid SS58 address should return an error");
 	}
 }
