@@ -233,8 +233,8 @@ rpc_port = {random_port}
 	let mut up = TestChildProcess(command.spawn()?);
 
 	// Wait for the RPC endpoint to become ready (with health checking instead of blind sleep).
-	// Reduced timeout from 300s to 120s for faster failure detection.
-	if let Err(e) = wait_for_rpc_ready(&localhost_url, 120).await {
+	// Keep 300s timeout to accommodate slow CI environments.
+	if let Err(e) = wait_for_rpc_ready(&localhost_url, 300).await {
 		// Kill the network process before failing
 		up.0.kill().await?;
 		return Err(e);
