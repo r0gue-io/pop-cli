@@ -5,6 +5,7 @@
 #![cfg(all(feature = "chain", feature = "integration-tests"))]
 
 use anyhow::Result;
+use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
 use pop_chains::{
 	ChainTemplate,
 	up::{Binary, Source::GitHub},
@@ -36,19 +37,63 @@ impl Drop for TestChildProcess {
 	}
 }
 
-/// Wait for an RPC endpoint to become ready by polling the TCP port.
+const RPC_CONNECT_TIMEOUT_SECS: u64 = 5;
+const RPC_REQUEST_TIMEOUT_SECS: u64 = 5;
+const COMMAND_TIMEOUT_SECS: u64 = 120;
+const BLOCK_PRODUCTION_TIMEOUT_SECS: u64 = 60;
+
+async fn wait_for_command_success(
+	command: &mut tokio::process::Command,
+	timeout_secs: u64,
+	context: &str,
+) -> Result<()> {
+	let mut child = command.spawn()?;
+	let status = match tokio::time::timeout(Duration::from_secs(timeout_secs), child.wait()).await {
+		Ok(status) => status?,
+		Err(_) => {
+			let _ = child.kill().await;
+			let _ = child.wait().await;
+			return Err(anyhow::anyhow!("`{context}` timed out after {timeout_secs}s"));
+		},
+	};
+
+	if !status.success() {
+		return Err(anyhow::anyhow!("`{context}` failed with status: {status}"));
+	}
+
+	Ok(())
+}
+
+async fn rpc_request_string(url: &str, method: &str) -> Option<String> {
+	let client = tokio::time::timeout(
+		Duration::from_secs(RPC_CONNECT_TIMEOUT_SECS),
+		WsClientBuilder::default().build(url),
+	)
+	.await
+	.ok()?
+	.ok()?;
+
+	tokio::time::timeout(
+		Duration::from_secs(RPC_REQUEST_TIMEOUT_SECS),
+		client.request::<String, _>(method, rpc_params![]),
+	)
+	.await
+	.ok()?
+	.ok()
+}
+
+/// Wait for an RPC endpoint to become ready by polling JSON-RPC health.
 ///
 /// # Arguments
 /// * `url` - WebSocket URL (e.g., "ws://127.0.0.1:9944")
 /// * `timeout_secs` - Maximum time to wait in seconds
-async fn wait_for_rpc_ready(url: &str, timeout_secs: u64) -> Result<()> {
+async fn wait_for_rpc_ready(
+	url: &str,
+	timeout_secs: u64,
+	process: &mut TestChildProcess,
+) -> Result<()> {
 	let timeout = Duration::from_secs(timeout_secs);
 	let start = std::time::Instant::now();
-
-	// Extract host and port from URL (ws://127.0.0.1:PORT)
-	let addr = url
-		.strip_prefix("ws://")
-		.ok_or_else(|| anyhow::anyhow!("Invalid WebSocket URL: {}", url))?;
 
 	println!("Waiting for RPC endpoint {} to become ready (timeout: {}s)...", url, timeout_secs);
 
@@ -61,8 +106,13 @@ async fn wait_for_rpc_ready(url: &str, timeout_secs: u64) -> Result<()> {
 			));
 		}
 
-		// Try to connect to the TCP port
-		if tokio::net::TcpStream::connect(addr).await.is_ok() {
+		// Fail fast if the network process exited.
+		if let Some(status) = process.0.try_wait()? {
+			return Err(anyhow::anyhow!("Network process exited before RPC became ready: {status}"));
+		}
+
+		// Wait for an actual JSON-RPC response instead of only TCP readiness.
+		if rpc_request_string(url, "system_chain").await.is_some() {
 			println!("✓ RPC endpoint {} is ready (took {:?})", url, start.elapsed());
 			return Ok(());
 		}
@@ -71,21 +121,97 @@ async fn wait_for_rpc_ready(url: &str, timeout_secs: u64) -> Result<()> {
 	}
 }
 
+/// Wait until finalized head changes, proving blocks/finality are progressing.
+async fn wait_for_block_production(
+	url: &str,
+	timeout_secs: u64,
+	process: &mut TestChildProcess,
+) -> Result<()> {
+	let timeout = Duration::from_secs(timeout_secs);
+	let start = std::time::Instant::now();
+	let mut last_head = None;
+
+	println!("Waiting for block production at {} (timeout: {}s)...", url, timeout_secs);
+
+	loop {
+		if start.elapsed() > timeout {
+			return Err(anyhow::anyhow!(
+				"Finalized head did not advance at {} within {:?}",
+				url,
+				timeout
+			));
+		}
+
+		if let Some(status) = process.0.try_wait()? {
+			return Err(anyhow::anyhow!(
+				"Network process exited before block production was observed: {status}"
+			));
+		}
+
+		if let Some(head) = rpc_request_string(url, "chain_getFinalizedHead").await {
+			if let Some(previous) = &last_head &&
+				previous != &head
+			{
+				println!("✓ Finalized head advanced (took {:?})", start.elapsed());
+				return Ok(());
+			}
+			last_head = Some(head);
+		}
+
+		tokio::time::sleep(Duration::from_secs(2)).await;
+	}
+}
+
+fn write_network_config(
+	network_toml_path: &Path,
+	chain_spec_path: &Path,
+	rpc_port: u16,
+) -> Result<()> {
+	fs::write(
+		network_toml_path,
+		format!(
+			r#"[relaychain]
+chain = "paseo-local"
+
+[[relaychain.nodes]]
+name = "alice"
+validator = true
+
+[[parachains]]
+id = 2000
+default_command = "polkadot-omni-node"
+chain_spec_path = "{}"
+
+[[parachains.collators]]
+name = "collator-01"
+rpc_port = {rpc_port}
+"#,
+			chain_spec_path.as_os_str().to_str().unwrap(),
+		),
+	)?;
+	Ok(())
+}
+
 /// Spawn a network with retry logic to handle transient failures.
 ///
 /// # Arguments
 /// * `working_dir` - The working directory containing the network configuration
 /// * `network_toml` - Path to the network configuration file
-/// * `localhost_url` - The WebSocket URL to check for readiness
+/// * `chain_spec_path` - Path to the generated chain spec file
 /// * `max_retries` - Maximum number of retry attempts
 async fn spawn_network_with_retry(
 	working_dir: &Path,
+	network_toml_path: &Path,
 	network_toml: &str,
-	localhost_url: &str,
+	chain_spec_path: &Path,
 	max_retries: u32,
-) -> Result<TestChildProcess> {
+) -> Result<(TestChildProcess, String)> {
 	for attempt in 1..=max_retries {
-		println!("Network startup attempt {}/{}...", attempt, max_retries);
+		let rpc_port = resolve_port(None);
+		let localhost_url = format!("ws://127.0.0.1:{}", rpc_port);
+		write_network_config(network_toml_path, chain_spec_path, rpc_port)?;
+
+		println!("Network startup attempt {}/{} on RPC port {}...", attempt, max_retries, rpc_port);
 
 		let mut command = pop(
 			working_dir,
@@ -96,14 +222,21 @@ async fn spawn_network_with_retry(
 		// Use shorter timeout on early attempts, full timeout on final attempt
 		let timeout = if attempt == max_retries { 300 } else { 90 };
 
-		match wait_for_rpc_ready(localhost_url, timeout).await {
+		match wait_for_rpc_ready(&localhost_url, timeout, &mut process).await {
 			Ok(_) => {
+				wait_for_block_production(
+					&localhost_url,
+					BLOCK_PRODUCTION_TIMEOUT_SECS,
+					&mut process,
+				)
+				.await?;
 				println!("✓ Network started successfully on attempt {}", attempt);
-				return Ok(process);
+				return Ok((process, localhost_url));
 			},
 			Err(e) => {
 				println!("✗ Attempt {} failed: {}", attempt, e);
-				process.0.kill().await?;
+				let _ = process.0.kill().await;
+				let _ = process.0.wait().await;
 
 				if attempt < max_retries {
 					println!("Waiting 5s before retry...");
@@ -246,35 +379,16 @@ async fn parachain_lifecycle() -> Result<()> {
 	// Overwrite the config file to manually set the port to test pop call parachain.
 	let network_toml_path = working_dir.join("network.toml");
 	fs::create_dir_all(&working_dir)?;
-	let random_port = resolve_port(None);
-	let localhost_url = format!("ws://127.0.0.1:{}", random_port);
-	fs::write(
-		&network_toml_path,
-		format!(
-			r#"[relaychain]
-chain = "paseo-local"
-
-[[relaychain.nodes]]
-name = "alice"
-validator = true
-
-[[parachains]]
-id = 2000
-default_command = "polkadot-omni-node"
-chain_spec_path = "{}"
-
-[[parachains.collators]]
-name = "collator-01"
-rpc_port = {random_port}
-"#,
-			chain_spec_path.as_os_str().to_str().unwrap(),
-		),
-	)?;
 
 	// Start network with retry logic to handle transient failures
-	println!("Starting network at port {}...", random_port);
-	let mut up =
-		spawn_network_with_retry(&working_dir, "./network.toml", &localhost_url, 3).await?;
+	let (mut up, localhost_url) = spawn_network_with_retry(
+		&working_dir,
+		&network_toml_path,
+		"./network.toml",
+		&chain_spec_path,
+		3,
+	)
+	.await?;
 
 	println!("Network ready, running chain calls...");
 
@@ -298,7 +412,7 @@ rpc_port = {random_port}
 			"--skip-confirm",
 		],
 	);
-	assert!(command.spawn()?.wait().await?.success());
+	wait_for_command_success(&mut command, COMMAND_TIMEOUT_SECS, "pop call chain remark").await?;
 
 	// `pop call chain --pallet System --function Account --args
 	// "15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5" --url ws://127.0.0.1:random_port
@@ -319,7 +433,7 @@ rpc_port = {random_port}
 			"--skip-confirm",
 		],
 	);
-	assert!(command.spawn()?.wait().await?.success());
+	wait_for_command_success(&mut command, COMMAND_TIMEOUT_SECS, "pop call chain account").await?;
 
 	// `pop call chain --pallet System --function Account --args
 	// "15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5" --url ws://127.0.0.1:random_port`
@@ -337,7 +451,8 @@ rpc_port = {random_port}
 			"--skip-confirm",
 		],
 	);
-	assert!(command.spawn()?.wait().await?.success());
+	wait_for_command_success(&mut command, COMMAND_TIMEOUT_SECS, "pop call chain ss58-prefix")
+		.await?;
 
 	// pop call chain --call 0x00000411 --url ws://127.0.0.1:random_port --suri //Alice
 	// --skip-confirm
@@ -355,7 +470,8 @@ rpc_port = {random_port}
 			"--skip-confirm",
 		],
 	);
-	assert!(command.spawn()?.wait().await?.success());
+	wait_for_command_success(&mut command, COMMAND_TIMEOUT_SECS, "pop call chain call-data")
+		.await?;
 
 	assert!(up.0.try_wait()?.is_none(), "the process should still be running");
 	// Stop the process
