@@ -124,36 +124,6 @@ where
 	get_contract_functions(path.as_ref(), FunctionType::Message)
 }
 
-/// Extracts contract messages and storage fields using a single metadata parse.
-///
-/// This avoids repeated transcoder initialization when both datasets are needed.
-pub fn get_messages_and_storage<P>(
-	path: P,
-) -> Result<(Vec<ContractFunction>, Vec<ContractStorage>), Error>
-where
-	P: AsRef<Path>,
-{
-	let transcoder = get_contract_transcoder(path.as_ref())?;
-	let metadata = transcoder.metadata();
-	let messages = metadata
-		.spec()
-		.messages()
-		.iter()
-		.map(|message| ContractFunction {
-			label: message.label().to_string(),
-			mutates: message.mutates(),
-			payable: message.payable(),
-			args: process_args(message.args(), metadata.registry()),
-			docs: collapse_docs(message.docs()),
-			default: message.default(),
-		})
-		.collect();
-
-	let mut storage_items = Vec::new();
-	extract_storage_fields(metadata.layout(), metadata.registry(), &mut storage_items);
-	Ok((messages, storage_items))
-}
-
 /// Extracts a list of smart contract contructors parsing the contract artifact.
 ///
 /// # Arguments
@@ -862,27 +832,6 @@ mod tests {
 		assert_eq!(message.args[0].type_name, "bool".to_string());
 		assert_eq!(message.args[1].label, "number".to_string());
 		assert_eq!(message.args[1].type_name, "Option<u32>: None, Some(u32)".to_string());
-		Ok(())
-	}
-
-	#[test]
-	fn get_messages_and_storage_work() -> Result<()> {
-		let temp_dir = new_environment("testing")?;
-		let current_dir = env::current_dir().expect("Failed to get current directory");
-		mock_build_process(
-			temp_dir.path().join("testing"),
-			current_dir.join(CONTRACT_FILE),
-			current_dir.join("./tests/files/testing.json"),
-		)?;
-
-		let (messages, storage) = get_messages_and_storage(temp_dir.path().join("testing"))?;
-		assert_eq!(messages.len(), 3);
-		assert_eq!(messages[0].label, "flip");
-		assert_eq!(messages[1].label, "get");
-		assert_eq!(messages[2].label, "specific_flip");
-		assert_eq!(storage.len(), 2);
-		assert_eq!(storage[0].name, "value");
-		assert_eq!(storage[1].name, "number");
 		Ok(())
 	}
 

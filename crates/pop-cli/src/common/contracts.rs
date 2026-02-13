@@ -113,29 +113,8 @@ pub fn has_contract_been_built(path: &Path) -> bool {
 	};
 	manifest
 		.package
-		.map(|p| {
-			let package_name = p.name();
-			let contract_artifact = format!("{package_name}.contract");
-			has_contract_artifact(path, &contract_artifact, &package_name) ||
-				has_workspace_target_contract(path, &contract_artifact, &package_name)
-		})
+		.map(|p| path.join(format!("target/ink/{}.contract", p.name())).exists())
 		.unwrap_or_default()
-}
-
-fn has_contract_artifact(path: &Path, contract_artifact: &str, package_name: &str) -> bool {
-	let ink_target_dir = path.join("target/ink");
-	ink_target_dir.join(contract_artifact).exists() ||
-		ink_target_dir.join(package_name).join(contract_artifact).exists()
-}
-
-fn has_workspace_target_contract(path: &Path, contract_artifact: &str, package_name: &str) -> bool {
-	path.ancestors().skip(1).any(|ancestor| {
-		let Ok(manifest) = from_path(ancestor) else {
-			return false;
-		};
-		manifest.workspace.is_some() &&
-			has_contract_artifact(ancestor, contract_artifact, package_name)
-	})
 }
 
 fn validate_fixed_u8_array(value: &str, caps: &Captures) -> Result<(), &'static str> {
@@ -548,87 +527,6 @@ mod tests {
 		// Create a mocked .contract file inside the target directory
 		File::create(contract_path.join(format!("target/ink/{}.contract", name)))?;
 		assert!(has_contract_been_built(&path.join(name)));
-		Ok(())
-	}
-
-	#[test]
-	fn has_contract_been_built_works_for_workspace_target_dir() -> anyhow::Result<()> {
-		let temp_dir = tempfile::tempdir()?;
-		let workspace_root = temp_dir.path();
-		let member_name = "member_contract";
-		let member_path = workspace_root.join(member_name);
-		fs::create_dir(&member_path)?;
-		fs::write(
-			workspace_root.join("Cargo.toml"),
-			format!(
-				r#"[workspace]
-members = ["{member_name}"]
-"#
-			),
-		)?;
-		fs::write(
-			member_path.join("Cargo.toml"),
-			r#"[package]
-name = "member_contract"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-ink = "6.0.0-beta.1"
-"#,
-		)?;
-		fs::create_dir_all(workspace_root.join("target/ink"))?;
-		File::create(workspace_root.join("target/ink/member_contract.contract"))?;
-
-		assert!(has_contract_been_built(&member_path));
-		Ok(())
-	}
-
-	#[test]
-	fn has_contract_been_built_works_for_nested_target_dir() -> anyhow::Result<()> {
-		let temp_dir = tempfile::tempdir()?;
-		let path = temp_dir.path();
-		let name = "hello_world";
-
-		cmd("cargo", ["new", name]).dir(path).run()?;
-		let contract_path = path.join(name);
-		fs::create_dir_all(contract_path.join(format!("target/ink/{name}")))?;
-		File::create(contract_path.join(format!("target/ink/{name}/{name}.contract")))?;
-
-		assert!(has_contract_been_built(&contract_path));
-		Ok(())
-	}
-
-	#[test]
-	fn has_contract_been_built_works_for_nested_workspace_target_dir() -> anyhow::Result<()> {
-		let temp_dir = tempfile::tempdir()?;
-		let workspace_root = temp_dir.path();
-		let member_name = "member_contract";
-		let member_path = workspace_root.join(member_name);
-		fs::create_dir(&member_path)?;
-		fs::write(
-			workspace_root.join("Cargo.toml"),
-			format!(
-				r#"[workspace]
-members = ["{member_name}"]
-"#
-			),
-		)?;
-		fs::write(
-			member_path.join("Cargo.toml"),
-			r#"[package]
-name = "member_contract"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-ink = "6.0.0-beta.1"
-"#,
-		)?;
-		fs::create_dir_all(workspace_root.join("target/ink/member_contract"))?;
-		File::create(workspace_root.join("target/ink/member_contract/member_contract.contract"))?;
-
-		assert!(has_contract_been_built(&member_path));
 		Ok(())
 	}
 
