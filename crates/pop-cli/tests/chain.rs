@@ -36,6 +36,41 @@ impl Drop for TestChildProcess {
 	}
 }
 
+/// Wait for an RPC endpoint to become ready by polling the TCP port.
+///
+/// # Arguments
+/// * `url` - WebSocket URL (e.g., "ws://127.0.0.1:9944")
+/// * `timeout_secs` - Maximum time to wait in seconds
+async fn wait_for_rpc_ready(url: &str, timeout_secs: u64) -> Result<()> {
+	let timeout = Duration::from_secs(timeout_secs);
+	let start = std::time::Instant::now();
+
+	// Extract host and port from URL (ws://127.0.0.1:PORT)
+	let addr = url
+		.strip_prefix("ws://")
+		.ok_or_else(|| anyhow::anyhow!("Invalid WebSocket URL: {}", url))?;
+
+	println!("Waiting for RPC endpoint {} to become ready (timeout: {}s)...", url, timeout_secs);
+
+	loop {
+		if start.elapsed() > timeout {
+			return Err(anyhow::anyhow!(
+				"RPC endpoint {} did not become ready within {:?}",
+				url,
+				timeout
+			));
+		}
+
+		// Try to connect to the TCP port
+		if tokio::net::TcpStream::connect(addr).await.is_ok() {
+			println!("✓ RPC endpoint {} is ready (took {:?})", url, start.elapsed());
+			return Ok(());
+		}
+
+		tokio::time::sleep(Duration::from_secs(1)).await;
+	}
+}
+
 // Test that all templates are generated correctly
 #[tokio::test]
 async fn generate_all_the_templates() -> Result<()> {
@@ -190,16 +225,22 @@ rpc_port = {random_port}
 	)?;
 
 	// `pop up network ./network.toml --skip-confirm`
+	println!("Starting network at port {}...", random_port);
 	let mut command = pop(
 		&working_dir,
 		["up", "network", "./network.toml", "-r", "stable2512", "--verbose", "--skip-confirm"],
 	);
 	let mut up = TestChildProcess(command.spawn()?);
 
-	// Wait for the networks to initialize. Increased timeout to accommodate CI environment delays.
-	let wait = Duration::from_secs(300);
-	println!("waiting for {wait:?} for network to initialize...");
-	tokio::time::sleep(wait).await;
+	// Wait for the RPC endpoint to become ready (with health checking instead of blind sleep).
+	// Reduced timeout from 300s to 120s for faster failure detection.
+	if let Err(e) = wait_for_rpc_ready(&localhost_url, 120).await {
+		// Kill the network process before failing
+		up.0.kill().await?;
+		return Err(e);
+	}
+
+	println!("Network ready, running chain calls...");
 
 	// `pop call chain --pallet System --function remark --args "0x11" --url
 	// ws://127.0.0.1:random_port --suri //Alice --skip-confirm`
