@@ -22,8 +22,7 @@ use pop_contracts::{
 	BuildMode, CallExec, CallOpts, ContractCallable, ContractFunction, ContractStorage,
 	DefaultEnvironment, Verbosity, Weight, build_smart_contract, call_smart_contract,
 	call_smart_contract_from_signed_payload, dry_run_gas_estimate_call,
-	fetch_contract_storage_with_param, get_call_payload, get_contract_storage_info, get_messages,
-	set_up_call,
+	fetch_contract_storage_with_param, get_call_payload, get_messages_and_storage, set_up_call,
 };
 use serde::Serialize;
 use std::path::PathBuf;
@@ -241,6 +240,10 @@ impl CallContractCommand {
 		Ok(())
 	}
 
+	fn should_confirm_contract_deployment(&self) -> bool {
+		self.contract.is_none() && !self.deployed && !self.skip_confirm
+	}
+
 	/// Checks whether building the contract is required
 	fn is_contract_build_required(&self) -> bool {
 		let project_path = get_project_path(self.path.clone(), self.path_pos.clone());
@@ -295,14 +298,20 @@ impl CallContractCommand {
 		}
 
 		// Finally prompt for confirmation.
-		let is_call_confirmed = if message.mutates && !self.skip_confirm && !self.use_wallet {
-			cli.confirm("Do you want to execute the call? (Selecting 'No' will perform a dry run)")
-				.initial_value(true)
-				.interact()?
+		if message.mutates {
+			if !self.skip_confirm && !self.use_wallet && !self.execute {
+				self.execute = cli
+					.confirm(
+						"Do you want to execute the call? (Selecting 'No' will perform a dry run)",
+					)
+					.initial_value(true)
+					.interact()?;
+			} else {
+				self.execute = true;
+			}
 		} else {
-			true
-		};
-		self.execute = is_call_confirmed && message.mutates;
+			self.execute = false;
+		}
 		Ok(())
 	}
 
@@ -338,12 +347,14 @@ impl CallContractCommand {
 		// Ensure contract is built and check if deployed.
 		if self.is_contract_build_required() {
 			self.ensure_contract_built(cli).await?;
-			self.confirm_contract_deployment(cli)?;
+			if self.should_confirm_contract_deployment() {
+				self.confirm_contract_deployment(cli)?;
+			}
 		}
 
 		// Parse the contract metadata provided. If there is an error, do not prompt for more.
-		let messages = match get_messages(contract_path) {
-			Ok(messages) => messages,
+		let (messages, storage) = match get_messages_and_storage(contract_path) {
+			Ok(data) => data,
 			Err(e) => {
 				return Err(anyhow!(format!(
 					"Unable to fetch contract metadata: {}",
@@ -351,7 +362,6 @@ impl CallContractCommand {
 				)));
 			},
 		};
-		let storage = get_contract_storage_info(contract_path).unwrap_or_default();
 		let mut callables = Vec::new();
 		messages
 			.into_iter()
@@ -748,6 +758,31 @@ mod tests {
 		cli.verify()
 	}
 
+	#[test]
+	fn configure_message_does_not_prompt_execute_when_execute_flag_set() -> Result<()> {
+		let message = ContractFunction {
+			label: "run".into(),
+			payable: false,
+			args: vec![],
+			docs: String::new(),
+			default: false,
+			mutates: true,
+		};
+
+		let mut command = CallContractCommand {
+			execute: true,
+			suri: Some("//Alice".to_string()),
+			use_wallet: false,
+			skip_confirm: false,
+			..Default::default()
+		};
+
+		let mut cli = MockCli::new();
+		command.configure_message(&message, &mut cli)?;
+		assert!(command.execute);
+		cli.verify()
+	}
+
 	// This test only covers the interactive portion of the call contract command, without actually
 	// calling the contract.
 	#[tokio::test]
@@ -1057,6 +1092,30 @@ mod tests {
 		cli = MockCli::new().expect_confirm("Has the contract already been deployed?", true);
 		call_config.confirm_contract_deployment(&mut cli)?;
 		cli.verify()
+	}
+
+	#[test]
+	fn should_confirm_contract_deployment_works() {
+		let command = CallContractCommand { contract: None, deployed: false, ..Default::default() };
+		assert!(command.should_confirm_contract_deployment());
+
+		let command = CallContractCommand {
+			contract: Some("0x48550a4bb374727186c55365b7c9c0a1a31bdafe".to_string()),
+			deployed: false,
+			..Default::default()
+		};
+		assert!(!command.should_confirm_contract_deployment());
+
+		let command = CallContractCommand { contract: None, deployed: true, ..Default::default() };
+		assert!(!command.should_confirm_contract_deployment());
+
+		let command = CallContractCommand {
+			contract: None,
+			deployed: false,
+			skip_confirm: true,
+			..Default::default()
+		};
+		assert!(!command.should_confirm_contract_deployment());
 	}
 
 	#[tokio::test]
