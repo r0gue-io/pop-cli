@@ -148,6 +148,10 @@ impl CallChainCommand {
 
 					if let Err(e) = result {
 						display_message(&e.to_string(), false, &mut cli)?;
+						if self.use_wallet {
+							// Wallet errors include user cancellations, treat as Ok
+							break;
+						}
 						return Err(e);
 					}
 				},
