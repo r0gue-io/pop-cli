@@ -86,7 +86,7 @@ impl Default for TestFastForwardCommand {
 
 impl TestFastForwardCommand {
 	pub(crate) async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		let user_provided_args: Vec<String> = std::env::args().skip(3).collect();
+		let user_provided_args = collect_args(std::env::args().skip(3));
 		self.fast_forward(cli, &user_provided_args).await
 	}
 

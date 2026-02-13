@@ -179,7 +179,7 @@ impl TestOnRuntimeUpgradeCommand {
 		tokio::time::sleep(Duration::from_secs(1)).await;
 
 		let subcommand = self.subcommand()?;
-		let user_provided_args: Vec<String> = std::env::args().skip(3).collect();
+		let user_provided_args = collect_args(std::env::args().skip(3));
 		let (command_arguments, shared_params, after_subcommand) =
 			partition_arguments(&user_provided_args, &subcommand);
 
