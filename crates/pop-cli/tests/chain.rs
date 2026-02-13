@@ -39,7 +39,8 @@ impl Drop for TestChildProcess {
 
 const RPC_CONNECT_TIMEOUT_SECS: u64 = 5;
 const RPC_REQUEST_TIMEOUT_SECS: u64 = 5;
-const COMMAND_TIMEOUT_SECS: u64 = 120;
+const COMMAND_WAIT_TIMEOUT_SECS: u64 = 600;
+const CALL_COMMAND_TIMEOUT_SECS: u64 = 120;
 const BLOCK_PRODUCTION_TIMEOUT_SECS: u64 = 60;
 
 async fn wait_for_command_success(
@@ -61,6 +62,24 @@ async fn wait_for_command_success(
 		return Err(anyhow::anyhow!("`{context}` failed with status: {status}"));
 	}
 
+	Ok(())
+}
+
+async fn terminate_child_process(child: &mut Child) -> Result<()> {
+	if child.try_wait()?.is_some() {
+		return Ok(());
+	}
+
+	#[cfg(unix)]
+	if let Some(pid) = child.id() {
+		let _ = std::process::Command::new("kill").args(["-INT", &pid.to_string()]).status();
+		if let Ok(Ok(_)) = tokio::time::timeout(Duration::from_secs(20), child.wait()).await {
+			return Ok(());
+		}
+	}
+
+	let _ = child.kill().await;
+	let _ = child.wait().await;
 	Ok(())
 }
 
@@ -235,8 +254,7 @@ async fn spawn_network_with_retry(
 			},
 			Err(e) => {
 				println!("✗ Attempt {} failed: {}", attempt, e);
-				let _ = process.0.kill().await;
-				let _ = process.0.wait().await;
+				let _ = terminate_child_process(&mut process.0).await;
 
 				if attempt < max_retries {
 					println!("Waiting 5s before retry...");
@@ -277,7 +295,12 @@ async fn generate_all_the_templates() -> Result<()> {
 				"--verify",
 			],
 		);
-		assert!(command.spawn()?.wait().await?.success());
+		wait_for_command_success(
+			&mut command,
+			COMMAND_WAIT_TIMEOUT_SECS,
+			"pop new chain <template>",
+		)
+		.await?;
 		assert!(temp_dir.join(parachain_name).exists());
 	}
 	Ok(())
@@ -310,7 +333,12 @@ async fn parachain_lifecycle() -> Result<()> {
 				"npm",
 			],
 		);
-		assert!(command.spawn()?.wait().await?.success());
+		wait_for_command_success(
+			&mut command,
+			COMMAND_WAIT_TIMEOUT_SECS,
+			"pop new chain test_parachain",
+		)
+		.await?;
 		assert!(working_dir.exists());
 		assert!(working_dir.join("frontend").exists());
 	}
@@ -354,7 +382,12 @@ async fn parachain_lifecycle() -> Result<()> {
 			"--skip-build",
 		],
 	);
-	assert!(command.spawn()?.wait().await?.success());
+	wait_for_command_success(
+		&mut command,
+		COMMAND_WAIT_TIMEOUT_SECS,
+		"pop build spec --skip-build",
+	)
+	.await?;
 
 	// Assert build files have been generated
 	assert!(working_dir.join("target").exists());
@@ -391,92 +424,105 @@ async fn parachain_lifecycle() -> Result<()> {
 	.await?;
 
 	println!("Network ready, running chain calls...");
+	let call_result: Result<()> = async {
+		// `pop call chain --pallet System --function remark --args "0x11" --url
+		// ws://127.0.0.1:random_port --suri //Alice --skip-confirm`
+		let mut command = pop(
+			&working_dir,
+			[
+				"call",
+				"chain",
+				"--pallet",
+				"System",
+				"--function",
+				"remark",
+				"--args",
+				"0x11",
+				"--url",
+				&localhost_url,
+				"--suri",
+				"//Alice",
+				"--skip-confirm",
+			],
+		);
+		wait_for_command_success(&mut command, CALL_COMMAND_TIMEOUT_SECS, "pop call chain remark")
+			.await?;
 
-	// `pop call chain --pallet System --function remark --args "0x11" --url
-	// ws://127.0.0.1:random_port --suri //Alice --skip-confirm`
-	let mut command = pop(
-		&working_dir,
-		[
-			"call",
-			"chain",
-			"--pallet",
-			"System",
-			"--function",
-			"remark",
-			"--args",
-			"0x11",
-			"--url",
-			&localhost_url,
-			"--suri",
-			"//Alice",
-			"--skip-confirm",
-		],
-	);
-	wait_for_command_success(&mut command, COMMAND_TIMEOUT_SECS, "pop call chain remark").await?;
+		// `pop call chain --pallet System --function Account --args
+		// "15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5" --url ws://127.0.0.1:random_port
+		// --skip-confirm`
+		let mut command = pop(
+			&working_dir,
+			[
+				"call",
+				"chain",
+				"--pallet",
+				"System",
+				"--function",
+				"Account",
+				"--args",
+				"15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5",
+				"--url",
+				&localhost_url,
+				"--skip-confirm",
+			],
+		);
+		wait_for_command_success(&mut command, CALL_COMMAND_TIMEOUT_SECS, "pop call chain account")
+			.await?;
 
-	// `pop call chain --pallet System --function Account --args
-	// "15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5" --url ws://127.0.0.1:random_port
-	// --skip-confirm`
-	let mut command = pop(
-		&working_dir,
-		[
-			"call",
-			"chain",
-			"--pallet",
-			"System",
-			"--function",
-			"Account",
-			"--args",
-			"15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5",
-			"--url",
-			&localhost_url,
-			"--skip-confirm",
-		],
-	);
-	wait_for_command_success(&mut command, COMMAND_TIMEOUT_SECS, "pop call chain account").await?;
-
-	// `pop call chain --pallet System --function Account --args
-	// "15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5" --url ws://127.0.0.1:random_port`
-	let mut command = pop(
-		&working_dir,
-		[
-			"call",
-			"chain",
-			"--pallet",
-			"System",
-			"--function",
-			"Ss58Prefix",
-			"--url",
-			&localhost_url,
-			"--skip-confirm",
-		],
-	);
-	wait_for_command_success(&mut command, COMMAND_TIMEOUT_SECS, "pop call chain ss58-prefix")
+		// `pop call chain --pallet System --function Account --args
+		// "15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5" --url ws://127.0.0.1:random_port`
+		let mut command = pop(
+			&working_dir,
+			[
+				"call",
+				"chain",
+				"--pallet",
+				"System",
+				"--function",
+				"Ss58Prefix",
+				"--url",
+				&localhost_url,
+				"--skip-confirm",
+			],
+		);
+		wait_for_command_success(
+			&mut command,
+			CALL_COMMAND_TIMEOUT_SECS,
+			"pop call chain ss58-prefix",
+		)
 		.await?;
 
-	// pop call chain --call 0x00000411 --url ws://127.0.0.1:random_port --suri //Alice
-	// --skip-confirm
-	let mut command = pop(
-		&working_dir,
-		[
-			"call",
-			"chain",
-			"--call",
-			"0x00000411",
-			"--url",
-			&localhost_url,
-			"--suri",
-			"//Alice",
-			"--skip-confirm",
-		],
-	);
-	wait_for_command_success(&mut command, COMMAND_TIMEOUT_SECS, "pop call chain call-data")
+		// pop call chain --call 0x00000411 --url ws://127.0.0.1:random_port --suri //Alice
+		// --skip-confirm
+		let mut command = pop(
+			&working_dir,
+			[
+				"call",
+				"chain",
+				"--call",
+				"0x00000411",
+				"--url",
+				&localhost_url,
+				"--suri",
+				"//Alice",
+				"--skip-confirm",
+			],
+		);
+		wait_for_command_success(
+			&mut command,
+			CALL_COMMAND_TIMEOUT_SECS,
+			"pop call chain call-data",
+		)
 		.await?;
 
-	assert!(up.0.try_wait()?.is_none(), "the process should still be running");
-	// Stop the process
-	up.0.kill().await?;
-	up.0.wait().await?;
+		assert!(up.0.try_wait()?.is_none(), "the process should still be running");
+		Ok(())
+	}
+	.await;
+
+	terminate_child_process(&mut up.0).await?;
+	call_result?;
 
 	Ok(())
 }
@@ -484,10 +530,20 @@ async fn parachain_lifecycle() -> Result<()> {
 async fn test_benchmarking(working_dir: &Path) -> Result<()> {
 	// pop bench block --from 0 --to 1 --profile=release
 	let mut command = pop(working_dir, ["bench", "block", "-y", "--from", "0", "--to", "1"]);
-	assert!(command.spawn()?.wait().await?.success());
+	wait_for_command_success(
+		&mut command,
+		COMMAND_WAIT_TIMEOUT_SECS,
+		"pop bench block --from 0 --to 1",
+	)
+	.await?;
 	// pop bench machine --allow-fail --profile=release
 	command = pop(working_dir, ["bench", "machine", "-y", "--allow-fail"]);
-	assert!(command.spawn()?.wait().await?.success());
+	wait_for_command_success(
+		&mut command,
+		COMMAND_WAIT_TIMEOUT_SECS,
+		"pop bench machine --allow-fail",
+	)
+	.await?;
 	// pop bench overhead --runtime={runtime_path} --genesis-builder=runtime
 	// --genesis-builder-preset=development --weight-path={output_path} --profile=release --warmup=1
 	// --repeat=1 -y
@@ -510,7 +566,7 @@ async fn test_benchmarking(working_dir: &Path) -> Result<()> {
 			"-y",
 		],
 	);
-	assert!(command.spawn()?.wait().await?.success());
+	wait_for_command_success(&mut command, COMMAND_WAIT_TIMEOUT_SECS, "pop bench overhead").await?;
 
 	// pop bench pallet --runtime={runtime_path} --genesis-builder=runtime
 	// --pallets pallet_timestamp,pallet_system --extrinsic set,remark --output={output_path} -y
@@ -533,7 +589,7 @@ async fn test_benchmarking(working_dir: &Path) -> Result<()> {
 			"-y",
 		],
 	);
-	assert!(command.spawn()?.wait().await?.success());
+	wait_for_command_success(&mut command, COMMAND_WAIT_TIMEOUT_SECS, "pop bench pallet").await?;
 	// Parse weights file.
 	assert!(output_path.join("weights.rs").exists());
 	let content = fs::read_to_string(output_path.join("weights.rs"))?;
@@ -572,7 +628,12 @@ async fn test_benchmarking(working_dir: &Path) -> Result<()> {
 			"-y",
 		],
 	);
-	assert!(command.spawn()?.wait().await?.success());
+	wait_for_command_success(
+		&mut command,
+		COMMAND_WAIT_TIMEOUT_SECS,
+		"pop bench pallet --bench-file",
+	)
+	.await?;
 	Ok(())
 }
 
