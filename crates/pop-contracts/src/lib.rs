@@ -31,14 +31,15 @@ pub use test::test_e2e_smart_contract;
 pub use testing::{mock_build_process, new_environment};
 pub use up::{
 	ContractInfo, UpOpts, dry_run_gas_estimate_instantiate, dry_run_upload, get_contract_code,
-	instantiate_contract_signed, instantiate_smart_contract, set_up_deployment, set_up_upload,
-	submit_signed_payload, upload_contract_signed, upload_smart_contract,
+	instantiate_contract_signed, instantiate_smart_contract, set_up_deployment,
+	set_up_deployment_with_args, set_up_upload, submit_signed_payload, upload_contract_signed,
+	upload_smart_contract,
 };
 pub use utils::{
 	metadata::{
 		ContractCallable, ContractFunction, ContractStorage, FunctionType, Param, extract_function,
 		fetch_contract_storage, fetch_contract_storage_with_param, get_contract_storage_info,
-		get_message, get_messages,
+		get_message, get_messages, get_messages_and_storage, process_function_args,
 	},
 	parse_hex_bytes,
 };
