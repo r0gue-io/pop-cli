@@ -494,11 +494,19 @@ pub(crate) fn partition_arguments(
 		(command_parts.next().unwrap_or_default(), command_parts.next().unwrap_or_default());
 	let (mut command_arguments, mut shared_arguments): (Vec<String>, Vec<String>) =
 		(vec![], vec![]);
-	for arg in before_subcommand.iter().cloned() {
-		if SharedParams::has_argument(&arg) {
-			shared_arguments.push(arg);
+	let mut iter = before_subcommand.iter().peekable();
+	while let Some(arg) = iter.next() {
+		if SharedParams::has_argument(arg) {
+			shared_arguments.push(arg.clone());
+			// If the flag doesn't contain '=' the next element is its value.
+			if !arg.contains('=') &&
+				let Some(value) = iter.peek() &&
+				!value.starts_with('-')
+			{
+				shared_arguments.push(iter.next().unwrap().clone());
+			}
 		} else {
-			command_arguments.push(arg);
+			command_arguments.push(arg.clone());
 		}
 	}
 	(command_arguments, shared_arguments, after_subcommand.to_vec())
@@ -1051,6 +1059,31 @@ mod tests {
 			vec!["--runtime=runtime_name".to_string(), "--wasm-execution=instantiate".to_string()]
 		);
 		assert_eq!(after_subcommand, vec!["--arg1".to_string(), "--arg2".to_string()]);
+
+		// Space-separated shared params (e.g. `--runtime /path` instead of
+		// `--runtime=/path`) must keep the value with the flag.
+		let args = vec![
+			"--runtime".to_string(),
+			"runtime_name".to_string(),
+			"--wasm-execution".to_string(),
+			"instantiate".to_string(),
+			"--command=command_name".to_string(),
+			"run".to_string(),
+			"--arg1".to_string(),
+		];
+		let (command_args, shared_params, after_subcommand) =
+			partition_arguments(&args, subcommand);
+		assert_eq!(command_args, vec!["--command=command_name".to_string()]);
+		assert_eq!(
+			shared_params,
+			vec![
+				"--runtime".to_string(),
+				"runtime_name".to_string(),
+				"--wasm-execution".to_string(),
+				"instantiate".to_string(),
+			]
+		);
+		assert_eq!(after_subcommand, vec!["--arg1".to_string()]);
 	}
 
 	#[test]
