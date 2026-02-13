@@ -20,6 +20,9 @@
 
 mod error;
 pub mod methods;
+/// Shared RPC test scenarios reused by integration and unit tests.
+#[cfg(any(test, feature = "integration-tests"))]
+pub mod test_scenarios;
 pub mod types;
 
 pub use error::{RpcServerError, error_codes};

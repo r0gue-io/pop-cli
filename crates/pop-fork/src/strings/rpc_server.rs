@@ -31,10 +31,6 @@ pub mod storage {
 	/// Storage item name for Account storage.
 	pub const ACCOUNT_STORAGE: &[u8] = b"Account";
 
-	/// Storage item name for Number storage (block number).
-	#[cfg(test)]
-	pub const NUMBER_STORAGE: &[u8] = b"Number";
-
 	/// Pallet name for Sudo storage queries.
 	pub const SUDO_PALLET: &[u8] = b"Sudo";
 
