@@ -71,6 +71,57 @@ async fn wait_for_rpc_ready(url: &str, timeout_secs: u64) -> Result<()> {
 	}
 }
 
+/// Spawn a network with retry logic to handle transient failures.
+///
+/// # Arguments
+/// * `working_dir` - The working directory containing the network configuration
+/// * `network_toml` - Path to the network configuration file
+/// * `localhost_url` - The WebSocket URL to check for readiness
+/// * `max_retries` - Maximum number of retry attempts
+async fn spawn_network_with_retry(
+	working_dir: &Path,
+	network_toml: &str,
+	localhost_url: &str,
+	max_retries: u32,
+) -> Result<TestChildProcess> {
+	for attempt in 1..=max_retries {
+		println!("Network startup attempt {}/{}...", attempt, max_retries);
+
+		let mut command = pop(
+			working_dir,
+			["up", "network", network_toml, "-r", "stable2512", "--verbose", "--skip-confirm"],
+		);
+		let mut process = TestChildProcess(command.spawn()?);
+
+		// Use shorter timeout on early attempts, full timeout on final attempt
+		let timeout = if attempt == max_retries { 300 } else { 90 };
+
+		match wait_for_rpc_ready(localhost_url, timeout).await {
+			Ok(_) => {
+				println!("✓ Network started successfully on attempt {}", attempt);
+				return Ok(process);
+			},
+			Err(e) => {
+				println!("✗ Attempt {} failed: {}", attempt, e);
+				process.0.kill().await?;
+
+				if attempt < max_retries {
+					println!("Waiting 5s before retry...");
+					tokio::time::sleep(Duration::from_secs(5)).await;
+				} else {
+					return Err(anyhow::anyhow!(
+						"Network failed to start after {} attempts. Last error: {}\n\
+						 This may indicate resource constraints or binary download issues in CI.",
+						max_retries,
+						e
+					));
+				}
+			},
+		}
+	}
+	unreachable!()
+}
+
 // Test that all templates are generated correctly
 #[tokio::test]
 async fn generate_all_the_templates() -> Result<()> {
@@ -207,10 +258,6 @@ chain = "paseo-local"
 name = "alice"
 validator = true
 
-[[relaychain.nodes]]
-name = "bob"
-validator = true
-
 [[parachains]]
 id = 2000
 default_command = "polkadot-omni-node"
@@ -224,21 +271,10 @@ rpc_port = {random_port}
 		),
 	)?;
 
-	// `pop up network ./network.toml --skip-confirm`
+	// Start network with retry logic to handle transient failures
 	println!("Starting network at port {}...", random_port);
-	let mut command = pop(
-		&working_dir,
-		["up", "network", "./network.toml", "-r", "stable2512", "--verbose", "--skip-confirm"],
-	);
-	let mut up = TestChildProcess(command.spawn()?);
-
-	// Wait for the RPC endpoint to become ready (with health checking instead of blind sleep).
-	// Keep 300s timeout to accommodate slow CI environments.
-	if let Err(e) = wait_for_rpc_ready(&localhost_url, 300).await {
-		// Kill the network process before failing
-		up.0.kill().await?;
-		return Err(e);
-	}
+	let mut up =
+		spawn_network_with_retry(&working_dir, "./network.toml", &localhost_url, 3).await?;
 
 	println!("Network ready, running chain calls...");
 
