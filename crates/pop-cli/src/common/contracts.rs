@@ -114,10 +114,11 @@ pub fn has_contract_been_built(path: &Path) -> bool {
 	manifest
 		.package
 		.map(|p| {
-			let package_name = p.name();
-			let contract_artifact = format!("{package_name}.contract");
-			has_contract_artifact(path, &contract_artifact, package_name) ||
-				has_workspace_target_contract(path, &contract_artifact, package_name)
+			// Contract artifacts are normalized by replacing '-' with '_'.
+			let artifact_stem = p.name().replace('-', "_");
+			let contract_artifact = format!("{artifact_stem}.contract");
+			has_contract_artifact(path, &contract_artifact, &artifact_stem) ||
+				has_workspace_target_contract(path, &contract_artifact, &artifact_stem)
 		})
 		.unwrap_or_default()
 }
@@ -629,6 +630,29 @@ ink = "6.0.0-beta.1"
 		File::create(workspace_root.join("target/ink/member_contract/member_contract.contract"))?;
 
 		assert!(has_contract_been_built(&member_path));
+		Ok(())
+	}
+
+	#[test]
+	fn has_contract_been_built_handles_hyphenated_package_name() -> anyhow::Result<()> {
+		let temp_dir = tempfile::tempdir()?;
+		let contract_path = temp_dir.path().join("my-contract");
+		fs::create_dir(&contract_path)?;
+		fs::write(
+			contract_path.join("Cargo.toml"),
+			r#"[package]
+name = "my-contract"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ink = "6.0.0-beta.1"
+"#,
+		)?;
+		fs::create_dir_all(contract_path.join("target/ink"))?;
+		File::create(contract_path.join("target/ink/my_contract.contract"))?;
+
+		assert!(has_contract_been_built(&contract_path));
 		Ok(())
 	}
 

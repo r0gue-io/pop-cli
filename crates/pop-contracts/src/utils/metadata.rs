@@ -3,7 +3,10 @@
 //! Functionality for processing and extracting metadata from ink! smart contracts.
 
 use crate::{DefaultEnvironment, errors::Error};
-use contract_extrinsics::{ContractArtifacts, ContractStorageRpc, TrieId};
+use anyhow::Context;
+use contract_build::CrateMetadata;
+use contract_extrinsics::{ContractStorageRpc, TrieId};
+use contract_metadata::ContractMetadata;
 use contract_transcode::{
 	ContractMessageTranscoder,
 	ink_metadata::{MessageParamSpec, layout::Layout},
@@ -12,7 +15,7 @@ use ink_env::call::utils::EncodeArgsWith;
 use pop_common::{DefaultConfig, format_type, parse_h160_account};
 use scale_info::{PortableRegistry, Type, form::PortableForm};
 use sp_core::blake2_128;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use url::Url;
 
 const MAPPING_TYPE_PATH: &str = "ink_storage::lazy::mapping::Mapping";
@@ -175,14 +178,30 @@ fn collapse_docs(docs: &[String]) -> String {
 }
 
 fn get_contract_transcoder(path: &Path) -> anyhow::Result<ContractMessageTranscoder> {
-	let contract_artifacts = if path.is_dir() || path.ends_with("Cargo.toml") {
+	let metadata_path = resolve_contract_metadata_path(path)?;
+	let metadata = ContractMetadata::load(&metadata_path)?;
+	ContractMessageTranscoder::try_from(metadata)
+		.context("Failed to deserialize ink project metadata from contract metadata")
+}
+
+fn resolve_contract_metadata_path(path: &Path) -> anyhow::Result<PathBuf> {
+	if path.is_dir() || path.ends_with("Cargo.toml") {
 		let cargo_toml_path =
 			if path.ends_with("Cargo.toml") { path.to_path_buf() } else { path.join("Cargo.toml") };
-		ContractArtifacts::from_manifest_or_file(Some(&cargo_toml_path), None)?
+		let crate_metadata = CrateMetadata::from_manifest_path(Some(&cargo_toml_path))?;
+		if crate_metadata.contract_bundle_path().exists() {
+			Ok(crate_metadata.contract_bundle_path())
+		} else if crate_metadata.metadata_path().exists() {
+			Ok(crate_metadata.metadata_path())
+		} else {
+			anyhow::bail!(
+				"Failed to find any contract artifacts in target directory. \nRun `pop build --path {}` to generate the artifacts.",
+				path.display()
+			)
+		}
 	} else {
-		ContractArtifacts::from_manifest_or_file(None, Some(&path.to_path_buf()))?
-	};
-	contract_artifacts.contract_transcoder()
+		Ok(path.to_path_buf())
+	}
 }
 
 async fn decode_mapping(

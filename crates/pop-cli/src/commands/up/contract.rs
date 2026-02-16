@@ -218,13 +218,9 @@ impl UpContractCommand {
 	pub(crate) async fn execute(&mut self) -> anyhow::Result<()> {
 		Cli.intro("Deploy a smart contract")?;
 
-		// Check if build exists in the specified "Contract build directory"
-		let contract_already_built = has_contract_been_built(&self.path);
-		if !self.skip_build || !contract_already_built {
+		if self.should_build_contract() {
 			// Build the contract in release mode
-			if !contract_already_built {
-				Cli.warning("NOTE: contract has not yet been built.")?;
-			}
+			Cli.warning("NOTE: contract has not yet been built.")?;
 			let spinner = spinner();
 			spinner.start("Building contract in RELEASE mode...");
 			let results = match build_smart_contract(
@@ -626,6 +622,10 @@ impl UpContractCommand {
 		}
 	}
 
+	fn should_build_contract(&self) -> bool {
+		!has_contract_been_built(&self.path)
+	}
+
 	fn display(&self) -> String {
 		let mut full_message = format!("pop up contract {}", self.path.display());
 
@@ -962,5 +962,51 @@ mod tests {
 			.expect("default ports should resolve");
 		assert_eq!(ports.ink_node_port, DEFAULT_PORT);
 		assert_eq!(ports.eth_rpc_port, DEFAULT_ETH_RPC_PORT);
+	}
+
+	#[test]
+	fn should_build_contract_works_when_artifact_exists() -> anyhow::Result<()> {
+		let temp_dir = tempfile::tempdir()?;
+		let contract_path = temp_dir.path().join("my_contract");
+		std::fs::create_dir(&contract_path)?;
+		std::fs::write(
+			contract_path.join("Cargo.toml"),
+			r#"[package]
+name = "my_contract"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ink = "6.0.0-beta.1"
+"#,
+		)?;
+		std::fs::create_dir_all(contract_path.join("target/ink"))?;
+		std::fs::File::create(contract_path.join("target/ink/my_contract.contract"))?;
+
+		let command = UpContractCommand { path: contract_path, ..Default::default() };
+		assert!(!command.should_build_contract());
+		Ok(())
+	}
+
+	#[test]
+	fn should_build_contract_works_when_artifact_is_missing() -> anyhow::Result<()> {
+		let temp_dir = tempfile::tempdir()?;
+		let contract_path = temp_dir.path().join("my_contract");
+		std::fs::create_dir(&contract_path)?;
+		std::fs::write(
+			contract_path.join("Cargo.toml"),
+			r#"[package]
+name = "my_contract"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ink = "6.0.0-beta.1"
+"#,
+		)?;
+
+		let command = UpContractCommand { path: contract_path, ..Default::default() };
+		assert!(command.should_build_contract());
+		Ok(())
 	}
 }

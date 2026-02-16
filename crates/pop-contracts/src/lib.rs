@@ -19,7 +19,7 @@ pub use build::{
 };
 pub use call::{
 	CallOpts, call_smart_contract, call_smart_contract_from_signed_payload, dry_run_call,
-	dry_run_gas_estimate_call, get_call_payload, set_up_call,
+	dry_run_gas_estimate_call, get_call_payload, set_up_call, set_up_call_with_args,
 };
 pub use errors::Error;
 pub use new::{create_smart_contract, is_valid_contract_name};
