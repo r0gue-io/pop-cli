@@ -551,7 +551,7 @@ fn prompt_provider(
 // Prompts user to select a supported chain for deployment.
 fn prompt_supported_chain(cli: &mut impl Cli) -> Result<&SupportedChains> {
 	let mut chain_selected = cli.select("Select a Relay Chain:");
-	for chain in SupportedChains::VARIANTS {
+	for chain in SupportedChains::VARIANTS.iter().filter(|c| c.is_relay()) {
 		chain_selected = chain_selected.item(chain, chain.to_string(), "");
 	}
 	Ok(chain_selected.interact()?)
@@ -664,10 +664,11 @@ mod tests {
 				Some(
 					SupportedChains::VARIANTS
 						.iter()
+						.filter(|c| c.is_relay())
 						.map(|chain| (chain.to_string(), "".to_string()))
 						.collect::<Vec<_>>(),
 				),
-				SupportedChains::PASEO as usize,
+				0, // PASEO is the first relay variant
 				None,
 			);
 

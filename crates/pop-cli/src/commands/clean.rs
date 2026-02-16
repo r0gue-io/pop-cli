@@ -13,6 +13,8 @@ use std::{
 };
 use time::format_description::well_known::Rfc3339;
 
+const INFO: &str = "ℹ️  ";
+
 #[derive(Args, Serialize)]
 #[command(args_conflicts_with_subcommands = true)]
 pub(crate) struct CleanArgs {
@@ -90,13 +92,13 @@ impl<CLI: Cli> CleanCacheCommand<'_, CLI> {
 		let contents = contents(&self.cache)?;
 		if contents.is_empty() {
 			self.cli.outro(format!(
-				"ℹ️ The cache at {} is empty.",
+				"{INFO}The cache at {} is empty.",
 				self.cache.to_str().expect("expected local cache is invalid")
 			))?;
 			return Ok(());
 		}
 		self.cli.info(format!(
-			"ℹ️ The cache is located at {}",
+			"{INFO}The cache is located at {}",
 			self.cache.to_str().expect("expected local cache is invalid")
 		))?;
 
@@ -118,7 +120,7 @@ impl<CLI: Cli> CleanCacheCommand<'_, CLI> {
 				remove_file(file)?;
 			}
 
-			self.cli.outro(format!("ℹ️ {} artifacts removed", contents.len()))?;
+			self.cli.outro(format!("{INFO}{} artifacts removed", contents.len()))?;
 		} else {
 			// Prompt for selection of artifacts to be removed
 			let selected = {
@@ -132,7 +134,7 @@ impl<CLI: Cli> CleanCacheCommand<'_, CLI> {
 				prompt.interact()?
 			};
 			if selected.is_empty() {
-				self.cli.outro("ℹ️ No artifacts removed")?;
+				self.cli.outro(format!("{INFO}No artifacts removed"))?;
 				return Ok(());
 			};
 
@@ -145,7 +147,7 @@ impl<CLI: Cli> CleanCacheCommand<'_, CLI> {
 				),
 			};
 			if !self.cli.confirm(prompt).interact()? {
-				self.cli.outro("ℹ️ No artifacts removed")?;
+				self.cli.outro(format!("{INFO}No artifacts removed"))?;
 				return Ok(());
 			}
 
@@ -154,7 +156,7 @@ impl<CLI: Cli> CleanCacheCommand<'_, CLI> {
 				remove_file(file)?
 			}
 
-			self.cli.outro(format!("ℹ️ {} artifacts removed", selected.len()))?;
+			self.cli.outro(format!("{INFO}{} artifacts removed", selected.len()))?;
 		}
 
 		Ok(())
@@ -182,7 +184,7 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 		let (zombie_jsons, selection_kind) = if self.all {
 			let candidates = find_zombie_jsons()?;
 			if candidates.is_empty() {
-				self.cli.outro("ℹ️  No running networks found.")?;
+				self.cli.outro(format!("{INFO}No running networks found."))?;
 				return Ok(());
 			}
 			(candidates.into_iter().map(|c| c.path).collect(), NetworkSelection::Selected)
@@ -192,7 +194,7 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 				None => {
 					let candidates = find_zombie_jsons()?;
 					if candidates.is_empty() {
-						self.cli.outro("ℹ️  No running networks found.")?;
+						self.cli.outro(format!("{INFO}No running networks found."))?;
 						return Ok(());
 					}
 					if candidates.len() == 1 {
@@ -224,7 +226,7 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 							prompt.interact()?
 						};
 						if selection.is_empty() {
-							self.cli.outro("ℹ️  No networks stopped.")?;
+							self.cli.outro(format!("{INFO}No networks stopped."))?;
 							return Ok(());
 						}
 						(selection, NetworkSelection::Selected)
@@ -255,7 +257,7 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 			std::io::stdin().is_terminal() &&
 			!self.cli.confirm(confirm).initial_value(true).interact()?
 		{
-			self.cli.outro("ℹ️  No networks stopped.")?;
+			self.cli.outro(format!("{INFO}No networks stopped."))?;
 			return Ok(());
 		}
 
@@ -275,7 +277,7 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 					let pids = read_pids_from_zombie_json(zombie_json)?;
 					if pids.is_empty() {
 						self.cli.warning(format!(
-							"ℹ️  Network already stopped at {}",
+							"{INFO}Network already stopped at {}",
 							base_dir.display()
 						))?;
 					} else {
@@ -285,7 +287,7 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 					}
 				} else if is_already_stopped_error(&error_message) {
 					self.cli.warning(format!(
-						"ℹ️  Network already stopped at {}",
+						"{INFO}Network already stopped at {}",
 						base_dir.display()
 					))?;
 				} else {
@@ -306,7 +308,7 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 					))?;
 				}
 				self.cli
-					.info(format!("ℹ️  Network stopped. State kept at {}", base_dir.display()))?;
+					.info(format!("{INFO}Network stopped. State kept at {}", base_dir.display()))?;
 				continue;
 			}
 
@@ -326,9 +328,9 @@ impl<CLI: Cli> CleanNetworkCommand<'_, CLI> {
 				if failures == 1 { "" } else { "s" }
 			))?;
 		} else if self.keep_state {
-			self.cli.outro("ℹ️  Networks stopped. State kept.")?;
+			self.cli.outro(format!("{INFO}Networks stopped. State kept."))?;
 		} else {
-			self.cli.outro("ℹ️  Networks stopped and state removed")?;
+			self.cli.outro(format!("{INFO}Networks stopped and state removed"))?;
 		}
 		Ok(())
 	}
@@ -512,7 +514,7 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 		};
 
 		if processes.is_empty() {
-			self.cli.outro("ℹ️  No running nodes found.")?;
+			self.cli.outro(format!("{INFO}No running nodes found."))?;
 			return Ok(());
 		}
 
@@ -561,7 +563,7 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 			};
 
 			if selected.is_empty() {
-				self.cli.outro("ℹ️  No processes killed")?;
+				self.cli.outro(format!("{INFO}No processes killed"))?;
 				return Ok(());
 			}
 
@@ -574,7 +576,7 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 				),
 			};
 			if !self.cli.confirm(prompt).interact()? {
-				self.cli.outro("ℹ️  No processes killed")?;
+				self.cli.outro(format!("{INFO}No processes killed"))?;
 				return Ok(());
 			}
 
@@ -592,7 +594,7 @@ impl<CLI: Cli> CleanNodesCommand<'_, CLI> {
 			}
 		}
 
-		self.cli.outro(format!("ℹ️  {} processes killed", pids.len()))?;
+		self.cli.outro(format!("{INFO}{} processes killed", pids.len()))?;
 
 		Ok(())
 	}
@@ -750,7 +752,7 @@ mod tests {
 		let temp = tempfile::tempdir()?;
 		let cache = temp.path().to_path_buf();
 		let mut cli = MockCli::new()
-			.expect_outro(format!("ℹ️ The cache at {} is empty.", cache.to_str().unwrap()));
+			.expect_outro(format!("{INFO}The cache at {} is empty.", cache.to_str().unwrap()));
 
 		CleanCacheCommand { cli: &mut cli, cache, all: false }.execute()?;
 
@@ -766,7 +768,7 @@ mod tests {
 			File::create(cache.join(artifact))?;
 		}
 		let mut cli = MockCli::new()
-			.expect_info(format!("ℹ️ The cache is located at {}", cache.to_str().unwrap()));
+			.expect_info(format!("{INFO}The cache is located at {}", cache.to_str().unwrap()));
 
 		CleanCacheCommand { cli: &mut cli, cache, all: false }.execute()?;
 
@@ -812,7 +814,7 @@ mod tests {
 				None,
 				None,
 			)
-			.expect_outro("ℹ️ No artifacts removed");
+			.expect_outro(format!("{INFO}No artifacts removed"));
 
 		CleanCacheCommand { cli: &mut cli, cache, all: false }.execute()?;
 
@@ -833,7 +835,7 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_multiselect("Select the artifacts you wish to remove:", None, true, None, None)
 			.expect_confirm("Are you sure you want to remove the selected artifact?", false)
-			.expect_outro("ℹ️ No artifacts removed");
+			.expect_outro(format!("{INFO}No artifacts removed"));
 
 		CleanCacheCommand { cli: &mut cli, cache, all: false }.execute()?;
 
@@ -863,7 +865,7 @@ mod tests {
 
 		let mut cli = MockCli::new()
 			.expect_info(format!("Cleaning up the following artifacts...\n {list} \n"))
-			.expect_outro("ℹ️ 2 artifacts removed");
+			.expect_outro(format!("{INFO}2 artifacts removed"));
 
 		CleanCacheCommand { cli: &mut cli, cache, all: true }.execute()?;
 
@@ -882,7 +884,7 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_multiselect("Select the artifacts you wish to remove:", None, true, None, None)
 			.expect_confirm("Are you sure you want to remove the 3 selected artifacts?", true)
-			.expect_outro("ℹ️ 3 artifacts removed");
+			.expect_outro(format!("{INFO}3 artifacts removed"));
 
 		CleanCacheCommand { cli: &mut cli, cache, all: false }.execute()?;
 
@@ -1017,7 +1019,7 @@ mod tests {
 	fn clean_nodes_handles_no_processes() -> Result<()> {
 		let mut cli = MockCli::new()
 			.expect_intro("Remove running nodes")
-			.expect_outro("ℹ️  No running nodes found.");
+			.expect_outro(format!("{INFO}No running nodes found."));
 
 		let cmd = CleanNodesCommand {
 			cli: &mut cli,
@@ -1055,7 +1057,7 @@ mod tests {
 		let mut cli = MockCli::new()
 			.expect_intro("Remove running nodes")
 			.expect_info(format!("Killing the following processes...\n {list} \n"))
-			.expect_outro("ℹ️  2 processes killed");
+			.expect_outro(format!("{INFO}2 processes killed"));
 
 		let killed: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
 		let killed2 = killed.clone();
@@ -1088,7 +1090,7 @@ mod tests {
 				Some(items),
 				None,
 			)
-			.expect_outro("ℹ️  No processes killed");
+			.expect_outro(format!("{INFO}No processes killed"));
 
 		let cmd = CleanNodesCommand {
 			cli: &mut cli,
@@ -1109,7 +1111,7 @@ mod tests {
 			.expect_intro("Remove running nodes")
 			.expect_multiselect("Select the processes you wish to kill:", None, true, None, None)
 			.expect_confirm("Are you sure you want to kill the selected process?", false)
-			.expect_outro("ℹ️  No processes killed");
+			.expect_outro(format!("{INFO}No processes killed"));
 
 		let cmd = CleanNodesCommand {
 			cli: &mut cli,
@@ -1135,7 +1137,7 @@ mod tests {
 			.expect_intro("Remove running nodes")
 			.expect_multiselect("Select the processes you wish to kill:", None, true, None, None)
 			.expect_confirm("Are you sure you want to kill the 3 selected processes?", true)
-			.expect_outro("ℹ️  3 processes killed");
+			.expect_outro(format!("{INFO}3 processes killed"));
 
 		let killed: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
 		let killed2 = killed.clone();
@@ -1169,7 +1171,7 @@ mod tests {
 
 		let mut cli = MockCli::new()
 			.expect_intro("Remove running nodes")
-			.expect_outro("ℹ️  1 processes killed");
+			.expect_outro(format!("{INFO}1 processes killed"));
 
 		let killed: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
 		let killed2 = killed.clone();
