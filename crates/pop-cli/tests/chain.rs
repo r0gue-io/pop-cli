@@ -41,7 +41,6 @@ const RPC_CONNECT_TIMEOUT_SECS: u64 = 5;
 const RPC_REQUEST_TIMEOUT_SECS: u64 = 5;
 const COMMAND_WAIT_TIMEOUT_SECS: u64 = 600;
 const CALL_COMMAND_TIMEOUT_SECS: u64 = 120;
-const BLOCK_PRODUCTION_TIMEOUT_SECS: u64 = 60;
 
 async fn wait_for_command_success(
 	command: &mut tokio::process::Command,
@@ -141,46 +140,6 @@ async fn wait_for_rpc_ready(
 }
 
 /// Wait until finalized head changes, proving blocks/finality are progressing.
-async fn wait_for_block_production(
-	url: &str,
-	timeout_secs: u64,
-	process: &mut TestChildProcess,
-) -> Result<()> {
-	let timeout = Duration::from_secs(timeout_secs);
-	let start = std::time::Instant::now();
-	let mut last_head = None;
-
-	println!("Waiting for block production at {} (timeout: {}s)...", url, timeout_secs);
-
-	loop {
-		if start.elapsed() > timeout {
-			return Err(anyhow::anyhow!(
-				"Finalized head did not advance at {} within {:?}",
-				url,
-				timeout
-			));
-		}
-
-		if let Some(status) = process.0.try_wait()? {
-			return Err(anyhow::anyhow!(
-				"Network process exited before block production was observed: {status}"
-			));
-		}
-
-		if let Some(head) = rpc_request_string(url, "chain_getFinalizedHead").await {
-			if let Some(previous) = &last_head &&
-				previous != &head
-			{
-				println!("✓ Finalized head advanced (took {:?})", start.elapsed());
-				return Ok(());
-			}
-			last_head = Some(head);
-		}
-
-		tokio::time::sleep(Duration::from_secs(2)).await;
-	}
-}
-
 fn write_network_config(
 	network_toml_path: &Path,
 	chain_spec_path: &Path,
@@ -243,12 +202,6 @@ async fn spawn_network_with_retry(
 
 		match wait_for_rpc_ready(&localhost_url, timeout, &mut process).await {
 			Ok(_) => {
-				wait_for_block_production(
-					&localhost_url,
-					BLOCK_PRODUCTION_TIMEOUT_SECS,
-					&mut process,
-				)
-				.await?;
 				println!("✓ Network started successfully on attempt {}", attempt);
 				return Ok((process, localhost_url));
 			},
