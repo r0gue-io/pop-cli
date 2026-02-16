@@ -503,6 +503,76 @@ impl From<&str> for TagPattern {
 	}
 }
 
+/// Maximum number of retry attempts for HTTP requests.
+const MAX_RETRIES: u32 = 3;
+/// Initial backoff duration (doubles each retry: 2s, 4s, 8s).
+#[cfg(not(test))]
+const INITIAL_BACKOFF: Duration = Duration::from_secs(2);
+#[cfg(test)]
+const INITIAL_BACKOFF: Duration = Duration::from_millis(1);
+
+/// Performs an HTTP GET request with exponential backoff retry logic.
+///
+/// Retries on transient errors: 5xx server errors, 408 (Request Timeout), 429 (Too Many
+/// Requests), and connection-level failures. Does not retry on other 4xx client errors (e.g. 404
+/// means the resource genuinely does not exist).
+///
+/// # Arguments
+/// * `url` - The URL to fetch.
+/// * `status` - Used to log retry attempts.
+async fn get_with_retry(url: &str, status: &impl Status) -> Result<reqwest::Response, Error> {
+	let mut last_error = None;
+	for attempt in 0..=MAX_RETRIES {
+		match reqwest::get(url).await {
+			Ok(response) => {
+				let status_code = response.status();
+				if status_code.is_success() {
+					return Ok(response);
+				}
+				// Retry on transient server/rate-limit errors.
+				if status_code.is_server_error() ||
+					status_code == StatusCode::REQUEST_TIMEOUT ||
+					status_code == StatusCode::TOO_MANY_REQUESTS
+				{
+					let err = response
+						.error_for_status()
+						.expect_err("non-success status should produce error");
+					if attempt < MAX_RETRIES {
+						let backoff = INITIAL_BACKOFF * 2u32.pow(attempt);
+						status.update(&format!(
+							"Request failed ({status_code}), retrying in {}s \
+							 (attempt {}/{MAX_RETRIES})...",
+							backoff.as_secs(),
+							attempt + 1
+						));
+						tokio::time::sleep(backoff).await;
+					}
+					last_error = Some(Error::HttpError(err));
+					continue;
+				}
+				// Non-retryable HTTP error (e.g. 404): fail immediately.
+				return Ok(response.error_for_status()?);
+			},
+			Err(err) => {
+				// Connection-level errors are retryable.
+				if attempt < MAX_RETRIES {
+					let backoff = INITIAL_BACKOFF * 2u32.pow(attempt);
+					status.update(&format!(
+						"Connection error, retrying in {}s \
+						 (attempt {}/{MAX_RETRIES})...",
+						backoff.as_secs(),
+						attempt + 1
+					));
+					tokio::time::sleep(backoff).await;
+				}
+				last_error = Some(Error::HttpError(err));
+				continue;
+			},
+		}
+	}
+	Err(last_error.expect("at least one attempt was made"))
+}
+
 /// Source binary by downloading and extracting from an archive.
 ///
 /// # Arguments
@@ -516,7 +586,7 @@ async fn from_archive(
 ) -> Result<(), Error> {
 	// Download archive
 	status.update(&format!("Downloading from {url}..."));
-	let response = reqwest::get(url).await?.error_for_status()?;
+	let response = get_with_retry(url, status).await?;
 	let mut file = tempfile()?;
 	file.write_all(&response.bytes().await?)?;
 	file.seek(SeekFrom::Start(0))?;
@@ -708,7 +778,7 @@ pub(crate) async fn from_local_package(
 async fn from_url(url: &str, path: &Path, status: &impl Status) -> Result<(), Error> {
 	// Download the binary
 	status.update(&format!("Downloading from {url}..."));
-	download(url, path).await?;
+	download(url, path, status).await?;
 	status.update("Sourcing complete.");
 	Ok(())
 }
@@ -767,9 +837,10 @@ async fn build(
 /// # Arguments
 /// * `url` - The url of the file.
 /// * `path` - The (local) destination path.
-async fn download(url: &str, dest: &Path) -> Result<(), Error> {
+/// * `status` - Used to log retry attempts.
+async fn download(url: &str, dest: &Path, status: &impl Status) -> Result<(), Error> {
 	// Download to the destination path
-	let response = reqwest::get(url).await?.error_for_status()?;
+	let response = get_with_retry(url, status).await?;
 	let mut file = File::create(dest)?;
 	file.write_all(&response.bytes().await?)?;
 	// Make executable
@@ -1326,6 +1397,68 @@ pub(super) mod tests {
 	impl Status for Output {
 		fn update(&self, status: &str) {
 			println!("{status}")
+		}
+	}
+
+	mod retry {
+		use super::*;
+		use mockito::{Mock, Server};
+
+		async fn mock_status(server: &mut Server, code: u16) -> Mock {
+			server.mock("GET", "/test").with_status(code as usize).create_async().await
+		}
+
+		#[tokio::test]
+		async fn get_with_retry_succeeds_on_first_attempt() {
+			let mut server = Server::new_async().await;
+			let mock = mock_status(&mut server, 200).await;
+
+			let url = format!("{}/test", server.url());
+			let response = get_with_retry(&url, &Output).await.unwrap();
+			assert_eq!(response.status(), 200);
+			mock.assert_async().await;
+		}
+
+		#[tokio::test]
+		async fn get_with_retry_retries_on_503_then_succeeds() {
+			let mut server = Server::new_async().await;
+			let fail_mock =
+				server.mock("GET", "/test").with_status(503).expect(1).create_async().await;
+			let success_mock =
+				server.mock("GET", "/test").with_status(200).expect(1).create_async().await;
+
+			let url = format!("{}/test", server.url());
+			let response = get_with_retry(&url, &Output).await.unwrap();
+			assert_eq!(response.status(), 200);
+			fail_mock.assert_async().await;
+			success_mock.assert_async().await;
+		}
+
+		#[tokio::test]
+		async fn get_with_retry_fails_after_max_retries() {
+			let mut server = Server::new_async().await;
+			let mock = server
+				.mock("GET", "/test")
+				.with_status(500)
+				.expect((MAX_RETRIES + 1) as usize)
+				.create_async()
+				.await;
+
+			let url = format!("{}/test", server.url());
+			let result = get_with_retry(&url, &Output).await;
+			assert!(result.is_err());
+			mock.assert_async().await;
+		}
+
+		#[tokio::test]
+		async fn get_with_retry_does_not_retry_on_404() {
+			let mut server = Server::new_async().await;
+			let mock = server.mock("GET", "/test").with_status(404).expect(1).create_async().await;
+
+			let url = format!("{}/test", server.url());
+			let result = get_with_retry(&url, &Output).await;
+			assert!(result.is_err());
+			mock.assert_async().await;
 		}
 	}
 }

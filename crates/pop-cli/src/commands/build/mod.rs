@@ -294,6 +294,9 @@ impl Command {
 			cargo_args.push(&feature_arg);
 		}
 
+		// Pre-fetch dependencies so users see download progress before compilation begins.
+		cmd("cargo", ["fetch"]).dir(path).stdout_null().run()?;
+
 		cmd("cargo", cargo_args).dir(path).run()?;
 
 		cli.info(format!(
