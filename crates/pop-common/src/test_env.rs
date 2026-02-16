@@ -2,9 +2,10 @@
 
 use crate::{
 	Error,
-	polkadot_sdk::sort_by_latest_semantic_version,
+	polkadot_sdk::{sort_by_latest_semantic_version, sort_by_latest_stable_version},
 	resolve_port, set_executable_permission,
 	sourcing::{ArchiveFileSpec, Binary, GitHub::ReleaseArchive, Source::GitHub},
+	target,
 };
 
 use serde_json::json;
@@ -96,10 +97,10 @@ impl NodeProcess {
 /// Represents a temporary ink! test node process for contract testing.
 ///
 /// This node includes pallet-revive for smart contract functionality.
-/// For non-contract testing (chain calls, storage, metadata), use `PolkadotNode` instead.
-pub struct TestNode(NodeProcess);
+/// For non-contract testing (chain calls, storage, metadata), use `SubstrateTestNode` instead.
+pub struct InkTestNode(NodeProcess);
 
-impl TestNode {
+impl InkTestNode {
 	/// Spawns a local ink! node and waits until it's ready.
 	pub async fn spawn() -> anyhow::Result<Self> {
 		let temp_dir = tempfile::tempdir()?;
@@ -132,7 +133,7 @@ impl TestNode {
 	}
 }
 
-/// Represents a temporary Polkadot SDK node process for testing chain functionality.
+/// Represents a temporary Substrate test node process for testing chain functionality.
 ///
 /// This node is intended for testing non-contract features like:
 /// - Chain calls and extrinsics
@@ -140,30 +141,30 @@ impl TestNode {
 /// - Metadata parsing
 /// - Runtime operations
 ///
-/// For contract-specific testing, use `TestNode` which runs ink-node with pallet-revive.
-pub struct PolkadotNode(NodeProcess);
+/// For contract-specific testing, use `InkTestNode` which runs ink-node with pallet-revive.
+pub struct SubstrateTestNode(NodeProcess);
 
-impl PolkadotNode {
-	/// Spawns a local Polkadot SDK node and waits until it's ready.
+impl SubstrateTestNode {
+	/// Spawns a local Substrate test node and waits until it's ready.
 	///
-	/// This uses ink-node, which is a Polkadot SDK node suitable for testing
-	/// chain functionality (metadata, storage, extrinsics) without contract deployment.
+	/// This uses substrate-node from r0gue-io/polkadot releases, which provides
+	/// a minimal Substrate runtime suitable for testing chain functionality.
 	pub async fn spawn() -> anyhow::Result<Self> {
 		let temp_dir = tempfile::tempdir()?;
 		let cache = temp_dir.path().to_path_buf();
 
 		let binary = Binary::Source {
-			name: "ink-node".to_string(),
+			name: "substrate-node".to_string(),
 			source: GitHub(ReleaseArchive {
-				owner: "use-ink".into(),
-				repository: "ink-node".into(),
+				owner: "r0gue-io".into(),
+				repository: "polkadot".into(),
 				tag: None,
-				tag_pattern: Some("v{version}".into()),
+				tag_pattern: Some("polkadot-{version}".into()),
 				prerelease: false,
-				version_comparator: sort_by_latest_semantic_version,
-				fallback: "v0.47.0".to_string(),
-				archive: ink_node_archive()?,
-				contents: ink_node_contents()?,
+				version_comparator: sort_by_latest_stable_version,
+				fallback: "stable2512".to_string(),
+				archive: format!("substrate-node-{}.tar.gz", target()?),
+				contents: vec![ArchiveFileSpec::new("substrate-node".into(), None, true)],
 				latest: None,
 			})
 			.into(),

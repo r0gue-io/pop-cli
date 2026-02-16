@@ -10,7 +10,7 @@ use subxt::{OnlineClient, SubstrateConfig};
 
 #[tokio::test]
 async fn format_type_works() -> Result<()> {
-	let node = PolkadotNode::spawn().await?;
+	let node = SubstrateTestNode::spawn().await?;
 	let client = OnlineClient::<SubstrateConfig>::from_url(node.ws_url()).await?;
 	let metadata = client.metadata();
 	let registry = metadata.types();

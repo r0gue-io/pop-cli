@@ -145,7 +145,7 @@ mod tests {
 	use super::{Action::*, *};
 	use crate::{parse_chain_metadata, set_up_client};
 	use anyhow::Result;
-	use pop_common::test_env::PolkadotNode;
+	use pop_common::test_env::SubstrateTestNode;
 	use std::collections::HashMap;
 
 	#[test]
@@ -213,7 +213,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn supported_actions_works() -> Result<()> {
-		let node = PolkadotNode::spawn().await?;
+		let node = SubstrateTestNode::spawn().await?;
 		// Test Local Node.
 		let client: subxt::OnlineClient<subxt::SubstrateConfig> =
 			set_up_client(node.ws_url()).await?;

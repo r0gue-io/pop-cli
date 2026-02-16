@@ -98,7 +98,7 @@ async fn fork_and_transfer_balance() -> Result<()> {
 	let temp_dir = temp.path();
 
 	// 1. Spawn ink-node as source chain
-	let node = TestNode::spawn().await?;
+	let node = InkTestNode::spawn().await?;
 	let source_url = node.ws_url();
 
 	// 2. Launch pop fork with signature mocking

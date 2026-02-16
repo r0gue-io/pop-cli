@@ -572,7 +572,7 @@ mod tests {
 		common::{binary::SemanticVersion, runtime::get_mock_runtime},
 	};
 	use clap::Parser;
-	use pop_common::test_env::TestNode;
+	use pop_common::test_env::InkTestNode;
 	use tempfile::tempdir;
 
 	#[derive(Default)]
@@ -639,7 +639,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn update_live_state_works() -> anyhow::Result<()> {
-		let node = TestNode::spawn().await?;
+		let node = InkTestNode::spawn().await?;
 		let node_url = node.ws_url();
 		// Prompt all inputs if not provided.
 		let mut live_state = LiveState::default();
@@ -776,7 +776,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn guide_user_to_select_try_state_works() -> anyhow::Result<()> {
-		let node = TestNode::spawn().await?;
+		let node = InkTestNode::spawn().await?;
 		let node_url = node.ws_url();
 		let client = set_up_client(node_url).await?;
 		let pallets = get_pallets(&client).await?;

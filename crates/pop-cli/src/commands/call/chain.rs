@@ -940,7 +940,7 @@ mod tests {
 		common::{chain::Chain, wallet::USE_WALLET_PROMPT},
 	};
 	use pop_chains::{Function, parse_chain_metadata, set_up_client};
-	use pop_common::test_env::TestNode;
+	use pop_common::test_env::InkTestNode;
 	use tempfile::tempdir;
 	use url::Url;
 
@@ -948,7 +948,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn guide_user_to_call_chain_works() -> Result<()> {
-		let node = TestNode::spawn().await?;
+		let node = InkTestNode::spawn().await?;
 		let node_url = node.ws_url();
 		let mut call_config = CallChainCommand {
 			pallet: Some("System".to_string()),
@@ -1049,7 +1049,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn guide_user_to_configure_predefined_action_works() -> Result<()> {
-		let node = TestNode::spawn().await?;
+		let node = InkTestNode::spawn().await?;
 		let node_url = node.ws_url();
 		let mut call_config = CallChainCommand::default();
 		let mut cli = MockCli::new()
@@ -1142,7 +1142,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn prepare_extrinsic_works() -> Result<()> {
-		let node = TestNode::spawn().await?;
+		let node = InkTestNode::spawn().await?;
 		let node_url = node.ws_url();
 		let client = set_up_client(node_url).await?;
 		let mut call_config = Call {
@@ -1189,7 +1189,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn user_cancel_submit_extrinsic_from_call_data_works() -> Result<()> {
-		let node = TestNode::spawn().await?;
+		let node = InkTestNode::spawn().await?;
 		let node_url = node.ws_url();
 		let client = set_up_client(node_url).await?;
 		let call_config = CallChainCommand {
@@ -1337,7 +1337,7 @@ mod tests {
 		use scale_value::ValueDef;
 
 		// Spawn a test node
-		let node = TestNode::spawn().await?;
+		let node = InkTestNode::spawn().await?;
 		let client = set_up_client(node.ws_url()).await?;
 		let pallets = parse_chain_metadata(&client)?;
 
@@ -1390,7 +1390,7 @@ mod tests {
 		use scale_value::ValueDef;
 
 		// Spawn a test node
-		let node = TestNode::spawn().await?;
+		let node = InkTestNode::spawn().await?;
 		let client = set_up_client(node.ws_url()).await?;
 		let pallets = parse_chain_metadata(&client)?;
 
@@ -1443,7 +1443,7 @@ mod tests {
 	#[tokio::test]
 	async fn query_storage_with_composite_key_works() -> Result<()> {
 		// Spawn a test node
-		let node = TestNode::spawn().await?;
+		let node = InkTestNode::spawn().await?;
 		let node_url = node.ws_url();
 
 		// Build the command to directly execute a storage query using a composite key
@@ -1468,7 +1468,7 @@ mod tests {
 	#[tokio::test]
 	async fn display_metadata_works() -> Result<()> {
 		// Spawn a test node once for all metadata tests
-		let node = TestNode::spawn().await?;
+		let node = InkTestNode::spawn().await?;
 		let client = set_up_client(node.ws_url()).await?;
 		let pallets = parse_chain_metadata(&client)?;
 
@@ -1552,7 +1552,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn show_pallet_works() -> Result<()> {
-		let node = TestNode::spawn().await?;
+		let node = InkTestNode::spawn().await?;
 		let client = set_up_client(node.ws_url()).await?;
 		let pallets = parse_chain_metadata(&client)?;
 		let metadata = client.metadata();
