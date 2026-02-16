@@ -192,6 +192,14 @@ impl CallContractCommand {
 		self.prepared_artifact_path.clone().unwrap_or_else(|| fallback.to_path_buf())
 	}
 
+	fn metadata_fetch_error(error: impl Into<anyhow::Error>) -> anyhow::Error {
+		let error: anyhow::Error = error.into();
+		anyhow!(format!(
+			"Unable to fetch contract metadata: {}",
+			error.to_string().replace("Anyhow error: ", "")
+		))
+	}
+
 	fn display(&self) -> String {
 		let mut full_message = "pop call contract".to_string();
 
@@ -392,18 +400,14 @@ impl CallContractCommand {
 				self.confirm_contract_deployment(cli)?;
 			}
 		}
-		self.prepare_artifact_if_needed(contract_path)?;
+		self.prepare_artifact_if_needed(contract_path)
+			.map_err(Self::metadata_fetch_error)?;
 		let execution_path = self.execution_path(contract_path);
 
 		// Parse the contract metadata provided. If there is an error, do not prompt for more.
 		let (messages, storage) = match get_messages_and_storage(&execution_path) {
 			Ok(data) => data,
-			Err(e) => {
-				return Err(anyhow!(format!(
-					"Unable to fetch contract metadata: {}",
-					e.to_string().replace("Anyhow error: ", "")
-				)));
-			},
+			Err(e) => return Err(Self::metadata_fetch_error(e)),
 		};
 		let mut callables = Vec::new();
 		messages

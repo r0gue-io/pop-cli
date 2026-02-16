@@ -971,11 +971,15 @@ mod tests {
 		assert!(prepared.compatibility_warning.is_some());
 		assert!(prepared.path.exists());
 
+		let original_path =
+			resolve_contract_metadata_path(temp_dir.path().join("testing").as_path())?;
+		let original = ContractMetadata::load(&original_path)?;
 		let sanitized = ContractMetadata::load(&prepared.path)?;
 		assert!(matches!(
 			sanitized.source.language.language,
 			contract_metadata::Language::Solidity
 		));
+		assert_eq!(sanitized.source.hash.0, original.source.hash.0);
 		Ok(())
 	}
 
