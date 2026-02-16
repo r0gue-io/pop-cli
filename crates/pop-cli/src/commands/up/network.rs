@@ -24,9 +24,12 @@ use std::{
 	collections::HashMap,
 	ffi::OsStr,
 	path::{Path, PathBuf},
-	time::Duration,
+	time::{Duration, Instant},
 };
 use tokio::time::sleep;
+
+use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
+use tokio::time::timeout;
 
 /// Launch a local network by specifying a network configuration file.
 #[derive(Args, Clone, Default, Serialize)]
@@ -521,7 +524,20 @@ pub(crate) async fn spawn(
 			}
 
 			if detach {
-				// Build WebSocket URL output before detaching
+				// Extract endpoints and build formatted output while Network is available
+				let endpoints: Vec<(String, String)> = {
+					let mut eps = Vec::new();
+					for node in network.relaychain().nodes() {
+						eps.push((node.name().to_string(), node.ws_uri().to_string()));
+					}
+					for chain in network.parachains() {
+						for node in chain.collators() {
+							eps.push((node.name().to_string(), node.ws_uri().to_string()));
+						}
+					}
+					eps
+				};
+
 				let mut detached_output = format!(
 					"ℹ️ base dir: {0}\nℹ️ zombie.json: {0}/zombie.json",
 					base_dir.display()
@@ -560,6 +576,28 @@ pub(crate) async fn spawn(
 
 				network.detach().await;
 				std::mem::forget(network);
+
+				// Health check with progress feedback
+				{
+					let health_progress = spinner();
+					health_progress.start("Verifying network nodes are ready...");
+
+					match wait_for_rpc_endpoints_ready(&endpoints, &health_progress).await {
+						Ok(()) => {
+							health_progress.stop("✅ All nodes are ready and responding");
+							cli.info("✅ All nodes are ready and responding")?;
+						},
+						Err(e) => {
+							health_progress.stop("⚠️ Some nodes may still be starting");
+							cli.warning(format!(
+								"Could not verify all nodes are ready: {}
+The network is running. Check endpoints manually if needed.",
+								e
+							))?;
+						},
+					}
+				}
+
 				cli.info(detached_output)?;
 				if auto_remove {
 					cli.warning(format!(
@@ -588,6 +626,91 @@ pub(crate) async fn spawn(
 			cli.outro_cancel(format!("🚫 Could not launch local network: {e}"))?;
 		},
 	}
+
+	Ok(())
+}
+
+async fn wait_for_rpc_endpoints_ready(
+	endpoints: &[(String, String)],
+	progress: &ProgressBar,
+) -> Result<(), anyhow::Error> {
+	wait_for_rpc_endpoints_ready_with_timeout(
+		endpoints,
+		progress,
+		Duration::from_secs(60),
+		Duration::from_secs(5),
+	)
+	.await
+}
+
+/// Polls RPC endpoints to verify they are ready with configurable timeouts.
+async fn wait_for_rpc_endpoints_ready_with_timeout(
+	endpoints: &[(String, String)],
+	progress: &ProgressBar,
+	total_timeout: Duration,
+	per_attempt_timeout: Duration,
+) -> Result<(), anyhow::Error> {
+	let start = Instant::now();
+
+	let mut backoff = Duration::from_secs(1);
+	let mut pending: Vec<_> = endpoints.iter().collect();
+	let mut attempt = 0;
+
+	while !pending.is_empty() {
+		if start.elapsed() >= total_timeout {
+			return Err(anyhow::anyhow!(
+				"Timeout waiting for {} node(s) to become ready: {}",
+				pending.len(),
+				pending.iter().map(|(n, _)| n.as_str()).collect::<Vec<_>>().join(", ")
+			));
+		}
+
+		attempt += 1;
+		progress.set_message(format!(
+			"Waiting for {} node(s) to be ready (attempt {})...",
+			pending.len(),
+			attempt
+		));
+
+		// Check all pending in parallel
+		let checks: Vec<_> = pending
+			.iter()
+			.map(|(name, uri)| {
+				let uri = uri.clone();
+				let name = name.clone();
+				async move {
+					match timeout(per_attempt_timeout, check_node_health(&uri)).await {
+						Ok(Ok(())) => Some((name, uri)),
+						_ => None,
+					}
+				}
+			})
+			.collect();
+
+		let ready: Vec<_> = futures::future::join_all(checks).await.into_iter().flatten().collect();
+
+		pending.retain(|endpoint| !ready.contains(endpoint));
+
+		if !pending.is_empty() {
+			sleep(backoff).await;
+			backoff = std::cmp::min(
+				Duration::from_secs_f64(backoff.as_secs_f64() * 1.5),
+				Duration::from_secs(5),
+			);
+		}
+	}
+
+	Ok(())
+}
+
+/// Checks if a node's RPC endpoint is healthy.
+async fn check_node_health(uri: &str) -> Result<(), anyhow::Error> {
+	let client = WsClientBuilder::default()
+		.request_timeout(Duration::from_secs(3))
+		.build(uri)
+		.await?;
+
+	let _: serde_json::Value = client.request("system_health", rpc_params![]).await?;
 
 	Ok(())
 }
