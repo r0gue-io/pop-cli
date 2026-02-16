@@ -6,7 +6,7 @@ use crate::{DefaultEnvironment, errors::Error};
 use anyhow::Context;
 use contract_build::CrateMetadata;
 use contract_extrinsics::{ContractStorageRpc, TrieId};
-use contract_metadata::ContractMetadata;
+use contract_metadata::{ContractMetadata, Language, compatibility};
 use contract_transcode::{
 	ContractMessageTranscoder,
 	ink_metadata::{MessageParamSpec, layout::Layout},
@@ -107,6 +107,17 @@ pub struct ContractStorage {
 	pub key_type_name: Option<String>,
 }
 
+/// Prepared contract artifact path for extrinsics operations.
+///
+/// When compatibility warnings are present, this may point to a temporary sanitized artifact.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PreparedContractArtifact {
+	/// Path to an artifact consumable by contract-extrinsics.
+	pub path: PathBuf,
+	/// Compatibility warning to display to users, if any.
+	pub compatibility_warning: Option<String>,
+}
+
 /// Specifies the type of contract function, either a constructor or a message.
 #[derive(Clone, PartialEq, Eq)]
 pub enum FunctionType {
@@ -199,9 +210,50 @@ fn resolve_contract_metadata_path(path: &Path) -> anyhow::Result<PathBuf> {
 				path.display()
 			)
 		}
+	} else if path.extension().and_then(|ext| ext.to_str()) == Some("polkavm") {
+		let file_name = path
+			.file_stem()
+			.context("PolkaVM bundle file has unreadable name")?
+			.to_str()
+			.context("Error parsing filename string")?;
+		let dir = path.parent().map_or_else(PathBuf::new, PathBuf::from);
+		let metadata_path = dir.join(format!("{file_name}.json"));
+		if metadata_path.exists() {
+			Ok(metadata_path)
+		} else {
+			anyhow::bail!("No contract metadata found. Expected file {}", metadata_path.display())
+		}
 	} else {
 		Ok(path.to_path_buf())
 	}
+}
+
+/// Resolves the artifact path to use for extrinsics and optionally prepares a sanitized copy when
+/// compatibility warnings would otherwise be emitted repeatedly.
+pub fn prepare_artifact_for_extrinsics(path: &Path) -> anyhow::Result<PreparedContractArtifact> {
+	let metadata_path = resolve_contract_metadata_path(path)?;
+	let mut metadata = ContractMetadata::load(&metadata_path)?;
+	let compatibility_warning = if matches!(metadata.source.language.language, Language::Ink) {
+		compatibility::check_contract_ink_compatibility(&metadata.source.language.version, None)
+			.err()
+			.map(|err| err.to_string())
+	} else {
+		None
+	};
+
+	if compatibility_warning.is_none() {
+		return Ok(PreparedContractArtifact { path: metadata_path, compatibility_warning: None });
+	}
+
+	// Skip compatibility checks in downstream loaders while preserving ABI/transcoding data.
+	metadata.source.language.language = Language::Solidity;
+	let mut sanitized = tempfile::Builder::new()
+		.prefix("pop-contract-artifact-")
+		.suffix(".json")
+		.tempfile()?;
+	serde_json::to_writer(sanitized.as_file_mut(), &metadata)?;
+	let (_, artifact_path) = sanitized.keep()?;
+	Ok(PreparedContractArtifact { path: artifact_path, compatibility_warning })
 }
 
 async fn decode_mapping(
@@ -902,6 +954,28 @@ mod tests {
 		assert_eq!(storage.len(), 2);
 		assert_eq!(storage[0].name, "value");
 		assert_eq!(storage[1].name, "number");
+		Ok(())
+	}
+
+	#[test]
+	fn prepare_artifact_for_extrinsics_warns_and_sanitizes_incompatible_ink() -> Result<()> {
+		let temp_dir = new_environment("testing")?;
+		let current_dir = env::current_dir().expect("Failed to get current directory");
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join(CONTRACT_FILE),
+			current_dir.join("./tests/files/testing.json"),
+		)?;
+
+		let prepared = prepare_artifact_for_extrinsics(temp_dir.path().join("testing").as_path())?;
+		assert!(prepared.compatibility_warning.is_some());
+		assert!(prepared.path.exists());
+
+		let sanitized = ContractMetadata::load(&prepared.path)?;
+		assert!(matches!(
+			sanitized.source.language.language,
+			contract_metadata::Language::Solidity
+		));
 		Ok(())
 	}
 

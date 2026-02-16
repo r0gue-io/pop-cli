@@ -23,10 +23,10 @@ use pop_contracts::{
 	DefaultEnvironment, Verbosity, Weight, build_smart_contract, call_smart_contract,
 	call_smart_contract_from_signed_payload, dry_run_gas_estimate_call,
 	fetch_contract_storage_with_param, get_call_payload, get_messages_and_storage,
-	process_function_args, set_up_call_with_args,
+	prepare_artifact_for_extrinsics, process_function_args, set_up_call_with_args,
 };
 use serde::Serialize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const DEFAULT_URI: &str = "//Alice";
 const DEFAULT_PAYABLE_VALUE: &str = "0";
@@ -94,6 +94,22 @@ pub struct CallContractCommand {
 	/// Optional key to query in case the selected storage is a mapping.
 	#[arg(short = 'k', long)]
 	storage_mapping_key: Option<String>,
+	/// Optional preprocessed artifact path used by extrinsics operations.
+	#[serde(skip_serializing)]
+	#[arg(skip)]
+	prepared_artifact_path: Option<PathBuf>,
+	/// Cached compatibility warning for display in interactive mode.
+	#[serde(skip_serializing)]
+	#[arg(skip)]
+	compatibility_warning: Option<String>,
+	/// Whether compatibility warning should be shown for this command run.
+	#[serde(skip_serializing)]
+	#[arg(skip)]
+	show_compatibility_warning: bool,
+	/// Tracks whether compatibility warning has already been shown.
+	#[serde(skip_serializing)]
+	#[arg(skip)]
+	compatibility_warning_shown: bool,
 }
 
 impl Default for CallContractCommand {
@@ -114,6 +130,10 @@ impl Default for CallContractCommand {
 			deployed: false,
 			skip_confirm: false,
 			storage_mapping_key: None,
+			prepared_artifact_path: None,
+			compatibility_warning: None,
+			show_compatibility_warning: false,
+			compatibility_warning_shown: false,
 		}
 	}
 }
@@ -125,6 +145,10 @@ impl CallContractCommand {
 
 	/// Executes the command.
 	pub(crate) async fn execute(mut self, cli: &mut impl Cli) -> Result<()> {
+		self.show_compatibility_warning = true;
+		if let Some(path) = self.resolve_preconfigured_path()? {
+			self.prepare_artifact_if_needed(&path)?;
+		}
 		// Check if message specified via command line argument.
 		let prompt_to_repeat_call = self.message.is_none();
 		// Configure the call based on command line arguments/call UI.
@@ -147,9 +171,47 @@ impl CallContractCommand {
 				}
 			},
 		};
+		self.maybe_show_compatibility_warning(cli)?;
 		// Finally execute the call.
 		self.execute_call(cli, prompt_to_repeat_call, callable).await?;
 		Ok(())
+	}
+
+	fn resolve_preconfigured_path(&self) -> Result<Option<PathBuf>> {
+		if let Some(path) = get_project_path(self.path.clone(), self.path_pos.clone()) {
+			return Ok(Some(path));
+		}
+		let current_dir = std::env::current_dir()?;
+		if matches!(pop_contracts::is_supported(&current_dir), Ok(true)) {
+			Ok(Some(current_dir))
+		} else {
+			Ok(None)
+		}
+	}
+
+	fn prepare_artifact_if_needed(&mut self, path: &Path) -> Result<()> {
+		if self.prepared_artifact_path.is_some() {
+			return Ok(());
+		}
+		let prepared = prepare_artifact_for_extrinsics(path)?;
+		self.prepared_artifact_path = Some(prepared.path);
+		self.compatibility_warning = prepared.compatibility_warning;
+		Ok(())
+	}
+
+	fn maybe_show_compatibility_warning(&mut self, cli: &mut impl Cli) -> Result<()> {
+		if self.show_compatibility_warning &&
+			!self.compatibility_warning_shown &&
+			let Some(warning) = &self.compatibility_warning
+		{
+			cli.warning(warning)?;
+			self.compatibility_warning_shown = true;
+		}
+		Ok(())
+	}
+
+	fn execution_path(&self, fallback: &Path) -> PathBuf {
+		self.prepared_artifact_path.clone().unwrap_or_else(|| fallback.to_path_buf())
 	}
 
 	fn display(&self) -> String {
@@ -352,9 +414,11 @@ impl CallContractCommand {
 				self.confirm_contract_deployment(cli)?;
 			}
 		}
+		self.prepare_artifact_if_needed(contract_path)?;
+		let execution_path = self.execution_path(contract_path);
 
 		// Parse the contract metadata provided. If there is an error, do not prompt for more.
-		let (messages, storage) = match get_messages_and_storage(contract_path) {
+		let (messages, storage) = match get_messages_and_storage(&execution_path) {
 			Ok(data) => data,
 			Err(e) => {
 				return Err(anyhow!(format!(
@@ -410,7 +474,7 @@ impl CallContractCommand {
 					anyhow::anyhow!(
 						"Message '{}' not found in contract '{}'",
 						message_name,
-						contract_path.display()
+						execution_path.display()
 					)
 				})?
 		} else {
@@ -434,11 +498,12 @@ impl CallContractCommand {
 	}
 
 	async fn read_storage(&mut self, cli: &mut impl Cli, storage: ContractStorage) -> Result<()> {
+		let project_path = ensure_project_path(self.path.clone(), self.path_pos.clone());
 		let value = fetch_contract_storage_with_param(
 			&storage,
 			self.contract.as_ref().expect("no contract address specified"),
 			&self.url()?,
-			&ensure_project_path(self.path.clone(), self.path_pos.clone()),
+			&self.execution_path(&project_path),
 			self.storage_mapping_key.as_deref(),
 		)
 		.await?;
@@ -453,6 +518,7 @@ impl CallContractCommand {
 		message: ContractFunction,
 	) -> Result<()> {
 		let project_path = ensure_project_path(self.path.clone(), self.path_pos.clone());
+		let execution_path = self.execution_path(&project_path);
 		// Disable wallet signing and display warning if the call is read-only.
 		if !message.mutates && self.use_wallet {
 			cli.warning("NOTE: Signing is not required for this read-only call. The '--use-wallet' flag will be ignored.")?;
@@ -475,7 +541,7 @@ impl CallContractCommand {
 			};
 		let call_exec = match set_up_call_with_args(
 			CallOpts {
-				path: project_path,
+				path: execution_path,
 				contract,
 				message: message.label,
 				args: self.args.clone(),
@@ -637,6 +703,7 @@ impl CallContractCommand {
 		self.gas_limit = None;
 		self.proof_size = None;
 		self.use_wallet = false;
+		self.compatibility_warning_shown = false;
 	}
 }
 
@@ -707,6 +774,10 @@ mod tests {
 			deployed: false,
 			skip_confirm: false,
 			storage_mapping_key: None,
+			prepared_artifact_path: None,
+			compatibility_warning: None,
+			show_compatibility_warning: false,
+			compatibility_warning_shown: false,
 		};
 		call_config.configure(&mut cli, false).await?;
 		assert_eq!(
@@ -730,6 +801,74 @@ mod tests {
 			)
 		);
 
+		cli.verify()
+	}
+
+	#[tokio::test]
+	#[allow(deprecated)]
+	async fn configure_keeps_compatibility_warning_for_execute_stage() -> Result<()> {
+		let temp_dir = new_environment("testing")?;
+		let mut current_dir = env::current_dir().expect("Failed to get current directory");
+		current_dir.pop();
+		mock_build_process(
+			temp_dir.path().join("testing"),
+			current_dir.join(CONTRACT_FILE),
+			current_dir.join("pop-contracts/tests/files/testing.json"),
+		)?;
+
+		let items = vec![
+			("📝 [MUTATES] flip".into(), "A message that can be called on instantiated contracts. This one flips the value of the stored `bool` from `true` to `false` and vice versa.".into()),
+			("[READS] get".into(), "Simply returns the current value of our `bool`.".into()),
+			("📝 [MUTATES] specific_flip".into(), "A message for testing, flips the value of the stored `bool` with `new_value` and is payable".into()),
+			("[STORAGE] number".into(), "u32".into()),
+			("[STORAGE] value".into(), "bool".into()),
+		];
+		let mut cli = MockCli::new()
+			.expect_input(
+				"Provide the on-chain contract address:",
+				"0x48550a4bb374727186c55365b7c9c0a1a31bdafe".into(),
+			)
+			.expect_select(
+				"Select the message to call (type to filter)",
+				Some(false),
+				true,
+				Some(items),
+				1,
+				None,
+			)
+			.expect_info(format!(
+				"pop call contract --path {} --contract 0x48550a4bb374727186c55365b7c9c0a1a31bdafe --message get --url {}",
+				temp_dir.path().join("testing").display(),
+				urls::LOCAL
+			));
+
+		let mut call_config = CallContractCommand {
+			path: None,
+			path_pos: Some(temp_dir.path().join("testing")),
+			contract: None,
+			message: None,
+			args: vec![],
+			value: DEFAULT_PAYABLE_VALUE.to_string(),
+			gas_limit: None,
+			proof_size: None,
+			url: Some(Url::parse(urls::LOCAL)?),
+			suri: None,
+			use_wallet: false,
+			execute: false,
+			deployed: false,
+			skip_confirm: false,
+			storage_mapping_key: None,
+			prepared_artifact_path: Some(temp_dir.path().join("testing")),
+			compatibility_warning: Some("compatibility warning".into()),
+			show_compatibility_warning: true,
+			compatibility_warning_shown: false,
+		};
+
+		call_config.configure(&mut cli, false).await?;
+		assert!(
+			!call_config.compatibility_warning_shown,
+			"configure should not show compatibility warning"
+		);
 		cli.verify()
 	}
 
@@ -848,6 +987,10 @@ mod tests {
 			deployed: false,
 			skip_confirm: false,
 			storage_mapping_key: None,
+			prepared_artifact_path: None,
+			compatibility_warning: None,
+			show_compatibility_warning: false,
+			compatibility_warning_shown: false,
 		};
 		call_config.configure(&mut cli, false).await?;
 		assert_eq!(
@@ -932,6 +1075,10 @@ mod tests {
 			deployed: false,
 			skip_confirm: true,
 			storage_mapping_key: None,
+			prepared_artifact_path: None,
+			compatibility_warning: None,
+			show_compatibility_warning: false,
+			compatibility_warning_shown: false,
 		};
 		call_config.configure(&mut cli, false).await?;
 		assert_eq!(
@@ -997,6 +1144,10 @@ mod tests {
 			deployed: false,
 			skip_confirm: false,
 			storage_mapping_key: None,
+			prepared_artifact_path: None,
+			compatibility_warning: None,
+			show_compatibility_warning: false,
+			compatibility_warning_shown: false,
 		};
 		let mut cli = MockCli::new();
 		assert!(
@@ -1057,6 +1208,7 @@ mod tests {
 			deployed: false,
 			skip_confirm: false,
 			storage_mapping_key: None,
+			..Default::default()
 		}
 		.execute(&mut cli)
 		.await;
@@ -1085,6 +1237,10 @@ mod tests {
 			deployed: false,
 			skip_confirm: false,
 			storage_mapping_key: None,
+			prepared_artifact_path: None,
+			compatibility_warning: None,
+			show_compatibility_warning: false,
+			compatibility_warning_shown: false,
 		};
 		// Contract is not deployed.
 		let mut cli =
@@ -1143,6 +1299,10 @@ mod tests {
 			deployed: false,
 			skip_confirm: false,
 			storage_mapping_key: None,
+			prepared_artifact_path: None,
+			compatibility_warning: None,
+			show_compatibility_warning: false,
+			compatibility_warning_shown: false,
 		};
 		// Contract not build. Build is required.
 		assert!(call_config.is_contract_build_required());
@@ -1191,6 +1351,10 @@ mod tests {
 			deployed: false,
 			skip_confirm: false,
 			storage_mapping_key: None,
+			prepared_artifact_path: None,
+			compatibility_warning: None,
+			show_compatibility_warning: false,
+			compatibility_warning_shown: false,
 		};
 
 		// We can't check the exact error message because it includes dynamic temp paths,
@@ -1236,6 +1400,10 @@ mod tests {
 			deployed: false,
 			skip_confirm: false,
 			storage_mapping_key: None,
+			prepared_artifact_path: None,
+			compatibility_warning: None,
+			show_compatibility_warning: false,
+			compatibility_warning_shown: false,
 		};
 
 		let mut cli = MockCli::new()
@@ -1286,6 +1454,10 @@ mod tests {
 			deployed: true,
 			skip_confirm: false,
 			storage_mapping_key: None,
+			prepared_artifact_path: None,
+			compatibility_warning: None,
+			show_compatibility_warning: false,
+			compatibility_warning_shown: false,
 		};
 
 		let mut cli = MockCli::new()
@@ -1341,6 +1513,10 @@ mod tests {
 			deployed: true,
 			skip_confirm: false,
 			storage_mapping_key: None,
+			prepared_artifact_path: None,
+			compatibility_warning: None,
+			show_compatibility_warning: false,
+			compatibility_warning_shown: false,
 		};
 
 		let mut cli = MockCli::new().expect_intro("Call a contract").expect_info(format!(
@@ -1353,5 +1529,27 @@ mod tests {
 		let result = command.execute(&mut cli).await;
 		assert!(result.is_err(), "execute should fail when node is unavailable");
 		cli.verify()
+	}
+
+	#[test]
+	fn reset_for_new_call_clears_compatibility_warning_state() {
+		let mut command = CallContractCommand {
+			message: Some("get".into()),
+			value: "10".into(),
+			gas_limit: Some(1),
+			proof_size: Some(2),
+			use_wallet: true,
+			compatibility_warning_shown: true,
+			..Default::default()
+		};
+
+		command.reset_for_new_call();
+
+		assert_eq!(command.message, None);
+		assert_eq!(command.value, DEFAULT_PAYABLE_VALUE);
+		assert_eq!(command.gas_limit, None);
+		assert_eq!(command.proof_size, None);
+		assert!(!command.use_wallet);
+		assert!(!command.compatibility_warning_shown);
 	}
 }
