@@ -6,7 +6,7 @@
 
 use anyhow::Result;
 use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
-use pop_common::{pop, test_env::SubstrateTestNode};
+use pop_common::{pop, test_env::InkTestNode};
 use scale::{Compact, Decode, Encode};
 use sp_core::{blake2_128, twox_128};
 use std::time::Duration;
@@ -98,7 +98,7 @@ async fn fork_and_transfer_balance() -> Result<()> {
 	let temp_dir = temp.path();
 
 	// 1. Spawn Substrate node as source chain
-	let node = SubstrateTestNode::spawn().await?;
+	let node = InkTestNode::spawn().await?;
 	let source_url = node.ws_url();
 
 	// 2. Launch pop fork with signature mocking
