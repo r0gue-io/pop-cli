@@ -104,6 +104,15 @@ jobs:
         with:
           tool: cargo-nextest
 
+      - name: Cache pop binaries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ matrix.os == 'ubuntu-latest' && '~/.cache/pop' || '~/Library/Caches/pop' }}
+          key: pop-binaries-${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('crates/pop-chains/src/up/mod.rs', 'crates/pop-common/src/test_env.rs') }}
+          restore-keys: |
+            pop-binaries-${{ matrix.os }}-${{ runner.arch }}-
+
       - name: Start detached ink-node
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -112,24 +121,28 @@ jobs:
           set -euo pipefail
           TAG="v0.47.0"
           if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            CACHE_DIR="${HOME}/Library/Caches/pop"
             ARCHIVE="ink-node-mac-universal.tar.gz"
             BIN_RELATIVE_PATH="ink-node-mac/ink-node"
           else
+            CACHE_DIR="${HOME}/.cache/pop"
             ARCHIVE="ink-node-linux.tar.gz"
             BIN_RELATIVE_PATH="ink-node-linux/ink-node"
           fi
 
-          URL="https://github.com/use-ink/ink-node/releases/download/${TAG}/${ARCHIVE}"
-          curl --fail --show-error --silent --location \
-            --retry 3 \
-            --output "/tmp/${ARCHIVE}" \
-            "${URL}"
+          INK_NODE_BIN="${CACHE_DIR}/${BIN_RELATIVE_PATH}"
+          if [[ ! -x "${INK_NODE_BIN}" ]]; then
+            URL="https://github.com/use-ink/ink-node/releases/download/${TAG}/${ARCHIVE}"
+            curl --fail --show-error --silent --location \
+              --retry 3 \
+              --output "/tmp/${ARCHIVE}" \
+              "${URL}"
 
-          rm -rf /tmp/ink-node-dist
-          mkdir -p /tmp/ink-node-dist
-          tar -xzf "/tmp/${ARCHIVE}" -C /tmp/ink-node-dist
-          chmod +x "/tmp/ink-node-dist/${BIN_RELATIVE_PATH}"
-          nohup "/tmp/ink-node-dist/${BIN_RELATIVE_PATH}" --dev --tmp --rpc-port=9944 \
+            mkdir -p "${CACHE_DIR}"
+            tar -xzf "/tmp/${ARCHIVE}" -C "${CACHE_DIR}"
+            chmod +x "${INK_NODE_BIN}"
+          fi
+          nohup "${INK_NODE_BIN}" --dev --tmp --rpc-port=9944 \
             >/tmp/ink-node.log 2>&1 &
 
       - name: Wait for ink-node RPC readiness
@@ -240,6 +253,15 @@ jobs:
         with:
           tool: cargo-nextest
 
+      - name: Cache pop binaries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ matrix.os == 'ubuntu-latest' && '~/.cache/pop' || '~/Library/Caches/pop' }}
+          key: pop-binaries-${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('crates/pop-chains/src/up/mod.rs', 'crates/pop-common/src/test_env.rs') }}
+          restore-keys: |
+            pop-binaries-${{ matrix.os }}-${{ runner.arch }}-
+
       - name: Run integration tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -322,6 +344,15 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
+
+      - name: Cache pop binaries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ matrix.os == 'ubuntu-latest' && '~/.cache/pop' || '~/Library/Caches/pop' }}
+          key: pop-binaries-${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('crates/pop-chains/src/up/mod.rs', 'crates/pop-common/src/test_env.rs') }}
+          restore-keys: |
+            pop-binaries-${{ matrix.os }}-${{ runner.arch }}-
 
       - name: Run integration tests
         env:
@@ -406,6 +437,15 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
+
+      - name: Cache pop binaries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ matrix.os == 'ubuntu-latest' && '~/.cache/pop' || '~/Library/Caches/pop' }}
+          key: pop-binaries-${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('crates/pop-chains/src/up/mod.rs', 'crates/pop-common/src/test_env.rs') }}
+          restore-keys: |
+            pop-binaries-${{ matrix.os }}-${{ runner.arch }}-
 
       - name: Run pop-cli integration tests
         env:
