@@ -433,7 +433,7 @@ async fn parachain_lifecycle() -> Result<()> {
 				"--pallet",
 				"System",
 				"--function",
-				"Ss58Prefix",
+				"SS58Prefix",
 				"--url",
 				&localhost_url,
 				"--skip-confirm",
