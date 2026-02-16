@@ -105,17 +105,13 @@ impl CallChainCommand {
 
 		// Execute the call if call_data is provided.
 		if let Some(call_data) = self.call_data.as_ref() {
-			if let Err(e) = self
-				.submit_extrinsic_from_call_data(
-					&chain.client,
-					&chain.url,
-					call_data,
-					&mut cli::Cli,
-				)
-				.await
-			{
-				display_message(&e.to_string(), false, &mut cli::Cli)?;
-			}
+			self.submit_extrinsic_from_call_data(
+				&chain.client,
+				&chain.url,
+				call_data,
+				&mut cli::Cli,
+			)
+			.await?;
 			return Ok(());
 		}
 		loop {
@@ -124,7 +120,7 @@ impl CallChainCommand {
 				Ok(call) => call,
 				Err(e) => {
 					display_message(&e.to_string(), false, &mut cli)?;
-					break;
+					return Err(e);
 				},
 			};
 			// Display the configured call.
@@ -136,7 +132,7 @@ impl CallChainCommand {
 						Ok(payload) => payload,
 						Err(e) => {
 							display_message(&e.to_string(), false, &mut cli)?;
-							break;
+							return Err(e);
 						},
 					};
 
@@ -152,7 +148,11 @@ impl CallChainCommand {
 
 					if let Err(e) = result {
 						display_message(&e.to_string(), false, &mut cli)?;
-						break;
+						if self.use_wallet {
+							// Wallet errors include user cancellations, treat as Ok
+							break;
+						}
+						return Err(e);
 					}
 				},
 				CallItem::Constant(constant) => {
@@ -204,7 +204,7 @@ impl CallChainCommand {
 							},
 							Err(e) => {
 								cli.error(format!("Failed to query storage: {e}"))?;
-								break;
+								return Err(anyhow!("Failed to query storage: {e}"));
 							},
 						}
 					} else {
@@ -218,7 +218,7 @@ impl CallChainCommand {
 							},
 							Err(e) => {
 								cli.error(format!("Failed to query storage: {e}"))?;
-								break;
+								return Err(anyhow!("Failed to query storage: {e}"));
 							},
 						}
 					}
@@ -1469,8 +1469,12 @@ mod tests {
 		};
 
 		// Execute the command end-to-end; it should parse the composite key and perform the storage
-		// query
-		cmd.execute().await
+		// query. Currently, this fails with an encoding error, which should now properly return
+		// an error instead of silently succeeding.
+		let result = cmd.execute().await;
+		assert!(result.is_err(), "execute should return error for encoding failures");
+		assert!(result.unwrap_err().to_string().contains("Failed to query storage"));
+		Ok(())
 	}
 
 	#[tokio::test]

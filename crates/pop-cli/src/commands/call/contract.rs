@@ -138,18 +138,17 @@ impl CallContractCommand {
 							true, // Not an error, just a message.
 							cli,
 						)?;
+						return Ok(());
 					},
 					_ => {
 						display_message(&e.to_string(), false, cli)?;
+						return Err(e);
 					},
 				}
-				return Ok(());
 			},
 		};
 		// Finally execute the call.
-		if let Err(e) = self.execute_call(cli, prompt_to_repeat_call, callable).await {
-			display_message(&e.to_string(), false, cli)?;
-		}
+		self.execute_call(cli, prompt_to_repeat_call, callable).await?;
 		Ok(())
 	}
 
@@ -1022,7 +1021,7 @@ mod tests {
 		.execute(&mut cli)
 		.await;
 
-		assert!(result.is_ok());
+		assert!(result.is_err(), "should return error for invalid address");
 		cli.verify()
 	}
 
@@ -1131,17 +1130,16 @@ mod tests {
 		};
 
 		// We can't check the exact error message because it includes dynamic temp paths,
-		// but we can verify that execute handles the error gracefully and returns Ok.
+		// but we can verify that execute properly returns an error for hard failures.
 		// The intro will be shown, then the error will be displayed via outro_cancel.
 		let mut cli = MockCli::new().expect_intro("Call a contract");
 		// Note: We skip checking the outro_cancel message since it contains dynamic paths
 
-		// Execute should handle the error gracefully and return Ok
+		// Execute should return an error for hard failures
 		let result = command.execute(&mut cli).await;
-		assert!(result.is_ok(), "execute raised an error: {:?}", result);
+		assert!(result.is_err(), "execute should return an error for hard failures");
+		assert!(result.unwrap_err().to_string().contains("Unable to fetch contract metadata"));
 
-		// We can't call verify() here because outro_cancel wasn't expected,
-		// but the test still validates that execute returns Ok despite the error
 		Ok(())
 	}
 
@@ -1181,9 +1179,9 @@ mod tests {
 			.expect_input("Provide the on-chain contract address:", "".into())
 			.expect_outro_cancel("Invalid address.");
 
-		// Execute should handle the execute_call error gracefully and return Ok
+		// Execute should return an error for validation failures
 		let result = command.execute(&mut cli).await;
-		assert!(result.is_ok(), "execute raised an error: {:?}", result);
+		assert!(result.is_err(), "execute should return an error for validation failures");
 		cli.verify()
 	}
 
@@ -1243,9 +1241,9 @@ mod tests {
 			urls::LOCAL
 		));
 
-		// Execute should work correctly
+		// Execute will fail when trying to connect to the node since there's no node running
 		let result = command.execute(&mut cli).await;
-		assert!(result.is_ok(), "execute raised an error: {:?}", result);
+		assert!(result.is_err(), "execute should fail when node is unavailable");
 		cli.verify()
 	}
 
@@ -1287,9 +1285,9 @@ mod tests {
 		urls::LOCAL
 	));
 
-		// Execute should work correctly
+		// Execute will fail when trying to connect to the node since there's no node running
 		let result = command.execute(&mut cli).await;
-		assert!(result.is_ok(), "execute raised an error: {:?}", result);
+		assert!(result.is_err(), "execute should fail when node is unavailable");
 		cli.verify()
 	}
 }

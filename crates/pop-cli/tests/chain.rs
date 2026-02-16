@@ -433,7 +433,7 @@ async fn parachain_lifecycle() -> Result<()> {
 				"--pallet",
 				"System",
 				"--function",
-				"Ss58Prefix",
+				"SS58Prefix",
 				"--url",
 				&localhost_url,
 				"--skip-confirm",
@@ -446,7 +446,9 @@ async fn parachain_lifecycle() -> Result<()> {
 		)
 		.await?;
 
-		// pop call chain --call 0x00000411 --url ws://127.0.0.1:random_port --suri //Alice
+		// Use a different signer (//Bob) to avoid nonce conflicts with the previous
+		// //Alice transaction, which may not yet be reflected in the best block state.
+		// pop call chain --call 0x00000411 --url ws://127.0.0.1:random_port --suri //Bob
 		// --skip-confirm
 		let mut command = pop(
 			&working_dir,
@@ -458,7 +460,7 @@ async fn parachain_lifecycle() -> Result<()> {
 				"--url",
 				&localhost_url,
 				"--suri",
-				"//Alice",
+				"//Bob",
 				"--skip-confirm",
 			],
 		);
