@@ -102,10 +102,6 @@ pub struct CallContractCommand {
 	#[serde(skip_serializing)]
 	#[arg(skip)]
 	compatibility_warning: Option<String>,
-	/// Whether compatibility warning should be shown for this command run.
-	#[serde(skip_serializing)]
-	#[arg(skip)]
-	show_compatibility_warning: bool,
 	/// Tracks whether compatibility warning has already been shown.
 	#[serde(skip_serializing)]
 	#[arg(skip)]
@@ -132,7 +128,6 @@ impl Default for CallContractCommand {
 			storage_mapping_key: None,
 			prepared_artifact_path: None,
 			compatibility_warning: None,
-			show_compatibility_warning: false,
 			compatibility_warning_shown: false,
 		}
 	}
@@ -145,10 +140,6 @@ impl CallContractCommand {
 
 	/// Executes the command.
 	pub(crate) async fn execute(mut self, cli: &mut impl Cli) -> Result<()> {
-		self.show_compatibility_warning = true;
-		if let Some(path) = self.resolve_preconfigured_path()? {
-			self.prepare_artifact_if_needed(&path)?;
-		}
 		// Check if message specified via command line argument.
 		let prompt_to_repeat_call = self.message.is_none();
 		// Configure the call based on command line arguments/call UI.
@@ -177,18 +168,6 @@ impl CallContractCommand {
 		Ok(())
 	}
 
-	fn resolve_preconfigured_path(&self) -> Result<Option<PathBuf>> {
-		if let Some(path) = get_project_path(self.path.clone(), self.path_pos.clone()) {
-			return Ok(Some(path));
-		}
-		let current_dir = std::env::current_dir()?;
-		if matches!(pop_contracts::is_supported(&current_dir), Ok(true)) {
-			Ok(Some(current_dir))
-		} else {
-			Ok(None)
-		}
-	}
-
 	fn prepare_artifact_if_needed(&mut self, path: &Path) -> Result<()> {
 		if self.prepared_artifact_path.is_some() {
 			return Ok(());
@@ -200,8 +179,7 @@ impl CallContractCommand {
 	}
 
 	fn maybe_show_compatibility_warning(&mut self, cli: &mut impl Cli) -> Result<()> {
-		if self.show_compatibility_warning &&
-			!self.compatibility_warning_shown &&
+		if !self.compatibility_warning_shown &&
 			let Some(warning) = &self.compatibility_warning
 		{
 			cli.warning(warning)?;
@@ -776,7 +754,6 @@ mod tests {
 			storage_mapping_key: None,
 			prepared_artifact_path: None,
 			compatibility_warning: None,
-			show_compatibility_warning: false,
 			compatibility_warning_shown: false,
 		};
 		call_config.configure(&mut cli, false).await?;
@@ -860,7 +837,6 @@ mod tests {
 			storage_mapping_key: None,
 			prepared_artifact_path: Some(temp_dir.path().join("testing")),
 			compatibility_warning: Some("compatibility warning".into()),
-			show_compatibility_warning: true,
 			compatibility_warning_shown: false,
 		};
 
@@ -989,7 +965,6 @@ mod tests {
 			storage_mapping_key: None,
 			prepared_artifact_path: None,
 			compatibility_warning: None,
-			show_compatibility_warning: false,
 			compatibility_warning_shown: false,
 		};
 		call_config.configure(&mut cli, false).await?;
@@ -1077,7 +1052,6 @@ mod tests {
 			storage_mapping_key: None,
 			prepared_artifact_path: None,
 			compatibility_warning: None,
-			show_compatibility_warning: false,
 			compatibility_warning_shown: false,
 		};
 		call_config.configure(&mut cli, false).await?;
@@ -1146,7 +1120,6 @@ mod tests {
 			storage_mapping_key: None,
 			prepared_artifact_path: None,
 			compatibility_warning: None,
-			show_compatibility_warning: false,
 			compatibility_warning_shown: false,
 		};
 		let mut cli = MockCli::new();
@@ -1239,7 +1212,6 @@ mod tests {
 			storage_mapping_key: None,
 			prepared_artifact_path: None,
 			compatibility_warning: None,
-			show_compatibility_warning: false,
 			compatibility_warning_shown: false,
 		};
 		// Contract is not deployed.
@@ -1301,7 +1273,6 @@ mod tests {
 			storage_mapping_key: None,
 			prepared_artifact_path: None,
 			compatibility_warning: None,
-			show_compatibility_warning: false,
 			compatibility_warning_shown: false,
 		};
 		// Contract not build. Build is required.
@@ -1353,7 +1324,6 @@ mod tests {
 			storage_mapping_key: None,
 			prepared_artifact_path: None,
 			compatibility_warning: None,
-			show_compatibility_warning: false,
 			compatibility_warning_shown: false,
 		};
 
@@ -1402,7 +1372,6 @@ mod tests {
 			storage_mapping_key: None,
 			prepared_artifact_path: None,
 			compatibility_warning: None,
-			show_compatibility_warning: false,
 			compatibility_warning_shown: false,
 		};
 
@@ -1456,7 +1425,6 @@ mod tests {
 			storage_mapping_key: None,
 			prepared_artifact_path: None,
 			compatibility_warning: None,
-			show_compatibility_warning: false,
 			compatibility_warning_shown: false,
 		};
 
@@ -1515,7 +1483,6 @@ mod tests {
 			storage_mapping_key: None,
 			prepared_artifact_path: None,
 			compatibility_warning: None,
-			show_compatibility_warning: false,
 			compatibility_warning_shown: false,
 		};
 
