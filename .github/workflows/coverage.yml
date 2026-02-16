@@ -14,6 +14,12 @@ on:
       - synchronize
       - reopened
       - ready_for_review
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.github/**.md'
 
 env:
   CARGO_TERM_COLOR: always

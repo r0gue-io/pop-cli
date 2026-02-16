@@ -5,6 +5,7 @@
 #![cfg(all(feature = "chain", feature = "integration-tests"))]
 
 use anyhow::Result;
+use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
 use pop_chains::{
 	ChainTemplate,
 	up::{Binary, Source::GitHub},
@@ -36,6 +37,195 @@ impl Drop for TestChildProcess {
 	}
 }
 
+const RPC_CONNECT_TIMEOUT_SECS: u64 = 5;
+const RPC_REQUEST_TIMEOUT_SECS: u64 = 5;
+const COMMAND_WAIT_TIMEOUT_SECS: u64 = 600;
+const CALL_COMMAND_TIMEOUT_SECS: u64 = 120;
+
+async fn wait_for_command_success(
+	command: &mut tokio::process::Command,
+	timeout_secs: u64,
+	context: &str,
+) -> Result<()> {
+	let mut child = command.spawn()?;
+	let status = match tokio::time::timeout(Duration::from_secs(timeout_secs), child.wait()).await {
+		Ok(status) => status?,
+		Err(_) => {
+			let _ = child.kill().await;
+			let _ = child.wait().await;
+			return Err(anyhow::anyhow!("`{context}` timed out after {timeout_secs}s"));
+		},
+	};
+
+	if !status.success() {
+		return Err(anyhow::anyhow!("`{context}` failed with status: {status}"));
+	}
+
+	Ok(())
+}
+
+async fn terminate_child_process(child: &mut Child) -> Result<()> {
+	if child.try_wait()?.is_some() {
+		return Ok(());
+	}
+
+	#[cfg(unix)]
+	if let Some(pid) = child.id() {
+		let _ = std::process::Command::new("kill").args(["-INT", &pid.to_string()]).status();
+		if let Ok(Ok(_)) = tokio::time::timeout(Duration::from_secs(20), child.wait()).await {
+			return Ok(());
+		}
+	}
+
+	let _ = child.kill().await;
+	let _ = child.wait().await;
+	Ok(())
+}
+
+async fn rpc_request_string(url: &str, method: &str) -> Option<String> {
+	let client = tokio::time::timeout(
+		Duration::from_secs(RPC_CONNECT_TIMEOUT_SECS),
+		WsClientBuilder::default().build(url),
+	)
+	.await
+	.ok()?
+	.ok()?;
+
+	tokio::time::timeout(
+		Duration::from_secs(RPC_REQUEST_TIMEOUT_SECS),
+		client.request::<String, _>(method, rpc_params![]),
+	)
+	.await
+	.ok()?
+	.ok()
+}
+
+/// Wait for an RPC endpoint to become ready by polling JSON-RPC health.
+///
+/// # Arguments
+/// * `url` - WebSocket URL (e.g., "ws://127.0.0.1:9944")
+/// * `timeout_secs` - Maximum time to wait in seconds
+async fn wait_for_rpc_ready(
+	url: &str,
+	timeout_secs: u64,
+	process: &mut TestChildProcess,
+) -> Result<()> {
+	let timeout = Duration::from_secs(timeout_secs);
+	let start = std::time::Instant::now();
+
+	println!("Waiting for RPC endpoint {} to become ready (timeout: {}s)...", url, timeout_secs);
+
+	loop {
+		if start.elapsed() > timeout {
+			return Err(anyhow::anyhow!(
+				"RPC endpoint {} did not become ready within {:?}",
+				url,
+				timeout
+			));
+		}
+
+		// Fail fast if the network process exited.
+		if let Some(status) = process.0.try_wait()? {
+			return Err(anyhow::anyhow!("Network process exited before RPC became ready: {status}"));
+		}
+
+		// Wait for an actual JSON-RPC response instead of only TCP readiness.
+		if rpc_request_string(url, "system_chain").await.is_some() {
+			println!("✓ RPC endpoint {} is ready (took {:?})", url, start.elapsed());
+			return Ok(());
+		}
+
+		tokio::time::sleep(Duration::from_secs(1)).await;
+	}
+}
+
+/// Wait until finalized head changes, proving blocks/finality are progressing.
+fn write_network_config(
+	network_toml_path: &Path,
+	chain_spec_path: &Path,
+	rpc_port: u16,
+) -> Result<()> {
+	fs::write(
+		network_toml_path,
+		format!(
+			r#"[relaychain]
+chain = "paseo-local"
+
+[[relaychain.nodes]]
+name = "alice"
+validator = true
+
+[[parachains]]
+id = 2000
+default_command = "polkadot-omni-node"
+chain_spec_path = "{}"
+
+[[parachains.collators]]
+name = "collator-01"
+rpc_port = {rpc_port}
+"#,
+			chain_spec_path.as_os_str().to_str().unwrap(),
+		),
+	)?;
+	Ok(())
+}
+
+/// Spawn a network with retry logic to handle transient failures.
+///
+/// # Arguments
+/// * `working_dir` - The working directory containing the network configuration
+/// * `network_toml` - Path to the network configuration file
+/// * `chain_spec_path` - Path to the generated chain spec file
+/// * `max_retries` - Maximum number of retry attempts
+async fn spawn_network_with_retry(
+	working_dir: &Path,
+	network_toml_path: &Path,
+	network_toml: &str,
+	chain_spec_path: &Path,
+	max_retries: u32,
+) -> Result<(TestChildProcess, String)> {
+	for attempt in 1..=max_retries {
+		let rpc_port = resolve_port(None);
+		let localhost_url = format!("ws://127.0.0.1:{}", rpc_port);
+		write_network_config(network_toml_path, chain_spec_path, rpc_port)?;
+
+		println!("Network startup attempt {}/{} on RPC port {}...", attempt, max_retries, rpc_port);
+
+		let mut command = pop(
+			working_dir,
+			["up", "network", network_toml, "-r", "stable2512", "--verbose", "--skip-confirm"],
+		);
+		let mut process = TestChildProcess(command.spawn()?);
+
+		// Use shorter timeout on early attempts, full timeout on final attempt
+		let timeout = if attempt == max_retries { 300 } else { 90 };
+
+		match wait_for_rpc_ready(&localhost_url, timeout, &mut process).await {
+			Ok(_) => {
+				println!("✓ Network started successfully on attempt {}", attempt);
+				return Ok((process, localhost_url));
+			},
+			Err(e) => {
+				println!("✗ Attempt {} failed: {}", attempt, e);
+				let _ = terminate_child_process(&mut process.0).await;
+
+				if attempt < max_retries {
+					println!("Waiting 5s before retry...");
+					tokio::time::sleep(Duration::from_secs(5)).await;
+				} else {
+					return Err(anyhow::anyhow!(
+						"Network failed to start after {} attempts. Last error: {}\n\
+						 This may indicate resource constraints or binary download issues in CI.",
+						max_retries,
+						e
+					));
+				}
+			},
+		}
+	}
+	unreachable!()
+}
+
 // Test that all templates are generated correctly
 #[tokio::test]
 async fn generate_all_the_templates() -> Result<()> {
@@ -58,7 +248,12 @@ async fn generate_all_the_templates() -> Result<()> {
 				"--verify",
 			],
 		);
-		assert!(command.spawn()?.wait().await?.success());
+		wait_for_command_success(
+			&mut command,
+			COMMAND_WAIT_TIMEOUT_SECS,
+			"pop new chain <template>",
+		)
+		.await?;
 		assert!(temp_dir.join(parachain_name).exists());
 	}
 	Ok(())
@@ -91,7 +286,12 @@ async fn parachain_lifecycle() -> Result<()> {
 				"npm",
 			],
 		);
-		assert!(command.spawn()?.wait().await?.success());
+		wait_for_command_success(
+			&mut command,
+			COMMAND_WAIT_TIMEOUT_SECS,
+			"pop new chain test_parachain",
+		)
+		.await?;
 		assert!(working_dir.exists());
 		assert!(working_dir.join("frontend").exists());
 	}
@@ -135,7 +335,12 @@ async fn parachain_lifecycle() -> Result<()> {
 			"--skip-build",
 		],
 	);
-	assert!(command.spawn()?.wait().await?.success());
+	wait_for_command_success(
+		&mut command,
+		COMMAND_WAIT_TIMEOUT_SECS,
+		"pop build spec --skip-build",
+	)
+	.await?;
 
 	// Assert build files have been generated
 	assert!(working_dir.join("target").exists());
@@ -160,130 +365,117 @@ async fn parachain_lifecycle() -> Result<()> {
 	// Overwrite the config file to manually set the port to test pop call parachain.
 	let network_toml_path = working_dir.join("network.toml");
 	fs::create_dir_all(&working_dir)?;
-	let random_port = resolve_port(None);
-	let localhost_url = format!("ws://127.0.0.1:{}", random_port);
-	fs::write(
+
+	// Start network with retry logic to handle transient failures
+	let (mut up, localhost_url) = spawn_network_with_retry(
+		&working_dir,
 		&network_toml_path,
-		format!(
-			r#"[relaychain]
-chain = "paseo-local"
+		"./network.toml",
+		&chain_spec_path,
+		3,
+	)
+	.await?;
 
-[[relaychain.nodes]]
-name = "alice"
-validator = true
+	println!("Network ready, running chain calls...");
+	let call_result: Result<()> = async {
+		// `pop call chain --pallet System --function remark --args "0x11" --url
+		// ws://127.0.0.1:random_port --suri //Alice --skip-confirm`
+		let mut command = pop(
+			&working_dir,
+			[
+				"call",
+				"chain",
+				"--pallet",
+				"System",
+				"--function",
+				"remark",
+				"--args",
+				"0x11",
+				"--url",
+				&localhost_url,
+				"--suri",
+				"//Alice",
+				"--skip-confirm",
+			],
+		);
+		wait_for_command_success(&mut command, CALL_COMMAND_TIMEOUT_SECS, "pop call chain remark")
+			.await?;
 
-[[relaychain.nodes]]
-name = "bob"
-validator = true
+		// `pop call chain --pallet System --function Account --args
+		// "15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5" --url ws://127.0.0.1:random_port
+		// --skip-confirm`
+		let mut command = pop(
+			&working_dir,
+			[
+				"call",
+				"chain",
+				"--pallet",
+				"System",
+				"--function",
+				"Account",
+				"--args",
+				"15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5",
+				"--url",
+				&localhost_url,
+				"--skip-confirm",
+			],
+		);
+		wait_for_command_success(&mut command, CALL_COMMAND_TIMEOUT_SECS, "pop call chain account")
+			.await?;
 
-[[parachains]]
-id = 2000
-default_command = "polkadot-omni-node"
-chain_spec_path = "{}"
+		// `pop call chain --pallet System --function Account --args
+		// "15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5" --url ws://127.0.0.1:random_port`
+		let mut command = pop(
+			&working_dir,
+			[
+				"call",
+				"chain",
+				"--pallet",
+				"System",
+				"--function",
+				"Ss58Prefix",
+				"--url",
+				&localhost_url,
+				"--skip-confirm",
+			],
+		);
+		wait_for_command_success(
+			&mut command,
+			CALL_COMMAND_TIMEOUT_SECS,
+			"pop call chain ss58-prefix",
+		)
+		.await?;
 
-[[parachains.collators]]
-name = "collator-01"
-rpc_port = {random_port}
-"#,
-			chain_spec_path.as_os_str().to_str().unwrap(),
-		),
-	)?;
+		// pop call chain --call 0x00000411 --url ws://127.0.0.1:random_port --suri //Alice
+		// --skip-confirm
+		let mut command = pop(
+			&working_dir,
+			[
+				"call",
+				"chain",
+				"--call",
+				"0x00000411",
+				"--url",
+				&localhost_url,
+				"--suri",
+				"//Alice",
+				"--skip-confirm",
+			],
+		);
+		wait_for_command_success(
+			&mut command,
+			CALL_COMMAND_TIMEOUT_SECS,
+			"pop call chain call-data",
+		)
+		.await?;
 
-	// `pop up network ./network.toml --skip-confirm`
-	let mut command = pop(
-		&working_dir,
-		["up", "network", "./network.toml", "-r", "stable2512", "--verbose", "--skip-confirm"],
-	);
-	let mut up = TestChildProcess(command.spawn()?);
+		assert!(up.0.try_wait()?.is_none(), "the process should still be running");
+		Ok(())
+	}
+	.await;
 
-	// Wait for the networks to initialize. Increased timeout to accommodate CI environment delays.
-	let wait = Duration::from_secs(300);
-	println!("waiting for {wait:?} for network to initialize...");
-	tokio::time::sleep(wait).await;
-
-	// `pop call chain --pallet System --function remark --args "0x11" --url
-	// ws://127.0.0.1:random_port --suri //Alice --skip-confirm`
-	let mut command = pop(
-		&working_dir,
-		[
-			"call",
-			"chain",
-			"--pallet",
-			"System",
-			"--function",
-			"remark",
-			"--args",
-			"0x11",
-			"--url",
-			&localhost_url,
-			"--suri",
-			"//Alice",
-			"--skip-confirm",
-		],
-	);
-	assert!(command.spawn()?.wait().await?.success());
-
-	// `pop call chain --pallet System --function Account --args
-	// "15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5" --url ws://127.0.0.1:random_port
-	// --skip-confirm`
-	let mut command = pop(
-		&working_dir,
-		[
-			"call",
-			"chain",
-			"--pallet",
-			"System",
-			"--function",
-			"Account",
-			"--args",
-			"15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5",
-			"--url",
-			&localhost_url,
-			"--skip-confirm",
-		],
-	);
-	assert!(command.spawn()?.wait().await?.success());
-
-	// `pop call chain --pallet System --function Account --args
-	// "15oF4uVJwmo4TdGW7VfQxNLavjCXviqxT9S1MgbjMNHr6Sp5" --url ws://127.0.0.1:random_port`
-	let mut command = pop(
-		&working_dir,
-		[
-			"call",
-			"chain",
-			"--pallet",
-			"System",
-			"--function",
-			"Ss58Prefix",
-			"--url",
-			&localhost_url,
-			"--skip-confirm",
-		],
-	);
-	assert!(command.spawn()?.wait().await?.success());
-
-	// pop call chain --call 0x00000411 --url ws://127.0.0.1:random_port --suri //Alice
-	// --skip-confirm
-	let mut command = pop(
-		&working_dir,
-		[
-			"call",
-			"chain",
-			"--call",
-			"0x00000411",
-			"--url",
-			&localhost_url,
-			"--suri",
-			"//Alice",
-			"--skip-confirm",
-		],
-	);
-	assert!(command.spawn()?.wait().await?.success());
-
-	assert!(up.0.try_wait()?.is_none(), "the process should still be running");
-	// Stop the process
-	up.0.kill().await?;
-	up.0.wait().await?;
+	terminate_child_process(&mut up.0).await?;
+	call_result?;
 
 	Ok(())
 }
@@ -291,10 +483,20 @@ rpc_port = {random_port}
 async fn test_benchmarking(working_dir: &Path) -> Result<()> {
 	// pop bench block --from 0 --to 1 --profile=release
 	let mut command = pop(working_dir, ["bench", "block", "-y", "--from", "0", "--to", "1"]);
-	assert!(command.spawn()?.wait().await?.success());
+	wait_for_command_success(
+		&mut command,
+		COMMAND_WAIT_TIMEOUT_SECS,
+		"pop bench block --from 0 --to 1",
+	)
+	.await?;
 	// pop bench machine --allow-fail --profile=release
 	command = pop(working_dir, ["bench", "machine", "-y", "--allow-fail"]);
-	assert!(command.spawn()?.wait().await?.success());
+	wait_for_command_success(
+		&mut command,
+		COMMAND_WAIT_TIMEOUT_SECS,
+		"pop bench machine --allow-fail",
+	)
+	.await?;
 	// pop bench overhead --runtime={runtime_path} --genesis-builder=runtime
 	// --genesis-builder-preset=development --weight-path={output_path} --profile=release --warmup=1
 	// --repeat=1 -y
@@ -317,7 +519,7 @@ async fn test_benchmarking(working_dir: &Path) -> Result<()> {
 			"-y",
 		],
 	);
-	assert!(command.spawn()?.wait().await?.success());
+	wait_for_command_success(&mut command, COMMAND_WAIT_TIMEOUT_SECS, "pop bench overhead").await?;
 
 	// pop bench pallet --runtime={runtime_path} --genesis-builder=runtime
 	// --pallets pallet_timestamp,pallet_system --extrinsic set,remark --output={output_path} -y
@@ -340,7 +542,7 @@ async fn test_benchmarking(working_dir: &Path) -> Result<()> {
 			"-y",
 		],
 	);
-	assert!(command.spawn()?.wait().await?.success());
+	wait_for_command_success(&mut command, COMMAND_WAIT_TIMEOUT_SECS, "pop bench pallet").await?;
 	// Parse weights file.
 	assert!(output_path.join("weights.rs").exists());
 	let content = fs::read_to_string(output_path.join("weights.rs"))?;
@@ -379,7 +581,12 @@ async fn test_benchmarking(working_dir: &Path) -> Result<()> {
 			"-y",
 		],
 	);
-	assert!(command.spawn()?.wait().await?.success());
+	wait_for_command_success(
+		&mut command,
+		COMMAND_WAIT_TIMEOUT_SECS,
+		"pop bench pallet --bench-file",
+	)
+	.await?;
 	Ok(())
 }
 

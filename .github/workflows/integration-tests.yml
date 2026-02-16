@@ -14,6 +14,12 @@ on:
       - synchronize
       - reopened
       - ready_for_review
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.github/**.md'
 
 env:
   CARGO_TERM_COLOR: always
@@ -156,7 +162,7 @@ jobs:
             -p pop-fork \
             --features integration-tests \
             --test fork \
-            -j 6 \
+            -j 8 \
             --no-fail-fast \
             --status-level all
 
@@ -244,6 +250,7 @@ jobs:
             -p pop-contracts \
             --features integration-tests \
             --test contracts \
+            -j 8 \
             --no-fail-fast \
             --nocapture \
             --status-level all
@@ -327,6 +334,7 @@ jobs:
             --features integration-tests \
             --test chain \
             --test metadata \
+            -j 8 \
             --no-fail-fast \
             --nocapture \
             --status-level all
@@ -417,6 +425,7 @@ jobs:
             --test contract \
             --test chain \
             --test fork \
+            -j 8 \
             --no-fail-fast \
             --nocapture \
             --status-level all \
