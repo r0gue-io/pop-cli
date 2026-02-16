@@ -109,7 +109,7 @@ async fn parse_chain_metadata_works() -> Result<()> {
 	assert_eq!(first_pallet.name, "System");
 	assert_eq!(first_pallet.index, 0);
 	assert_eq!(first_pallet.docs, "");
-	assert!(first_pallet.functions.len() > 0);
+	assert!(!first_pallet.functions.is_empty());
 	let first_function = first_pallet.functions.first().unwrap();
 	assert_eq!(first_function.name, "remark");
 	assert_eq!(first_function.index, 0);
@@ -138,7 +138,7 @@ async fn find_pallet_by_name_works() -> Result<()> {
         Err(Error::PalletNotFound(pallet)) if pallet == *"WrongName"));
 	let pallet = find_pallet_by_name(&pallets, "Balances")?;
 	assert_eq!(pallet.name, "Balances");
-	assert!(pallet.functions.len() > 0);
+	assert!(!pallet.functions.is_empty());
 	Ok(())
 }
 
@@ -183,10 +183,18 @@ async fn field_to_param_works() -> Result<()> {
 	}
 	assert_eq!(params.len(), 3);
 	assert_eq!(params.first().unwrap().name, "source");
-	assert_eq!(
-		params.first().unwrap().type_name,
-		"MultiAddress<AccountId32 ([u8;32]), ()>: Id(AccountId32 ([u8;32])), Index(Compact<()>), Raw([u8]), Address32([u8;32]), Address20([u8;20])"
+	// The MultiAddress type parameter varies by runtime (e.g. `()` vs `u32` for AccountIndex).
+	assert!(
+		params
+			.first()
+			.unwrap()
+			.type_name
+			.starts_with("MultiAddress<AccountId32 ([u8;32]),")
 	);
+	assert!(params.first().unwrap().type_name.contains("Id(AccountId32 ([u8;32]))"));
+	assert!(params.first().unwrap().type_name.contains("Raw([u8])"));
+	assert!(params.first().unwrap().type_name.contains("Address32([u8;32])"));
+	assert!(params.first().unwrap().type_name.contains("Address20([u8;20])"));
 	assert_eq!(params.first().unwrap().sub_params.len(), 5);
 	assert_eq!(params.first().unwrap().sub_params.first().unwrap().name, "Id");
 	assert_eq!(params.first().unwrap().sub_params.first().unwrap().type_name, "");
