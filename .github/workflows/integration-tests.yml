@@ -109,7 +109,7 @@ jobs:
         with:
           path: |
             ${{ matrix.os == 'ubuntu-latest' && '~/.cache/pop' || '~/Library/Caches/pop' }}
-          key: pop-binaries-${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('crates/pop-chains/src/up/mod.rs', 'crates/pop-common/src/test_env.rs') }}
+          key: pop-binaries-${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('.github/workflows/integration-tests.yml', 'crates/pop-chains/src/up/mod.rs', 'crates/pop-common/src/test_env.rs') }}
           restore-keys: |
             pop-binaries-${{ matrix.os }}-${{ runner.arch }}-
 
@@ -258,7 +258,7 @@ jobs:
         with:
           path: |
             ${{ matrix.os == 'ubuntu-latest' && '~/.cache/pop' || '~/Library/Caches/pop' }}
-          key: pop-binaries-${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('crates/pop-chains/src/up/mod.rs', 'crates/pop-common/src/test_env.rs') }}
+          key: pop-binaries-${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('.github/workflows/integration-tests.yml', 'crates/pop-chains/src/up/mod.rs', 'crates/pop-common/src/test_env.rs') }}
           restore-keys: |
             pop-binaries-${{ matrix.os }}-${{ runner.arch }}-
 
@@ -350,7 +350,7 @@ jobs:
         with:
           path: |
             ${{ matrix.os == 'ubuntu-latest' && '~/.cache/pop' || '~/Library/Caches/pop' }}
-          key: pop-binaries-${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('crates/pop-chains/src/up/mod.rs', 'crates/pop-common/src/test_env.rs') }}
+          key: pop-binaries-${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('.github/workflows/integration-tests.yml', 'crates/pop-chains/src/up/mod.rs', 'crates/pop-common/src/test_env.rs') }}
           restore-keys: |
             pop-binaries-${{ matrix.os }}-${{ runner.arch }}-
 
@@ -443,7 +443,7 @@ jobs:
         with:
           path: |
             ${{ matrix.os == 'ubuntu-latest' && '~/.cache/pop' || '~/Library/Caches/pop' }}
-          key: pop-binaries-${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('crates/pop-chains/src/up/mod.rs', 'crates/pop-common/src/test_env.rs') }}
+          key: pop-binaries-${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('.github/workflows/integration-tests.yml', 'crates/pop-chains/src/up/mod.rs', 'crates/pop-common/src/test_env.rs') }}
           restore-keys: |
             pop-binaries-${{ matrix.os }}-${{ runner.arch }}-
 
