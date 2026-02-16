@@ -23,7 +23,7 @@ use pop_contracts::{
 	DefaultEnvironment, Verbosity, Weight, build_smart_contract, call_smart_contract,
 	call_smart_contract_from_signed_payload, dry_run_gas_estimate_call,
 	fetch_contract_storage_with_param, get_call_payload, get_messages_and_storage,
-	prepare_artifact_for_extrinsics, process_function_args, set_up_call_with_args,
+	prepare_artifact_for_extrinsics, set_up_call,
 };
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -514,28 +514,24 @@ impl CallContractCommand {
 			},
 		};
 		normalize_call_args(&mut self.args, &message);
-		let processed_args = process_function_args(&message, self.args.clone())?;
 		let (gas_limit, proof_size) =
 			if let (Some(gas_limit), Some(proof_size)) = (self.gas_limit, self.proof_size) {
 				(Some(gas_limit), Some(proof_size))
 			} else {
 				(None, None)
 			};
-		let call_exec = match set_up_call_with_args(
-			CallOpts {
-				path: execution_path,
-				contract,
-				message: message.label,
-				args: self.args.clone(),
-				value: self.value.clone(),
-				gas_limit,
-				proof_size,
-				url: self.url()?,
-				suri: self.suri.clone().unwrap_or(DEFAULT_URI.to_string()),
-				execute: self.execute,
-			},
-			Some(processed_args),
-		)
+		let call_exec = match set_up_call(CallOpts {
+			path: execution_path,
+			contract,
+			message: message.label,
+			args: self.args.clone(),
+			value: self.value.clone(),
+			gas_limit,
+			proof_size,
+			url: self.url()?,
+			suri: self.suri.clone().unwrap_or(DEFAULT_URI.to_string()),
+			execute: self.execute,
+		})
 		.await
 		{
 			Ok(call_exec) => call_exec,

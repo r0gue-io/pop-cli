@@ -58,16 +58,6 @@ pub struct UpOpts {
 pub async fn set_up_deployment(
 	up_opts: UpOpts,
 ) -> anyhow::Result<InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>> {
-	set_up_deployment_with_args(up_opts, None).await
-}
-
-/// Prepare `InstantiateExec` data to upload and instantiate a contract using pre-processed args.
-///
-/// When `processed_args` is provided, constructor metadata parsing is skipped.
-pub async fn set_up_deployment_with_args(
-	up_opts: UpOpts,
-	processed_args: Option<Vec<String>>,
-) -> anyhow::Result<InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair>> {
 	let manifest_path = get_manifest_path(&up_opts.path)?;
 
 	let token_metadata = TokenMetadata::query::<DefaultConfig>(&up_opts.url).await?;
@@ -82,13 +72,8 @@ pub async fn set_up_deployment_with_args(
 		parse_balance(&up_opts.value)?;
 
 	// Process the provided argument values.
-	let args = if let Some(args) = processed_args {
-		args
-	} else {
-		let function =
-			extract_function(up_opts.path, &up_opts.constructor, FunctionType::Constructor)?;
-		process_function_args(&function, up_opts.args)?
-	};
+	let function = extract_function(up_opts.path, &up_opts.constructor, FunctionType::Constructor)?;
+	let args = process_function_args(&function, up_opts.args)?;
 	let instantiate_exec: InstantiateExec<DefaultConfig, DefaultEnvironment, Keypair> =
 		InstantiateCommandBuilder::new(extrinsic_opts)
 			.constructor(up_opts.constructor.clone())

@@ -25,9 +25,8 @@ use pop_contracts::{
 	BuildMode, FunctionType, UpOpts, Verbosity, Weight, build_smart_contract,
 	dry_run_gas_estimate_instantiate, dry_run_upload, extract_function, get_contract_code,
 	get_instantiate_payload, get_upload_payload, instantiate_contract_signed,
-	instantiate_smart_contract, is_chain_alive, process_function_args, run_eth_rpc_node,
-	run_ink_node, set_up_deployment_with_args, set_up_upload, upload_contract_signed,
-	upload_smart_contract,
+	instantiate_smart_contract, is_chain_alive, run_eth_rpc_node, run_ink_node, set_up_deployment,
+	set_up_upload, upload_contract_signed, upload_smart_contract,
 };
 use serde::Serialize;
 use sp_core::bytes::to_hex;
@@ -315,7 +314,6 @@ impl UpContractCommand {
 
 		// Track the deployed contract address across both deployment flows.
 		let mut deployed_contract_address: Option<String> = None;
-		let mut processed_constructor_args: Option<Vec<String>> = None;
 
 		// Resolve constructor arguments
 		if !self.upload_only {
@@ -325,21 +323,19 @@ impl UpContractCommand {
 				resolve_function_args(&function, &mut Cli, &mut self.args, self.skip_confirm)?;
 			}
 			normalize_call_args(&mut self.args, &function);
-			processed_constructor_args = Some(process_function_args(&function, self.args.clone())?);
 		}
 
 		// Run steps for signing with wallet integration.
 		if self.use_wallet {
-			let (call_data, hash) =
-				match self.get_contract_data(processed_constructor_args.clone()).await {
-					Ok(data) => data,
-					Err(e) => {
-						Cli.error(format!("An error occurred getting the call data: {e}"))?;
-						terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
-						Cli.outro_cancel(FAILED)?;
-						return Ok(());
-					},
-				};
+			let (call_data, hash) = match self.get_contract_data().await {
+				Ok(data) => data,
+				Err(e) => {
+					Cli.error(format!("An error occurred getting the call data: {e}"))?;
+					terminate_nodes(&mut Cli, processes, self.skip_confirm).await?;
+					Cli.outro_cancel(FAILED)?;
+					return Ok(());
+				},
+			};
 
 			let maybe_payload = request_signature(call_data, url.to_string()).await?;
 			if let Some(payload) = maybe_payload {
@@ -369,12 +365,7 @@ impl UpContractCommand {
 					};
 					Cli.warning("NOTE: The contract has not been instantiated.")?;
 				} else {
-					let instantiate_exec = match set_up_deployment_with_args(
-						self.clone().into(),
-						processed_constructor_args.clone(),
-					)
-					.await
-					{
+					let instantiate_exec = match set_up_deployment(self.clone().into()).await {
 						Ok(i) => i,
 						Err(e) => {
 							Cli.error(format!(
@@ -427,12 +418,7 @@ impl UpContractCommand {
 				}
 			} else {
 				// Otherwise instantiate.
-				let instantiate_exec = match set_up_deployment_with_args(
-					self.clone().into(),
-					processed_constructor_args.clone(),
-				)
-				.await
-				{
+				let instantiate_exec = match set_up_deployment(self.clone().into()).await {
 					Ok(i) => i,
 					Err(e) => {
 						Cli.error(format!("An error occurred instantiating the contract: {e}"))?;
@@ -588,10 +574,7 @@ impl UpContractCommand {
 	}
 
 	// get the call data and contract code hash
-	async fn get_contract_data(
-		&self,
-		processed_constructor_args: Option<Vec<String>>,
-	) -> anyhow::Result<(Vec<u8>, [u8; 32])> {
+	async fn get_contract_data(&self) -> anyhow::Result<(Vec<u8>, [u8; 32])> {
 		let contract_code = get_contract_code(&self.path)?;
 		let hash = contract_code.code_hash();
 		if self.upload_only {
@@ -604,9 +587,7 @@ impl UpContractCommand {
 			.await?;
 			Ok((call_data, hash))
 		} else {
-			let instantiate_exec =
-				set_up_deployment_with_args(self.clone().into(), processed_constructor_args)
-					.await?;
+			let instantiate_exec = set_up_deployment(self.clone().into()).await?;
 
 			let weight_limit =
 				if let (Some(gas_limit), Some(proof_size)) = (self.gas_limit, self.proof_size) {
@@ -790,7 +771,6 @@ impl Default for UpContractCommand {
 mod tests {
 	use super::*;
 	use clap::Parser;
-	use pop_contracts::{ContractFunction, Param};
 	use url::Url;
 
 	#[test]
@@ -921,26 +901,6 @@ mod tests {
 			..Default::default()
 		};
 		assert_eq!(cmd.display(), "pop up contract my-contract --use-wallet --execute");
-	}
-
-	#[test]
-	fn normalize_and_process_constructor_optional_args_preserve_none_semantics()
-	-> anyhow::Result<()> {
-		let constructor = ContractFunction {
-			label: "new".to_string(),
-			payable: false,
-			args: vec![Param { label: "number".to_string(), type_name: "Option<u32>".to_string() }],
-			docs: String::new(),
-			default: false,
-			mutates: true,
-		};
-		let mut args = vec!["None".to_string()];
-
-		normalize_call_args(&mut args, &constructor);
-		assert_eq!(args, vec!["".to_string()]);
-		assert_eq!(process_function_args(&constructor, args)?, vec!["None".to_string()]);
-
-		Ok(())
 	}
 
 	#[test]

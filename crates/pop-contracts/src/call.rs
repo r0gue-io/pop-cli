@@ -55,16 +55,6 @@ pub struct CallOpts {
 pub async fn set_up_call(
 	call_opts: CallOpts,
 ) -> Result<CallExec<DefaultConfig, DefaultEnvironment, Keypair>, Error> {
-	set_up_call_with_args(call_opts, None).await
-}
-
-/// Prepare the preprocessed data for a contract `call` using optional pre-processed arguments.
-///
-/// When `processed_args` is provided, message metadata parsing is skipped.
-pub async fn set_up_call_with_args(
-	call_opts: CallOpts,
-	processed_args: Option<Vec<String>>,
-) -> Result<CallExec<DefaultConfig, DefaultEnvironment, Keypair>, Error> {
 	let signer = create_signer(&call_opts.suri)?;
 	let extrinsic_opts = if call_opts.path.is_file() {
 		// If path is a file construct the ExtrinsicOptsBuilder from the file.
@@ -83,13 +73,9 @@ pub async fn set_up_call_with_args(
 
 	let value: BalanceVariant<<DefaultEnvironment as Environment>::Balance> =
 		parse_balance(&call_opts.value)?;
-	let args = if let Some(args) = processed_args {
-		args
-	} else {
-		// Process the provided argument values.
-		let function = extract_function(call_opts.path, &call_opts.message, FunctionType::Message)?;
-		process_function_args(&function, call_opts.args)?
-	};
+	// Process the provided argument values.
+	let function = extract_function(call_opts.path, &call_opts.message, FunctionType::Message)?;
+	let args = process_function_args(&function, call_opts.args)?;
 	let token_metadata = TokenMetadata::query::<DefaultConfig>(&call_opts.url).await?;
 	let contract = parse_h160_account(&call_opts.contract)?;
 
