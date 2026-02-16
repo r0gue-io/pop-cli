@@ -24,7 +24,7 @@ use std::{
 };
 use strum::VariantArray;
 use tempfile::tempdir;
-use tokio::process::Child;
+use tokio::{process::Child, time::sleep};
 
 /// Utility child process wrapper to kill the child process on drop.
 ///
@@ -445,6 +445,10 @@ async fn parachain_lifecycle() -> Result<()> {
 			"pop call chain ss58-prefix",
 		)
 		.await?;
+
+		// Wait for the transaction to be included in a block before submitting the next signed
+		// extrinsic to avoid nonce conflicts.
+		sleep(Duration::from_secs(12)).await;
 
 		// pop call chain --call 0x00000411 --url ws://127.0.0.1:random_port --suri //Alice
 		// --skip-confirm
