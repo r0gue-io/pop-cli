@@ -158,11 +158,11 @@ impl SubstrateTestNode {
 			source: GitHub(ReleaseArchive {
 				owner: "r0gue-io".into(),
 				repository: "polkadot".into(),
-				tag: None,
+				tag: Some("polkadot-stable2512-1".into()),
 				tag_pattern: Some("polkadot-{version}".into()),
 				prerelease: false,
 				version_comparator: sort_by_latest_stable_version,
-				fallback: "stable2512".to_string(),
+				fallback: "stable2512-1".to_string(),
 				archive: format!("substrate-node-{}.tar.gz", target()?),
 				contents: vec![ArchiveFileSpec::new("substrate-node".into(), None, true)],
 				latest: None,

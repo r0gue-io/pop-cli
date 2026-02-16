@@ -798,20 +798,7 @@ mod tests {
 				3,
 				Some(node_url.to_string()),
 				TryStateSelect::Only(
-					[
-						"Assets",
-						"Authorship",
-						"Balances",
-						"RandomnessCollectiveFlip",
-						"Sudo",
-						"System",
-						"Timestamp",
-						"TransactionPayment",
-						"Utility",
-					]
-					.iter()
-					.map(|s| s.as_bytes().to_vec())
-					.collect(),
+					pallet_items.iter().map(|(name, _)| name.as_bytes().to_vec()).collect(),
 				),
 			),
 		] {

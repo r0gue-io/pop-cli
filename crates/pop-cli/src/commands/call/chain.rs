@@ -1181,14 +1181,19 @@ mod tests {
 				Err(message)
 					if message.to_string().contains("Failed to encode call data: Call with name WrongName not found")));
 		// Success, pallet and dispatchable function specified.
-		cli = MockCli::new().expect_info("Encoded call data: 0x00000411");
 		call_config.function = find_callable_by_name(&pallets, "System", "remark")?.clone();
+		let remark_fn = call_config.function.as_function().unwrap();
+		let remark_xt = construct_extrinsic(remark_fn, vec!["0x11".to_string()])?;
+		let expected_encoded = encode_call_data(&client, &remark_xt)?;
+		cli = MockCli::new().expect_info(format!("Encoded call data: {expected_encoded}"));
 		let xt = call_config.prepare_extrinsic(&client, &mut cli)?;
 		assert_eq!(xt.call_name(), "remark");
 		assert_eq!(xt.pallet_name(), "System");
 
 		// Prepare extrinsic wrapped in sudo works.
-		cli = MockCli::new().expect_info("Encoded call data: 0x070000000411");
+		let sudo_xt = construct_sudo_extrinsic(remark_xt);
+		let expected_sudo_encoded = encode_call_data(&client, &sudo_xt)?;
+		cli = MockCli::new().expect_info(format!("Encoded call data: {expected_sudo_encoded}"));
 		call_config.sudo = true;
 		call_config.prepare_extrinsic(&client, &mut cli)?;
 
@@ -1342,7 +1347,6 @@ mod tests {
 	#[tokio::test]
 	async fn query_storage_from_test_node_works() -> Result<()> {
 		use pop_chains::raw_value_to_string;
-		use scale_value::ValueDef;
 
 		// Spawn a test node
 		let node = SubstrateTestNode::spawn().await?;
@@ -1353,18 +1357,16 @@ mod tests {
 		let system_pallet =
 			pallets.iter().find(|p| p.name == "System").expect("System pallet should exist");
 
-		// Test querying a plain storage item (System::Number - current block number)
-		let number_storage = system_pallet
+		// Test querying a plain storage item (System::LastRuntimeUpgrade exists from genesis)
+		let upgrade_storage = system_pallet
 			.state
 			.iter()
-			.find(|s| s.name == "Number")
-			.expect("System::Number storage should exist");
+			.find(|s| s.name == "LastRuntimeUpgrade")
+			.expect("System::LastRuntimeUpgrade storage should exist");
 
-		let result = number_storage.query(&client, vec![]).await?;
+		let result = upgrade_storage.query(&client, vec![]).await?;
 		assert!(result.is_some(), "Storage query should return a value");
 		let value = result.unwrap();
-		// The value should be a primitive (block number)
-		assert!(matches!(value.value, ValueDef::Primitive(_)));
 		let formatted_value = raw_value_to_string(&value, "")?;
 		assert!(!formatted_value.is_empty(), "Formatted value should not be empty");
 

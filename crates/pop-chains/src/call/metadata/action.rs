@@ -217,8 +217,18 @@ mod tests {
 		// Test Local Node.
 		let client: subxt::OnlineClient<subxt::SubstrateConfig> =
 			set_up_client(node.ws_url()).await?;
-		let actions = supported_actions(&parse_chain_metadata(&client)?);
-		assert_eq!(actions, vec![Transfer, CreateAsset, MintAsset, Remark, MapAccount]);
+		let pallets = parse_chain_metadata(&client)?;
+		let actions = supported_actions(&pallets);
+		// Kitchensink runtime includes Nfts, Proxy, and Revive pallets but not OnDemand.
+		assert!(actions.contains(&Transfer));
+		assert!(actions.contains(&CreateAsset));
+		assert!(actions.contains(&MintAsset));
+		assert!(actions.contains(&CreateCollection));
+		assert!(actions.contains(&MintNFT));
+		assert!(actions.contains(&PureProxy));
+		assert!(actions.contains(&Remark));
+		assert!(actions.contains(&MapAccount));
+		assert!(!actions.contains(&PurchaseOnDemandCoretime));
 		Ok(())
 	}
 }
