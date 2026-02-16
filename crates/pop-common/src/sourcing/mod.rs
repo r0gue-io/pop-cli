@@ -1452,7 +1452,7 @@ pub mod filters {
 		candidate.starts_with(prefix) &&
 			// Ignore any known related `polkadot`-prefixed binaries when `polkadot` only.
 			(prefix != "polkadot" ||
-				!["polkadot-execute-worker", "polkadot-prepare-worker", "polkadot-parachain"]
+				!["polkadot-execute-worker", "polkadot-prepare-worker", "polkadot-parachain", "polkadot-omni-node"]
 					.iter()
 					.any(|i| candidate.starts_with(i)))
 	}
@@ -1460,5 +1460,32 @@ pub mod filters {
 	#[cfg(test)]
 	pub(crate) fn polkadot(file: &str) -> bool {
 		prefix(file, "polkadot")
+	}
+
+	#[cfg(test)]
+	mod tests {
+		use super::*;
+
+		#[test]
+		fn prefix_filter_excludes_polkadot_variants() {
+			// polkadot binary should match itself
+			assert!(prefix("polkadot", "polkadot"));
+			assert!(prefix("polkadot-stable2512", "polkadot"));
+			assert!(prefix("polkadot-stable2512-1", "polkadot"));
+
+			// But should NOT match these related binaries
+			assert!(!prefix("polkadot-execute-worker", "polkadot"));
+			assert!(!prefix("polkadot-execute-worker-stable2512", "polkadot"));
+			assert!(!prefix("polkadot-prepare-worker", "polkadot"));
+			assert!(!prefix("polkadot-prepare-worker-stable2512-1", "polkadot"));
+			assert!(!prefix("polkadot-parachain", "polkadot"));
+			assert!(!prefix("polkadot-parachain-stable2512", "polkadot"));
+			assert!(!prefix("polkadot-omni-node", "polkadot"));
+			assert!(!prefix("polkadot-omni-node-stable2512-1", "polkadot"));
+
+			// Other binaries should work normally
+			assert!(prefix("polkadot-parachain", "polkadot-parachain"));
+			assert!(prefix("polkadot-omni-node", "polkadot-omni-node"));
+		}
 	}
 }
