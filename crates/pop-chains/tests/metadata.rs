@@ -10,7 +10,7 @@ use pop_chains::{
 	encode_call_data, field_to_param, find_callable_by_name, find_pallet_by_name,
 	parse_chain_metadata, set_up_client, sign_and_submit_extrinsic,
 };
-use pop_common::test_env::TestNode;
+use pop_common::test_env::PolkadotNode;
 use std::time::Duration;
 use subxt::{OnlineClient, SubstrateConfig};
 use url::Url;
@@ -62,7 +62,7 @@ async fn construct_proxy_extrinsic_work() -> Result<()> {
 
 #[tokio::test]
 async fn encode_and_decode_call_data_works() -> Result<()> {
-	let node = TestNode::spawn().await?;
+	let node = PolkadotNode::spawn().await?;
 	let client = set_up_client(node.ws_url()).await?;
 	let pallets = parse_chain_metadata(&client)?;
 	let call_item = find_callable_by_name(&pallets, "System", "remark")?;
@@ -81,7 +81,7 @@ async fn encode_and_decode_call_data_works() -> Result<()> {
 
 #[tokio::test]
 async fn sign_and_submit_wrong_extrinsic_fails() -> Result<()> {
-	let node = TestNode::spawn().await?;
+	let node = PolkadotNode::spawn().await?;
 	let client = set_up_client(node.ws_url()).await?;
 	let function = Function {
 		pallet: "WrongPallet".to_string(),
@@ -101,7 +101,7 @@ async fn sign_and_submit_wrong_extrinsic_fails() -> Result<()> {
 
 #[tokio::test]
 async fn parse_chain_metadata_works() -> Result<()> {
-	let node = TestNode::spawn().await?;
+	let node = PolkadotNode::spawn().await?;
 	let client = set_up_client(node.ws_url()).await?;
 	let pallets = parse_chain_metadata(&client)?;
 	// Test the first pallet is parsed correctly
@@ -130,7 +130,7 @@ async fn parse_chain_metadata_works() -> Result<()> {
 
 #[tokio::test]
 async fn find_pallet_by_name_works() -> Result<()> {
-	let node = TestNode::spawn().await?;
+	let node = PolkadotNode::spawn().await?;
 	let client = set_up_client(node.ws_url()).await?;
 	let pallets = parse_chain_metadata(&client)?;
 	assert!(matches!(
@@ -144,7 +144,7 @@ async fn find_pallet_by_name_works() -> Result<()> {
 
 #[tokio::test]
 async fn find_dispatchable_by_name_works() -> Result<()> {
-	let node = TestNode::spawn().await?;
+	let node = PolkadotNode::spawn().await?;
 	let client = set_up_client(node.ws_url()).await?;
 	let pallets = parse_chain_metadata(&client)?;
 	assert!(matches!(
@@ -168,7 +168,7 @@ async fn find_dispatchable_by_name_works() -> Result<()> {
 
 #[tokio::test]
 async fn field_to_param_works() -> Result<()> {
-	let node = TestNode::spawn().await?;
+	let node = PolkadotNode::spawn().await?;
 	let client = set_up_client(node.ws_url()).await?;
 	let metadata = client.metadata();
 	// Test a supported dispatchable function.

@@ -1342,10 +1342,10 @@ mod tests {
 	#[tokio::test]
 	async fn query_storage_works() -> Result<()> {
 		use crate::{parse_chain_metadata, set_up_client};
-		use pop_common::test_env::TestNode;
+		use pop_common::test_env::PolkadotNode;
 
 		// Spawn a test node
-		let node = TestNode::spawn().await?;
+		let node = PolkadotNode::spawn().await?;
 		let client = set_up_client(node.ws_url()).await?;
 		let pallets = parse_chain_metadata(&client)?;
 
@@ -1370,10 +1370,10 @@ mod tests {
 	#[tokio::test]
 	async fn query_storage_with_key_works() -> Result<()> {
 		use crate::{parse_chain_metadata, set_up_client};
-		use pop_common::test_env::TestNode;
+		use pop_common::test_env::PolkadotNode;
 
 		// Spawn a test node
-		let node = TestNode::spawn().await?;
+		let node = PolkadotNode::spawn().await?;
 		let client = set_up_client(node.ws_url()).await?;
 		let pallets = parse_chain_metadata(&client)?;
 
