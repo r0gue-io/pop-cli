@@ -18,10 +18,72 @@ use jsonrpsee::{
 	proc_macros::rpc,
 };
 use log::{debug, warn};
-use scale::Decode;
-use std::sync::Arc;
+use scale::{Decode, Encode};
+use std::{sync::Arc, time::Instant};
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
+
+fn should_proxy_state_call(method: &str, block_number: u32, fork_point_number: u32) -> bool {
+	block_number <= fork_point_number &&
+		(method.starts_with(runtime_api::METADATA_PREFIX) ||
+			method == runtime_api::REVIVE_BLOCK_GAS_LIMIT ||
+			method == runtime_api::REVIVE_GAS_PRICE)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ReviveAccountQuery {
+	Balance([u8; 20]),
+	Nonce([u8; 20]),
+}
+
+fn parse_revive_account_query(method: &str, params: &[u8]) -> Option<ReviveAccountQuery> {
+	let address: [u8; 20] = params.try_into().ok()?;
+	match method {
+		runtime_api::REVIVE_BALANCE => Some(ReviveAccountQuery::Balance(address)),
+		runtime_api::REVIVE_NONCE => Some(ReviveAccountQuery::Nonce(address)),
+		_ => None,
+	}
+}
+
+fn is_known_ethereum_dev_account(address: &[u8; 20]) -> bool {
+	crate::dev::ETHEREUM_DEV_ACCOUNTS.iter().any(|(_, known)| known == address)
+}
+
+fn decode_nonce_from_account_info(account_info: &[u8]) -> Option<u32> {
+	const NONCE_END: usize = 4;
+	let bytes: [u8; 4] = account_info.get(0..NONCE_END)?.try_into().ok()?;
+	Some(u32::from_le_bytes(bytes))
+}
+
+fn decode_free_balance_from_account_info(account_info: &[u8]) -> Option<u128> {
+	const FREE_START: usize = 16;
+	const FREE_END: usize = 32;
+	let bytes: [u8; 16] = account_info.get(FREE_START..FREE_END)?.try_into().ok()?;
+	Some(u128::from_le_bytes(bytes))
+}
+
+fn encode_revive_account_query_result(
+	query: ReviveAccountQuery,
+	account_info: Option<&[u8]>,
+) -> Option<Vec<u8>> {
+	match query {
+		ReviveAccountQuery::Balance(address) => {
+			let balance = match account_info {
+				Some(data) => decode_free_balance_from_account_info(data)?,
+				None if is_known_ethereum_dev_account(&address) => crate::dev::DEV_BALANCE,
+				None => 0,
+			};
+			Some(sp_core::U256::from(balance).encode())
+		},
+		ReviveAccountQuery::Nonce(_) => {
+			let nonce = match account_info {
+				Some(data) => decode_nonce_from_account_info(data)?,
+				None => 0,
+			};
+			Some(nonce.encode())
+		},
+	}
+}
 
 #[async_trait::async_trait]
 pub trait StateBlockchain: Send + Sync {
@@ -381,6 +443,7 @@ impl<T: StateBlockchain + 'static> StateApiServer for StateApi<T> {
 	}
 
 	async fn call(&self, method: String, data: String, at: Option<String>) -> RpcResult<String> {
+		let started_at = Instant::now();
 		let params = parse_hex_bytes(&data, "data")?;
 
 		let (block_number, block_hash) = match at {
@@ -401,15 +464,67 @@ impl<T: StateBlockchain + 'static> StateApiServer for StateApi<T> {
 			None => self.blockchain.head_snapshot().await,
 		};
 
+		jsonrpsee::tracing::debug!(
+			method = %method,
+			block_number = block_number,
+			block_hash = ?block_hash,
+			params_len = params.len(),
+			"state_call: starting"
+		);
+
+		// Fast-path revive balance/nonce queries via storage reads.
+		//
+		// Asset Hub forks can block for a long time when executing these runtime
+		// calls locally in WASM. For these two APIs we can derive the same values
+		// directly from System::Account at the target block, which also preserves
+		// fork-local `--dev` funding.
+		if let Some(query) = parse_revive_account_query(&method, &params) {
+			let address = match query {
+				ReviveAccountQuery::Balance(address) | ReviveAccountQuery::Nonce(address) => address,
+			};
+
+			let fallback_account = crate::dev::ethereum_fallback_account_id(&address);
+			let fallback_key = crate::dev::account_storage_key(&fallback_account);
+			let h160_key = crate::dev::account_storage_key(&address);
+
+			let account_info = self
+				.blockchain
+				.storage_at(block_number, &fallback_key)
+				.await
+				.map_err(|e| RpcServerError::Storage(e.to_string()))?
+				.or(
+					self.blockchain
+						.storage_at(block_number, &h160_key)
+						.await
+						.map_err(|e| RpcServerError::Storage(e.to_string()))?,
+				);
+
+			if let Some(result) = encode_revive_account_query_result(query, account_info.as_deref()) {
+				jsonrpsee::tracing::debug!(
+					method = %method,
+					block_number = block_number,
+					elapsed_ms = started_at.elapsed().as_millis(),
+					"state_call: served via revive storage fast-path"
+				);
+				return Ok(HexString::from_bytes(&result).into());
+			}
+		}
+
 		// Proxy metadata runtime API calls to the upstream RPC for performance,
 		// but only for blocks at or before the fork point where the runtime is
 		// guaranteed to match the upstream. Fork-local blocks may have a different
 		// runtime due to upgrades.
-		if method.starts_with(runtime_api::METADATA_PREFIX) &&
-			block_number <= self.blockchain.fork_point_number()
-		{
+		if should_proxy_state_call(&method, block_number, self.blockchain.fork_point_number()) {
 			match self.blockchain.proxy_state_call(&method, &params, block_hash).await {
-				Ok(result) => return Ok(HexString::from_bytes(&result).into()),
+				Ok(result) => {
+					jsonrpsee::tracing::debug!(
+						method = %method,
+						block_number = block_number,
+						elapsed_ms = started_at.elapsed().as_millis(),
+						"state_call: proxied upstream"
+					);
+					return Ok(HexString::from_bytes(&result).into());
+				},
 				Err(e) => {
 					jsonrpsee::tracing::debug!(
 						"Upstream proxy failed for {method}, falling back to local execution: {e}"
@@ -418,11 +533,29 @@ impl<T: StateBlockchain + 'static> StateApiServer for StateApi<T> {
 			}
 		}
 
-		match self.blockchain.call_at_block(block_hash, &method, &params).await {
+		let result = match self.blockchain.call_at_block(block_hash, &method, &params).await {
 			Ok(Some(result)) => Ok(HexString::from_bytes(&result).into()),
 			Ok(None) => Err(RpcServerError::Internal("Call returned no result".to_string()).into()),
 			Err(e) => Err(RpcServerError::Internal(format!("Runtime call failed: {}", e)).into()),
+		};
+
+		match &result {
+			Ok(_) => jsonrpsee::tracing::debug!(
+				method = %method,
+				block_number = block_number,
+				elapsed_ms = started_at.elapsed().as_millis(),
+				"state_call: completed locally"
+			),
+			Err(error) => jsonrpsee::tracing::debug!(
+				method = %method,
+				block_number = block_number,
+				elapsed_ms = started_at.elapsed().as_millis(),
+				error = ?error,
+				"state_call: failed locally"
+			),
 		}
+
+		result
 	}
 
 	async fn query_storage_at(
@@ -724,5 +857,118 @@ impl<T: StateBlockchain + 'static> StateApiServer for StateApi<T> {
 		});
 
 		Ok(())
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::{
+		ReviveAccountQuery, encode_revive_account_query_result, parse_revive_account_query,
+		should_proxy_state_call,
+	};
+	use crate::dev::{ALITH, build_account_info};
+	use crate::strings::rpc_server::runtime_api;
+	use scale::Decode;
+	use sp_core::U256;
+
+	#[test]
+	fn should_proxy_metadata_calls_at_or_before_fork_point() {
+		assert!(should_proxy_state_call(
+			runtime_api::METADATA,
+			100,
+			100
+		));
+		assert!(should_proxy_state_call(
+			runtime_api::METADATA,
+			99,
+			100
+		));
+	}
+
+	#[test]
+	fn should_not_proxy_metadata_calls_after_fork_point() {
+		assert!(!should_proxy_state_call(
+			runtime_api::METADATA,
+			101,
+			100
+		));
+	}
+
+	#[test]
+	fn should_proxy_revive_block_gas_limit_at_or_before_fork_point() {
+		assert!(should_proxy_state_call(
+			runtime_api::REVIVE_BLOCK_GAS_LIMIT,
+			10,
+			10
+		));
+		assert!(should_proxy_state_call(
+			runtime_api::REVIVE_BLOCK_GAS_LIMIT,
+			9,
+			10
+		));
+	}
+
+	#[test]
+	fn should_proxy_revive_gas_price_at_or_before_fork_point() {
+		assert!(should_proxy_state_call(
+			runtime_api::REVIVE_GAS_PRICE,
+			10,
+			10
+		));
+		assert!(should_proxy_state_call(
+			runtime_api::REVIVE_GAS_PRICE,
+			9,
+			10
+		));
+	}
+
+	#[test]
+	fn should_not_proxy_non_whitelisted_runtime_calls() {
+		assert!(!should_proxy_state_call(
+			runtime_api::CORE_VERSION,
+			10,
+			10
+		));
+	}
+
+	#[test]
+	fn parse_revive_account_query_recognizes_balance_and_nonce() {
+		assert_eq!(
+			parse_revive_account_query(runtime_api::REVIVE_BALANCE, &ALITH),
+			Some(ReviveAccountQuery::Balance(ALITH))
+		);
+		assert_eq!(
+			parse_revive_account_query(runtime_api::REVIVE_NONCE, &ALITH),
+			Some(ReviveAccountQuery::Nonce(ALITH))
+		);
+	}
+
+	#[test]
+	fn encode_revive_account_query_result_uses_account_info_offsets() {
+		let info = build_account_info(123_456);
+		let balance = encode_revive_account_query_result(
+			ReviveAccountQuery::Balance(ALITH),
+			Some(&info),
+		)
+		.expect("balance should encode");
+		let nonce =
+			encode_revive_account_query_result(ReviveAccountQuery::Nonce(ALITH), Some(&info))
+				.expect("nonce should encode");
+
+		let decoded_balance =
+			U256::decode(&mut balance.as_slice()).expect("balance should be SCALE U256");
+		let decoded_nonce = u32::decode(&mut nonce.as_slice()).expect("nonce should be SCALE u32");
+		assert_eq!(decoded_balance, U256::from(123_456u128));
+		assert_eq!(decoded_nonce, 0);
+	}
+
+	#[test]
+	fn encode_revive_balance_defaults_to_dev_balance_for_known_evm_dev_accounts() {
+		let balance =
+			encode_revive_account_query_result(ReviveAccountQuery::Balance(ALITH), None)
+				.expect("balance should encode");
+		let decoded_balance =
+			U256::decode(&mut balance.as_slice()).expect("balance should be SCALE U256");
+		assert_eq!(decoded_balance, U256::from(crate::dev::DEV_BALANCE));
 	}
 }

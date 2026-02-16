@@ -146,6 +146,26 @@ fn select_sudo_account<'a>(
 	(selected.0, selected.1.as_slice())
 }
 
+fn dev_accounts_for_chain(is_ethereum: bool) -> Vec<(&'static str, Vec<u8>)> {
+	use crate::dev::{
+		ETHEREUM_DEV_ACCOUNTS, SUBSTRATE_DEV_ACCOUNTS, ethereum_fallback_account_id,
+	};
+
+	let mut accounts: Vec<(&'static str, Vec<u8>)> =
+		SUBSTRATE_DEV_ACCOUNTS.iter().map(|(n, a)| (*n, a.to_vec())).collect();
+
+	if is_ethereum {
+		accounts.extend(ETHEREUM_DEV_ACCOUNTS.iter().map(|(n, a)| (*n, a.to_vec())));
+		accounts.extend(
+			ETHEREUM_DEV_ACCOUNTS
+				.iter()
+				.map(|(n, a)| (*n, ethereum_fallback_account_id(a).to_vec())),
+		);
+	}
+
+	accounts
+}
+
 pub type BlockBody = Vec<Vec<u8>>;
 
 // Transaction validity types for decoding TaggedTransactionQueue_validate_transaction results.
@@ -1870,8 +1890,8 @@ impl Blockchain {
 	/// account-id width (20-byte or 32-byte), with first-account fallback.
 	pub async fn initialize_dev_accounts(&self) -> Result<(), BlockchainError> {
 		use crate::dev::{
-			DEV_BALANCE, ETHEREUM_DEV_ACCOUNTS, SUBSTRATE_DEV_ACCOUNTS, account_storage_key,
-			build_account_info, patch_free_balance, sudo_key_storage_key,
+			DEV_BALANCE, account_storage_key, build_account_info, patch_free_balance,
+			sudo_key_storage_key,
 		};
 
 		// Check isEthereum property before acquiring the write lock.
@@ -1883,14 +1903,9 @@ impl Blockchain {
 
 		let mut head = self.head.write().await;
 
-		// On Ethereum-marked chains, also fund Substrate dev accounts.
-		// ink-node exposes Ethereum compatibility while still using AccountId32, and
-		// many tests submit Substrate-style Alice/Bob transactions.
-		let mut accounts: Vec<(&str, Vec<u8>)> =
-			SUBSTRATE_DEV_ACCOUNTS.iter().map(|(n, a)| (*n, a.to_vec())).collect();
-		if is_ethereum {
-			accounts.extend(ETHEREUM_DEV_ACCOUNTS.iter().map(|(n, a)| (*n, a.to_vec())));
-		}
+		// On Ethereum-marked chains, include both raw H160 dev accounts and
+		// AccountId32 fallback-mapped dev accounts to match ink-node prefunding.
+		let accounts = dev_accounts_for_chain(is_ethereum);
 
 		// Build all storage keys upfront.
 		let keys: Vec<Vec<u8>> = accounts.iter().map(|(_, a)| account_storage_key(a)).collect();
@@ -2076,5 +2091,24 @@ mod tests {
 		let (name_unknown, account_unknown) = select_sudo_account(&accounts, Some(64));
 		assert_eq!(name_unknown, "Alice");
 		assert_eq!(account_unknown.len(), 32);
+	}
+
+	#[test]
+	fn dev_accounts_for_substrate_chain_only_include_substrate_accounts() {
+		let accounts = dev_accounts_for_chain(false);
+		assert_eq!(accounts.len(), 6);
+		assert!(accounts.iter().all(|(_, account)| account.len() == 32));
+	}
+
+	#[test]
+	fn dev_accounts_for_ethereum_chain_include_h160_and_fallback_accounts() {
+		use crate::dev::{ALITH, ethereum_fallback_account_id};
+
+		let accounts = dev_accounts_for_chain(true);
+		assert_eq!(accounts.len(), 18);
+		assert!(accounts.iter().any(|(_, account)| account.as_slice() == ALITH.as_slice()));
+		assert!(accounts
+			.iter()
+			.any(|(_, account)| account.as_slice() == ethereum_fallback_account_id(&ALITH)));
 	}
 }

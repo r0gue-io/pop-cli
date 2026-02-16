@@ -19,17 +19,83 @@ use pop_chains::{
 	up::{NetworkConfiguration, Zombienet},
 };
 use pop_common::Status;
+#[cfg(feature = "contract")]
+use pop_common::{resolve_port, set_executable_permission};
+#[cfg(feature = "contract")]
+use pop_contracts::{eth_rpc_generator, run_eth_rpc_node};
 use serde::Serialize;
 use std::{
 	collections::HashMap,
 	ffi::OsStr,
+	fs::File,
 	path::{Path, PathBuf},
+	process::Child,
 	time::{Duration, Instant},
 };
-use tokio::time::sleep;
-
 use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
+use tokio::time::sleep;
 use tokio::time::timeout;
+
+const DEFAULT_ETH_RPC_PORT: u16 = 8545;
+
+struct EthRpcProcess {
+	process: Child,
+	ws_url: String,
+	log_path: PathBuf,
+}
+
+fn is_asset_hub_chain_id(chain_id: Option<&str>) -> bool {
+	let Some(chain_id) = chain_id else {
+		return false;
+	};
+	let normalized = chain_id.to_ascii_lowercase();
+	normalized.contains("asset-hub") || normalized.contains("passet-hub")
+}
+
+async fn start_asset_hub_eth_rpc_if_needed(
+	asset_hub_ws_endpoint: Option<&str>,
+	base_dir: &Path,
+) -> anyhow::Result<Option<EthRpcProcess>> {
+	let Some(asset_hub_ws_endpoint) = asset_hub_ws_endpoint else {
+		return Ok(None);
+	};
+
+	#[cfg(not(feature = "contract"))]
+	{
+		let _ = (asset_hub_ws_endpoint, base_dir);
+		return Ok(None);
+	}
+
+	#[cfg(feature = "contract")]
+	{
+		let mut eth_rpc_binary = eth_rpc_generator(crate::cache()?, None).await?;
+		let stale = eth_rpc_binary.stale();
+		if stale {
+			eth_rpc_binary.use_latest();
+		}
+		if stale || !eth_rpc_binary.exists() {
+			eth_rpc_binary.source(false, &(), true).await?;
+			set_executable_permission(eth_rpc_binary.path())?;
+		}
+
+		let eth_rpc_port = resolve_port(Some(DEFAULT_ETH_RPC_PORT));
+		let log_path = base_dir.join("eth-rpc.log");
+		let log_file = File::create(&log_path)?;
+		let process = run_eth_rpc_node(
+			&eth_rpc_binary.path(),
+			Some(&log_file),
+			asset_hub_ws_endpoint,
+			eth_rpc_port,
+		)
+		.await?;
+
+		Ok(Some(EthRpcProcess {
+			process,
+			ws_url: format!("ws://127.0.0.1:{eth_rpc_port}"),
+			log_path,
+		}))
+	}
+}
 
 /// Launch a local network by specifying a network configuration file.
 #[derive(Args, Clone, Default, Serialize)]
@@ -560,7 +626,9 @@ pub(crate) async fn spawn(
 			// Add chain info
 			let mut chains = network.parachains();
 			chains.sort_by_key(|p| p.para_id());
+			let mut asset_hub_ws_endpoint = None;
 			for chain in chains {
+				let is_asset_hub = is_asset_hub_chain_id(chain.chain_id());
 				result.push_str(&format!(
 					"\n{bar}  ⛓️ {}",
 					chain.chain_id().map_or(format!("id: {}", chain.para_id()), |c| format!(
@@ -571,8 +639,35 @@ pub(crate) async fn spawn(
 				let mut collators = chain.collators();
 				collators.sort_by_key(|n| n.name());
 				for node in collators {
+					if is_asset_hub && asset_hub_ws_endpoint.is_none() {
+						asset_hub_ws_endpoint = Some(node.ws_uri().to_string());
+					}
 					result.push_str(&output(node));
 				}
+			}
+
+			let mut eth_rpc_process = match start_asset_hub_eth_rpc_if_needed(
+				asset_hub_ws_endpoint.as_deref(),
+				&base_dir,
+			)
+			.await
+			{
+				Ok(process) => process,
+				Err(error) => {
+					cli.warning(format!(
+						"⚠️ Failed to start Ethereum RPC bridge for Asset Hub: {error}"
+					))?;
+					None
+				},
+			};
+			if let Some(eth_rpc_process) = eth_rpc_process.as_ref() {
+				result.push_str(&format!(
+					"\n{bar}  ⚡ Ethereum RPC bridge:
+{bar}         endpoint: {}
+{bar}         logs: tail -f {}",
+					eth_rpc_process.ws_url,
+					eth_rpc_process.log_path.display()
+				));
 			}
 
 			if let Some(command) = command {
@@ -663,6 +758,10 @@ The network is running. Check endpoints manually if needed.",
 			}
 
 			tokio::signal::ctrl_c().await?;
+			if let Some(mut eth_rpc_process) = eth_rpc_process.take() {
+				let _ = eth_rpc_process.process.kill();
+				let _ = eth_rpc_process.process.wait();
+			}
 
 			if auto_remove {
 				// Remove zombienet directory after network is terminated
@@ -1140,5 +1239,13 @@ cumulus-client-collator = "0.14"
 		assert!(result.is_err());
 		let err_msg = result.unwrap_err().to_string();
 		assert!(err_msg.contains("Timeout waiting for"));
+	}
+
+	#[test]
+	fn test_is_asset_hub_chain_id() {
+		assert!(is_asset_hub_chain_id(Some("asset-hub-paseo-local")));
+		assert!(is_asset_hub_chain_id(Some("passet-hub-paseo-local")));
+		assert!(!is_asset_hub_chain_id(Some("coretime-paseo-local")));
+		assert!(!is_asset_hub_chain_id(None));
 	}
 }
