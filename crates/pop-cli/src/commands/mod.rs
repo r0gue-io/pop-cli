@@ -208,6 +208,13 @@ impl Command {
 						up::Command::Polkadot(cmd) => cmd.execute(Polkadot, &mut Cli).await,
 						#[cfg(feature = "chain")]
 						up::Command::Westend(cmd) => cmd.execute(Westend, &mut Cli).await,
+						#[cfg(feature = "chain")]
+						up::Command::AssetHub(cmd) => {
+							cmd.inject_parachain(Box::new(pop_chains::registry::AssetHub::new(
+								1_000, Polkadot,
+							)));
+							cmd.execute(Polkadot, &mut Cli).await
+						},
 						up::Command::Frontend(cmd) => cmd.execute(&mut Cli),
 						#[cfg(feature = "contract")]
 						up::Command::InkNode(cmd) => cmd.execute(&mut Cli).await,

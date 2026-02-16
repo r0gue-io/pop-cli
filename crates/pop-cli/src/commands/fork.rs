@@ -59,7 +59,7 @@ mod messages {
 #[derive(Args, Clone, Default, Serialize)]
 #[command(group = ArgGroup::new("source").args(["chain", "endpoint"]))]
 pub(crate) struct ForkArgs {
-	/// Well-known chain to fork (e.g., paseo, polkadot, kusama, westend).
+	/// Well-known chain to fork (e.g., paseo, polkadot, asset-hub, asset-hub-polkadot).
 	#[arg(value_enum, index = 1)]
 	#[serde(skip)]
 	pub chain: Option<SupportedChains>,
