@@ -69,7 +69,7 @@ impl AccountMapper {
 		let extrinsic = self
 			.client
 			.tx()
-			.create_partial_offline(&call, params.into())?
+			.create_partial_offline(&call, params)?
 			.sign(self.extrinsic_opts.signer());
 		let dry_run_result = self.rpc.dry_run(extrinsic.encoded(), None).await?;
 
