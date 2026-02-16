@@ -521,12 +521,46 @@ pub(crate) async fn spawn(
 			}
 
 			if detach {
-				network.detach().await;
-				std::mem::forget(network);
-				cli.info(format!(
+				// Build WebSocket URL output before detaching
+				let mut detached_output = format!(
 					"ℹ️ base dir: {0}\nℹ️ zombie.json: {0}/zombie.json",
 					base_dir.display()
-				))?;
+				);
+
+				// Add relay chain nodes
+				let mut validators = network.relaychain().nodes();
+				validators.sort_by_key(|n| n.name());
+				detached_output.push_str(&format!("\n\n  {}:", network.relaychain().chain()));
+				for node in validators {
+					detached_output.push_str(&format!("\n    {}: {}", node.name(), node.ws_uri()));
+				}
+
+				// Add parachain nodes
+				let mut chains = network.parachains();
+				chains.sort_by_key(|p| p.para_id());
+				if !chains.is_empty() {
+					detached_output.push_str("\n\n  Parachains:");
+					for chain in chains {
+						let chain_label =
+							chain.chain_id().map_or(format!("{}", chain.para_id()), |c| {
+								format!("{} ({})", c, chain.para_id())
+							});
+						detached_output.push_str(&format!("\n    {}:", chain_label));
+						let mut collators = chain.collators();
+						collators.sort_by_key(|n| n.name());
+						for node in collators {
+							detached_output.push_str(&format!(
+								"\n      {}: {}",
+								node.name(),
+								node.ws_uri()
+							));
+						}
+					}
+				}
+
+				network.detach().await;
+				std::mem::forget(network);
+				cli.info(detached_output)?;
 				if auto_remove {
 					cli.warning(format!(
 						"⚠️ --rm is ignored when used with --detach. Remove {} after stopping the network.",
