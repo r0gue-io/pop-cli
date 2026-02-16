@@ -212,6 +212,12 @@ pub fn build_chain(
 	binary_path(&profile.target_directory(path), node_path.unwrap_or(&path.join("node")))
 }
 
+/// Pre-fetches dependencies so users see download progress before compilation begins.
+fn fetch_dependencies(path: &Path) -> Result<(), Error> {
+	cmd("cargo", ["fetch"]).dir(path).stdout_null().run()?;
+	Ok(())
+}
+
 /// Build the Rust project.
 ///
 /// # Arguments
@@ -228,6 +234,7 @@ pub fn build_project(
 	features: &[String],
 	target: Option<&str>,
 ) -> Result<(), Error> {
+	fetch_dependencies(path)?;
 	let mut args = vec!["build"];
 	if let Some(package) = package.as_deref() {
 		args.push("--package");
@@ -1823,5 +1830,20 @@ edition = "2021"
 		assert!(wasm_path.is_file());
 		assert_eq!(final_wasm_path, wasm_path);
 		Ok(())
+	}
+
+	#[test]
+	fn fetch_dependencies_works() -> Result<()> {
+		let name = "fetch_test";
+		let temp_dir = tempdir()?;
+		cmd("cargo", ["new", name, "--bin"]).dir(temp_dir.path()).run()?;
+		let project = temp_dir.path().join(name);
+		fetch_dependencies(&project)?;
+		Ok(())
+	}
+
+	#[test]
+	fn fetch_dependencies_handles_invalid_path() {
+		assert!(fetch_dependencies(Path::new("/nonexistent/path")).is_err());
 	}
 }
