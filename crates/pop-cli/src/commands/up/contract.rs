@@ -218,9 +218,12 @@ impl UpContractCommand {
 	pub(crate) async fn execute(&mut self) -> anyhow::Result<()> {
 		Cli.intro("Deploy a smart contract")?;
 
+		let contract_already_built = has_contract_been_built(&self.path);
 		if self.should_build_contract() {
 			// Build the contract in release mode
-			Cli.warning("NOTE: contract has not yet been built.")?;
+			if !contract_already_built {
+				Cli.warning("NOTE: contract has not yet been built.")?;
+			}
 			let spinner = spinner();
 			spinner.start("Building contract in RELEASE mode...");
 			let results = match build_smart_contract(
@@ -623,7 +626,7 @@ impl UpContractCommand {
 	}
 
 	fn should_build_contract(&self) -> bool {
-		!has_contract_been_built(&self.path)
+		!self.skip_build || !has_contract_been_built(&self.path)
 	}
 
 	fn display(&self) -> String {
@@ -983,7 +986,11 @@ ink = "6.0.0-beta.1"
 		std::fs::create_dir_all(contract_path.join("target/ink"))?;
 		std::fs::File::create(contract_path.join("target/ink/my_contract.contract"))?;
 
-		let command = UpContractCommand { path: contract_path, ..Default::default() };
+		let command = UpContractCommand { path: contract_path.clone(), ..Default::default() };
+		assert!(command.should_build_contract());
+
+		let command =
+			UpContractCommand { path: contract_path, skip_build: true, ..Default::default() };
 		assert!(!command.should_build_contract());
 		Ok(())
 	}
@@ -1005,7 +1012,11 @@ ink = "6.0.0-beta.1"
 "#,
 		)?;
 
-		let command = UpContractCommand { path: contract_path, ..Default::default() };
+		let command = UpContractCommand { path: contract_path.clone(), ..Default::default() };
+		assert!(command.should_build_contract());
+
+		let command =
+			UpContractCommand { path: contract_path, skip_build: true, ..Default::default() };
 		assert!(command.should_build_contract());
 		Ok(())
 	}
