@@ -33,12 +33,6 @@ pub struct NewChainCommand {
 	#[arg(help = "Name of the project. If empty assistance in the process will be provided.")]
 	pub(crate) name: Option<String>,
 	#[arg(
-		help = "Template provider.",
-		default_value = Provider::Pop.as_ref(),
-		value_parser = enum_variants!(Provider)
-	)]
-	pub(crate) provider: Option<Provider>,
-	#[arg(
 		short = 't',
 		long,
 		help = format!("Template to use. [possible values: {}]", enum_variants_without_deprecated!(ChainTemplate)),
@@ -110,20 +104,17 @@ impl NewChainCommand {
 			self.clone()
 		};
 
-		let default_provider = Provider::default();
-		let provider = parachain_config.provider.as_ref().unwrap_or(&default_provider);
-		let template = match &parachain_config.template {
-			Some(template) => template.clone(),
-			None => provider.default_template().expect("parachain templates have defaults; qed."), /* Each provider has a template by default */
-		};
-
-		is_template_supported(provider, &template, &mut cli::Cli)?;
+		let template = parachain_config.template.clone().unwrap_or_default();
+		if template.is_deprecated() {
+			cli::Cli.warning(format!(
+				"NOTE: this template is deprecated.{}",
+				template.deprecated_message()
+			))?;
+		}
 		let name = parachain_config.name.as_ref().expect("chain name must be set");
-		let provider_val = provider.clone();
-		let template_val = template.clone();
 
 		let config = get_customization_value(
-			&template_val,
+			&template,
 			parachain_config.symbol.clone(),
 			parachain_config.decimals,
 			parachain_config.initial_endowment.clone(),
@@ -147,8 +138,7 @@ impl NewChainCommand {
 		}
 		generate_parachain_from_template(
 			name,
-			&provider_val,
-			&template_val,
+			&template,
 			tag_version,
 			config,
 			parachain_config.verify,
@@ -165,9 +155,6 @@ impl NewChainCommand {
 		let mut full_message = "pop new chain".to_string();
 		if let Some(name) = &self.name {
 			full_message.push_str(&format!(" {}", name));
-		}
-		if let Some(provider) = &self.provider {
-			full_message.push_str(&format!(" --provider {}", provider));
 		}
 		if let Some(template) = &self.template {
 			full_message.push_str(&format!(" --template {}", template));
@@ -269,7 +256,6 @@ async fn guide_user_to_generate_parachain(
 
 	Ok(NewChainCommand {
 		name: Some(name),
-		provider: Some(provider.clone()),
 		template: Some(template.clone()),
 		release_tag: release_name,
 		symbol: Some(customizable_options.symbol),
@@ -284,7 +270,6 @@ async fn guide_user_to_generate_parachain(
 
 async fn generate_parachain_from_template(
 	name_template: &String,
-	provider: &Provider,
 	template: &ChainTemplate,
 	tag_version: Option<String>,
 	config: Config,
@@ -293,10 +278,10 @@ async fn generate_parachain_from_template(
 	package_manager: Option<PackageManager>,
 	cli: &mut impl Cli,
 ) -> Result<()> {
+	let provider_name = template.template_type().unwrap_or("Unknown");
 	cli.intro(format!(
-		"Generating \"{name_template}\" using {} from {}!",
+		"Generating \"{name_template}\" using {} from {provider_name}!",
 		template.name(),
-		provider.name()
 	))?;
 
 	let destination_path = check_destination_path(Path::new(name_template), cli)?;
@@ -373,27 +358,6 @@ async fn generate_parachain_from_template(
 		"Need help? Learn more at {}\n",
 		style("https://learn.onpop.io").magenta().underlined()
 	))?;
-	Ok(())
-}
-
-/// Determines whether the specified template is supported by the provider.
-fn is_template_supported(
-	provider: &Provider,
-	template: &ChainTemplate,
-	cli: &mut impl Cli,
-) -> Result<()> {
-	if !provider.provides(template) {
-		return Err(anyhow::anyhow!(format!(
-			"The provider \"{:?}\" doesn't support the {:?} template.",
-			provider, template
-		)));
-	};
-	if template.is_deprecated() {
-		cli.warning(format!(
-			"NOTE: this template is deprecated.{}",
-			template.deprecated_message()
-		))?;
-	}
 	Ok(())
 }
 
@@ -555,7 +519,6 @@ mod tests {
 	fn test_new_chain_command_display() {
 		let cmd = NewChainCommand {
 			name: Some("my-chain".to_string()),
-			provider: Some(Provider::Pop),
 			template: Some(ChainTemplate::Standard),
 			symbol: Some("DOT".to_string()),
 			decimals: Some(10),
@@ -568,7 +531,7 @@ mod tests {
 		};
 		assert_eq!(
 			cmd.display(),
-			"pop new chain my-chain --provider pop --template r0gue-io/base-parachain --symbol DOT --decimals 10 --initial-endowment 1000000 --release-tag v1.0.0 --verify --with-frontend create-dot-app --package-manager npm"
+			"pop new chain my-chain --template r0gue-io/base-parachain --symbol DOT --decimals 10 --initial-endowment 1000000 --release-tag v1.0.0 --verify --with-frontend create-dot-app --package-manager npm"
 		);
 
 		let cmd = NewChainCommand {
@@ -599,20 +562,6 @@ mod tests {
 		assert_eq!(user_input, ChainTemplate::Assets);
 
 		cli.verify()
-	}
-
-	#[test]
-	fn test_is_template_supported() -> Result<()> {
-		let mut cli = MockCli::new();
-		is_template_supported(&Provider::Pop, &ChainTemplate::Standard, &mut cli)?;
-		assert!(
-			is_template_supported(&Provider::Pop, &ChainTemplate::ParityGeneric, &mut cli).is_err()
-		);
-
-		assert!(
-			is_template_supported(&Provider::Parity, &ChainTemplate::Standard, &mut cli).is_err()
-		);
-		is_template_supported(&Provider::Parity, &ChainTemplate::ParityGeneric, &mut cli)
 	}
 
 	#[test]
