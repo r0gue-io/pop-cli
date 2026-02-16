@@ -14,7 +14,6 @@ use pop_common::{
 	polkadot_sdk::sort_by_latest_semantic_version,
 	pop, resolve_port,
 	sourcing::{ArchiveFileSpec, GitHub::ReleaseArchive},
-	templates::Template,
 };
 use std::{
 	fs,
