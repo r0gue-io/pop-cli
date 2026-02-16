@@ -9367,6 +9367,7 @@ dependencies = [
  "dirs",
  "duct 0.13.7",
  "env_logger",
+ "futures",
  "git2",
  "hex",
  "jsonrpsee",
