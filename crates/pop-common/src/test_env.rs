@@ -20,6 +20,7 @@ struct NodeProcess {
 	child: Child,
 	ws_url: String,
 	_temp_dir: tempfile::TempDir,
+	_cache_dir: Option<tempfile::TempDir>,
 }
 
 impl Drop for NodeProcess {
@@ -61,7 +62,10 @@ impl NodeProcess {
 	}
 
 	/// Spawn a node with the given binary configuration.
-	async fn spawn(binary: Binary) -> anyhow::Result<Self> {
+	///
+	/// If the binary is extracted to a temporary cache directory, pass it as `cache_dir`
+	/// to ensure it remains alive for the lifetime of the node process.
+	async fn spawn(binary: Binary, cache_dir: Option<tempfile::TempDir>) -> anyhow::Result<Self> {
 		let temp_dir = tempfile::tempdir()?;
 		let random_port = resolve_port(None);
 
@@ -81,7 +85,7 @@ impl NodeProcess {
 
 		let ws_url = format!("ws://{host}:{random_port}");
 
-		Ok(Self { child, ws_url, _temp_dir: temp_dir })
+		Ok(Self { child, ws_url, _temp_dir: temp_dir, _cache_dir: cache_dir })
 	}
 
 	fn ws_url(&self) -> &str {
@@ -119,7 +123,7 @@ impl TestNode {
 			cache: cache.to_path_buf(),
 		};
 
-		NodeProcess::spawn(binary).await.map(Self)
+		NodeProcess::spawn(binary, Some(temp_dir)).await.map(Self)
 	}
 
 	/// Returns the WebSocket URL of the running test node.
@@ -166,7 +170,7 @@ impl PolkadotNode {
 			cache: cache.to_path_buf(),
 		};
 
-		NodeProcess::spawn(binary).await.map(Self)
+		NodeProcess::spawn(binary, Some(temp_dir)).await.map(Self)
 	}
 
 	/// Returns the WebSocket URL of the running test node.
