@@ -5,7 +5,7 @@
 #![cfg(feature = "integration-tests")]
 
 use anyhow::Result;
-use pop_common::{format_type, test_env::PolkadotNode};
+use pop_common::{format_type, test_env::SubstrateTestNode};
 use subxt::{OnlineClient, SubstrateConfig};
 
 #[tokio::test]

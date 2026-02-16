@@ -6,7 +6,7 @@
 
 use anyhow::Result;
 use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
-use pop_common::{pop, test_env::TestNode};
+use pop_common::{pop, test_env::InkTestNode};
 use scale::{Compact, Decode, Encode};
 use sp_core::{blake2_128, twox_128};
 use std::time::Duration;
