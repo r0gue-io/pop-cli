@@ -4,6 +4,8 @@ Date: 2026-02-16
 Branch: `fix/contract-prompts-stacked-pr948-v2`
 Last implementation commit: `af1e4851`
 
+> Status: WIP. This document is the authoritative context for remaining work.
+
 ## Goal
 
 Make this flow work end-to-end on a **local fork of Asset Hub**:
