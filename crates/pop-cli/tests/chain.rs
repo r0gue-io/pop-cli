@@ -234,19 +234,10 @@ async fn generate_all_the_templates() -> Result<()> {
 
 	for template in ChainTemplate::VARIANTS {
 		let parachain_name = format!("test_parachain_{}", template);
-		let provider = template.template_type()?.to_lowercase();
-		// pop new chain test_parachain --verify
+		// pop new chain test_parachain --template <template> --verify
 		let mut command = pop(
 			temp_dir,
-			[
-				"new",
-				"chain",
-				&parachain_name,
-				&provider,
-				"--template",
-				template.as_ref(),
-				"--verify",
-			],
+			["new", "chain", &parachain_name, "--template", template.as_ref(), "--verify"],
 		);
 		wait_for_command_success(
 			&mut command,
