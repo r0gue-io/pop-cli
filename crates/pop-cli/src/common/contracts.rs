@@ -116,8 +116,8 @@ pub fn has_contract_been_built(path: &Path) -> bool {
 		.map(|p| {
 			let package_name = p.name();
 			let contract_artifact = format!("{package_name}.contract");
-			has_contract_artifact(path, &contract_artifact, &package_name) ||
-				has_workspace_target_contract(path, &contract_artifact, &package_name)
+			has_contract_artifact(path, &contract_artifact, package_name) ||
+				has_workspace_target_contract(path, &contract_artifact, package_name)
 		})
 		.unwrap_or_default()
 }
