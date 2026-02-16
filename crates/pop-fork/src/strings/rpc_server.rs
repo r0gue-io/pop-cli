@@ -63,6 +63,24 @@ pub mod runtime_api {
 
 	/// Runtime API method for querying detailed fee breakdown.
 	pub const QUERY_FEE_DETAILS: &str = "TransactionPaymentApi_query_fee_details";
+
+	/// Runtime API method for revive block gas limit.
+	///
+	/// This value is derived from runtime constants and does not depend on
+	/// fork-local storage changes, so it can be safely proxied at the fork point.
+	pub const REVIVE_BLOCK_GAS_LIMIT: &str = "ReviveApi_block_gas_limit";
+
+	/// Runtime API method for revive gas price.
+	///
+	/// This is required by `eth-rpc` during startup and can be safely proxied
+	/// at the fork point to avoid expensive local runtime execution.
+	pub const REVIVE_GAS_PRICE: &str = "ReviveApi_gas_price";
+
+	/// Runtime API method for revive account balance.
+	pub const REVIVE_BALANCE: &str = "ReviveApi_balance";
+
+	/// Runtime API method for revive account nonce.
+	pub const REVIVE_NONCE: &str = "ReviveApi_nonce";
 }
 
 /// Transaction-related constants.

@@ -119,6 +119,14 @@ pub fn create_rpc_module(
 		.merge(DevApiServer::into_rpc(dev_impl))
 		.map_err(|e| RpcServerError::Internal(e.to_string()))?;
 
+	// anvil compatibility methods expected by eth-rpc.
+	module
+		.register_method("getAutomine", |_, _, _| ResponsePayload::success(true))
+		.map_err(|e| RpcServerError::Internal(e.to_string()))?;
+	module
+		.register_method("setAutomine", |_, _, _| ResponsePayload::success(true))
+		.map_err(|e| RpcServerError::Internal(e.to_string()))?;
+
 	// Collect method names before registering rpc_methods
 	let mut method_names: Vec<String> = module.method_names().map(String::from).collect();
 	method_names.push("rpc_methods".to_string());

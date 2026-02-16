@@ -118,6 +118,14 @@ pub const ETHEREUM_DEV_ACCOUNTS: [(&str, [u8; 20]); 6] = [
 // Helpers
 // ---------------------------------------------------------------------------
 
+/// Convert an Ethereum address into the AccountId32 fallback format used by
+/// `pallet-revive::AccountId32Mapper`: `address(20 bytes) ++ 0xEE * 12`.
+pub fn ethereum_fallback_account_id(address: &[u8; 20]) -> [u8; 32] {
+	let mut account_id = [0xEE; 32];
+	account_id[..20].copy_from_slice(address);
+	account_id
+}
+
 /// Compute the `System::Account` storage key for an account (Blake2_128Concat).
 ///
 /// Works with both 32-byte (Substrate) and 20-byte (Ethereum) account IDs.
@@ -185,6 +193,22 @@ mod tests {
 		// twox128("System") + twox128("Account") + blake2_128(account) + account
 		// = 16 + 16 + 16 + 20 = 68
 		assert_eq!(key.len(), 68);
+	}
+
+	#[test]
+	fn ethereum_fallback_account_id_has_expected_shape() {
+		let fallback = ethereum_fallback_account_id(&ALITH);
+		assert_eq!(&fallback[..20], &ALITH);
+		assert!(fallback[20..].iter().all(|b| *b == 0xEE));
+	}
+
+	#[test]
+	fn ethereum_fallback_account_storage_key_has_correct_length() {
+		let fallback = ethereum_fallback_account_id(&ALITH);
+		let key = account_storage_key(&fallback);
+		// twox128("System") + twox128("Account") + blake2_128(account) + account
+		// = 16 + 16 + 16 + 32 = 80
+		assert_eq!(key.len(), 80);
 	}
 
 	#[test]

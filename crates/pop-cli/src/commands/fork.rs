@@ -8,6 +8,10 @@ use anyhow::Result;
 use clap::{ArgGroup, Args};
 use console::style;
 use pop_chains::SupportedChains;
+#[cfg(feature = "contract")]
+use pop_common::{resolve_port, set_executable_permission};
+#[cfg(feature = "contract")]
+use pop_contracts::{eth_rpc_generator, run_eth_rpc_node};
 use pop_fork::{
 	BlockForkPoint, Blockchain, ExecutorConfig, SignatureMockMode, TxPool,
 	rpc_server::{ForkRpcServer, RpcServerConfig},
@@ -27,6 +31,8 @@ use url::Url;
 const DETACH_READY_TIMEOUT_SECS: u64 = 120;
 /// Poll interval when checking for fork server readiness.
 const DETACH_READY_POLL_MS: u64 = 200;
+/// Default Ethereum RPC port when forking Asset Hub chains.
+const DEFAULT_ETH_RPC_PORT: u16 = 8545;
 
 /// UI messages used across interactive and headless paths.
 mod messages {
@@ -53,6 +59,11 @@ mod messages {
 	pub fn forked(chain_name: &str, block_number: u32, ws_url: &str) -> String {
 		format!("Forked {chain_name} at block #{block_number} -> {ws_url}")
 	}
+
+	/// Format Ethereum RPC endpoint message.
+	pub fn eth_rpc_endpoint(url: &str) -> String {
+		format!("Ethereum RPC endpoint -> {url}")
+	}
 }
 
 /// Arguments for the fork command.
@@ -75,6 +86,11 @@ pub(crate) struct ForkArgs {
 	/// Port for the RPC server. Auto-finds from 9944 if not specified.
 	#[arg(short, long)]
 	pub port: Option<u16>,
+
+	/// Preferred port for the Ethereum RPC proxy when forking Asset Hub chains.
+	/// If this port is not available, the next available local port is used.
+	#[arg(long = "eth-rpc-port")]
+	pub eth_rpc_port: Option<u16>,
 
 	/// Accept all signatures as valid (default: only magic signatures 0xdeadbeef).
 	/// Use this for maximum flexibility when testing.
@@ -106,6 +122,11 @@ pub(crate) struct ForkArgs {
 }
 
 pub(crate) struct Command;
+
+struct EthRpcProcess {
+	process: Child,
+	ws_url: String,
+}
 
 impl Command {
 	pub(crate) async fn execute(
@@ -315,6 +336,12 @@ impl Command {
 		let txpool = Arc::new(TxPool::new());
 		let server_config = RpcServerConfig { port: args.port, ..Default::default() };
 		let server = ForkRpcServer::start(blockchain.clone(), txpool, server_config).await?;
+		let mut eth_rpc_process = Self::start_asset_hub_eth_rpc_if_needed(
+			&blockchain,
+			&server.ws_url(),
+			args.eth_rpc_port,
+		)
+		.await?;
 
 		let forked_msg = messages::forked(
 			blockchain.chain_name(),
@@ -322,10 +349,16 @@ impl Command {
 			&server.ws_url(),
 		);
 		log::info!("{forked_msg}");
+		let mut ready_lines = vec![forked_msg];
+		if let Some(eth_rpc) = eth_rpc_process.as_ref() {
+			let message = messages::eth_rpc_endpoint(&eth_rpc.ws_url);
+			log::info!("{message}");
+			ready_lines.push(message);
+		}
 
 		// Signal readiness to the parent process (detach mode).
 		if let Some(ready_path) = &args.ready_file {
-			std::fs::write(ready_path, &forked_msg)?;
+			std::fs::write(ready_path, ready_lines.join("\n"))?;
 		}
 
 		log::info!("Server running. Waiting for termination signal...");
@@ -334,6 +367,10 @@ impl Command {
 		tokio::signal::ctrl_c().await?;
 
 		log::info!("{}", messages::SHUTTING_DOWN);
+		if let Some(mut eth_rpc) = eth_rpc_process.take() {
+			let _ = eth_rpc.process.kill();
+			let _ = eth_rpc.process.wait();
+		}
 		server.stop().await;
 		let _ = blockchain.clear_local_storage().await;
 
@@ -374,16 +411,29 @@ impl Command {
 		let txpool = Arc::new(TxPool::new());
 		let server_config = RpcServerConfig { port: args.port, ..Default::default() };
 		let server = ForkRpcServer::start(blockchain.clone(), txpool, server_config).await?;
+		let mut eth_rpc_process = Self::start_asset_hub_eth_rpc_if_needed(
+			&blockchain,
+			&server.ws_url(),
+			args.eth_rpc_port,
+		)
+		.await?;
 
 		let ws = server.ws_url();
+		let eth_rpc_hint = eth_rpc_process
+			.as_ref()
+			.map(|eth_rpc| {
+				format!("\n{}", style(format!("  eth rpc:     {}", eth_rpc.ws_url)).dim())
+			})
+			.unwrap_or_default();
 		cli.success(format!(
-			"{}\n{}\n{}",
+			"{}\n{}\n{}{}",
 			messages::forked(blockchain.chain_name(), blockchain.fork_point_number(), &ws),
 			style(format!("  polkadot.js: https://polkadot.js.org/apps/?rpc={ws}#/explorer")).dim(),
 			style(format!(
 				"  papi:        https://dev.papi.how/explorer#networkId=custom&endpoint={ws}"
 			))
 			.dim(),
+			eth_rpc_hint,
 		))?;
 
 		cli.info(messages::PRESS_CTRL_C)?;
@@ -391,6 +441,10 @@ impl Command {
 		tokio::signal::ctrl_c().await?;
 
 		cli.info(messages::SHUTTING_DOWN)?;
+		if let Some(mut eth_rpc) = eth_rpc_process.take() {
+			let _ = eth_rpc.process.kill();
+			let _ = eth_rpc.process.wait();
+		}
 		server.stop().await;
 		if let Err(e) = blockchain.clear_local_storage().await {
 			cli.warning(format!("Failed to clear local storage: {}", e))?;
@@ -416,6 +470,10 @@ impl Command {
 			cmd_args.push("--port".to_string());
 			cmd_args.push(port.to_string());
 		}
+		if let Some(eth_rpc_port) = args.eth_rpc_port {
+			cmd_args.push("--eth-rpc-port".to_string());
+			cmd_args.push(eth_rpc_port.to_string());
+		}
 		if args.mock_all_signatures {
 			cmd_args.push("--mock-all-signatures".to_string());
 		}
@@ -428,6 +486,69 @@ impl Command {
 		}
 		cmd_args.push("--serve".to_string());
 		cmd_args
+	}
+
+	fn is_asset_hub_chain(chain_name: &str) -> bool {
+		let normalized = chain_name.to_ascii_lowercase();
+		normalized.contains("asset-hub") ||
+			normalized.contains("asset hub") ||
+			normalized.contains("assethub") ||
+			normalized.contains("passet-hub") ||
+			normalized.contains("statemint") ||
+			normalized.contains("westmint")
+	}
+
+	fn should_start_asset_hub_eth_rpc(
+		chain_name: &str,
+		properties: Option<&serde_json::Value>,
+	) -> bool {
+		if !Self::is_asset_hub_chain(chain_name) {
+			return false;
+		}
+
+		properties
+			.and_then(|props| props.get("isEthereum"))
+			.and_then(serde_json::Value::as_bool)
+			.unwrap_or(true)
+	}
+
+	async fn start_asset_hub_eth_rpc_if_needed(
+		blockchain: &Arc<Blockchain>,
+		node_ws_url: &str,
+		preferred_eth_rpc_port: Option<u16>,
+	) -> Result<Option<EthRpcProcess>> {
+		let properties = blockchain.chain_properties().await;
+		if !Self::should_start_asset_hub_eth_rpc(blockchain.chain_name(), properties.as_ref()) {
+			return Ok(None);
+		}
+
+		#[cfg(not(feature = "contract"))]
+		{
+			let _ = (node_ws_url, preferred_eth_rpc_port);
+			log::warn!(
+				"Asset Hub fork detected, but contract feature is disabled; skipping Ethereum RPC bridge startup."
+			);
+			Ok(None)
+		}
+
+		#[cfg(feature = "contract")]
+		{
+			let mut eth_rpc_binary = eth_rpc_generator(crate::cache()?, None).await?;
+			let stale = eth_rpc_binary.stale();
+			if stale {
+				eth_rpc_binary.use_latest();
+			}
+			if stale || !eth_rpc_binary.exists() {
+				eth_rpc_binary.source(false, &(), true).await?;
+				set_executable_permission(eth_rpc_binary.path())?;
+			}
+
+			let resolved_port =
+				resolve_port(Some(preferred_eth_rpc_port.unwrap_or(DEFAULT_ETH_RPC_PORT)));
+			let process =
+				run_eth_rpc_node(&eth_rpc_binary.path(), None, node_ws_url, resolved_port).await?;
+			Ok(Some(EthRpcProcess { process, ws_url: format!("ws://127.0.0.1:{resolved_port}") }))
+		}
 	}
 }
 
@@ -511,6 +632,7 @@ mod tests {
 			endpoint: Some("wss://rpc.polkadot.io".to_string()),
 			cache: Some(PathBuf::from("/tmp/cache.db")),
 			port: Some(9000),
+			eth_rpc_port: Some(18545),
 			mock_all_signatures: true,
 			dev: true,
 			at: Some(100),
@@ -530,12 +652,28 @@ mod tests {
 				"/tmp/cache.db",
 				"--port",
 				"9000",
+				"--eth-rpc-port",
+				"18545",
 				"--mock-all-signatures",
 				"--dev",
 				"--at",
 				"100",
 				"--serve"
 			]
+		);
+	}
+
+	#[test]
+	fn build_serve_args_with_eth_rpc_port() {
+		let args = ForkArgs {
+			endpoint: Some("wss://rpc.polkadot.io".to_string()),
+			eth_rpc_port: Some(9545),
+			..Default::default()
+		};
+		let result = Command::build_serve_args(&args);
+		assert_eq!(
+			result,
+			vec!["fork", "-e", "wss://rpc.polkadot.io", "--eth-rpc-port", "9545", "--serve"]
 		);
 	}
 
@@ -648,5 +786,29 @@ mod tests {
 		let result = Command::wait_for_ready(&ready_path, &mut child, &mut cli);
 		assert!(result.is_err());
 		assert!(result.unwrap_err().to_string().contains("Fork process exited unexpectedly"));
+	}
+
+	#[test]
+	fn should_start_asset_hub_eth_rpc_for_asset_hub_when_property_missing() {
+		assert!(Command::should_start_asset_hub_eth_rpc("statemint", None));
+		assert!(Command::should_start_asset_hub_eth_rpc("asset-hub-paseo", None));
+		assert!(Command::should_start_asset_hub_eth_rpc("passet-hub-paseo", None));
+	}
+
+	#[test]
+	fn should_not_start_asset_hub_eth_rpc_for_non_asset_hub_chains() {
+		assert!(!Command::should_start_asset_hub_eth_rpc("polkadot", None));
+		assert!(!Command::should_start_asset_hub_eth_rpc("kusama", None));
+	}
+
+	#[test]
+	fn should_respect_is_ethereum_property_for_asset_hub() {
+		let ethereum = serde_json::json!({ "isEthereum": true });
+		let not_ethereum = serde_json::json!({ "isEthereum": false });
+		assert!(Command::should_start_asset_hub_eth_rpc("asset-hub-polkadot", Some(&ethereum)));
+		assert!(!Command::should_start_asset_hub_eth_rpc(
+			"asset-hub-polkadot",
+			Some(&not_ethereum)
+		));
 	}
 }
