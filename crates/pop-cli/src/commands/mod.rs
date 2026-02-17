@@ -2,7 +2,7 @@
 
 #[cfg(any(feature = "chain", feature = "contract"))]
 use crate::cli::traits::Cli as _;
-use crate::{cache, cli::Cli};
+use crate::{cache, cli::Cli, output::OutputMode};
 #[cfg(any(feature = "chain", feature = "contract"))]
 use pop_common::templates::Template;
 
@@ -109,7 +109,7 @@ fn about_up() -> &'static str {
 
 impl Command {
 	/// Executes the command.
-	pub(crate) async fn execute(&mut self) -> anyhow::Result<()> {
+	pub(crate) async fn execute(&mut self, output_mode: OutputMode) -> anyhow::Result<()> {
 		match self {
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::Install(args) => {
@@ -252,7 +252,7 @@ impl Command {
 			},
 			Self::Hash(args) => {
 				env_logger::init();
-				args.command.execute(&mut Cli)
+				hash::execute(&args.command, output_mode)
 			},
 			Self::Clean(args) => {
 				env_logger::init();
@@ -286,7 +286,7 @@ impl Command {
 			},
 			Command::Convert(args) => {
 				env_logger::init();
-				args.command.execute(&mut Cli)
+				convert::execute(&args.command, output_mode)
 			},
 			Command::Completion(args) => completion::Command::execute(args),
 			#[cfg(feature = "contract")]

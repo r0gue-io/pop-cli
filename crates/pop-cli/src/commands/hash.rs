@@ -2,7 +2,10 @@
 
 use self::Command::*;
 use super::*;
-use crate::cli::traits::Cli;
+use crate::{
+	cli::traits::Cli,
+	output::{CliResponse, OutputMode},
+};
 use anyhow::{Result, anyhow};
 use clap::{
 	Arg, Args, Error,
@@ -70,12 +73,44 @@ pub(crate) enum Command {
 	},
 }
 
+/// Structured output for JSON mode.
+#[derive(serde::Serialize)]
+struct HashOutput {
+	algorithm: String,
+	length: u16,
+	hash: String,
+}
+
+/// Entry point called from the command dispatcher.
+pub(crate) fn execute(command: &Command, output_mode: OutputMode) -> Result<()> {
+	match output_mode {
+		OutputMode::Human => command.execute(&mut crate::cli::Cli),
+		OutputMode::Json => {
+			let (algorithm, length) = command.algorithm_info();
+			let hash_hex = to_hex(&command.hash()?, false);
+			let output = HashOutput { algorithm, length, hash: hash_hex };
+			CliResponse::ok(output).print_json();
+			Ok(())
+		},
+	}
+}
+
 impl Command {
-	/// Executes the command.
+	/// Executes the command in human mode.
 	pub(crate) fn execute(&self, cli: &mut impl Cli) -> Result<()> {
 		let output = &to_hex(&self.hash()?, false)[2..];
 		cli.plain(output)?;
 		Ok(())
+	}
+
+	/// Returns the (algorithm name, bit length) for the command.
+	fn algorithm_info(&self) -> (String, u16) {
+		match self {
+			Blake2 { length, .. } => ("blake2".into(), *length),
+			Keccak { length, .. } => ("keccak".into(), *length),
+			Sha2 { length, .. } => ("sha2".into(), *length),
+			TwoX { length, .. } => ("twox".into(), *length),
+		}
 	}
 
 	fn hash(&self) -> Result<Vec<u8>> {
@@ -214,6 +249,7 @@ impl TypedValueParser for SupportedLengths {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::output::OutputMode;
 	use Data::*;
 	use std::io::Write;
 
@@ -415,5 +451,42 @@ mod tests {
 				.unwrap()
 				.eq(values.map(|v| PossibleValue::new(v.to_string())),)
 		)
+	}
+
+	#[test]
+	fn execute_human_mode_works() -> Result<()> {
+		use crate::cli::MockCli;
+		let data = "test".as_bytes();
+		let hash_hex = to_hex(blake2_256(data).as_ref(), false);
+		let expected = &hash_hex[2..];
+		let command = Blake2 { length: 256, data: String(data.to_vec()), concat: false };
+		let mut cli = MockCli::new().expect_plain(expected);
+		command.execute(&mut cli)?;
+		cli.verify()
+	}
+
+	#[test]
+	fn execute_json_mode_works() -> Result<()> {
+		let command =
+			Blake2 { length: 256, data: String("test".as_bytes().to_vec()), concat: false };
+		// Should not panic; JSON is printed to stdout.
+		execute(&command, OutputMode::Json)
+	}
+
+	#[test]
+	fn algorithm_info_works() {
+		assert_eq!(
+			Blake2 { length: 256, data: None, concat: false }.algorithm_info(),
+			("blake2".to_string(), 256)
+		);
+		assert_eq!(
+			Keccak { length: 512, data: None }.algorithm_info(),
+			("keccak".to_string(), 512)
+		);
+		assert_eq!(Sha2 { length: 256, data: None }.algorithm_info(), ("sha2".to_string(), 256));
+		assert_eq!(
+			TwoX { length: 128, data: None, concat: false }.algorithm_info(),
+			("twox".to_string(), 128)
+		);
 	}
 }

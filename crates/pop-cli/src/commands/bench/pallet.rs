@@ -91,7 +91,7 @@ pub(crate) struct BenchmarkPallet {
 	external_repeat: u32,
 
 	/// Print the raw results in JSON format.
-	#[arg(long = "json")]
+	#[arg(long = "raw-json")]
 	json_output: bool,
 
 	/// Write the raw results in JSON format into the given file.

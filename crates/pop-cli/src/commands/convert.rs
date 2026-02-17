@@ -2,7 +2,10 @@
 
 use self::Command::*;
 use super::*;
-use crate::cli::traits::Cli;
+use crate::{
+	cli::traits::Cli,
+	output::{CliResponse, OutputMode},
+};
 use anyhow::{Result, anyhow};
 use clap::Args;
 use regex::Regex;
@@ -54,6 +57,26 @@ fn convert_address(address: &str) -> Result<String> {
 	}
 }
 
+/// Structured output for JSON mode.
+#[derive(serde::Serialize)]
+struct ConvertOutput {
+	input: String,
+	output: String,
+}
+
+/// Entry point called from the command dispatcher.
+pub(crate) fn execute(command: &Command, output_mode: OutputMode) -> Result<()> {
+	match output_mode {
+		OutputMode::Human => command.execute(&mut crate::cli::Cli),
+		OutputMode::Json => {
+			let (input, converted) = command.do_convert()?;
+			let output = ConvertOutput { input, output: converted };
+			CliResponse::ok(output).print_json();
+			Ok(())
+		},
+	}
+}
+
 /// Arguments for utility commands.
 #[derive(Args, Serialize)]
 #[command(args_conflicts_with_subcommands = true)]
@@ -75,13 +98,21 @@ pub(crate) enum Command {
 }
 
 impl Command {
-	/// Executes the command.
+	/// Executes the command in human mode.
 	pub(crate) fn execute(&self, cli: &mut impl Cli) -> Result<()> {
-		let output = match self {
-			Address { address } => convert_address(address.as_str())?,
-		};
+		let (_, output) = self.do_convert()?;
 		cli.plain(&output)?;
 		Ok(())
+	}
+
+	/// Returns (input, converted_output).
+	fn do_convert(&self) -> Result<(String, String)> {
+		match self {
+			Address { address } => {
+				let converted = convert_address(address.as_str())?;
+				Ok((address.clone(), converted))
+			},
+		}
 	}
 }
 
@@ -151,5 +182,32 @@ mod tests {
 		assert!(convert_address("invalid_format").is_err()); // Completely invalid format
 		assert!(convert_address("5Eh2qnm8NwCeDnfBhm2aCfoSffBAeMk914NUs8UDGLuoY6q").is_err()); // Too short
 		assert!(convert_address("5Eh2qnm8NwCeDnfBhm2aCfoSffBAeMk914NUs8UDGLuoY6qgg").is_err()); // Too long
+	}
+
+	#[test]
+	fn execute_human_mode_works() -> Result<()> {
+		use crate::cli::MockCli;
+		let command = Address { address: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e".into() };
+		let mut cli =
+			MockCli::new().expect_plain("13dKz82CEiU7fKfhfQ5aLpdbXHApLfJH5Z6y2RTZpRwKiNhX");
+		command.execute(&mut cli)?;
+		cli.verify()
+	}
+
+	#[test]
+	fn execute_json_mode_works() -> Result<()> {
+		use crate::output::OutputMode;
+		let command = Address { address: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e".into() };
+		// Should not panic; JSON is printed to stdout.
+		execute(&command, OutputMode::Json)
+	}
+
+	#[test]
+	fn do_convert_works() -> Result<()> {
+		let command = Address { address: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e".into() };
+		let (input, output) = command.do_convert()?;
+		assert_eq!(input, "0x742d35Cc6634C0532925a3b844Bc454e4438f44e");
+		assert_eq!(output, "13dKz82CEiU7fKfhfQ5aLpdbXHApLfJH5Z6y2RTZpRwKiNhX");
+		Ok(())
 	}
 }

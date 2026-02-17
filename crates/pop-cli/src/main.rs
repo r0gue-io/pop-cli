@@ -5,6 +5,7 @@
 use anyhow::{Result, anyhow};
 use clap::Parser;
 use commands::*;
+use output::{CliError, CliResponse, ErrorCode, OutputMode};
 #[cfg(feature = "telemetry")]
 use pop_telemetry::{Telemetry, config_file_path, record_cli_command, record_cli_used};
 use std::{
@@ -18,6 +19,7 @@ mod commands;
 mod common;
 #[cfg(feature = "chain")]
 mod deployment_api;
+pub(crate) mod output;
 mod style;
 #[cfg(feature = "wallet-integration")]
 mod wallet_integration;
@@ -28,16 +30,27 @@ async fn main() -> Result<()> {
 	let maybe_tel = init().unwrap_or(None);
 
 	let mut cli = Cli::parse();
+	let output_mode = cli.output_mode();
 	#[cfg(feature = "telemetry")]
 	let event = cli.command.to_string();
-	let result = cli.command.execute().await;
+	let result = cli.command.execute(output_mode).await;
 	#[cfg(feature = "telemetry")]
 	if let Some(tel) = maybe_tel {
 		let data = serde_json::json!(cli.command);
 		// Best effort to send on first try, no action if failure.
 		let _ = record_cli_command(tel, &event, data).await;
 	}
-	result.map(|_| ())
+	match result {
+		Ok(_) => Ok(()),
+		Err(e) => {
+			if output_mode == OutputMode::Json {
+				CliResponse::err(CliError::new(ErrorCode::Internal, e.to_string()))
+					.print_json_err();
+				std::process::exit(1);
+			}
+			Err(e)
+		},
+	}
 }
 
 /// An all-in-one tool for Polkadot development.
@@ -46,6 +59,15 @@ async fn main() -> Result<()> {
 pub struct Cli {
 	#[command(subcommand)]
 	command: Command,
+	/// Emit output as a JSON envelope (for scripting, CI, and MCP).
+	#[arg(long, global = true)]
+	json: bool,
+}
+
+impl Cli {
+	fn output_mode(&self) -> OutputMode {
+		if self.json { OutputMode::Json } else { OutputMode::Human }
+	}
 }
 
 impl Display for Cli {
@@ -107,10 +129,14 @@ mod tests {
 		fn build_command() {
 			use crate::commands::build::Command as BuildCommand;
 			// Build command display.
-			assert_eq!(Cli { command: Command::Build(Default::default()) }.to_string(), "build");
+			assert_eq!(
+				Cli { json: false, command: Command::Build(Default::default()) }.to_string(),
+				"build"
+			);
 			// Build command with spec subcommand.
 			assert_eq!(
 				Cli {
+					json: false,
 					command: Command::Build(build::BuildArgs {
 						command: Some(BuildCommand::Spec(Default::default())),
 						..Default::default()
@@ -124,7 +150,10 @@ mod tests {
 		#[test]
 		fn up_command() {
 			// Up command display.
-			assert_eq!(Cli { command: Command::Up(Default::default()) }.to_string(), "up");
+			assert_eq!(
+				Cli { json: false, command: Command::Up(Default::default()) }.to_string(),
+				"up"
+			);
 		}
 
 		#[test]
@@ -133,6 +162,7 @@ mod tests {
 			// Clean command display.
 			assert_eq!(
 				Cli {
+					json: false,
 					command: Command::Clean(CleanArgs {
 						command: CleanCommand::Cache(CleanCommandArgs { all: false, pid: None }),
 					})
@@ -146,7 +176,7 @@ mod tests {
 		fn install_command() {
 			// Install command display.
 			assert_eq!(
-				Cli { command: Command::Install(Default::default()) }.to_string(),
+				Cli { json: false, command: Command::Install(Default::default()) }.to_string(),
 				"install"
 			);
 		}
@@ -157,6 +187,7 @@ mod tests {
 			// New command display.
 			assert_eq!(
 				Cli {
+					json: false,
 					command: Command::New(NewArgs {
 						command: Some(NewCommand::Chain(Default::default())),
 						list: false,
@@ -167,7 +198,8 @@ mod tests {
 			);
 			// New command display without subcommand.
 			assert_eq!(
-				Cli { command: Command::New(NewArgs { command: None, list: false }) }.to_string(),
+				Cli { json: false, command: Command::New(NewArgs { command: None, list: false }) }
+					.to_string(),
 				"new"
 			);
 		}
@@ -178,6 +210,7 @@ mod tests {
 			// Bench command display.
 			assert_eq!(
 				Cli {
+					json: false,
 					command: Command::Bench(BenchmarkArgs { command: Pallet(Default::default()) })
 				}
 				.to_string(),
@@ -191,6 +224,7 @@ mod tests {
 			// Call chain command display.
 			assert_eq!(
 				Cli {
+					json: false,
 					command: Command::Call(CallArgs {
 						command: Some(CallCommand::Chain(Default::default()))
 					})
@@ -201,6 +235,7 @@ mod tests {
 			// Call contract command display.
 			assert_eq!(
 				Cli {
+					json: false,
 					command: Command::Call(CallArgs {
 						command: Some(CallCommand::Contract(Default::default()))
 					})
