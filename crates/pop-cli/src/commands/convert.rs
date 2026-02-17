@@ -195,11 +195,19 @@ mod tests {
 	}
 
 	#[test]
-	fn execute_json_mode_works() -> Result<()> {
-		use crate::output::OutputMode;
+	fn execute_json_mode_outputs_valid_envelope() -> Result<()> {
+		use crate::output::CliResponse;
 		let command = Address { address: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e".into() };
-		// Should not panic; JSON is printed to stdout.
-		execute(&command, OutputMode::Json)
+		let (input, converted) = command.do_convert()?;
+		let output = ConvertOutput { input: input.clone(), output: converted.clone() };
+		let resp = CliResponse::ok(output);
+		let json = serde_json::to_value(&resp).unwrap();
+		assert_eq!(json["schema_version"], 1);
+		assert_eq!(json["success"], true);
+		assert_eq!(json["data"]["input"], "0x742d35Cc6634C0532925a3b844Bc454e4438f44e");
+		assert_eq!(json["data"]["output"], "13dKz82CEiU7fKfhfQ5aLpdbXHApLfJH5Z6y2RTZpRwKiNhX");
+		assert!(json.get("error").is_none());
+		Ok(())
 	}
 
 	#[test]

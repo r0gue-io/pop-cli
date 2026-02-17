@@ -29,8 +29,33 @@ async fn main() -> Result<()> {
 	#[cfg(feature = "telemetry")]
 	let maybe_tel = init().unwrap_or(None);
 
-	let mut cli = Cli::parse();
-	let output_mode = cli.output_mode();
+	// Detect --json from argv before parsing so clap errors can be wrapped.
+	let json_requested = std::env::args().any(|a| a == "--json");
+	let output_mode = if json_requested { OutputMode::Json } else { OutputMode::Human };
+
+	let mut cli = match Cli::try_parse() {
+		Ok(cli) => cli,
+		Err(e) => {
+			if output_mode == OutputMode::Json {
+				let code = match e.kind() {
+					clap::error::ErrorKind::InvalidValue |
+					clap::error::ErrorKind::UnknownArgument |
+					clap::error::ErrorKind::InvalidSubcommand |
+					clap::error::ErrorKind::MissingRequiredArgument |
+					clap::error::ErrorKind::NoEquals |
+					clap::error::ErrorKind::ValueValidation |
+					clap::error::ErrorKind::WrongNumberOfValues |
+					clap::error::ErrorKind::TooFewValues |
+					clap::error::ErrorKind::TooManyValues |
+					clap::error::ErrorKind::MissingSubcommand => ErrorCode::InvalidInput,
+					_ => ErrorCode::Internal,
+				};
+				CliResponse::err(CliError::new(code, e.to_string())).print_json_err();
+				std::process::exit(2);
+			}
+			e.exit();
+		},
+	};
 	#[cfg(feature = "telemetry")]
 	let event = cli.command.to_string();
 	let result = cli.command.execute(output_mode).await;
@@ -62,12 +87,6 @@ pub struct Cli {
 	/// Emit output as a JSON envelope (for scripting, CI, and MCP).
 	#[arg(long, global = true)]
 	json: bool,
-}
-
-impl Cli {
-	fn output_mode(&self) -> OutputMode {
-		if self.json { OutputMode::Json } else { OutputMode::Human }
-	}
 }
 
 impl Display for Cli {

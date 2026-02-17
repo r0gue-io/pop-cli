@@ -36,8 +36,9 @@ impl CliResponse<()> {
 
 	/// Print this response as a single JSON line to stdout.
 	pub(crate) fn print_json_err(&self) {
-		if let Ok(json) = serde_json::to_string(self) {
-			println!("{json}");
+		match serde_json::to_string(self) {
+			Ok(json) => println!("{json}"),
+			Err(e) => eprintln!("fatal: failed to serialize JSON error response: {e}"),
 		}
 	}
 }
@@ -45,8 +46,9 @@ impl CliResponse<()> {
 impl<T: Serialize> CliResponse<T> {
 	/// Print this response as a single JSON line to stdout.
 	pub(crate) fn print_json(&self) {
-		if let Ok(json) = serde_json::to_string(self) {
-			println!("{json}");
+		match serde_json::to_string(self) {
+			Ok(json) => println!("{json}"),
+			Err(e) => eprintln!("fatal: failed to serialize JSON response: {e}"),
 		}
 	}
 }
@@ -122,6 +124,20 @@ mod tests {
 		assert_eq!(json["error"]["code"], "INTERNAL");
 		assert_eq!(json["error"]["message"], "boom");
 		assert_eq!(json["error"]["details"], "stack");
+	}
+
+	#[test]
+	fn unsupported_json_error_serializes() {
+		let resp = CliResponse::err(CliError::new(
+			ErrorCode::UnsupportedJson,
+			"--json is not yet supported for the `build` command",
+		));
+		let json = serde_json::to_value(&resp).unwrap();
+		assert_eq!(json["schema_version"], 1);
+		assert_eq!(json["success"], false);
+		assert!(json.get("data").is_none());
+		assert_eq!(json["error"]["code"], "UNSUPPORTED_JSON");
+		assert_eq!(json["error"]["message"], "--json is not yet supported for the `build` command");
 	}
 
 	#[test]

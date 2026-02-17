@@ -249,7 +249,7 @@ impl TypedValueParser for SupportedLengths {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::output::OutputMode;
+	use crate::output::CliResponse;
 	use Data::*;
 	use std::io::Write;
 
@@ -466,11 +466,23 @@ mod tests {
 	}
 
 	#[test]
-	fn execute_json_mode_works() -> Result<()> {
-		let command =
-			Blake2 { length: 256, data: String("test".as_bytes().to_vec()), concat: false };
-		// Should not panic; JSON is printed to stdout.
-		execute(&command, OutputMode::Json)
+	fn execute_json_mode_outputs_valid_envelope() -> Result<()> {
+		let data = "test".as_bytes();
+		let expected_hash = to_hex(blake2_256(data).as_ref(), false);
+		let command = Blake2 { length: 256, data: String(data.to_vec()), concat: false };
+		let (algorithm, length) = command.algorithm_info();
+		let hash_hex = to_hex(&command.hash()?, false);
+		assert_eq!(hash_hex, expected_hash);
+		let output = HashOutput { algorithm, length, hash: hash_hex };
+		let resp = CliResponse::ok(output);
+		let json = serde_json::to_value(&resp).unwrap();
+		assert_eq!(json["schema_version"], 1);
+		assert_eq!(json["success"], true);
+		assert_eq!(json["data"]["algorithm"], "blake2");
+		assert_eq!(json["data"]["length"], 256);
+		assert_eq!(json["data"]["hash"], expected_hash);
+		assert!(json.get("error").is_none());
+		Ok(())
 	}
 
 	#[test]
