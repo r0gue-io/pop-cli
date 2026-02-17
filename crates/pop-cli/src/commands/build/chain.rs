@@ -168,15 +168,17 @@ name = "test-workspace"
 		}
 
 		for package in [None, Some(name.to_string())] {
-			for profile in Profile::VARIANTS {
+			// Use representative profiles (Debug + Release) to avoid redundant builds.
+			// Production inherits from Release, so it only differs in LTO/codegen-units.
+			for profile in [Profile::Debug, Profile::Release] {
 				// Build without features.
-				test_build(package.clone(), &project_path, profile, &[])?;
+				test_build(package.clone(), &project_path, &profile, &[])?;
 
 				// Build with one feature.
-				test_build(package.clone(), &project_path, profile, &[Benchmark.as_ref()])?;
+				test_build(package.clone(), &project_path, &profile, &[Benchmark.as_ref()])?;
 
 				// Build with multiple features.
-				test_build(package.clone(), &project_path, profile, features)?;
+				test_build(package.clone(), &project_path, &profile, features)?;
 			}
 		}
 		Ok(())

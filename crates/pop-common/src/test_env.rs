@@ -14,7 +14,7 @@ use std::{
 	process::{Child, Command, Stdio},
 	time::Duration,
 };
-use tokio::time::sleep;
+use tokio::{sync::OnceCell, time::sleep};
 
 /// Internal struct representing a running test node process.
 struct NodeProcess {
@@ -195,4 +195,47 @@ fn ink_node_contents() -> Result<Vec<ArchiveFileSpec>, Error> {
 		_ => Err(Error::UnsupportedPlatform { arch: ARCH, os: OS }),
 	}
 	.map(|name| vec![ArchiveFileSpec::new(name.into(), Some("ink-node".into()), true)])
+}
+
+static SHARED_INK_NODE_WS_URL: OnceCell<String> = OnceCell::const_new();
+static SHARED_SUBSTRATE_NODE_WS_URL: OnceCell<String> = OnceCell::const_new();
+
+/// Returns the WebSocket URL for a shared `InkTestNode` singleton.
+///
+/// The first call spawns the node and leaks it so it lives for the entire test binary.
+/// Subsequent calls reuse the same URL. Set `POP_TEST_INK_NODE_WS_URL` to skip spawning.
+pub async fn shared_ink_ws_url() -> String {
+	SHARED_INK_NODE_WS_URL
+		.get_or_init(|| async {
+			if let Ok(url) = std::env::var("POP_TEST_INK_NODE_WS_URL") {
+				return url;
+			}
+			let node = InkTestNode::spawn().await.expect("Failed to spawn shared InkTestNode");
+			let ws_url = node.ws_url().to_string();
+			let _ = Box::leak(Box::new(node));
+			ws_url
+		})
+		.await
+		.clone()
+}
+
+/// Returns the WebSocket URL for a shared `SubstrateTestNode` singleton.
+///
+/// The first call spawns the node and leaks it so it lives for the entire test binary.
+/// Subsequent calls reuse the same URL. Set `POP_TEST_SUBSTRATE_NODE_WS_URL` to skip spawning.
+pub async fn shared_substrate_ws_url() -> String {
+	SHARED_SUBSTRATE_NODE_WS_URL
+		.get_or_init(|| async {
+			if let Ok(url) = std::env::var("POP_TEST_SUBSTRATE_NODE_WS_URL") {
+				return url;
+			}
+			let node = SubstrateTestNode::spawn()
+				.await
+				.expect("Failed to spawn shared SubstrateTestNode");
+			let ws_url = node.ws_url().to_string();
+			let _ = Box::leak(Box::new(node));
+			ws_url
+		})
+		.await
+		.clone()
 }

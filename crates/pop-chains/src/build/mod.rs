@@ -1094,11 +1094,9 @@ edition = "2021"
 		Ok(())
 	}
 
-	#[tokio::test]
-	async fn generate_plain_chain_spec_with_runtime_works_with_name_and_id_override() -> Result<()>
-	{
-		let temp_dir =
-			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+	#[test]
+	fn generate_plain_chain_spec_with_runtime_works_with_name_and_id_override() -> Result<()> {
+		let temp_dir = tempdir()?;
 		// Test generate chain spec
 		let plain_chain_spec = &temp_dir.path().join("plain-parachain-chainspec.json");
 		generate_plain_chain_spec_with_runtime(
@@ -1119,10 +1117,9 @@ edition = "2021"
 		Ok(())
 	}
 
-	#[tokio::test]
-	async fn generate_plain_chain_spec_with_runtime_works_with_name_override() -> Result<()> {
-		let temp_dir =
-			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+	#[test]
+	fn generate_plain_chain_spec_with_runtime_works_with_name_override() -> Result<()> {
+		let temp_dir = tempdir()?;
 		// Test generate chain spec
 		let plain_chain_spec = &temp_dir.path().join("plain-parachain-chainspec.json");
 		generate_plain_chain_spec_with_runtime(
@@ -1143,10 +1140,9 @@ edition = "2021"
 		Ok(())
 	}
 
-	#[tokio::test]
-	async fn generate_plain_chain_spec_with_runtime_works_with_id_override() -> Result<()> {
-		let temp_dir =
-			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+	#[test]
+	fn generate_plain_chain_spec_with_runtime_works_with_id_override() -> Result<()> {
+		let temp_dir = tempdir()?;
 		// Test generate chain spec
 		let plain_chain_spec = &temp_dir.path().join("plain-parachain-chainspec.json");
 		generate_plain_chain_spec_with_runtime(
@@ -1167,11 +1163,9 @@ edition = "2021"
 		Ok(())
 	}
 
-	#[tokio::test]
-	async fn generate_plain_chain_spec_with_runtime_works_without_name_and_id_override()
-	-> Result<()> {
-		let temp_dir =
-			setup_template_and_instantiate().expect("Failed to setup template and instantiate");
+	#[test]
+	fn generate_plain_chain_spec_with_runtime_works_without_name_and_id_override() -> Result<()> {
+		let temp_dir = tempdir()?;
 		// Test generate chain spec
 		let plain_chain_spec = &temp_dir.path().join("plain-parachain-chainspec.json");
 		generate_plain_chain_spec_with_runtime(

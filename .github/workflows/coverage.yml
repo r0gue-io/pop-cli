@@ -122,7 +122,8 @@ jobs:
           --no-report \
           --no-fail-fast \
           --nocapture \
-          --status-level all
+          --status-level all \
+          -j 4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

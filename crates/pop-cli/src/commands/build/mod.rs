@@ -328,7 +328,6 @@ mod tests {
 	use pop_common::manifest::add_feature;
 	use pop_common::manifest::add_production_profile;
 	use std::path::Path;
-	use strum::VariantArray;
 
 	#[test]
 	fn test_build_args_display() {
@@ -417,47 +416,50 @@ mod tests {
 			add_feature(&project_path, (feature.to_string(), vec![]))?;
 		}
 		for package in [None, Some(name.to_string())] {
-			for release in [true, false] {
-				for profile in Profile::VARIANTS {
-					let profile = if release { Profile::Release } else { *profile };
-					#[allow(unused_variables)]
-					for &(benchmark_flag, try_runtime_flag, features_flag, expected_features) in &[
-						// No features
-						(false, false, &vec![], &vec![]),
-						// --features runtime-benchmarks
+			// Each (release, profile) pair produces an effective profile.
+			// When release=true the profile is always Release, so iterating over all
+			// Profile::VARIANTS with release=true just repeats the same build.
+			// Use representative combinations to avoid redundant `cargo build` calls.
+			for (release, profile) in
+				[(false, Profile::Debug), (true, Profile::Release), (false, Profile::Production)]
+			{
+				#[allow(unused_variables)]
+				for &(benchmark_flag, try_runtime_flag, features_flag, expected_features) in &[
+					// No features
+					(false, false, &vec![], &vec![]),
+					// --features runtime-benchmarks
+					#[cfg(feature = "chain")]
+					(false, false, &vec![benchmark], &vec![benchmark]),
+					// --benchmark
+					#[cfg(feature = "chain")]
+					(true, false, &vec![], &vec![benchmark]),
+					// --features try-runtime
+					#[cfg(feature = "chain")]
+					(false, false, &vec![try_runtime], &vec![try_runtime]),
+					// --try-runtime
+					#[cfg(feature = "chain")]
+					(false, true, &vec![], &vec![try_runtime]),
+					// --features runtime-benchmarks,try-runtime
+					#[cfg(feature = "chain")]
+					(false, false, &features, &features),
+					#[cfg(feature = "chain")]
+					// --benchmark --try-runtime
+					(true, true, &vec![], &features),
+				] {
+					test_build(
+						package.clone(),
+						&project_path,
+						&profile,
+						release,
 						#[cfg(feature = "chain")]
-						(false, false, &vec![benchmark], &vec![benchmark]),
-						// --benchmark
+						benchmark_flag,
 						#[cfg(feature = "chain")]
-						(true, false, &vec![], &vec![benchmark]),
-						// --features try-runtime
+						try_runtime_flag,
 						#[cfg(feature = "chain")]
-						(false, false, &vec![try_runtime], &vec![try_runtime]),
-						// --try-runtime
-						#[cfg(feature = "chain")]
-						(false, true, &vec![], &vec![try_runtime]),
-						// --features runtime-benchmarks,try-runtime
-						#[cfg(feature = "chain")]
-						(false, false, &features, &features),
-						#[cfg(feature = "chain")]
-						// --benchmark --try-runtime
-						(true, true, &vec![], &features),
-					] {
-						test_build(
-							package.clone(),
-							&project_path,
-							&profile,
-							release,
-							#[cfg(feature = "chain")]
-							benchmark_flag,
-							#[cfg(feature = "chain")]
-							try_runtime_flag,
-							#[cfg(feature = "chain")]
-							false,
-							features_flag,
-							expected_features,
-						)?;
-					}
+						false,
+						features_flag,
+						expected_features,
+					)?;
 				}
 			}
 		}
