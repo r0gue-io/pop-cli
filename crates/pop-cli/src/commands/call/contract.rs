@@ -161,32 +161,32 @@ impl CallContractCommand {
 					},
 				}
 			},
-			};
-			self.maybe_show_compatibility_warning(cli)?;
-			// Finally execute the call.
-			self.execute_call(cli, prompt_to_repeat_call, callable).await?;
-			Ok(())
-		}
+		};
+		self.maybe_show_compatibility_warning(cli)?;
+		// Finally execute the call.
+		self.execute_call(cli, prompt_to_repeat_call, callable).await?;
+		Ok(())
+	}
 
-		fn prepare_artifact_if_needed(&mut self, path: &Path) -> Result<()> {
-			if self.prepared_artifact_path.is_some() {
-				return Ok(());
-			}
-			let prepared = prepare_artifact_for_extrinsics(path)?;
-			self.prepared_artifact_path = Some(prepared.path);
-			self.compatibility_warning = prepared.compatibility_warning;
-			Ok(())
+	fn prepare_artifact_if_needed(&mut self, path: &Path) -> Result<()> {
+		if self.prepared_artifact_path.is_some() {
+			return Ok(());
 		}
+		let prepared = prepare_artifact_for_extrinsics(path)?;
+		self.prepared_artifact_path = Some(prepared.path);
+		self.compatibility_warning = prepared.compatibility_warning;
+		Ok(())
+	}
 
-		fn maybe_show_compatibility_warning(&mut self, cli: &mut impl Cli) -> Result<()> {
-			if !self.compatibility_warning_shown &&
-				let Some(warning) = &self.compatibility_warning
-			{
-				cli.warning(warning)?;
-				self.compatibility_warning_shown = true;
-			}
-			Ok(())
+	fn maybe_show_compatibility_warning(&mut self, cli: &mut impl Cli) -> Result<()> {
+		if !self.compatibility_warning_shown &&
+			let Some(warning) = &self.compatibility_warning
+		{
+			cli.warning(warning)?;
+			self.compatibility_warning_shown = true;
 		}
+		Ok(())
+	}
 
 	fn execution_path(&self, fallback: &Path) -> PathBuf {
 		self.prepared_artifact_path.clone().unwrap_or_else(|| fallback.to_path_buf())
@@ -681,6 +681,7 @@ impl CallContractCommand {
 		self.gas_limit = None;
 		self.proof_size = None;
 		self.use_wallet = false;
+		self.execute = false;
 		self.compatibility_warning_shown = false;
 	}
 }
@@ -1506,6 +1507,7 @@ mod tests {
 			gas_limit: Some(1),
 			proof_size: Some(2),
 			use_wallet: true,
+			execute: true,
 			compatibility_warning_shown: true,
 			..Default::default()
 		};
@@ -1517,6 +1519,7 @@ mod tests {
 		assert_eq!(command.gas_limit, None);
 		assert_eq!(command.proof_size, None);
 		assert!(!command.use_wallet);
+		assert!(!command.execute);
 		assert!(!command.compatibility_warning_shown);
 	}
 }

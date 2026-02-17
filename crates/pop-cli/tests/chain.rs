@@ -23,7 +23,7 @@ use std::{
 };
 use strum::VariantArray;
 use tempfile::tempdir;
-use tokio::{process::Child, time::sleep};
+use tokio::process::Child;
 
 /// Utility child process wrapper to kill the child process on drop.
 ///
