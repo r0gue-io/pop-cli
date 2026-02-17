@@ -611,7 +611,7 @@ mod tests {
 	use super::*;
 	use crate::{cli::MockCli, common::urls};
 	use pop_chains::decode_call_data;
-	use pop_common::test_env::TestNode;
+	use pop_common::test_env::SubstrateTestNode;
 	use std::fs;
 	use tempfile::tempdir;
 	use url::Url;
@@ -751,7 +751,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn prepare_for_registration_works() -> Result<()> {
-		let node = TestNode::spawn().await?;
+		let node = SubstrateTestNode::spawn().await?;
 		let node_url = node.ws_url();
 		let mut cli = MockCli::new()
 			.expect_select(
@@ -851,7 +851,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn register_fails_wrong_chain() -> Result<()> {
-		let node = TestNode::spawn().await?;
+		let node = SubstrateTestNode::spawn().await?;
 		let node_url = node.ws_url();
 		let mut cli = MockCli::new()
             .expect_intro("Deploy a chain")
@@ -942,7 +942,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn reserve_id_fails_wrong_chain() -> Result<()> {
-		let node = TestNode::spawn().await?;
+		let node = SubstrateTestNode::spawn().await?;
 		let node_url = node.ws_url();
 		let mut cli = MockCli::new()
             .expect_intro("Deploy a chain")

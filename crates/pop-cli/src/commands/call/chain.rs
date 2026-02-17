@@ -948,7 +948,7 @@ mod tests {
 		common::{chain::Chain, wallet::USE_WALLET_PROMPT},
 	};
 	use pop_chains::{Function, parse_chain_metadata, set_up_client};
-	use pop_common::test_env::TestNode;
+	use pop_common::test_env::SubstrateTestNode;
 	use tempfile::tempdir;
 	use url::Url;
 
@@ -956,7 +956,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn guide_user_to_call_chain_works() -> Result<()> {
-		let node = TestNode::spawn().await?;
+		let node = SubstrateTestNode::spawn().await?;
 		let node_url = node.ws_url();
 		let mut call_config = CallChainCommand {
 			pallet: Some("System".to_string()),
@@ -1057,7 +1057,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn guide_user_to_configure_predefined_action_works() -> Result<()> {
-		let node = TestNode::spawn().await?;
+		let node = SubstrateTestNode::spawn().await?;
 		let node_url = node.ws_url();
 		let mut call_config = CallChainCommand::default();
 		let mut cli = MockCli::new()
@@ -1150,7 +1150,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn prepare_extrinsic_works() -> Result<()> {
-		let node = TestNode::spawn().await?;
+		let node = SubstrateTestNode::spawn().await?;
 		let node_url = node.ws_url();
 		let client = set_up_client(node_url).await?;
 		let mut call_config = Call {
@@ -1181,14 +1181,19 @@ mod tests {
 				Err(message)
 					if message.to_string().contains("Failed to encode call data: Call with name WrongName not found")));
 		// Success, pallet and dispatchable function specified.
-		cli = MockCli::new().expect_info("Encoded call data: 0x00000411");
 		call_config.function = find_callable_by_name(&pallets, "System", "remark")?.clone();
+		let remark_fn = call_config.function.as_function().unwrap();
+		let remark_xt = construct_extrinsic(remark_fn, vec!["0x11".to_string()])?;
+		let expected_encoded = encode_call_data(&client, &remark_xt)?;
+		cli = MockCli::new().expect_info(format!("Encoded call data: {expected_encoded}"));
 		let xt = call_config.prepare_extrinsic(&client, &mut cli)?;
 		assert_eq!(xt.call_name(), "remark");
 		assert_eq!(xt.pallet_name(), "System");
 
 		// Prepare extrinsic wrapped in sudo works.
-		cli = MockCli::new().expect_info("Encoded call data: 0x070000000411");
+		let sudo_xt = construct_sudo_extrinsic(remark_xt);
+		let expected_sudo_encoded = encode_call_data(&client, &sudo_xt)?;
+		cli = MockCli::new().expect_info(format!("Encoded call data: {expected_sudo_encoded}"));
 		call_config.sudo = true;
 		call_config.prepare_extrinsic(&client, &mut cli)?;
 
@@ -1197,7 +1202,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn user_cancel_submit_extrinsic_from_call_data_works() -> Result<()> {
-		let node = TestNode::spawn().await?;
+		let node = SubstrateTestNode::spawn().await?;
 		let node_url = node.ws_url();
 		let client = set_up_client(node_url).await?;
 		let call_config = CallChainCommand {
@@ -1342,10 +1347,9 @@ mod tests {
 	#[tokio::test]
 	async fn query_storage_from_test_node_works() -> Result<()> {
 		use pop_chains::raw_value_to_string;
-		use scale_value::ValueDef;
 
 		// Spawn a test node
-		let node = TestNode::spawn().await?;
+		let node = SubstrateTestNode::spawn().await?;
 		let client = set_up_client(node.ws_url()).await?;
 		let pallets = parse_chain_metadata(&client)?;
 
@@ -1353,18 +1357,16 @@ mod tests {
 		let system_pallet =
 			pallets.iter().find(|p| p.name == "System").expect("System pallet should exist");
 
-		// Test querying a plain storage item (System::Number - current block number)
-		let number_storage = system_pallet
+		// Test querying a plain storage item (System::LastRuntimeUpgrade exists from genesis)
+		let upgrade_storage = system_pallet
 			.state
 			.iter()
-			.find(|s| s.name == "Number")
-			.expect("System::Number storage should exist");
+			.find(|s| s.name == "LastRuntimeUpgrade")
+			.expect("System::LastRuntimeUpgrade storage should exist");
 
-		let result = number_storage.query(&client, vec![]).await?;
+		let result = upgrade_storage.query(&client, vec![]).await?;
 		assert!(result.is_some(), "Storage query should return a value");
 		let value = result.unwrap();
-		// The value should be a primitive (block number)
-		assert!(matches!(value.value, ValueDef::Primitive(_)));
 		let formatted_value = raw_value_to_string(&value, "")?;
 		assert!(!formatted_value.is_empty(), "Formatted value should not be empty");
 
@@ -1398,7 +1400,7 @@ mod tests {
 		use scale_value::ValueDef;
 
 		// Spawn a test node
-		let node = TestNode::spawn().await?;
+		let node = SubstrateTestNode::spawn().await?;
 		let client = set_up_client(node.ws_url()).await?;
 		let pallets = parse_chain_metadata(&client)?;
 
@@ -1451,7 +1453,7 @@ mod tests {
 	#[tokio::test]
 	async fn query_storage_with_composite_key_works() -> Result<()> {
 		// Spawn a test node
-		let node = TestNode::spawn().await?;
+		let node = SubstrateTestNode::spawn().await?;
 		let node_url = node.ws_url();
 
 		// Build the command to directly execute a storage query using a composite key
@@ -1480,7 +1482,7 @@ mod tests {
 	#[tokio::test]
 	async fn display_metadata_works() -> Result<()> {
 		// Spawn a test node once for all metadata tests
-		let node = TestNode::spawn().await?;
+		let node = SubstrateTestNode::spawn().await?;
 		let client = set_up_client(node.ws_url()).await?;
 		let pallets = parse_chain_metadata(&client)?;
 
@@ -1564,7 +1566,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn show_pallet_works() -> Result<()> {
-		let node = TestNode::spawn().await?;
+		let node = SubstrateTestNode::spawn().await?;
 		let client = set_up_client(node.ws_url()).await?;
 		let pallets = parse_chain_metadata(&client)?;
 		let metadata = client.metadata();

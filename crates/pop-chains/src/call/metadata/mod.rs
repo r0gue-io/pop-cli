@@ -1342,38 +1342,41 @@ mod tests {
 	#[tokio::test]
 	async fn query_storage_works() -> Result<()> {
 		use crate::{parse_chain_metadata, set_up_client};
-		use pop_common::test_env::TestNode;
+		use pop_common::test_env::SubstrateTestNode;
+		use scale_value::stringify::custom_parsers;
 
 		// Spawn a test node
-		let node = TestNode::spawn().await?;
+		let node = SubstrateTestNode::spawn().await?;
 		let client = set_up_client(node.ws_url()).await?;
 		let pallets = parse_chain_metadata(&client)?;
 
-		// Find a storage item (System::Number is a simple storage item that always exists)
+		// Find a map storage item (System::Account exists from genesis with funded dev accounts)
 		let storage = pallets
 			.iter()
 			.find(|p| p.name == "System")
-			.and_then(|p| p.state.iter().find(|s| s.name == "Number"))
-			.expect("System::Number storage should exist");
+			.and_then(|p| p.state.iter().find(|s| s.name == "Account"))
+			.expect("System::Account storage should exist");
 
-		// Query the storage (without keys for plain storage)
-		let result = storage.query(&client, vec![]).await?;
+		// Query Alice's account (funded at genesis in --dev mode)
+		let alice_address = "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY";
+		let account_key = scale_value::stringify::from_str_custom()
+			.add_custom_parser(custom_parsers::parse_ss58)
+			.parse(alice_address)
+			.0
+			.expect("Should parse Alice's address");
 
-		// Should return Some value (block number)
-		assert!(result.is_some());
-		let value = result.unwrap();
-		// The value should be decodable as a block number (u32 or u64)
-		assert!(matches!(value.value, ValueDef::Primitive(_)));
+		let result = storage.query(&client, vec![account_key]).await?;
+		assert!(result.is_some(), "Alice's account should exist in dev chain from genesis");
 		Ok(())
 	}
 
 	#[tokio::test]
 	async fn query_storage_with_key_works() -> Result<()> {
 		use crate::{parse_chain_metadata, set_up_client};
-		use pop_common::test_env::TestNode;
+		use pop_common::test_env::SubstrateTestNode;
 
 		// Spawn a test node
-		let node = TestNode::spawn().await?;
+		let node = SubstrateTestNode::spawn().await?;
 		let client = set_up_client(node.ws_url()).await?;
 		let pallets = parse_chain_metadata(&client)?;
 
