@@ -1253,7 +1253,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn execute_flag_skips_submit_extrinsic_confirmation_from_call_data_works() -> Result<()> {
-		let node = TestNode::spawn().await?;
+		let node = SubstrateTestNode::spawn().await?;
 		let node_url = node.ws_url();
 		let client = set_up_client(node_url).await?;
 		let call_config = CallChainCommand {
