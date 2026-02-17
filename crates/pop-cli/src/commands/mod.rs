@@ -112,22 +112,29 @@ fn about_up() -> &'static str {
 }
 
 impl Command {
+	/// Returns `true` when this command can produce JSON output.
+	fn supports_json(&self) -> bool {
+		match self {
+			Self::Hash(_) | Self::Convert(_) => true,
+			#[cfg(feature = "chain")]
+			Self::Bench(_) => true,
+			_ => false,
+		}
+	}
+
 	/// Executes the command.
 	pub(crate) async fn execute(&mut self, output_mode: OutputMode) -> anyhow::Result<()> {
+		if output_mode == OutputMode::Json && !self.supports_json() {
+			return reject_unsupported_json(&self.to_string());
+		}
 		match self {
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::Install(args) => {
-				if output_mode == OutputMode::Json {
-					reject_unsupported_json("install");
-				}
 				env_logger::init();
 				install::Command.execute(args).await
 			},
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::New(args) => {
-				if output_mode == OutputMode::Json {
-					reject_unsupported_json("new");
-				}
 				env_logger::init();
 
 				if args.list {
@@ -182,16 +189,20 @@ impl Command {
 				// preserving backward compatibility with `pop bench pallet --json`.
 				if output_mode == OutputMode::Json {
 					match &mut args.command {
-						bench::Command::Pallet(cmd) => cmd.json_output = true,
-						_ => reject_unsupported_json("bench"),
+						bench::Command::Pallet(cmd) => {
+							if cmd.json_file.is_some() {
+								return Err(anyhow::anyhow!(
+									"--json and --json-file cannot be used together"
+								));
+							}
+							cmd.json_output = true;
+						},
+						_ => return reject_unsupported_json("bench"),
 					}
 				}
 				bench::Command::execute(args).await
 			},
 			Self::Build(args) => {
-				if output_mode == OutputMode::Json {
-					reject_unsupported_json("build");
-				}
 				env_logger::init();
 				#[cfg(feature = "chain")]
 				match &args.command {
@@ -207,9 +218,6 @@ impl Command {
 			},
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::Call(args) => {
-				if output_mode == OutputMode::Json {
-					reject_unsupported_json("call");
-				}
 				env_logger::init();
 				match args.resolve_command()? {
 					#[cfg(feature = "chain")]
@@ -220,9 +228,6 @@ impl Command {
 			},
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::Up(args) => {
-				if output_mode == OutputMode::Json {
-					reject_unsupported_json("up");
-				}
 				env_logger::init();
 				match &mut args.command {
 					None => up::Command::execute(args).await,
@@ -253,16 +258,10 @@ impl Command {
 				}
 			},
 			Self::Upgrade(args) => {
-				if output_mode == OutputMode::Json {
-					reject_unsupported_json("upgrade");
-				}
 				env_logger::init();
 				upgrade::Command::execute(args, &mut Cli).await
 			},
 			Self::Test(args) => {
-				if output_mode == OutputMode::Json {
-					reject_unsupported_json("test");
-				}
 				env_logger::init();
 
 				#[cfg(any(feature = "contract", feature = "chain"))]
@@ -290,9 +289,6 @@ impl Command {
 				hash::execute(&args.command, output_mode)
 			},
 			Self::Clean(args) => {
-				if output_mode == OutputMode::Json {
-					reject_unsupported_json("clean");
-				}
 				env_logger::init();
 				match &args.command {
 					clean::Command::Cache(cmd_args) => clean::CleanCacheCommand {
@@ -326,24 +322,11 @@ impl Command {
 				env_logger::init();
 				convert::execute(&args.command, output_mode)
 			},
-			Command::Completion(args) => {
-				if output_mode == OutputMode::Json {
-					reject_unsupported_json("completion");
-				}
-				completion::Command::execute(args)
-			},
+			Command::Completion(args) => completion::Command::execute(args),
 			#[cfg(feature = "contract")]
-			Self::Verify(verify) => {
-				if output_mode == OutputMode::Json {
-					reject_unsupported_json("verify");
-				}
-				verify.execute(&mut Cli).await
-			},
+			Self::Verify(verify) => verify.execute(&mut Cli).await,
 			#[cfg(feature = "chain")]
 			Self::Fork(args) => {
-				if output_mode == OutputMode::Json {
-					reject_unsupported_json("fork");
-				}
 				env_logger::Builder::new()
 					.filter_level(log::LevelFilter::Info)
 					.parse_default_env()

@@ -88,15 +88,21 @@ pub(crate) enum ErrorCode {
 	UnsupportedJson,
 }
 
-/// Returns a JSON error response indicating that `--json` is not yet supported
-/// for the given command, and exits with code 1.
-pub(crate) fn reject_unsupported_json(command_name: &str) -> ! {
-	CliResponse::err(CliError::new(
-		ErrorCode::UnsupportedJson,
-		format!("--json is not yet supported for the `{command_name}` command"),
-	))
-	.print_json_err();
-	std::process::exit(1);
+/// Error returned when `--json` is requested for a command that doesn't support it.
+#[derive(Debug)]
+pub(crate) struct UnsupportedJsonError(pub String);
+
+impl std::fmt::Display for UnsupportedJsonError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "--json is not yet supported for the `{}` command", self.0)
+	}
+}
+
+impl std::error::Error for UnsupportedJsonError {}
+
+/// Returns an error indicating that `--json` is not yet supported for the given command.
+pub(crate) fn reject_unsupported_json(command_name: &str) -> anyhow::Result<()> {
+	Err(UnsupportedJsonError(command_name.to_string()).into())
 }
 
 #[cfg(test)]

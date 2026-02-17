@@ -5,7 +5,7 @@
 use anyhow::{Result, anyhow};
 use clap::Parser;
 use commands::*;
-use output::{CliError, CliResponse, ErrorCode, OutputMode};
+use output::{CliError, CliResponse, ErrorCode, OutputMode, UnsupportedJsonError};
 #[cfg(feature = "telemetry")]
 use pop_telemetry::{Telemetry, config_file_path, record_cli_command, record_cli_used};
 use std::{
@@ -30,7 +30,7 @@ async fn main() -> Result<()> {
 	let maybe_tel = init().unwrap_or(None);
 
 	// Detect --json from argv before parsing so clap errors can be wrapped.
-	let json_requested = std::env::args().any(|a| a == "--json");
+	let json_requested = std::env::args().take_while(|a| a != "--").any(|a| a == "--json");
 	let output_mode = if json_requested { OutputMode::Json } else { OutputMode::Human };
 
 	let mut cli = match Cli::try_parse() {
@@ -69,8 +69,12 @@ async fn main() -> Result<()> {
 		Ok(_) => Ok(()),
 		Err(e) => {
 			if output_mode == OutputMode::Json {
-				CliResponse::err(CliError::new(ErrorCode::Internal, e.to_string()))
-					.print_json_err();
+				let code = if e.downcast_ref::<UnsupportedJsonError>().is_some() {
+					ErrorCode::UnsupportedJson
+				} else {
+					ErrorCode::Internal
+				};
+				CliResponse::err(CliError::new(code, e.to_string())).print_json_err();
 				std::process::exit(1);
 			}
 			Err(e)
