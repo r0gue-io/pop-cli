@@ -254,7 +254,7 @@ mod tests {
 		BuildArtifacts, OutputType, Verbosity,
 		metadata::{InkMetadataArtifacts, MetadataArtifacts},
 	};
-	use pop_common::test_env::InkTestNode;
+	use pop_common::test_env::shared_ink_ws_url;
 	use std::{io::ErrorKind, path::PathBuf};
 	use tempfile::TempDir;
 
@@ -707,9 +707,9 @@ mod tests {
 
 	#[tokio::test]
 	async fn get_deployed_polkavm_code_hash_fails_with_invalid_address_format() {
-		// Test with invalid hex address - this fails during address parsing before connecting
-		let node = InkTestNode::spawn().await.expect("Failed to spawn test node");
-		let result = get_deployed_polkavm_code_hash(node.ws_url(), "invalid_address").await;
+		// Test with invalid hex address - this fails during address parsing before connecting.
+		// No real node needed since parse_hex_bytes errors before any RPC call.
+		let result = get_deployed_polkavm_code_hash("ws://dummy:9944", "invalid_address").await;
 
 		// Should fail during parse_hex_bytes
 		assert!(matches!(result, Err(Error::HexParsing(msg)) if msg == "Odd number of digits"));
@@ -735,8 +735,8 @@ mod tests {
 		// Use a valid address format that doesn't exist on chain
 		let nonexistent_address = "0x0000000000000000000000000000000000000000";
 
-		let node = InkTestNode::spawn().await.expect("Failed to spawn test node");
-		let result = get_deployed_polkavm_code_hash(node.ws_url(), nonexistent_address).await;
+		let ws_url = shared_ink_ws_url().await;
+		let result = get_deployed_polkavm_code_hash(&ws_url, nonexistent_address).await;
 
 		assert!(matches!(
 			result,

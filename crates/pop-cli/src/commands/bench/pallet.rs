@@ -833,14 +833,14 @@ enum BenchmarkPalletMenuOption {
 
 impl BenchmarkPalletMenuOption {
 	// Check if the menu option is disabled. If disabled, the menu option is not displayed in the
-	// menu.
-	fn is_disabled(self, cmd: &BenchmarkPallet) -> anyhow::Result<bool> {
+	// menu. `preset_names` should be precomputed once via `get_preset_names()` and reused across
+	// calls to avoid re-initializing the Wasm VM for every option.
+	fn is_disabled(self, cmd: &BenchmarkPallet, preset_names: &[String]) -> anyhow::Result<bool> {
 		use BenchmarkPalletMenuOption::*;
 		match self {
 			GenesisBuilder | GenesisBuilderPreset => {
-				let presets = get_preset_names(cmd.runtime_binary()?)?;
 				// If there are no presets available, disable the preset builder options.
-				if presets.is_empty() {
+				if preset_names.is_empty() {
 					return Ok(true);
 				}
 				if self == GenesisBuilderPreset {
@@ -1191,8 +1191,9 @@ async fn guide_user_to_select_menu_option(
 
 	let mut index = 0;
 	spinner.start("Loading parameters...");
+	let preset_names = get_preset_names(cmd.runtime_binary()?).unwrap_or_default();
 	for param in BenchmarkPalletMenuOption::iter() {
-		if param.is_disabled(cmd)? {
+		if param.is_disabled(cmd, &preset_names)? {
 			continue;
 		}
 		let label = param.get_message().unwrap_or_default();
@@ -1515,7 +1516,8 @@ mod tests {
 			..Default::default()
 		};
 
-		let mut cli = expect_parameter_menu(MockCli::new(), &cmd, 0)?;
+		let preset_names = get_preset_names(cmd.runtime_binary()?).unwrap_or_default();
+		let mut cli = expect_parameter_menu(MockCli::new(), &cmd, 0, &preset_names)?;
 		guide_user_to_select_menu_option(&mut cmd, &mut cli).await?;
 		cli.verify()
 	}
@@ -1591,8 +1593,8 @@ mod tests {
 		Ok(())
 	}
 
-	#[tokio::test]
-	async fn menu_option_is_disabled_works() -> anyhow::Result<()> {
+	#[test]
+	fn menu_option_is_disabled_works() -> anyhow::Result<()> {
 		use BenchmarkPalletMenuOption::*;
 		let cmd = BenchmarkPallet {
 			runtime_binary: Some(get_mock_runtime(None)),
@@ -1601,9 +1603,10 @@ mod tests {
 			genesis_builder: Some(GenesisBuilderPolicy::None),
 			..Default::default()
 		};
-		assert!(!GenesisBuilder.is_disabled(&cmd)?);
-		assert!(GenesisBuilderPreset.is_disabled(&cmd)?);
-		assert!(WeightFileTemplate.is_disabled(&cmd)?);
+		let preset_names = get_preset_names(cmd.runtime_binary()?).unwrap_or_default();
+		assert!(!GenesisBuilder.is_disabled(&cmd, &preset_names)?);
+		assert!(GenesisBuilderPreset.is_disabled(&cmd, &preset_names)?);
+		assert!(WeightFileTemplate.is_disabled(&cmd, &preset_names)?);
 		Ok(())
 	}
 
@@ -2117,11 +2120,12 @@ runtime-benchmarks = []
 		cli: MockCli,
 		cmd: &BenchmarkPallet,
 		item: usize,
+		preset_names: &[String],
 	) -> anyhow::Result<MockCli> {
 		let mut items: Vec<(String, String)> = vec![];
 		let mut index = 0;
 		for param in BenchmarkPalletMenuOption::iter() {
-			if param.is_disabled(cmd)? {
+			if param.is_disabled(cmd, preset_names)? {
 				continue;
 			}
 			let label = param.get_message().unwrap_or_default();

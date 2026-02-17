@@ -963,7 +963,7 @@ mod tests {
 		common::{chain::Chain, wallet::USE_WALLET_PROMPT},
 	};
 	use pop_chains::{Function, parse_chain_metadata, set_up_client};
-	use pop_common::test_env::SubstrateTestNode;
+	use pop_common::test_env::shared_substrate_ws_url;
 	use tempfile::tempdir;
 	use url::Url;
 
@@ -971,8 +971,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn guide_user_to_call_chain_works() -> Result<()> {
-		let node = SubstrateTestNode::spawn().await?;
-		let node_url = node.ws_url();
+		let node_url = shared_substrate_ws_url().await;
 		let mut call_config = CallChainCommand {
 			pallet: Some("System".to_string()),
 			sudo: true,
@@ -991,7 +990,7 @@ mod tests {
                 1,
                 None,
             )
-            .expect_input("Which chain would you like to interact with?", node_url.into())
+            .expect_input("Which chain would you like to interact with?", node_url.clone())
             .expect_select(
                 "Select the function to call (type to filter)",
                 Some(true),
@@ -1046,13 +1045,13 @@ mod tests {
 		let chain = chain::configure(
 			"Select a chain (type to filter)",
 			"Which chain would you like to interact with?",
-			node_url,
+			&node_url,
 			&None,
 			|_| true,
 			&mut cli,
 		)
 		.await?;
-		assert_eq!(chain.url, Url::parse(node_url)?);
+		assert_eq!(chain.url, Url::parse(&node_url)?);
 
 		let call_chain = call_config.configure_call(&chain, &mut cli)?;
 		assert_eq!(call_chain.function.pallet(), "System");
@@ -1072,8 +1071,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn guide_user_to_configure_predefined_action_works() -> Result<()> {
-		let node = SubstrateTestNode::spawn().await?;
-		let node_url = node.ws_url();
+		let node_url = shared_substrate_ws_url().await;
 		let mut call_config = CallChainCommand::default();
 		let mut cli = MockCli::new()
 			.expect_select(
@@ -1087,17 +1085,17 @@ mod tests {
 				1,
 				None,
 			)
-			.expect_input("Which chain would you like to interact with?", node_url.into());
+			.expect_input("Which chain would you like to interact with?", node_url.clone());
 		let chain = chain::configure(
 			"Select a chain (type to filter)",
 			"Which chain would you like to interact with?",
-			node_url,
+			&node_url,
 			&None,
 			|_| true,
 			&mut cli,
 		)
 		.await?;
-		assert_eq!(chain.url, Url::parse(node_url)?);
+		assert_eq!(chain.url, Url::parse(&node_url)?);
 		cli.verify()?;
 
 		let mut cli = MockCli::new()
@@ -1165,9 +1163,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn prepare_extrinsic_works() -> Result<()> {
-		let node = SubstrateTestNode::spawn().await?;
-		let node_url = node.ws_url();
-		let client = set_up_client(node_url).await?;
+		let node_url = shared_substrate_ws_url().await;
+		let client = set_up_client(&node_url).await?;
 		let mut call_config = Call {
 			function: CallItem::Function(Function {
 				pallet: "WrongName".to_string(),
@@ -1218,14 +1215,14 @@ mod tests {
 
 	#[tokio::test]
 	async fn user_cancel_submit_extrinsic_from_call_data_works() -> Result<()> {
-		let node = SubstrateTestNode::spawn().await?;
-		let node_url = node.ws_url();
-		let client = set_up_client(node_url).await?;
+		let node_url = shared_substrate_ws_url().await;
+		let url = Url::parse(&node_url)?;
+		let client = set_up_client(&node_url).await?;
 		let call_config = CallChainCommand {
 			pallet: None,
 			function: None,
 			args: vec![],
-			url: Some(Url::parse(node_url)?),
+			url: Some(url.clone()),
 			suri: None,
 			use_wallet: false,
 			skip_confirm: false,
@@ -1240,12 +1237,7 @@ mod tests {
 			.expect_confirm("Do you want to submit the extrinsic?", false)
 			.expect_outro_cancel("Extrinsic with call data 0x00000411 was not submitted.");
 		call_config
-			.submit_extrinsic_from_call_data(
-				&client,
-				&Url::parse(node_url)?,
-				"0x00000411",
-				&mut cli,
-			)
+			.submit_extrinsic_from_call_data(&client, &url, "0x00000411", &mut cli)
 			.await?;
 
 		cli.verify()
@@ -1253,14 +1245,14 @@ mod tests {
 
 	#[tokio::test]
 	async fn execute_flag_skips_submit_extrinsic_confirmation_from_call_data_works() -> Result<()> {
-		let node = SubstrateTestNode::spawn().await?;
-		let node_url = node.ws_url();
-		let client = set_up_client(node_url).await?;
+		let node_url = shared_substrate_ws_url().await;
+		let url = Url::parse(&node_url)?;
+		let client = set_up_client(&node_url).await?;
 		let call_config = CallChainCommand {
 			pallet: None,
 			function: None,
 			args: vec![],
-			url: Some(Url::parse(node_url)?),
+			url: Some(url.clone()),
 			suri: Some("//Alice".to_string()),
 			use_wallet: false,
 			skip_confirm: false,
@@ -1273,12 +1265,7 @@ mod tests {
 			.expect_info("Encoded call data: 0x00000411")
 			.expect_outro("Call complete.");
 		call_config
-			.submit_extrinsic_from_call_data(
-				&client,
-				&Url::parse(node_url)?,
-				"0x00000411",
-				&mut cli,
-			)
+			.submit_extrinsic_from_call_data(&client, &url, "0x00000411", &mut cli)
 			.await?;
 
 		cli.verify()
@@ -1400,9 +1387,8 @@ mod tests {
 	async fn query_storage_from_test_node_works() -> Result<()> {
 		use pop_chains::raw_value_to_string;
 
-		// Spawn a test node
-		let node = SubstrateTestNode::spawn().await?;
-		let client = set_up_client(node.ws_url()).await?;
+		let node_url = shared_substrate_ws_url().await;
+		let client = set_up_client(&node_url).await?;
 		let pallets = parse_chain_metadata(&client)?;
 
 		// Find the System pallet
@@ -1451,9 +1437,8 @@ mod tests {
 		use pop_chains::raw_value_to_string;
 		use scale_value::ValueDef;
 
-		// Spawn a test node
-		let node = SubstrateTestNode::spawn().await?;
-		let client = set_up_client(node.ws_url()).await?;
+		let node_url = shared_substrate_ws_url().await;
+		let client = set_up_client(&node_url).await?;
 		let pallets = parse_chain_metadata(&client)?;
 
 		// Find the System pallet
@@ -1504,9 +1489,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn query_storage_with_composite_key_works() -> Result<()> {
-		// Spawn a test node
-		let node = SubstrateTestNode::spawn().await?;
-		let node_url = node.ws_url();
+		let node_url = shared_substrate_ws_url().await;
 
 		// Build the command to directly execute a storage query using a composite key
 		let cmd = CallChainCommand {
@@ -1517,7 +1500,7 @@ mod tests {
 				// Alice AccountId32 (hex) in dev networks
 				"0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d".to_string(),
 			],
-			url: Some(Url::parse(node_url)?),
+			url: Some(Url::parse(&node_url)?),
 			skip_confirm: true, // Avoid interactive confirmation at the end of execute loop
 			..Default::default()
 		};
@@ -1533,12 +1516,11 @@ mod tests {
 
 	#[tokio::test]
 	async fn display_metadata_works() -> Result<()> {
-		// Spawn a test node once for all metadata tests
-		let node = SubstrateTestNode::spawn().await?;
-		let client = set_up_client(node.ws_url()).await?;
+		let node_url = shared_substrate_ws_url().await;
+		let client = set_up_client(&node_url).await?;
 		let pallets = parse_chain_metadata(&client)?;
 
-		let chain = Chain { url: Url::parse(node.ws_url())?, client, pallets: pallets.clone() };
+		let chain = Chain { url: Url::parse(&node_url)?, client, pallets: pallets.clone() };
 
 		// Test 1: List all pallets
 		{
@@ -1618,8 +1600,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn show_pallet_works() -> Result<()> {
-		let node = SubstrateTestNode::spawn().await?;
-		let client = set_up_client(node.ws_url()).await?;
+		let node_url = shared_substrate_ws_url().await;
+		let client = set_up_client(&node_url).await?;
 		let pallets = parse_chain_metadata(&client)?;
 		let metadata = client.metadata();
 		let registry = metadata.types();

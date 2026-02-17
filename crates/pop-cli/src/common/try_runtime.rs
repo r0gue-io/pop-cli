@@ -572,7 +572,7 @@ mod tests {
 		common::{binary::SemanticVersion, runtime::get_mock_runtime},
 	};
 	use clap::Parser;
-	use pop_common::test_env::SubstrateTestNode;
+	use pop_common::test_env::shared_substrate_ws_url;
 	use tempfile::tempdir;
 
 	#[derive(Default)]
@@ -639,8 +639,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn update_live_state_works() -> anyhow::Result<()> {
-		let node = SubstrateTestNode::spawn().await?;
-		let node_url = node.ws_url();
+		let node_url = shared_substrate_ws_url().await;
 		// Prompt all inputs if not provided.
 		let mut live_state = LiveState::default();
 		let mut cmd = MockCommand::default();
@@ -776,9 +775,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn guide_user_to_select_try_state_works() -> anyhow::Result<()> {
-		let node = SubstrateTestNode::spawn().await?;
-		let node_url = node.ws_url();
-		let client = set_up_client(node_url).await?;
+		let node_url = shared_substrate_ws_url().await;
+		let client = set_up_client(&node_url).await?;
 		let pallets = get_pallets(&client).await?;
 		let pallet_items: Vec<(String, String)> =
 			pallets.into_iter().map(|pallet| (pallet.name, pallet.docs)).collect();

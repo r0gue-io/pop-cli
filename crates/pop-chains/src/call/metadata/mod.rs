@@ -1342,12 +1342,11 @@ mod tests {
 	#[tokio::test]
 	async fn query_storage_works() -> Result<()> {
 		use crate::{parse_chain_metadata, set_up_client};
-		use pop_common::test_env::SubstrateTestNode;
+		use pop_common::test_env::shared_substrate_ws_url;
 		use scale_value::stringify::custom_parsers;
 
-		// Spawn a test node
-		let node = SubstrateTestNode::spawn().await?;
-		let client = set_up_client(node.ws_url()).await?;
+		let node_url = shared_substrate_ws_url().await;
+		let client = set_up_client(&node_url).await?;
 		let pallets = parse_chain_metadata(&client)?;
 
 		// Find a map storage item (System::Account exists from genesis with funded dev accounts)
@@ -1373,11 +1372,10 @@ mod tests {
 	#[tokio::test]
 	async fn query_storage_with_key_works() -> Result<()> {
 		use crate::{parse_chain_metadata, set_up_client};
-		use pop_common::test_env::SubstrateTestNode;
+		use pop_common::test_env::shared_substrate_ws_url;
 
-		// Spawn a test node
-		let node = SubstrateTestNode::spawn().await?;
-		let client = set_up_client(node.ws_url()).await?;
+		let node_url = shared_substrate_ws_url().await;
+		let client = set_up_client(&node_url).await?;
 		let pallets = parse_chain_metadata(&client)?;
 
 		// Find a map storage item (System::Account requires a key)

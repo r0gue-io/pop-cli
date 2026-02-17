@@ -10,7 +10,7 @@ use pop_chains::{
 	encode_call_data, field_to_param, find_callable_by_name, find_pallet_by_name,
 	parse_chain_metadata, set_up_client, sign_and_submit_extrinsic,
 };
-use pop_common::test_env::SubstrateTestNode;
+use pop_common::test_env::shared_substrate_ws_url;
 use std::time::Duration;
 use subxt::{OnlineClient, SubstrateConfig};
 use url::Url;
@@ -62,8 +62,8 @@ async fn construct_proxy_extrinsic_work() -> Result<()> {
 
 #[tokio::test]
 async fn encode_and_decode_call_data_works() -> Result<()> {
-	let node = SubstrateTestNode::spawn().await?;
-	let client = set_up_client(node.ws_url()).await?;
+	let node_url = shared_substrate_ws_url().await;
+	let client = set_up_client(&node_url).await?;
 	let pallets = parse_chain_metadata(&client)?;
 	let call_item = find_callable_by_name(&pallets, "System", "remark")?;
 	let remark = call_item.as_function().unwrap();
@@ -81,8 +81,8 @@ async fn encode_and_decode_call_data_works() -> Result<()> {
 
 #[tokio::test]
 async fn sign_and_submit_wrong_extrinsic_fails() -> Result<()> {
-	let node = SubstrateTestNode::spawn().await?;
-	let client = set_up_client(node.ws_url()).await?;
+	let node_url = shared_substrate_ws_url().await;
+	let client = set_up_client(&node_url).await?;
 	let function = Function {
 		pallet: "WrongPallet".to_string(),
 		name: "wrong_extrinsic".to_string(),
@@ -93,7 +93,7 @@ async fn sign_and_submit_wrong_extrinsic_fails() -> Result<()> {
 	};
 	let xt = construct_extrinsic(&function, vec!["0x11".to_string()])?;
 	assert!(matches!(
-		sign_and_submit_extrinsic(&client, &Url::parse(node.ws_url())?, xt, ALICE_SURI).await,
+		sign_and_submit_extrinsic(&client, &Url::parse(&node_url)?, xt, ALICE_SURI).await,
 		Err(Error::ExtrinsicSubmissionError(message)) if message.contains("PalletNameNotFound(\"WrongPallet\"))")
 	));
 	Ok(())
@@ -101,8 +101,8 @@ async fn sign_and_submit_wrong_extrinsic_fails() -> Result<()> {
 
 #[tokio::test]
 async fn parse_chain_metadata_works() -> Result<()> {
-	let node = SubstrateTestNode::spawn().await?;
-	let client = set_up_client(node.ws_url()).await?;
+	let node_url = shared_substrate_ws_url().await;
+	let client = set_up_client(&node_url).await?;
 	let pallets = parse_chain_metadata(&client)?;
 	// Test the first pallet is parsed correctly
 	let first_pallet = pallets.first().unwrap();
@@ -130,8 +130,8 @@ async fn parse_chain_metadata_works() -> Result<()> {
 
 #[tokio::test]
 async fn find_pallet_by_name_works() -> Result<()> {
-	let node = SubstrateTestNode::spawn().await?;
-	let client = set_up_client(node.ws_url()).await?;
+	let node_url = shared_substrate_ws_url().await;
+	let client = set_up_client(&node_url).await?;
 	let pallets = parse_chain_metadata(&client)?;
 	assert!(matches!(
         find_pallet_by_name(&pallets, "WrongName"),
@@ -144,8 +144,8 @@ async fn find_pallet_by_name_works() -> Result<()> {
 
 #[tokio::test]
 async fn find_dispatchable_by_name_works() -> Result<()> {
-	let node = SubstrateTestNode::spawn().await?;
-	let client = set_up_client(node.ws_url()).await?;
+	let node_url = shared_substrate_ws_url().await;
+	let client = set_up_client(&node_url).await?;
 	let pallets = parse_chain_metadata(&client)?;
 	assert!(matches!(
         find_callable_by_name(&pallets, "WrongName", "wrong_name"),
@@ -168,8 +168,8 @@ async fn find_dispatchable_by_name_works() -> Result<()> {
 
 #[tokio::test]
 async fn field_to_param_works() -> Result<()> {
-	let node = SubstrateTestNode::spawn().await?;
-	let client = set_up_client(node.ws_url()).await?;
+	let node_url = shared_substrate_ws_url().await;
+	let client = set_up_client(&node_url).await?;
 	let metadata = client.metadata();
 	// Test a supported dispatchable function.
 	let function = metadata

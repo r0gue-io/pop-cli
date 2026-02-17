@@ -611,7 +611,7 @@ mod tests {
 	use super::*;
 	use crate::{cli::MockCli, common::urls};
 	use pop_chains::decode_call_data;
-	use pop_common::test_env::SubstrateTestNode;
+	use pop_common::test_env::shared_substrate_ws_url;
 	use std::fs;
 	use tempfile::tempdir;
 	use url::Url;
@@ -751,8 +751,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn prepare_for_registration_works() -> Result<()> {
-		let node = SubstrateTestNode::spawn().await?;
-		let node_url = node.ws_url();
+		let node_url = shared_substrate_ws_url().await;
 		let mut cli = MockCli::new()
 			.expect_select(
 				"Select a chain (type to filter)".to_string(),
@@ -765,7 +764,7 @@ mod tests {
 				1,
 				None,
 			)
-			.expect_input("Enter the relay chain node URL", node_url.into());
+			.expect_input("Enter the relay chain node URL", node_url.clone());
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
 		let chain_config = UpCommand {
 			id: Some(2000),
@@ -780,7 +779,7 @@ mod tests {
 		assert_eq!(chain_config.id, 2000);
 		assert_eq!(chain_config.genesis_artifacts.genesis_code_file, Some(genesis_code));
 		assert_eq!(chain_config.genesis_artifacts.genesis_state_file, Some(genesis_state));
-		assert_eq!(chain_config.chain.url, Url::parse(node_url)?);
+		assert_eq!(chain_config.chain.url, Url::parse(&node_url)?);
 		assert_eq!(chain_config.proxy, Some(format!("Id({})", MOCK_PROXIED_ADDRESS)));
 		cli.verify()
 	}
@@ -851,8 +850,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn register_fails_wrong_chain() -> Result<()> {
-		let node = SubstrateTestNode::spawn().await?;
-		let node_url = node.ws_url();
+		let node_url = shared_substrate_ws_url().await;
 		let mut cli = MockCli::new()
             .expect_intro("Deploy a chain")
             .expect_select(
@@ -872,7 +870,7 @@ mod tests {
                 DeploymentProvider::VARIANTS.len(), // Register
                 None,
             )
-            .expect_info(format!("You will need to sign a transaction to register on {}, using the `Registrar::register` function.", Url::parse(node_url)?.as_str()))
+            .expect_info(format!("You will need to sign a transaction to register on {}, using the `Registrar::register` function.", Url::parse(&node_url)?.as_str()))
             .expect_outro_cancel(format!("Failed to find the pallet: Registrar\n{}", style(format!(
 				"Retry registration without reserve or rebuilding the chain specs using: {}", style("`pop up --id 2000 --skip-registration`").bold()
 			)).black()
@@ -882,7 +880,7 @@ mod tests {
 			id: Some(2000),
 			genesis_state: Some(genesis_state.clone()),
 			genesis_code: Some(genesis_code.clone()),
-			relay_chain_url: Some(Url::parse(node_url)?),
+			relay_chain_url: Some(Url::parse(&node_url)?),
 			path: PathBuf::from("./"),
 			proxied_address: None,
 			..Default::default()
@@ -942,8 +940,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn reserve_id_fails_wrong_chain() -> Result<()> {
-		let node = SubstrateTestNode::spawn().await?;
-		let node_url = node.ws_url();
+		let node_url = shared_substrate_ws_url().await;
 		let mut cli = MockCli::new()
             .expect_intro("Deploy a chain")
             .expect_select(
@@ -963,14 +960,14 @@ mod tests {
                 DeploymentProvider::VARIANTS.len(), // Register
                 None,
             )
-            .expect_info(format!("You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", Url::parse(node_url)?.as_str()))
+            .expect_info(format!("You will need to sign a transaction to reserve an ID on {} using the `Registrar::reserve` function.", Url::parse(&node_url)?.as_str()))
             .expect_outro_cancel("Failed to find the pallet: Registrar");
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
 		UpCommand {
 			id: None,
 			genesis_state: Some(genesis_state.clone()),
 			genesis_code: Some(genesis_code.clone()),
-			relay_chain_url: Some(Url::parse(node_url)?),
+			relay_chain_url: Some(Url::parse(&node_url)?),
 			path: PathBuf::from("./"),
 			proxied_address: None,
 			..Default::default()
