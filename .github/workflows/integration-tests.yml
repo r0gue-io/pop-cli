@@ -5,10 +5,21 @@ permissions:
   packages: read
 
 on:
-  workflow_run:
-    workflows: ["lint"]
+  push:
+    branches:
+      - main
+  pull_request:
     types:
-      - completed
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.github/**.md'
 
 env:
   CARGO_TERM_COLOR: always
@@ -21,12 +32,15 @@ env:
 
 concurrency:
   # Cancel any in-progress jobs for the same pull request or branch
-  group: integration-tests-${{ github.event.workflow_run.head_branch }}
+  group: integration-tests-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  lint:
+    uses: ./.github/workflows/lint.yml
+
   pop-fork-integration-tests:
-    if: github.event.workflow_run.conclusion == 'success'
+    needs: lint
     strategy:
       fail-fast: true
       matrix:
@@ -50,8 +64,6 @@ jobs:
           wait
 
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
@@ -67,7 +79,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-          save-if: ${{ github.event.workflow_run.head_branch == 'main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           shared-key: pop-cache
 
       - name: Rust Cache MacOS
@@ -76,7 +88,7 @@ jobs:
         with:
           cache-all-crates: true
           shared-key: pop-cache
-          save-if: ${{ github.event.workflow_run.head_branch == 'main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install packages (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -178,7 +190,7 @@ jobs:
           pkill eth-rpc || true
 
   contract-integration-tests:
-    if: github.event.workflow_run.conclusion == 'success'
+    needs: lint
     strategy:
       fail-fast: true
       matrix:
@@ -188,8 +200,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Free up space on runner
         if: matrix.os == 'ubuntu-latest'
@@ -219,7 +229,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-          save-if: ${{ github.event.workflow_run.head_branch == 'main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           shared-key: pop-cache
 
       - name: Rust Cache MacOS
@@ -227,7 +237,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-          save-if: ${{ github.event.workflow_run.head_branch == 'main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           shared-key: pop-cache
 
       - name: Install packages (Linux)
@@ -273,7 +283,7 @@ jobs:
             --status-level all
 
   chain-integration-tests:
-    if: github.event.workflow_run.conclusion == 'success'
+    needs: lint
     strategy:
       fail-fast: true
       matrix:
@@ -297,8 +307,6 @@ jobs:
           wait
 
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
@@ -314,7 +322,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-          save-if: ${{ github.event.workflow_run.head_branch == 'main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           shared-key: pop-cache
 
       - name: Rust Cache MacOS
@@ -323,7 +331,7 @@ jobs:
         with:
           cache-all-crates: true
           shared-key: pop-cache
-          save-if: ${{ github.event.workflow_run.head_branch == 'main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install packages (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -369,7 +377,7 @@ jobs:
             --status-level all
 
   pop-cli-integration-tests:
-    if: github.event.workflow_run.conclusion == 'success'
+    needs: lint
     strategy:
       fail-fast: true
       matrix:
@@ -393,8 +401,6 @@ jobs:
           wait
 
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
@@ -410,7 +416,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
-          save-if: ${{ github.event.workflow_run.head_branch == 'main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
           shared-key: pop-cache
 
       - name: Rust Cache MacOS
@@ -419,7 +425,7 @@ jobs:
         with:
           cache-all-crates: true
           shared-key: pop-cache
-          save-if: ${{ github.event.workflow_run.head_branch == 'main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install packages (Linux)
         if: matrix.os == 'ubuntu-latest'

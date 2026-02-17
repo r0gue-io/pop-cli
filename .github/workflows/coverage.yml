@@ -5,10 +5,21 @@ permissions:
   packages: read
 
 on:
-  workflow_run:
-    workflows: ["lint"]
+  push:
+    branches:
+      - main
+  pull_request:
     types:
-      - completed
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.github/**.md'
 
 env:
   CARGO_TERM_COLOR: always
@@ -19,12 +30,15 @@ env:
 
 concurrency:
   # Cancel any in-progress jobs for the same pull request or branch
-  group: coverage-${{ github.event.workflow_run.head_branch }}
+  group: coverage-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  lint:
+    uses: ./.github/workflows/lint.yml
+
   build-tests:
-    if: github.event.workflow_run.conclusion == 'success'
+    needs: lint
     runs-on: ubuntu-latest
     env:
       CARGO_TARGET_DIR: target/llvm-cov-target
@@ -36,8 +50,6 @@ jobs:
           sudo apt install -y protobuf-compiler
 
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Free up space on runner
         uses: ./.github/actions/free-up-space
@@ -47,7 +59,7 @@ jobs:
         with:
           cache-all-crates: true
           shared-key: pop-cache-coverage
-          save-if: ${{ github.event.workflow_run.head_branch == 'main' }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
@@ -78,8 +90,6 @@ jobs:
         partition: [1,2,3,4,5] ## <- ~700 tests right now, ~140 per partition
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Free up space on runner
         uses: ./.github/actions/free-up-space
@@ -134,8 +144,6 @@ jobs:
       CARGO_TARGET_DIR: target/llvm-cov-target
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Free up space on runner
         uses: ./.github/actions/free-up-space
