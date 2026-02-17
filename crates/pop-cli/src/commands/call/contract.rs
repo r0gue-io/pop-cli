@@ -241,6 +241,10 @@ impl CallContractCommand {
 		Ok(())
 	}
 
+	fn should_confirm_contract_deployment(&self) -> bool {
+		self.contract.is_none() && !self.deployed && !self.skip_confirm
+	}
+
 	/// Checks whether building the contract is required
 	fn is_contract_build_required(&self) -> bool {
 		let project_path = get_project_path(self.path.clone(), self.path_pos.clone());
@@ -295,14 +299,20 @@ impl CallContractCommand {
 		}
 
 		// Finally prompt for confirmation.
-		let is_call_confirmed = if message.mutates && !self.skip_confirm && !self.use_wallet {
-			cli.confirm("Do you want to execute the call? (Selecting 'No' will perform a dry run)")
-				.initial_value(true)
-				.interact()?
+		if message.mutates {
+			if !self.skip_confirm && !self.use_wallet && !self.execute {
+				self.execute = cli
+					.confirm(
+						"Do you want to execute the call? (Selecting 'No' will perform a dry run)",
+					)
+					.initial_value(true)
+					.interact()?;
+			} else {
+				self.execute = true;
+			}
 		} else {
-			true
-		};
-		self.execute = is_call_confirmed && message.mutates;
+			self.execute = false;
+		}
 		Ok(())
 	}
 
@@ -338,7 +348,9 @@ impl CallContractCommand {
 		// Ensure contract is built and check if deployed.
 		if self.is_contract_build_required() {
 			self.ensure_contract_built(cli).await?;
-			self.confirm_contract_deployment(cli)?;
+			if self.should_confirm_contract_deployment() {
+				self.confirm_contract_deployment(cli)?;
+			}
 		}
 
 		// Parse the contract metadata provided. If there is an error, do not prompt for more.
@@ -622,6 +634,7 @@ impl CallContractCommand {
 		self.gas_limit = None;
 		self.proof_size = None;
 		self.use_wallet = false;
+		self.execute = false;
 	}
 }
 
@@ -745,6 +758,31 @@ mod tests {
 		command.configure_message(&message, &mut cli)?;
 
 		assert_eq!(command.args, vec!["10".to_string(), "20".to_string()]);
+		cli.verify()
+	}
+
+	#[test]
+	fn configure_message_does_not_prompt_execute_when_execute_flag_set() -> Result<()> {
+		let message = ContractFunction {
+			label: "run".into(),
+			payable: false,
+			args: vec![],
+			docs: String::new(),
+			default: false,
+			mutates: true,
+		};
+
+		let mut command = CallContractCommand {
+			execute: true,
+			suri: Some("//Alice".to_string()),
+			use_wallet: false,
+			skip_confirm: false,
+			..Default::default()
+		};
+
+		let mut cli = MockCli::new();
+		command.configure_message(&message, &mut cli)?;
+		assert!(command.execute);
 		cli.verify()
 	}
 
@@ -1059,6 +1097,30 @@ mod tests {
 		cli.verify()
 	}
 
+	#[test]
+	fn should_confirm_contract_deployment_works() {
+		let command = CallContractCommand { contract: None, deployed: false, ..Default::default() };
+		assert!(command.should_confirm_contract_deployment());
+
+		let command = CallContractCommand {
+			contract: Some("0x48550a4bb374727186c55365b7c9c0a1a31bdafe".to_string()),
+			deployed: false,
+			..Default::default()
+		};
+		assert!(!command.should_confirm_contract_deployment());
+
+		let command = CallContractCommand { contract: None, deployed: true, ..Default::default() };
+		assert!(!command.should_confirm_contract_deployment());
+
+		let command = CallContractCommand {
+			contract: None,
+			deployed: false,
+			skip_confirm: true,
+			..Default::default()
+		};
+		assert!(!command.should_confirm_contract_deployment());
+	}
+
 	#[tokio::test]
 	#[allow(deprecated)]
 	async fn is_contract_build_required_works() -> Result<()> {
@@ -1289,5 +1351,27 @@ mod tests {
 		let result = command.execute(&mut cli).await;
 		assert!(result.is_err(), "execute should fail when node is unavailable");
 		cli.verify()
+	}
+
+	#[test]
+	fn reset_for_new_call_resets_execute_flag() {
+		let mut command = CallContractCommand {
+			message: Some("get".into()),
+			value: "10".into(),
+			gas_limit: Some(1),
+			proof_size: Some(2),
+			use_wallet: true,
+			execute: true,
+			..Default::default()
+		};
+
+		command.reset_for_new_call();
+
+		assert_eq!(command.message, None);
+		assert_eq!(command.value, DEFAULT_PAYABLE_VALUE);
+		assert_eq!(command.gas_limit, None);
+		assert_eq!(command.proof_size, None);
+		assert!(!command.use_wallet);
+		assert!(!command.execute);
 	}
 }
