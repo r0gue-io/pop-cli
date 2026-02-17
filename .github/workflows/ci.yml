@@ -36,6 +36,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lint:
+    uses: ./.github/workflows/lint.yml
+
   setup:
     runs-on: ubuntu-latest
     outputs:
@@ -64,22 +67,6 @@ jobs:
     with:
       docker_image: ${{ needs.setup.outputs.image }}
       rust_version: ${{ needs.setup.outputs.rust_version }}
-
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          profile: minimal
-          components: rustfmt
-          override: true
-
-      - name: Check formatting
-        run: cargo +nightly fmt --all -- --check
 
   build:
     needs:

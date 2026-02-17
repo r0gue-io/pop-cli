@@ -76,9 +76,16 @@ pub struct CallChainCommand {
 	/// Automatically signs and submits the extrinsic without prompting for confirmation.
 	#[arg(short = 'y', long)]
 	skip_confirm: bool,
+	/// Submit the extrinsic without prompting for execution confirmation.
+	#[arg(short = 'x', long)]
+	execute: bool,
 	/// Display chain metadata instead of executing a call.
 	/// Use alone to list all pallets, or with --pallet to show pallet details.
-	#[arg(short = 'm', long, conflicts_with_all = ["function", "args", "suri", "use-wallet", "call", "sudo"])]
+	#[arg(
+		short = 'm',
+		long,
+		conflicts_with_all = ["function", "args", "suri", "use-wallet", "call", "sudo", "execute"]
+	)]
 	metadata: bool,
 }
 
@@ -388,6 +395,7 @@ impl CallChainCommand {
 				args,
 				suri,
 				skip_confirm: self.skip_confirm,
+				execute: self.execute,
 				sudo: self.sudo,
 				use_wallet: self.use_wallet,
 			});
@@ -415,6 +423,7 @@ impl CallChainCommand {
 		}
 		cli.info(format!("Encoded call data: {}", call_data))?;
 		if !self.skip_confirm &&
+			!self.execute &&
 			!cli.confirm("Do you want to submit the extrinsic?")
 				.initial_value(true)
 				.interact()?
@@ -664,6 +673,8 @@ pub(crate) struct Call {
 	pub(crate) use_wallet: bool,
 	/// Whether to automatically sign and submit the extrinsic without prompting for confirmation.
 	pub(crate) skip_confirm: bool,
+	/// Whether to submit without prompting for execution confirmation.
+	pub(crate) execute: bool,
 	/// Whether to dispatch the function call with `Root` origin.
 	pub(crate) sudo: bool,
 }
@@ -708,6 +719,7 @@ impl Call {
 			.as_function()
 			.ok_or(anyhow!("Error: The call is not an extrinsic call"))?;
 		if !self.skip_confirm &&
+			!self.execute &&
 			!cli.confirm("Do you want to submit the extrinsic?")
 				.initial_value(true)
 				.interact()?
@@ -758,6 +770,9 @@ impl Call {
 		}
 		if self.sudo {
 			full_message.push_str(" --sudo");
+		}
+		if self.execute {
+			full_message.push_str(" --execute");
 		}
 		if self.skip_confirm {
 			full_message.push_str(" --skip-confirm");
@@ -1163,6 +1178,7 @@ mod tests {
 			suri: Some(DEFAULT_URI.to_string()),
 			use_wallet: false,
 			skip_confirm: false,
+			execute: false,
 			sudo: false,
 		};
 		let mut cli = MockCli::new();
@@ -1213,6 +1229,7 @@ mod tests {
 			suri: None,
 			use_wallet: false,
 			skip_confirm: false,
+			execute: false,
 			call_data: Some("0x00000411".to_string()),
 			sudo: false,
 			metadata: false,
@@ -1222,6 +1239,39 @@ mod tests {
 			.expect_input("Signer of the extrinsic:", "//Bob".into())
 			.expect_confirm("Do you want to submit the extrinsic?", false)
 			.expect_outro_cancel("Extrinsic with call data 0x00000411 was not submitted.");
+		call_config
+			.submit_extrinsic_from_call_data(
+				&client,
+				&Url::parse(node_url)?,
+				"0x00000411",
+				&mut cli,
+			)
+			.await?;
+
+		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn execute_flag_skips_submit_extrinsic_confirmation_from_call_data_works() -> Result<()> {
+		let node = SubstrateTestNode::spawn().await?;
+		let node_url = node.ws_url();
+		let client = set_up_client(node_url).await?;
+		let call_config = CallChainCommand {
+			pallet: None,
+			function: None,
+			args: vec![],
+			url: Some(Url::parse(node_url)?),
+			suri: Some("//Alice".to_string()),
+			use_wallet: false,
+			skip_confirm: false,
+			execute: true,
+			call_data: Some("0x00000411".to_string()),
+			sudo: false,
+			metadata: false,
+		};
+		let mut cli = MockCli::new()
+			.expect_info("Encoded call data: 0x00000411")
+			.expect_outro("Call complete.");
 		call_config
 			.submit_extrinsic_from_call_data(
 				&client,
@@ -1244,6 +1294,7 @@ mod tests {
 			use_wallet: true,
 			suri: Some(DEFAULT_URI.to_string()),
 			skip_confirm: false,
+			execute: false,
 			call_data: None,
 			sudo: true,
 			metadata: false,
@@ -1268,6 +1319,7 @@ mod tests {
 			use_wallet: false,
 			call_data: None,
 			skip_confirm: false,
+			execute: false,
 			sudo: false,
 			metadata: false,
 		};

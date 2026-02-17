@@ -36,7 +36,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lint:
+    uses: ./.github/workflows/lint.yml
+
   pop-fork-integration-tests:
+    needs: lint
     strategy:
       fail-fast: true
       matrix:
@@ -186,6 +190,7 @@ jobs:
           pkill eth-rpc || true
 
   contract-integration-tests:
+    needs: lint
     strategy:
       fail-fast: true
       matrix:
@@ -278,6 +283,7 @@ jobs:
             --status-level all
 
   chain-integration-tests:
+    needs: lint
     strategy:
       fail-fast: true
       matrix:
@@ -371,6 +377,7 @@ jobs:
             --status-level all
 
   pop-cli-integration-tests:
+    needs: lint
     strategy:
       fail-fast: true
       matrix:
