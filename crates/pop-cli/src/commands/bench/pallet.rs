@@ -91,13 +91,13 @@ pub(crate) struct BenchmarkPallet {
 	external_repeat: u32,
 
 	/// Print the raw results in JSON format.
-	#[arg(long = "json")]
-	json_output: bool,
+	#[arg(long = "raw-json")]
+	pub(crate) json_output: bool,
 
 	/// Write the raw results in JSON format into the given file.
 	#[serde(skip_serializing)]
 	#[arg(long, conflicts_with = "json_output")]
-	json_file: Option<PathBuf>,
+	pub(crate) json_file: Option<PathBuf>,
 
 	/// Don't print the median-slopes linear regression analysis.
 	#[arg(long)]

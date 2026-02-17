@@ -2,7 +2,11 @@
 
 #[cfg(any(feature = "chain", feature = "contract"))]
 use crate::cli::traits::Cli as _;
-use crate::{cache, cli::Cli};
+use crate::{
+	cache,
+	cli::Cli,
+	output::{OutputMode, reject_unsupported_json},
+};
 #[cfg(any(feature = "chain", feature = "contract"))]
 use pop_common::templates::Template;
 
@@ -108,8 +112,21 @@ fn about_up() -> &'static str {
 }
 
 impl Command {
+	/// Returns `true` when this command can produce JSON output.
+	fn supports_json(&self) -> bool {
+		match self {
+			Self::Hash(_) | Self::Convert(_) => true,
+			#[cfg(feature = "chain")]
+			Self::Bench(_) => true,
+			_ => false,
+		}
+	}
+
 	/// Executes the command.
-	pub(crate) async fn execute(&mut self) -> anyhow::Result<()> {
+	pub(crate) async fn execute(&mut self, output_mode: OutputMode) -> anyhow::Result<()> {
+		if output_mode == OutputMode::Json && !self.supports_json() {
+			return reject_unsupported_json(&self.to_string());
+		}
 		match self {
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::Install(args) => {
@@ -167,7 +184,24 @@ impl Command {
 				}
 			},
 			#[cfg(feature = "chain")]
-			Self::Bench(args) => bench::Command::execute(args).await,
+			Self::Bench(args) => {
+				// Forward the global --json flag to bench pallet's json_output,
+				// preserving backward compatibility with `pop bench pallet --json`.
+				if output_mode == OutputMode::Json {
+					match &mut args.command {
+						bench::Command::Pallet(cmd) => {
+							if cmd.json_file.is_some() {
+								return Err(anyhow::anyhow!(
+									"--json and --json-file cannot be used together"
+								));
+							}
+							cmd.json_output = true;
+						},
+						_ => return reject_unsupported_json("bench"),
+					}
+				}
+				bench::Command::execute(args).await
+			},
 			Self::Build(args) => {
 				env_logger::init();
 				#[cfg(feature = "chain")]
@@ -252,7 +286,7 @@ impl Command {
 			},
 			Self::Hash(args) => {
 				env_logger::init();
-				args.command.execute(&mut Cli)
+				hash::execute(&args.command, output_mode)
 			},
 			Self::Clean(args) => {
 				env_logger::init();
@@ -286,7 +320,7 @@ impl Command {
 			},
 			Command::Convert(args) => {
 				env_logger::init();
-				args.command.execute(&mut Cli)
+				convert::execute(&args.command, output_mode)
 			},
 			Command::Completion(args) => completion::Command::execute(args),
 			#[cfg(feature = "contract")]
