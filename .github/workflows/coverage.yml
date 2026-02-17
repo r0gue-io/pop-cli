@@ -34,7 +34,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lint:
+    uses: ./.github/workflows/lint.yml
+
   build-tests:
+    needs: lint
     runs-on: ubuntu-latest
     env:
       CARGO_TARGET_DIR: target/llvm-cov-target
