@@ -14,7 +14,7 @@ use std::{fs, path::Path};
 use walkdir::WalkDir;
 
 // The latest version where we should overwrite the ./network.toml file on.
-const LATEST_NETWORK_TOML_OVERWRITE_VERSION: &str = "polkadot-stable2512";
+const LATEST_NETWORK_TOML_OVERWRITE_VERSION: &str = "polkadot-stable2506";
 
 /// Create a new chain.
 ///
