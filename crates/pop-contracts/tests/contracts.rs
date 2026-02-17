@@ -336,9 +336,12 @@ async fn test_set_up_call_error_contract_not_build(
 		suri: "//Alice".to_string(),
 		execute: false,
 	};
-	assert!(
-		matches!(set_up_call(call_opts).await, Err(Error::AnyhowError(message)) if message.root_cause().to_string() == "Failed to find any contract artifacts in target directory. \nRun `cargo contract build --release` to generate the artifacts.")
-	);
+	assert!(matches!(set_up_call(call_opts).await, Err(Error::AnyhowError(message)) if {
+		let message = message.root_cause().to_string();
+		message.contains("Failed to find any contract artifacts in target directory.") &&
+			message.contains("Run `pop build --path") &&
+			message.contains("to generate the artifacts.")
+	}));
 	Ok(())
 }
 
