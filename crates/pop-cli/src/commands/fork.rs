@@ -403,9 +403,7 @@ impl Command {
 		[
 			messages::forked(chain_name, block_number, ws_url),
 			format!("  polkadot.js: https://polkadot.js.org/apps/?rpc={ws_url}#/explorer"),
-			format!(
-				"  papi:        https://dev.papi.how/explorer#networkId=custom&endpoint={ws_url}"
-			),
+			format!("  papi:        https://dev.papi.how/explorer#networkId=custom&endpoint={ws_url}"),
 		]
 	}
 
