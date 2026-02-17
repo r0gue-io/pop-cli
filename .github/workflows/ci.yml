@@ -5,21 +5,10 @@ permissions:
   packages: read
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
+  workflow_run:
+    workflows: ["lint"]
     types:
-      - opened
-      - synchronize
-      - reopened
-      - ready_for_review
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'LICENSE'
-      - '.gitignore'
-      - '.github/**.md'
+      - completed
 
 env:
   CARGO_TERM_COLOR: always
@@ -32,17 +21,20 @@ env:
 
 concurrency:
   # Cancel any in-progress jobs for the same pull request or branch
-  group: ci-${{ github.head_ref || github.ref }}
+  group: ci-${{ github.event.workflow_run.head_branch }}
   cancel-in-progress: true
 
 jobs:
   setup:
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     outputs:
       image: ${{ steps.out.outputs.image }}
       rust_version: ${{ steps.out.outputs.rust_version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Set environment variables
         id: out
@@ -65,39 +57,24 @@ jobs:
       docker_image: ${{ needs.setup.outputs.image }}
       rust_version: ${{ needs.setup.outputs.rust_version }}
 
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          profile: minimal
-          components: rustfmt
-          override: true
-
-      - name: Check formatting
-        run: cargo +nightly fmt --all -- --check
-
   build:
     needs:
       - setup
-      - lint
       - prepare-ci-image
     runs-on: ubuntu-latest
     container:
       image: ${{ needs.setup.outputs.image }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: true
           shared-key: pop-cache
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ github.event.workflow_run.head_branch == 'main' }}
 
       - name: Check no default features
         run: cargo check --locked --no-default-features
@@ -123,6 +100,8 @@ jobs:
       packages: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
@@ -137,9 +116,12 @@ jobs:
           args: --all-targets -- -D warnings
 
   docker:
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - uses: docker/build-push-action@v5
 
@@ -158,12 +140,14 @@ jobs:
       RUSTFLAGS: "-Dwarnings -Dmissing_docs"
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
           shared-key: pop-cache-docs
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ github.event.workflow_run.head_branch == 'main' }}
 
       - name: Check no default features
         run: cargo doc --locked --no-deps
@@ -187,6 +171,8 @@ jobs:
           df -h
 
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
