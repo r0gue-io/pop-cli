@@ -178,8 +178,13 @@ impl Command {
 			},
 			#[cfg(feature = "chain")]
 			Self::Bench(args) => {
+				// Forward the global --json flag to bench pallet's json_output,
+				// preserving backward compatibility with `pop bench pallet --json`.
 				if output_mode == OutputMode::Json {
-					reject_unsupported_json("bench");
+					match &mut args.command {
+						bench::Command::Pallet(cmd) => cmd.json_output = true,
+						_ => reject_unsupported_json("bench"),
+					}
 				}
 				bench::Command::execute(args).await
 			},

@@ -92,7 +92,7 @@ pub(crate) struct BenchmarkPallet {
 
 	/// Print the raw results in JSON format.
 	#[arg(long = "raw-json")]
-	json_output: bool,
+	pub(crate) json_output: bool,
 
 	/// Write the raw results in JSON format into the given file.
 	#[serde(skip_serializing)]
