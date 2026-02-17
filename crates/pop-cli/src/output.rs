@@ -83,6 +83,18 @@ pub(crate) enum ErrorCode {
 	NetworkError,
 	BuildError,
 	DeployError,
+	UnsupportedJson,
+}
+
+/// Returns a JSON error response indicating that `--json` is not yet supported
+/// for the given command, and exits with code 1.
+pub(crate) fn reject_unsupported_json(command_name: &str) -> ! {
+	CliResponse::err(CliError::new(
+		ErrorCode::UnsupportedJson,
+		format!("--json is not yet supported for the `{command_name}` command"),
+	))
+	.print_json_err();
+	std::process::exit(1);
 }
 
 #[cfg(test)]
@@ -121,6 +133,7 @@ mod tests {
 			(ErrorCode::NetworkError, "NETWORK_ERROR"),
 			(ErrorCode::BuildError, "BUILD_ERROR"),
 			(ErrorCode::DeployError, "DEPLOY_ERROR"),
+			(ErrorCode::UnsupportedJson, "UNSUPPORTED_JSON"),
 		];
 		for (code, expected) in cases {
 			let json = serde_json::to_value(&code).unwrap();

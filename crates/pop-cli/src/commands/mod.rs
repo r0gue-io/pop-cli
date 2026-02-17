@@ -2,7 +2,11 @@
 
 #[cfg(any(feature = "chain", feature = "contract"))]
 use crate::cli::traits::Cli as _;
-use crate::{cache, cli::Cli, output::OutputMode};
+use crate::{
+	cache,
+	cli::Cli,
+	output::{OutputMode, reject_unsupported_json},
+};
 #[cfg(any(feature = "chain", feature = "contract"))]
 use pop_common::templates::Template;
 
@@ -113,11 +117,17 @@ impl Command {
 		match self {
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::Install(args) => {
+				if output_mode == OutputMode::Json {
+					reject_unsupported_json("install");
+				}
 				env_logger::init();
 				install::Command.execute(args).await
 			},
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::New(args) => {
+				if output_mode == OutputMode::Json {
+					reject_unsupported_json("new");
+				}
 				env_logger::init();
 
 				if args.list {
@@ -167,8 +177,16 @@ impl Command {
 				}
 			},
 			#[cfg(feature = "chain")]
-			Self::Bench(args) => bench::Command::execute(args).await,
+			Self::Bench(args) => {
+				if output_mode == OutputMode::Json {
+					reject_unsupported_json("bench");
+				}
+				bench::Command::execute(args).await
+			},
 			Self::Build(args) => {
+				if output_mode == OutputMode::Json {
+					reject_unsupported_json("build");
+				}
 				env_logger::init();
 				#[cfg(feature = "chain")]
 				match &args.command {
@@ -184,6 +202,9 @@ impl Command {
 			},
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::Call(args) => {
+				if output_mode == OutputMode::Json {
+					reject_unsupported_json("call");
+				}
 				env_logger::init();
 				match args.resolve_command()? {
 					#[cfg(feature = "chain")]
@@ -194,6 +215,9 @@ impl Command {
 			},
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::Up(args) => {
+				if output_mode == OutputMode::Json {
+					reject_unsupported_json("up");
+				}
 				env_logger::init();
 				match &mut args.command {
 					None => up::Command::execute(args).await,
@@ -224,10 +248,16 @@ impl Command {
 				}
 			},
 			Self::Upgrade(args) => {
+				if output_mode == OutputMode::Json {
+					reject_unsupported_json("upgrade");
+				}
 				env_logger::init();
 				upgrade::Command::execute(args, &mut Cli).await
 			},
 			Self::Test(args) => {
+				if output_mode == OutputMode::Json {
+					reject_unsupported_json("test");
+				}
 				env_logger::init();
 
 				#[cfg(any(feature = "contract", feature = "chain"))]
@@ -255,6 +285,9 @@ impl Command {
 				hash::execute(&args.command, output_mode)
 			},
 			Self::Clean(args) => {
+				if output_mode == OutputMode::Json {
+					reject_unsupported_json("clean");
+				}
 				env_logger::init();
 				match &args.command {
 					clean::Command::Cache(cmd_args) => clean::CleanCacheCommand {
@@ -288,11 +321,24 @@ impl Command {
 				env_logger::init();
 				convert::execute(&args.command, output_mode)
 			},
-			Command::Completion(args) => completion::Command::execute(args),
+			Command::Completion(args) => {
+				if output_mode == OutputMode::Json {
+					reject_unsupported_json("completion");
+				}
+				completion::Command::execute(args)
+			},
 			#[cfg(feature = "contract")]
-			Self::Verify(verify) => verify.execute(&mut Cli).await,
+			Self::Verify(verify) => {
+				if output_mode == OutputMode::Json {
+					reject_unsupported_json("verify");
+				}
+				verify.execute(&mut Cli).await
+			},
 			#[cfg(feature = "chain")]
 			Self::Fork(args) => {
+				if output_mode == OutputMode::Json {
+					reject_unsupported_json("fork");
+				}
 				env_logger::Builder::new()
 					.filter_level(log::LevelFilter::Info)
 					.parse_default_env()
