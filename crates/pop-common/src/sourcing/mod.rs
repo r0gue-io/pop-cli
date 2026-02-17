@@ -7,6 +7,8 @@ use duct::cmd;
 use flate2::read::GzDecoder;
 use regex::Regex;
 use reqwest::StatusCode;
+use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
+use reqwest_retry::{RetryTransientMiddleware, policies::ExponentialBackoff};
 use std::{
 	collections::HashMap,
 	error::Error as _,
@@ -38,6 +40,9 @@ pub enum Error {
 	/// A HTTP error occurred.
 	#[error("HTTP error: {0} caused by {:?}", reqwest::Error::source(.0))]
 	HttpError(#[from] reqwest::Error),
+	/// A HTTP middleware error occurred.
+	#[error("HTTP middleware error: {0}")]
+	MiddlewareError(#[from] reqwest_middleware::Error),
 	/// An IO error occurred.
 	#[error("IO error: {0}")]
 	IO(#[from] std::io::Error),
@@ -503,6 +508,24 @@ impl From<&str> for TagPattern {
 	}
 }
 
+/// Creates an HTTP client with retry middleware using exponential backoff.
+///
+/// Retries up to 3 times on transient errors (5xx, 408, 429, and connection failures).
+/// Non-retryable errors (e.g. 404) fail immediately.
+fn retry_client() -> ClientWithMiddleware {
+	#[cfg(not(test))]
+	let retry_bounds = (Duration::from_secs(2), Duration::from_secs(8));
+	#[cfg(test)]
+	let retry_bounds = (Duration::from_millis(1), Duration::from_millis(4));
+
+	let retry_policy = ExponentialBackoff::builder()
+		.retry_bounds(retry_bounds.0, retry_bounds.1)
+		.build_with_max_retries(3);
+	ClientBuilder::new(reqwest::Client::new())
+		.with(RetryTransientMiddleware::new_with_policy(retry_policy))
+		.build()
+}
+
 /// Source binary by downloading and extracting from an archive.
 ///
 /// # Arguments
@@ -516,7 +539,7 @@ async fn from_archive(
 ) -> Result<(), Error> {
 	// Download archive
 	status.update(&format!("Downloading from {url}..."));
-	let response = reqwest::get(url).await?.error_for_status()?;
+	let response = retry_client().get(url).send().await?.error_for_status()?;
 	let mut file = tempfile()?;
 	file.write_all(&response.bytes().await?)?;
 	file.seek(SeekFrom::Start(0))?;
@@ -769,7 +792,7 @@ async fn build(
 /// * `path` - The (local) destination path.
 async fn download(url: &str, dest: &Path) -> Result<(), Error> {
 	// Download to the destination path
-	let response = reqwest::get(url).await?.error_for_status()?;
+	let response = retry_client().get(url).send().await?.error_for_status()?;
 	let mut file = File::create(dest)?;
 	file.write_all(&response.bytes().await?)?;
 	// Make executable
@@ -1328,6 +1351,64 @@ pub(super) mod tests {
 			println!("{status}")
 		}
 	}
+
+	mod retry {
+		use super::*;
+		use mockito::{Mock, Server};
+
+		async fn mock_status(server: &mut Server, code: u16) -> Mock {
+			server.mock("GET", "/test").with_status(code as usize).create_async().await
+		}
+
+		#[tokio::test]
+		async fn retry_client_succeeds_on_first_attempt() {
+			let mut server = Server::new_async().await;
+			let mock = mock_status(&mut server, 200).await;
+
+			let url = format!("{}/test", server.url());
+			let response = retry_client().get(&url).send().await.unwrap();
+			assert_eq!(response.status(), 200);
+			mock.assert_async().await;
+		}
+
+		#[tokio::test]
+		async fn retry_client_retries_on_503_then_succeeds() {
+			let mut server = Server::new_async().await;
+			let fail_mock =
+				server.mock("GET", "/test").with_status(503).expect(1).create_async().await;
+			let success_mock =
+				server.mock("GET", "/test").with_status(200).expect(1).create_async().await;
+
+			let url = format!("{}/test", server.url());
+			let response = retry_client().get(&url).send().await.unwrap();
+			assert_eq!(response.status(), 200);
+			fail_mock.assert_async().await;
+			success_mock.assert_async().await;
+		}
+
+		#[tokio::test]
+		async fn retry_client_fails_after_max_retries() {
+			let mut server = Server::new_async().await;
+			// 1 initial attempt + 3 retries = 4 total requests.
+			let mock = server.mock("GET", "/test").with_status(500).expect(4).create_async().await;
+
+			let url = format!("{}/test", server.url());
+			let response = retry_client().get(&url).send().await.unwrap();
+			assert!(response.error_for_status().is_err());
+			mock.assert_async().await;
+		}
+
+		#[tokio::test]
+		async fn retry_client_does_not_retry_on_404() {
+			let mut server = Server::new_async().await;
+			let mock = server.mock("GET", "/test").with_status(404).expect(1).create_async().await;
+
+			let url = format!("{}/test", server.url());
+			let response = retry_client().get(&url).send().await.unwrap();
+			assert!(response.error_for_status().is_err());
+			mock.assert_async().await;
+		}
+	}
 }
 
 /// Traits for the sourcing of a binary.
@@ -1452,7 +1533,7 @@ pub mod filters {
 		candidate.starts_with(prefix) &&
 			// Ignore any known related `polkadot`-prefixed binaries when `polkadot` only.
 			(prefix != "polkadot" ||
-				!["polkadot-execute-worker", "polkadot-prepare-worker", "polkadot-parachain"]
+				!["polkadot-execute-worker", "polkadot-prepare-worker", "polkadot-parachain", "polkadot-omni-node"]
 					.iter()
 					.any(|i| candidate.starts_with(i)))
 	}
@@ -1460,5 +1541,32 @@ pub mod filters {
 	#[cfg(test)]
 	pub(crate) fn polkadot(file: &str) -> bool {
 		prefix(file, "polkadot")
+	}
+
+	#[cfg(test)]
+	mod tests {
+		use super::*;
+
+		#[test]
+		fn prefix_filter_excludes_polkadot_variants() {
+			// polkadot binary should match itself
+			assert!(prefix("polkadot", "polkadot"));
+			assert!(prefix("polkadot-stable2512", "polkadot"));
+			assert!(prefix("polkadot-stable2512-1", "polkadot"));
+
+			// But should NOT match these related binaries
+			assert!(!prefix("polkadot-execute-worker", "polkadot"));
+			assert!(!prefix("polkadot-execute-worker-stable2512", "polkadot"));
+			assert!(!prefix("polkadot-prepare-worker", "polkadot"));
+			assert!(!prefix("polkadot-prepare-worker-stable2512-1", "polkadot"));
+			assert!(!prefix("polkadot-parachain", "polkadot"));
+			assert!(!prefix("polkadot-parachain-stable2512", "polkadot"));
+			assert!(!prefix("polkadot-omni-node", "polkadot"));
+			assert!(!prefix("polkadot-omni-node-stable2512-1", "polkadot"));
+
+			// Other binaries should work normally
+			assert!(prefix("polkadot-parachain", "polkadot-parachain"));
+			assert!(prefix("polkadot-omni-node", "polkadot-omni-node"));
+		}
 	}
 }

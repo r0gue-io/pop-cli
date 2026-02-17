@@ -161,32 +161,32 @@ impl CallContractCommand {
 					},
 				}
 			},
-		};
-		self.maybe_show_compatibility_warning(cli)?;
-		// Finally execute the call.
-		self.execute_call(cli, prompt_to_repeat_call, callable).await?;
-		Ok(())
-	}
-
-	fn prepare_artifact_if_needed(&mut self, path: &Path) -> Result<()> {
-		if self.prepared_artifact_path.is_some() {
-			return Ok(());
+			};
+			self.maybe_show_compatibility_warning(cli)?;
+			// Finally execute the call.
+			self.execute_call(cli, prompt_to_repeat_call, callable).await?;
+			Ok(())
 		}
-		let prepared = prepare_artifact_for_extrinsics(path)?;
-		self.prepared_artifact_path = Some(prepared.path);
-		self.compatibility_warning = prepared.compatibility_warning;
-		Ok(())
-	}
 
-	fn maybe_show_compatibility_warning(&mut self, cli: &mut impl Cli) -> Result<()> {
-		if !self.compatibility_warning_shown &&
-			let Some(warning) = &self.compatibility_warning
-		{
-			cli.warning(warning)?;
-			self.compatibility_warning_shown = true;
+		fn prepare_artifact_if_needed(&mut self, path: &Path) -> Result<()> {
+			if self.prepared_artifact_path.is_some() {
+				return Ok(());
+			}
+			let prepared = prepare_artifact_for_extrinsics(path)?;
+			self.prepared_artifact_path = Some(prepared.path);
+			self.compatibility_warning = prepared.compatibility_warning;
+			Ok(())
 		}
-		Ok(())
-	}
+
+		fn maybe_show_compatibility_warning(&mut self, cli: &mut impl Cli) -> Result<()> {
+			if !self.compatibility_warning_shown &&
+				let Some(warning) = &self.compatibility_warning
+			{
+				cli.warning(warning)?;
+				self.compatibility_warning_shown = true;
+			}
+			Ok(())
+		}
 
 	fn execution_path(&self, fallback: &Path) -> PathBuf {
 		self.prepared_artifact_path.clone().unwrap_or_else(|| fallback.to_path_buf())

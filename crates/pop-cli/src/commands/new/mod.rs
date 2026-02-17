@@ -104,7 +104,6 @@ pub fn guide_user_to_select_command(cli: &mut impl Cli) -> AnyhowResult<Command>
 		#[cfg(feature = "chain")]
 		"chain" => Ok(Command::Chain(chain::NewChainCommand {
 			name: None,
-			provider: None,
 			template: None,
 			release_tag: None,
 			symbol: None,

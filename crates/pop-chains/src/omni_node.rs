@@ -25,7 +25,7 @@ pub enum PolkadotOmniNodeCli {
 		Repository = "https://github.com/r0gue-io/polkadot",
 		Binary = "polkadot-omni-node",
 		TagPattern = "polkadot-{version}",
-		Fallback = "stable2512"
+		Fallback = "stable2512-1"
 	))]
 	/// Polkadot Omni Node binary. Used to bootstrap parachains without node.
 	PolkadotOmniNode,
@@ -87,7 +87,7 @@ mod tests {
 		assert_eq!(cli.get_str("Repository"), Some("https://github.com/r0gue-io/polkadot"));
 		assert_eq!(cli.get_str("Binary"), Some("polkadot-omni-node"));
 		assert_eq!(cli.get_str("TagPattern"), Some("polkadot-{version}"));
-		assert_eq!(cli.get_str("Fallback"), Some("stable2512"));
+		assert_eq!(cli.get_str("Fallback"), Some("stable2512-1"));
 	}
 
 	#[test]
@@ -113,7 +113,7 @@ mod tests {
 				assert_eq!(tag, None);
 				assert_eq!(tag_pattern, Some(TagPattern::new("polkadot-{version}")));
 				assert!(!prerelease);
-				assert_eq!(fallback, "stable2512");
+				assert_eq!(fallback, "stable2512-1");
 				assert!(archive.starts_with("polkadot-omni-node-"));
 				assert!(archive.ends_with(".tar.gz"));
 				assert_eq!(contents.len(), 1);

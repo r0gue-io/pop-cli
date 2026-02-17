@@ -242,6 +242,14 @@ impl CallChainCommand {
 			}
 			self.reset_for_new_call();
 		}
+
+		// Explicitly drop the chain to initiate cleanup, then give a brief moment
+		// for background tasks to complete cleanly. This prevents "not connected"
+		// errors from being logged by subxt's background connection handler during
+		// shutdown (see issue #942).
+		drop(chain);
+		tokio::task::yield_now().await;
+
 		Ok(())
 	}
 
