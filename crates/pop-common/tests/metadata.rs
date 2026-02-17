@@ -5,12 +5,12 @@
 #![cfg(feature = "integration-tests")]
 
 use anyhow::Result;
-use pop_common::{format_type, test_env::TestNode};
+use pop_common::{format_type, test_env::SubstrateTestNode};
 use subxt::{OnlineClient, SubstrateConfig};
 
 #[tokio::test]
 async fn format_type_works() -> Result<()> {
-	let node = TestNode::spawn().await?;
+	let node = SubstrateTestNode::spawn().await?;
 	let client = OnlineClient::<SubstrateConfig>::from_url(node.ws_url()).await?;
 	let metadata = client.metadata();
 	let registry = metadata.types();

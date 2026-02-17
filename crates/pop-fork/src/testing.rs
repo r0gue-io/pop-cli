@@ -38,7 +38,7 @@ use crate::{
 	rpc_server::{ForkRpcServer, RpcServerConfig},
 };
 #[cfg(test)]
-use pop_common::test_env::TestNode;
+use pop_common::test_env::InkTestNode;
 use std::sync::Arc;
 use subxt::{Metadata, config::substrate::H256};
 use tokio::sync::OnceCell;
@@ -56,7 +56,7 @@ static UNIT_TEST_NODE_WS_URL: OnceCell<String> = OnceCell::const_new();
 async fn unit_test_node_ws_url() -> String {
 	UNIT_TEST_NODE_WS_URL
 		.get_or_init(|| async {
-			let node = TestNode::spawn().await.expect("Failed to spawn shared test node");
+			let node = InkTestNode::spawn().await.expect("Failed to spawn shared test node");
 			let ws_url = node.ws_url().to_string();
 			let _ = Box::leak(Box::new(node));
 			ws_url

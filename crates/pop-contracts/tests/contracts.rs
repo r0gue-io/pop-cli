@@ -5,7 +5,7 @@
 #![cfg(feature = "integration-tests")]
 
 use anyhow::Result;
-use pop_common::{DefaultConfig, Keypair, parse_h160_account, test_env::TestNode};
+use pop_common::{DefaultConfig, Keypair, parse_h160_account, test_env::InkTestNode};
 use pop_contracts::{
 	AccountMapper, CallOpts, DefaultEnvironment, Error, UpOpts, call_smart_contract, dry_run_call,
 	dry_run_gas_estimate_call, dry_run_gas_estimate_instantiate, dry_run_upload, get_contract_code,
@@ -24,7 +24,7 @@ const CONTRACT_FILE: &str = "./tests/files/testing.contract";
 //full_contract_lifecycle_on_local_node
 #[tokio::test]
 async fn run_contracts_node_works() -> Result<()> {
-	let node = TestNode::spawn().await?;
+	let node = InkTestNode::spawn().await?;
 	let localhost_url = node.ws_url();
 	let local_url = url::Url::parse(localhost_url)?;
 

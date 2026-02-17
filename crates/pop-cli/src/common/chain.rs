@@ -54,11 +54,11 @@ pub(crate) async fn get_pallets(client: &OnlineClient<SubstrateConfig>) -> Resul
 mod tests {
 	use super::*;
 	use crate::cli::MockCli;
-	use pop_common::test_env::TestNode;
+	use pop_common::test_env::InkTestNode;
 
 	#[tokio::test]
 	async fn configure_works() -> Result<()> {
-		let node = TestNode::spawn().await?;
+		let node = InkTestNode::spawn().await?;
 		let select_message = "Select a chain (type to filter)";
 		let input_message = "Enter the URL of the chain:";
 		let mut cli = MockCli::new()
