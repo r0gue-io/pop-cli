@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use std::path::Path;
+use std::{path::Path, time::Duration};
 
 use crate::{
 	cli::{self, traits::*},
@@ -36,6 +36,8 @@ fn to_tuple(args: &[String]) -> String {
 }
 
 fn is_tuple_encoding_error(err: &impl std::fmt::Display) -> bool {
+	// NOTE: Coupled to Subxt's current error text. If this string changes after a
+	// Subxt upgrade, composite storage key fallback matching will stop working.
 	err.to_string().contains("Cannot encode Tuple into type")
 }
 
@@ -55,7 +57,7 @@ async fn query_storage_with_tuple_fallback(
 	client: &OnlineClient<SubstrateConfig>,
 	keys: Vec<DynamicValue>,
 ) -> Result<(Vec<DynamicValue>, Option<Value<u32>>), pop_chains::Error> {
-	let mut keys_to_query = keys;
+	let mut keys_to_query = flatten_single_tuple_key(&keys).unwrap_or(keys);
 	let query_result = match storage.query(client, keys_to_query.clone()).await {
 		Err(e) if is_tuple_encoding_error(&e) => {
 			if let Some(flattened) = flatten_single_tuple_key(&keys_to_query) {
@@ -76,7 +78,7 @@ async fn query_all_storage_with_tuple_fallback(
 	client: &OnlineClient<SubstrateConfig>,
 	keys: Vec<DynamicValue>,
 ) -> Result<Vec<(Vec<DynamicValue>, Value<u32>)>, pop_chains::Error> {
-	let mut keys_to_query = keys;
+	let mut keys_to_query = flatten_single_tuple_key(&keys).unwrap_or(keys);
 	match storage.query_all(client, keys_to_query.clone()).await {
 		Err(e) if is_tuple_encoding_error(&e) => {
 			if let Some(flattened) = flatten_single_tuple_key(&keys_to_query) {
@@ -300,8 +302,9 @@ impl CallChainCommand {
 		// for background tasks to complete cleanly. This prevents "not connected"
 		// errors from being logged by subxt's background connection handler during
 		// shutdown (see issue #942).
-		drop(chain);
-		tokio::task::yield_now().await;
+			drop(chain);
+			tokio::time::sleep(Duration::from_millis(100)).await;
+			tokio::task::yield_now().await;
 
 		Ok(())
 	}
@@ -383,28 +386,28 @@ impl CallChainCommand {
 						let key_param = type_to_param(&name.to_string(), registry, key_ty)
 							.map_err(|e| anyhow!("Failed to parse storage key type: {e}"))?;
 
-						let is_composite = key_param.sub_params.len() > 1;
-						let (mut params, len) =
-							if self.args.len() == key_param.sub_params.len() && is_composite {
-								(vec![to_tuple(self.args.as_slice())], self.args.len())
-							} else if self.args.len() == 1 && is_composite {
-								// Handle composite tuple string like "(A, B, C)"
-								let arg = self.args[0]
-									.trim()
-									.trim_start_matches("(")
-									.trim_start_matches("[")
-									.trim_end_matches(")")
-									.trim_end_matches("]")
-									.to_string();
-								let len = arg
-									.split(',')
-									.map(|s| s.trim().to_string())
-									.collect::<Vec<_>>()
-									.len();
-								(self.args.clone(), len)
-							} else {
-								(self.args.clone(), self.args.len())
-							};
+							let is_composite = key_param.sub_params.len() > 1;
+							let (mut params, len) =
+								if self.args.len() == key_param.sub_params.len() && is_composite {
+									(vec![to_tuple(self.args.as_slice())], self.args.len())
+								} else if self.args.len() == 1 && is_composite {
+									// Handle composite tuple string like "(A, B, C)"
+									let arg = self.args[0]
+										.trim()
+										.trim_start_matches("(")
+										.trim_start_matches("[")
+										.trim_end_matches(")")
+										.trim_end_matches("]")
+										.to_string();
+									let len = arg
+										.split(',')
+										.map(|s| s.trim().to_string())
+										.collect::<Vec<_>>()
+										.len();
+									(self.args.clone(), len)
+								} else {
+									(self.args.clone(), self.args.len())
+								};
 						if key_param.sub_params.is_empty() && params.is_empty() {
 							// Prompt user for the storage key
 							let key_value = prompt_for_param(cli, &key_param, false)?;
@@ -426,11 +429,11 @@ impl CallChainCommand {
 									break;
 								}
 							}
-							if is_composite && params.len() > 1 {
-								params = vec![to_tuple(params.as_slice())];
+								if is_composite && params.len() > 1 {
+									params = vec![to_tuple(params.as_slice())];
+								}
 							}
-						}
-						params
+							params
 					} else {
 						// Plain storage - no parameters needed
 						vec![]
