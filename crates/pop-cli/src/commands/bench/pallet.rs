@@ -1516,7 +1516,8 @@ mod tests {
 			..Default::default()
 		};
 
-		let mut cli = expect_parameter_menu(MockCli::new(), &cmd, 0)?;
+		let preset_names = get_preset_names(cmd.runtime_binary()?).unwrap_or_default();
+		let mut cli = expect_parameter_menu(MockCli::new(), &cmd, 0, &preset_names)?;
 		guide_user_to_select_menu_option(&mut cmd, &mut cli).await?;
 		cli.verify()
 	}
@@ -2119,12 +2120,12 @@ runtime-benchmarks = []
 		cli: MockCli,
 		cmd: &BenchmarkPallet,
 		item: usize,
+		preset_names: &[String],
 	) -> anyhow::Result<MockCli> {
 		let mut items: Vec<(String, String)> = vec![];
 		let mut index = 0;
-		let preset_names = get_preset_names(cmd.runtime_binary()?).unwrap_or_default();
 		for param in BenchmarkPalletMenuOption::iter() {
-			if param.is_disabled(cmd, &preset_names)? {
+			if param.is_disabled(cmd, preset_names)? {
 				continue;
 			}
 			let label = param.get_message().unwrap_or_default();

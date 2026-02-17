@@ -397,9 +397,10 @@ mod tests {
 
 		// Select genesis builder policy `runtime`.
 		let runtime_path = get_mock_runtime(Some(Feature::Benchmark));
+		let preset_names = get_preset_names(&runtime_path).unwrap();
 		cli = MockCli::new();
 		cli = expect_select_genesis_policy(cli, 1);
-		cli = expect_select_genesis_preset(cli, &runtime_path, 0);
+		cli = expect_select_genesis_preset(cli, &preset_names, 0);
 
 		guide_user_to_select_genesis_policy(&mut cli, &None)?;
 		guide_user_to_select_genesis_preset(&mut cli, &runtime_path, "development")?;
@@ -453,17 +454,14 @@ mod tests {
 		)
 	}
 
-	fn expect_select_genesis_preset(cli: MockCli, runtime_path: &PathBuf, item: usize) -> MockCli {
-		let preset_names = get_preset_names(runtime_path)
-			.unwrap()
-			.into_iter()
-			.map(|preset| (preset, String::default()))
-			.collect();
+	fn expect_select_genesis_preset(cli: MockCli, preset_names: &[String], item: usize) -> MockCli {
+		let items: Vec<(String, String)> =
+			preset_names.iter().map(|preset| (preset.clone(), String::default())).collect();
 		cli.expect_select(
 			"Select the genesis builder preset:",
 			Some(true),
 			true,
-			Some(preset_names),
+			Some(items),
 			item,
 			None,
 		)
