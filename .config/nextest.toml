@@ -1,0 +1,15 @@
+# Nextest configuration for pop-cli workspace.
+# https://nexte.st/docs/configuration/
+
+experimental = ["setup-scripts"]
+
+[scripts.setup.spawn-test-nodes]
+# Spawns shared ink-node and substrate-node instances. Skips if env vars are
+# already set (e.g. when CI pre-starts nodes).
+command = ['bash', 'scripts/test/spawn-test-nodes.sh']
+slow-timeout = { period = "120s", terminate-after = 2 }
+
+# Run the setup script for packages whose tests connect to a local node.
+[[profile.default.scripts]]
+filter = 'package(pop-cli) | package(pop-chains) | package(pop-common) | package(pop-contracts) | package(pop-fork)'
+setup = 'spawn-test-nodes'

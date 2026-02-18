@@ -291,6 +291,140 @@ impl<T: Clone + Eq> traits::Select<T> for Select<T> {
 	}
 }
 
+/// A CLI implementation for `--json` mode.
+///
+/// Suppresses all human-facing output (intro, outro, plain) and redirects
+/// diagnostic messages (info, success, warning, error) to stderr.
+/// All interactive prompts return an error telling the caller that `--json`
+/// mode cannot drive an interactive session.
+#[allow(dead_code)]
+pub(crate) struct JsonCli;
+
+impl traits::Cli for JsonCli {
+	fn confirm(&mut self, _prompt: impl Display) -> impl traits::Confirm {
+		JsonConfirm
+	}
+	fn error(&mut self, text: impl Display) -> Result<()> {
+		eprintln!("{text}");
+		Ok(())
+	}
+	fn info(&mut self, text: impl Display) -> Result<()> {
+		eprintln!("{text}");
+		Ok(())
+	}
+	fn input(&mut self, _prompt: impl Display) -> impl traits::Input {
+		JsonInput
+	}
+	fn intro(&mut self, _title: impl Display) -> Result<()> {
+		Ok(())
+	}
+	fn multiselect<T: Clone + Eq>(&mut self, _prompt: impl Display) -> impl traits::MultiSelect<T> {
+		JsonMultiSelect(std::marker::PhantomData)
+	}
+	fn outro(&mut self, _message: impl Display) -> Result<()> {
+		Ok(())
+	}
+	fn outro_cancel(&mut self, _message: impl Display) -> Result<()> {
+		Ok(())
+	}
+	fn password(&mut self, _prompt: impl Display) -> impl traits::Password {
+		JsonPassword
+	}
+	fn select<T: Clone + Eq>(&mut self, _prompt: impl Display) -> impl traits::Select<T> {
+		JsonSelect(std::marker::PhantomData)
+	}
+	fn success(&mut self, message: impl Display) -> Result<()> {
+		eprintln!("{message}");
+		Ok(())
+	}
+	fn warning(&mut self, message: impl Display) -> Result<()> {
+		eprintln!("{message}");
+		Ok(())
+	}
+	fn plain(&mut self, _message: impl Display) -> Result<()> {
+		Ok(())
+	}
+}
+
+#[allow(dead_code)]
+const JSON_PROMPT_ERR: &str = "interactive prompt required but --json mode is active";
+
+#[allow(dead_code)]
+struct JsonConfirm;
+impl traits::Confirm for JsonConfirm {
+	fn initial_value(self, _initial_value: bool) -> Self {
+		self
+	}
+	fn interact(&mut self) -> Result<bool> {
+		Err(std::io::Error::other(JSON_PROMPT_ERR))
+	}
+}
+
+#[allow(dead_code)]
+struct JsonInput;
+impl traits::Input for JsonInput {
+	fn default_input(self, _value: &str) -> Self {
+		self
+	}
+	fn interact(&mut self) -> Result<String> {
+		Err(std::io::Error::other(JSON_PROMPT_ERR))
+	}
+	fn placeholder(self, _value: &str) -> Self {
+		self
+	}
+	fn required(self, _required: bool) -> Self {
+		self
+	}
+	fn validate(
+		self,
+		_validator: impl Fn(&String) -> std::result::Result<(), &'static str> + 'static,
+	) -> Self {
+		self
+	}
+}
+
+#[allow(dead_code)]
+struct JsonMultiSelect<T>(std::marker::PhantomData<T>);
+impl<T: Clone + Eq> traits::MultiSelect<T> for JsonMultiSelect<T> {
+	fn interact(&mut self) -> Result<Vec<T>> {
+		Err(std::io::Error::other(JSON_PROMPT_ERR))
+	}
+	fn item(self, _value: T, _label: impl Display, _hint: impl Display) -> Self {
+		self
+	}
+	fn required(self, _required: bool) -> Self {
+		self
+	}
+	fn filter_mode(self) -> Self {
+		self
+	}
+}
+
+#[allow(dead_code)]
+struct JsonPassword;
+impl traits::Password for JsonPassword {
+	fn interact(&mut self) -> Result<String> {
+		Err(std::io::Error::other(JSON_PROMPT_ERR))
+	}
+}
+
+#[allow(dead_code)]
+struct JsonSelect<T>(std::marker::PhantomData<T>);
+impl<T: Clone + Eq> traits::Select<T> for JsonSelect<T> {
+	fn initial_value(self, _initial_value: T) -> Self {
+		self
+	}
+	fn interact(&mut self) -> Result<T> {
+		Err(std::io::Error::other(JSON_PROMPT_ERR))
+	}
+	fn item(self, _value: T, _label: impl Display, _hint: impl Display) -> Self {
+		self
+	}
+	fn filter_mode(self) -> Self {
+		self
+	}
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
 	use super::traits::*;

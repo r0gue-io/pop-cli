@@ -145,7 +145,7 @@ mod tests {
 	use super::{Action::*, *};
 	use crate::{parse_chain_metadata, set_up_client};
 	use anyhow::Result;
-	use pop_common::test_env::TestNode;
+	use pop_common::test_env::shared_substrate_ws_url;
 	use std::collections::HashMap;
 
 	#[test]
@@ -213,12 +213,21 @@ mod tests {
 
 	#[tokio::test]
 	async fn supported_actions_works() -> Result<()> {
-		let node = TestNode::spawn().await?;
+		let node_url = shared_substrate_ws_url().await;
 		// Test Local Node.
-		let client: subxt::OnlineClient<subxt::SubstrateConfig> =
-			set_up_client(node.ws_url()).await?;
-		let actions = supported_actions(&parse_chain_metadata(&client)?);
-		assert_eq!(actions, vec![Transfer, CreateAsset, MintAsset, Remark, MapAccount]);
+		let client: subxt::OnlineClient<subxt::SubstrateConfig> = set_up_client(&node_url).await?;
+		let pallets = parse_chain_metadata(&client)?;
+		let actions = supported_actions(&pallets);
+		// Kitchensink runtime includes Nfts, Proxy, and Revive pallets but not OnDemand.
+		assert!(actions.contains(&Transfer));
+		assert!(actions.contains(&CreateAsset));
+		assert!(actions.contains(&MintAsset));
+		assert!(actions.contains(&CreateCollection));
+		assert!(actions.contains(&MintNFT));
+		assert!(actions.contains(&PureProxy));
+		assert!(actions.contains(&Remark));
+		assert!(actions.contains(&MapAccount));
+		assert!(!actions.contains(&PurchaseOnDemandCoretime));
 		Ok(())
 	}
 }

@@ -471,7 +471,7 @@ fi"#,
 			.await;
 	}
 
-	#[tokio::test]
+	#[tokio::test(start_paused = true)]
 	async fn wait_for_ready_times_out_when_docker_never_starts() {
 		CommandMock::default().with_command("docker", 1).execute(async || {
             assert!(matches!(Docker::wait_for_ready().await, Err(Error::Docker(err)) if err == "Docker failed to start within 30 seconds. Please start it manually."));

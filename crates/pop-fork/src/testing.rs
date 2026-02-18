@@ -37,8 +37,6 @@ use crate::{
 	TxPool,
 	rpc_server::{ForkRpcServer, RpcServerConfig},
 };
-#[cfg(test)]
-use pop_common::test_env::TestNode;
 use std::sync::Arc;
 use subxt::{Metadata, config::substrate::H256};
 use tokio::sync::OnceCell;
@@ -48,22 +46,6 @@ use url::Url;
 const SHARED_TEST_NODE_WS_URL: &str = "ws://127.0.0.1:9944";
 
 static RESOLVED_TEST_ENDPOINT: OnceCell<Url> = OnceCell::const_new();
-
-#[cfg(test)]
-static UNIT_TEST_NODE_WS_URL: OnceCell<String> = OnceCell::const_new();
-
-#[cfg(test)]
-async fn unit_test_node_ws_url() -> String {
-	UNIT_TEST_NODE_WS_URL
-		.get_or_init(|| async {
-			let node = TestNode::spawn().await.expect("Failed to spawn shared test node");
-			let ws_url = node.ws_url().to_string();
-			let _ = Box::leak(Box::new(node));
-			ws_url
-		})
-		.await
-		.clone()
-}
 
 async fn resolve_test_endpoint() -> Url {
 	RESOLVED_TEST_ENDPOINT
@@ -87,7 +69,10 @@ async fn resolve_test_endpoint_uncached() -> Url {
 
 	#[cfg(test)]
 	{
-		unit_test_node_ws_url().await.parse().expect("Invalid unit test WebSocket URL")
+		pop_common::test_env::shared_ink_ws_url()
+			.await
+			.parse()
+			.expect("Invalid unit test WebSocket URL")
 	}
 
 	#[cfg(not(test))]
