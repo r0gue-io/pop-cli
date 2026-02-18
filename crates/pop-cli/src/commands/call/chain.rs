@@ -1577,9 +1577,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn query_storage_with_composite_key_tuple_arg_works() -> Result<()> {
-		// Spawn a test node
-		let node = TestNode::spawn().await?;
-		let node_url = node.ws_url();
+		let node_url = shared_substrate_ws_url().await;
 
 		// Build the command to directly execute a storage query using a single tuple argument.
 		let cmd = CallChainCommand {
@@ -1589,7 +1587,7 @@ mod tests {
 				"(10000,0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d)"
 					.to_string(),
 			],
-			url: Some(Url::parse(node_url)?),
+			url: Some(Url::parse(&node_url)?),
 			skip_confirm: true,
 			..Default::default()
 		};
@@ -1602,8 +1600,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn query_all_storage_with_composite_key_tuple_arg_works() -> Result<()> {
-		let node = TestNode::spawn().await?;
-		let client = set_up_client(node.ws_url()).await?;
+		let node_url = shared_substrate_ws_url().await;
+		let client = set_up_client(&node_url).await?;
 		let pallets = parse_chain_metadata(&client)?;
 
 		let account_storage = pallets
