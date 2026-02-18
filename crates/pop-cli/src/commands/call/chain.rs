@@ -57,7 +57,7 @@ async fn query_storage_with_tuple_fallback(
 	client: &OnlineClient<SubstrateConfig>,
 	keys: Vec<DynamicValue>,
 ) -> Result<(Vec<DynamicValue>, Option<Value<u32>>), pop_chains::Error> {
-	let mut keys_to_query = flatten_single_tuple_key(&keys).unwrap_or(keys);
+	let mut keys_to_query = keys;
 	let query_result = match storage.query(client, keys_to_query.clone()).await {
 		Err(e) if is_tuple_encoding_error(&e) => {
 			if let Some(flattened) = flatten_single_tuple_key(&keys_to_query) {
@@ -78,7 +78,7 @@ async fn query_all_storage_with_tuple_fallback(
 	client: &OnlineClient<SubstrateConfig>,
 	keys: Vec<DynamicValue>,
 ) -> Result<Vec<(Vec<DynamicValue>, Value<u32>)>, pop_chains::Error> {
-	let mut keys_to_query = flatten_single_tuple_key(&keys).unwrap_or(keys);
+	let mut keys_to_query = keys;
 	match storage.query_all(client, keys_to_query.clone()).await {
 		Err(e) if is_tuple_encoding_error(&e) => {
 			if let Some(flattened) = flatten_single_tuple_key(&keys_to_query) {
