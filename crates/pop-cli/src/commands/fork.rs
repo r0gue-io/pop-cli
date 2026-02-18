@@ -316,16 +316,14 @@ impl Command {
 		let server_config = RpcServerConfig { port: args.port, ..Default::default() };
 		let server = ForkRpcServer::start(blockchain.clone(), txpool, server_config).await?;
 
-		let forked_msg = messages::forked(
-			blockchain.chain_name(),
-			blockchain.fork_point_number(),
-			&server.ws_url(),
-		);
+		let ws = server.ws_url();
+		let [forked_msg, polkadot_js, papi] =
+			Self::fork_summary_lines(blockchain.chain_name(), blockchain.fork_point_number(), &ws);
 		log::info!("{forked_msg}");
 
 		// Signal readiness to the parent process (detach mode).
 		if let Some(ready_path) = &args.ready_file {
-			std::fs::write(ready_path, &forked_msg)?;
+			std::fs::write(ready_path, format!("{forked_msg}\n{polkadot_js}\n{papi}"))?;
 		}
 
 		log::info!("Server running. Waiting for termination signal...");
@@ -376,14 +374,13 @@ impl Command {
 		let server = ForkRpcServer::start(blockchain.clone(), txpool, server_config).await?;
 
 		let ws = server.ws_url();
+		let [forked_msg, polkadot_js, papi] =
+			Self::fork_summary_lines(blockchain.chain_name(), blockchain.fork_point_number(), &ws);
 		cli.success(format!(
 			"{}\n{}\n{}",
-			messages::forked(blockchain.chain_name(), blockchain.fork_point_number(), &ws),
-			style(format!("  polkadot.js: https://polkadot.js.org/apps/?rpc={ws}#/explorer")).dim(),
-			style(format!(
-				"  papi:        https://dev.papi.how/explorer#networkId=custom&endpoint={ws}"
-			))
-			.dim(),
+			forked_msg,
+			style(polkadot_js).dim(),
+			style(papi).dim(),
 		))?;
 
 		cli.info(messages::PRESS_CTRL_C)?;
@@ -398,6 +395,18 @@ impl Command {
 
 		cli.outro("Done.")?;
 		Ok(())
+	}
+
+	/// Build the three summary lines shown after a fork completes.
+	/// Extracted for testability.
+	fn fork_summary_lines(chain_name: &str, block_number: u32, ws_url: &str) -> [String; 3] {
+		[
+			messages::forked(chain_name, block_number, ws_url),
+			format!("  polkadot.js: https://polkadot.js.org/apps/?rpc={ws_url}#/explorer"),
+			format!(
+				"  papi:        https://dev.papi.how/explorer#networkId=custom&endpoint={ws_url}"
+			),
+		]
 	}
 
 	/// Build command arguments for spawning a serve subprocess.
@@ -582,10 +591,27 @@ mod tests {
 	}
 
 	#[test]
+	fn fork_summary_lines_include_portal_links() {
+		let lines = Command::fork_summary_lines("paseo", 100, "ws://127.0.0.1:9945");
+		assert_eq!(
+			lines,
+			[
+				"Forked paseo at block #100 -> ws://127.0.0.1:9945".to_string(),
+				"  polkadot.js: https://polkadot.js.org/apps/?rpc=ws://127.0.0.1:9945#/explorer"
+					.to_string(),
+				"  papi:        https://dev.papi.how/explorer#networkId=custom&endpoint=ws://127.0.0.1:9945"
+					.to_string()
+			]
+		);
+	}
+
+	#[test]
 	fn wait_for_ready_succeeds_with_ready_file() {
 		let dir = tempfile::tempdir().unwrap();
 		let ready_path = dir.path().join("test.ready");
-		std::fs::write(&ready_path, "Forked paseo at block #100 -> ws://127.0.0.1:9945").unwrap();
+		let [forked_msg, polkadot_js, papi] =
+			Command::fork_summary_lines("paseo", 100, "ws://127.0.0.1:9945");
+		std::fs::write(&ready_path, format!("{forked_msg}\n{polkadot_js}\n{papi}")).unwrap();
 
 		let mut child = StdCommand::new("sleep")
 			.arg("60")
@@ -595,8 +621,10 @@ mod tests {
 			.spawn()
 			.unwrap();
 
-		let mut cli =
-			MockCli::new().expect_success("Forked paseo at block #100 -> ws://127.0.0.1:9945");
+		let mut cli = MockCli::new()
+			.expect_success(&forked_msg)
+			.expect_success(&polkadot_js)
+			.expect_success(&papi);
 
 		let result = Command::wait_for_ready(&ready_path, &mut child, &mut cli);
 		assert!(result.is_ok());
