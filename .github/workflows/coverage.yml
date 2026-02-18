@@ -34,7 +34,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lint:
+    uses: ./.github/workflows/lint.yml
+
   build-tests:
+    needs: lint
     runs-on: ubuntu-latest
     env:
       CARGO_TARGET_DIR: target/llvm-cov-target
@@ -122,7 +126,8 @@ jobs:
           --no-report \
           --no-fail-fast \
           --nocapture \
-          --status-level all
+          --status-level all \
+          -j 4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

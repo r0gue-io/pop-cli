@@ -756,15 +756,80 @@ mod tests {
 	use crate::{mock_build_process, new_environment};
 	use anyhow::Result;
 	use scale_info::{Registry, TypeDef, TypeDefPrimitive, TypeInfo};
-	use std::marker::PhantomData;
+	use std::{marker::PhantomData, path::PathBuf};
 	// No need for SCALE encoding helpers in tests; for u8 values the SCALE encoding is the byte
 	// itself.
 
 	const CONTRACT_FILE: &str = "./tests/files/testing.contract";
 
+	/// Returns a shared mock contract directory that persists across nextest
+	/// processes. The fixture is created once (using an atomic directory lock)
+	/// and reused by every test process that calls this function.
+	fn shared_contract_dir() -> PathBuf {
+		let base = std::env::temp_dir().join("pop-test-contract-fixture");
+		let contract_dir = base.join("testing");
+		let ready_marker = base.join(".ready");
+		let lock_dir = base.join(".creating");
+
+		// Fast path: fixture already exists.
+		if ready_marker.exists() {
+			return contract_dir;
+		}
+
+		std::fs::create_dir_all(&base).ok();
+
+		// Try to acquire creation lock (atomic directory creation).
+		match std::fs::create_dir(&lock_dir) {
+			Ok(_) => {
+				// We won the race, create the fixture.
+				let temp_dir =
+					new_environment("testing").expect("Failed to create test environment");
+				let current_dir = env::current_dir().expect("Failed to get current directory");
+				mock_build_process(
+					temp_dir.path().join("testing"),
+					current_dir.join(CONTRACT_FILE),
+					current_dir.join("./tests/files/testing.json"),
+				)
+				.expect("Failed to mock build process");
+
+				// Copy into the shared location.
+				if contract_dir.exists() {
+					std::fs::remove_dir_all(&contract_dir).ok();
+				}
+				copy_dir_recursive(temp_dir.path().join("testing"), &contract_dir);
+
+				// Signal completion and release lock.
+				std::fs::write(&ready_marker, "").unwrap();
+				std::fs::remove_dir(&lock_dir).ok();
+			},
+			Err(_) => {
+				// Another process is creating the fixture, wait for it.
+				while !ready_marker.exists() {
+					std::thread::sleep(std::time::Duration::from_millis(50));
+				}
+			},
+		}
+
+		contract_dir
+	}
+
+	fn copy_dir_recursive(src: impl AsRef<std::path::Path>, dst: &std::path::Path) {
+		std::fs::create_dir_all(dst).unwrap();
+		for entry in std::fs::read_dir(src).unwrap() {
+			let entry = entry.unwrap();
+			let ty = entry.file_type().unwrap();
+			let dest_path = dst.join(entry.file_name());
+			if ty.is_dir() {
+				copy_dir_recursive(entry.path(), &dest_path);
+			} else {
+				std::fs::copy(entry.path(), dest_path).unwrap();
+			}
+		}
+	}
+
 	#[test]
 	fn get_messages_work() -> Result<()> {
-		let temp_dir = new_environment("testing")?;
+		let contract_dir = shared_contract_dir();
 		let current_dir = env::current_dir().expect("Failed to get current directory");
 
 		// Helper function to avoid duplicated code
@@ -791,14 +856,8 @@ mod tests {
 			Ok(())
 		}
 
-		mock_build_process(
-			temp_dir.path().join("testing"),
-			current_dir.join(CONTRACT_FILE),
-			current_dir.join("./tests/files/testing.json"),
-		)?;
-
 		// Test with a directory path
-		let message = get_messages(temp_dir.path().join("testing"))?;
+		let message = get_messages(&contract_dir)?;
 		assert_contract_metadata_parsed(message)?;
 
 		// Test with a metadata file path
@@ -810,17 +869,11 @@ mod tests {
 
 	#[test]
 	fn get_message_work() -> Result<()> {
-		let temp_dir = new_environment("testing")?;
-		let current_dir = env::current_dir().expect("Failed to get current directory");
-		mock_build_process(
-			temp_dir.path().join("testing"),
-			current_dir.join(CONTRACT_FILE),
-			current_dir.join("./tests/files/testing.json"),
-		)?;
+		let contract_dir = shared_contract_dir();
 		assert!(matches!(
-			get_message(temp_dir.path().join("testing"), "wrong_flip"),
+			get_message(&contract_dir, "wrong_flip"),
 			Err(Error::InvalidMessageName(name)) if name == *"wrong_flip"));
-		let message = get_message(temp_dir.path().join("testing"), "specific_flip")?;
+		let message = get_message(&contract_dir, "specific_flip")?;
 		assert_eq!(message.label, "specific_flip");
 		assert_eq!(
 			message.docs,
@@ -837,14 +890,8 @@ mod tests {
 
 	#[test]
 	fn get_constructors_work() -> Result<()> {
-		let temp_dir = new_environment("testing")?;
-		let current_dir = env::current_dir().expect("Failed to get current directory");
-		mock_build_process(
-			temp_dir.path().join("testing"),
-			current_dir.join(CONTRACT_FILE),
-			current_dir.join("./tests/files/testing.json"),
-		)?;
-		let constructor = get_constructors(temp_dir.path().join("testing"))?;
+		let contract_dir = shared_contract_dir();
+		let constructor = get_constructors(&contract_dir)?;
 		assert_eq!(constructor.len(), 2);
 		assert_eq!(constructor[0].label, "new");
 		assert_eq!(
@@ -870,17 +917,11 @@ mod tests {
 
 	#[test]
 	fn get_constructor_work() -> Result<()> {
-		let temp_dir = new_environment("testing")?;
-		let current_dir = env::current_dir().expect("Failed to get current directory");
-		mock_build_process(
-			temp_dir.path().join("testing"),
-			current_dir.join(CONTRACT_FILE),
-			current_dir.join("./tests/files/testing.json"),
-		)?;
+		let contract_dir = shared_contract_dir();
 		assert!(matches!(
-			get_constructor(temp_dir.path().join("testing"), "wrong_constructor"),
+			get_constructor(&contract_dir, "wrong_constructor"),
 			Err(Error::InvalidConstructorName(name)) if name == *"wrong_constructor"));
-		let constructor = get_constructor(temp_dir.path().join("testing"), "default")?;
+		let constructor = get_constructor(&contract_dir, "default")?;
 		assert_eq!(constructor.label, "default");
 		assert_eq!(
 			constructor.docs,
@@ -897,24 +938,15 @@ mod tests {
 
 	#[test]
 	fn process_function_args_work() -> Result<()> {
-		let temp_dir = new_environment("testing")?;
-		let current_dir = env::current_dir().expect("Failed to get current directory");
-		mock_build_process(
-			temp_dir.path().join("testing"),
-			current_dir.join(CONTRACT_FILE),
-			current_dir.join("./tests/files/testing.json"),
-		)?;
+		let contract_dir = shared_contract_dir();
 
 		// Test messages
 		assert!(matches!(
-			extract_function(temp_dir.path().join("testing"), "wrong_flip", FunctionType::Message),
+			extract_function(&contract_dir, "wrong_flip", FunctionType::Message),
 			Err(Error::InvalidMessageName(error)) if error == *"wrong_flip"));
 
-		let specific_flip = extract_function(
-			temp_dir.path().join("testing"),
-			"specific_flip",
-			FunctionType::Message,
-		)?;
+		let specific_flip =
+			extract_function(&contract_dir, "specific_flip", FunctionType::Message)?;
 
 		assert!(matches!(
 			process_function_args(&specific_flip, Vec::new()),
@@ -933,14 +965,11 @@ mod tests {
 
 		// Test constructors
 		assert!(matches!(
-			extract_function(temp_dir.path().join("testing"), "wrong_constructor", FunctionType::Constructor),
+			extract_function(&contract_dir, "wrong_constructor", FunctionType::Constructor),
 			Err(Error::InvalidConstructorName(error)) if error == *"wrong_constructor"));
 
-		let default_constructor = extract_function(
-			temp_dir.path().join("testing"),
-			"default",
-			FunctionType::Constructor,
-		)?;
+		let default_constructor =
+			extract_function(&contract_dir, "default", FunctionType::Constructor)?;
 		assert!(matches!(
 			process_function_args(&default_constructor, Vec::new()),
 			Err(Error::IncorrectArguments {expected, provided }) if expected == 2 && provided == 0
@@ -966,16 +995,11 @@ mod tests {
 
 	#[test]
 	fn get_contract_storage_work() -> Result<()> {
-		let temp_dir = new_environment("testing")?;
+		let contract_dir = shared_contract_dir();
 		let current_dir = env::current_dir().expect("Failed to get current directory");
-		mock_build_process(
-			temp_dir.path().join("testing"),
-			current_dir.join("./tests/files/testing.contract"),
-			current_dir.join("./tests/files/testing.json"),
-		)?;
 
 		// Test with a directory path
-		let storage = get_contract_storage_info(temp_dir.path().join("testing").as_path())?;
+		let storage = get_contract_storage_info(contract_dir.as_path())?;
 		assert_eq!(storage.len(), 2);
 		assert_eq!(storage[0].name, "value");
 		assert_eq!(storage[0].type_name, "bool");

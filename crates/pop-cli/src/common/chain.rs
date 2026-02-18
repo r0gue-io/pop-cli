@@ -54,11 +54,11 @@ pub(crate) async fn get_pallets(client: &OnlineClient<SubstrateConfig>) -> Resul
 mod tests {
 	use super::*;
 	use crate::cli::MockCli;
-	use pop_common::test_env::TestNode;
+	use pop_common::test_env::shared_ink_ws_url;
 
 	#[tokio::test]
 	async fn configure_works() -> Result<()> {
-		let node = TestNode::spawn().await?;
+		let node_url = shared_ink_ws_url().await;
 		let select_message = "Select a chain (type to filter)";
 		let input_message = "Enter the URL of the chain:";
 		let mut cli = MockCli::new()
@@ -73,11 +73,10 @@ mod tests {
 				1,
 				None,
 			)
-			.expect_input(input_message, node.ws_url().into());
+			.expect_input(input_message, node_url.clone());
 		let chain =
-			configure(select_message, input_message, node.ws_url(), &None, |_| true, &mut cli)
-				.await?;
-		assert_eq!(chain.url, Url::parse(node.ws_url())?);
+			configure(select_message, input_message, &node_url, &None, |_| true, &mut cli).await?;
+		assert_eq!(chain.url, Url::parse(&node_url)?);
 		// Get pallets
 		let pallets = get_pallets(&chain.client).await?;
 		assert!(!pallets.is_empty());

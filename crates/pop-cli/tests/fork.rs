@@ -6,7 +6,7 @@
 
 use anyhow::Result;
 use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
-use pop_common::{pop, test_env::TestNode};
+use pop_common::{pop, test_env::shared_ink_ws_url};
 use scale::{Compact, Decode, Encode};
 use sp_core::{blake2_128, twox_128};
 use std::time::Duration;
@@ -97,15 +97,14 @@ async fn fork_and_transfer_balance() -> Result<()> {
 	let temp = tempfile::tempdir()?;
 	let temp_dir = temp.path();
 
-	// 1. Spawn ink-node as source chain
-	let node = TestNode::spawn().await?;
-	let source_url = node.ws_url();
+	// 1. Get shared test node as source chain
+	let source_url = shared_ink_ws_url().await;
 
 	// 2. Launch pop fork with signature mocking
 	let fork_port = 18545u16; // Use high port to avoid conflicts
 	let mut fork_cmd = pop(
 		temp_dir,
-		["fork", "-e", source_url, "--port", &fork_port.to_string(), "--mock-all-signatures"],
+		["fork", "-e", &source_url, "--port", &fork_port.to_string(), "--mock-all-signatures"],
 	);
 	let _fork_process = TestChildProcess(fork_cmd.spawn()?);
 
