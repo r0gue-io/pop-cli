@@ -308,6 +308,7 @@ impl<T: Clone + Eq> traits::Select<T> for Select<T> {
 /// In human mode, wraps a [`cliclack::ProgressBar`] for interactive terminal output.
 /// In JSON mode, sends diagnostic messages to stderr.
 /// In test mode, silently discards all output.
+#[allow(dead_code)]
 pub(crate) enum Spinner {
 	Human(cliclack::ProgressBar),
 	Json,
@@ -315,6 +316,7 @@ pub(crate) enum Spinner {
 	Mock,
 }
 
+#[allow(dead_code)]
 impl Spinner {
 	/// Starts the spinner with the given message.
 	pub(crate) fn start(&self, msg: impl Display) {
@@ -368,6 +370,7 @@ impl Spinner {
 }
 
 /// A multi-progress container that adapts to the current output mode.
+#[allow(dead_code)]
 pub(crate) enum MultiProgress {
 	Human(cliclack::MultiProgress),
 	#[allow(dead_code)]
@@ -376,6 +379,7 @@ pub(crate) enum MultiProgress {
 	Mock,
 }
 
+#[allow(dead_code)]
 impl MultiProgress {
 	/// Adds a new spinner to this multi-progress group.
 	pub(crate) fn add(&self) -> Spinner {
