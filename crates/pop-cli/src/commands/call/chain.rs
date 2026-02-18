@@ -36,8 +36,8 @@ fn to_tuple(args: &[String]) -> String {
 }
 
 fn is_tuple_encoding_error(err: &impl std::fmt::Display) -> bool {
-	// NOTE: Coupled to Subxt's current error text. If this string changes after a
-	// Subxt upgrade, composite storage key fallback matching will stop working.
+	// NOTE: Coupled to Subxt's current error text. If this stops matching after a
+	// Subxt upgrade, composite storage key queries can fail without retry fallback.
 	err.to_string().contains("Cannot encode Tuple into type")
 }
 
