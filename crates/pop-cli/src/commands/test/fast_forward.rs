@@ -16,7 +16,6 @@ use crate::{
 	},
 };
 use clap::Args;
-use cliclack::spinner;
 use console::style;
 use pop_chains::{
 	SharedParams, TryRuntimeCliCommand, parse_try_state_string, run_try_runtime,
@@ -151,10 +150,11 @@ impl TestFastForwardCommand {
 		cli: &mut impl cli::traits::Cli,
 		user_provided_args: &[String],
 	) -> anyhow::Result<()> {
+		let spinner = cli.spinner();
 		let binary_path =
-			check_try_runtime_and_prompt(cli, &spinner(), self.build_params.skip_confirm).await?;
+			check_try_runtime_and_prompt(cli, &spinner, self.build_params.skip_confirm).await?;
 		cli.warning("NOTE: this may take some time...")?;
-		let spinner = spinner();
+
 		match self.state {
 			Some(State::Live(ref live_state)) =>
 				if let Some(ref uri) = live_state.uri {
@@ -321,7 +321,13 @@ mod tests {
 
 	#[tokio::test]
 	async fn fast_forward_snapshot_works() -> anyhow::Result<()> {
-		source_try_runtime_binary(&mut MockCli::new(), &spinner(), &crate::cache()?, true).await?;
+		source_try_runtime_binary(
+			&mut MockCli::new(),
+			&crate::cli::Spinner::Mock,
+			&crate::cache()?,
+			true,
+		)
+		.await?;
 		let mut cmd = TestFastForwardCommand::default();
 		cmd.build_params.no_build = true;
 		let mut cli = MockCli::new()
@@ -394,7 +400,13 @@ mod tests {
 
 	#[tokio::test]
 	async fn fast_forward_invalid_live_uri() -> anyhow::Result<()> {
-		source_try_runtime_binary(&mut MockCli::new(), &spinner(), &crate::cache()?, true).await?;
+		source_try_runtime_binary(
+			&mut MockCli::new(),
+			&crate::cli::Spinner::Mock,
+			&crate::cache()?,
+			true,
+		)
+		.await?;
 		let mut cmd = TestFastForwardCommand {
 			state: Some(State::Live(LiveState {
 				uri: Some("https://example.com".to_string()),

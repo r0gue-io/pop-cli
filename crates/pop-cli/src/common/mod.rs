@@ -22,6 +22,8 @@ pub mod rpc;
 /// Contains runtime utilities.
 #[cfg(feature = "chain")]
 pub mod runtime;
+/// Contains utilities for running subprocesses with output mode awareness.
+pub mod subprocess;
 /// Contains try-runtime utilities.
 #[cfg(feature = "chain")]
 pub mod try_runtime;

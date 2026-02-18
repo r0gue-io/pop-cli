@@ -2,7 +2,6 @@
 
 use crate::{cli, common::contracts::check_ink_node_and_prompt};
 use clap::Args;
-use cliclack::spinner;
 use pop_common::test_project;
 use pop_contracts::test_e2e_smart_contract;
 use serde::Serialize;
@@ -36,7 +35,7 @@ impl TestContractCommand {
 	pub(crate) async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		if self.e2e {
 			cli.intro("Starting end-to-end tests")?;
-			let spinner = spinner();
+			let spinner = cli.spinner();
 			self.node =
 				match check_ink_node_and_prompt(cli, &spinner, &crate::cache()?, self.skip_confirm)
 					.await

@@ -18,7 +18,6 @@ use crate::{
 use clap::Args;
 #[cfg(test)]
 use clap::Parser;
-use cliclack::spinner;
 use console::style;
 use pop_chains::{
 	SharedParams, TryRuntimeCliCommand, run_try_runtime,
@@ -155,7 +154,7 @@ impl TestOnRuntimeUpgradeCommand {
 	}
 
 	async fn run(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		let spinner = spinner();
+		let spinner = cli.spinner();
 		let binary_path =
 			check_try_runtime_and_prompt(cli, &spinner, self.build_params.skip_confirm).await?;
 		cli.warning("NOTE: this may take some time...")?;
@@ -349,7 +348,13 @@ mod tests {
 		let mut command = TestOnRuntimeUpgradeCommand::default();
 		command.build_params.no_build = true;
 
-		source_try_runtime_binary(&mut MockCli::new(), &spinner(), &crate::cache()?, true).await?;
+		source_try_runtime_binary(
+			&mut MockCli::new(),
+			&crate::cli::Spinner::Mock,
+			&crate::cache()?,
+			true,
+		)
+		.await?;
 		let mut cli = MockCli::new()
 			.expect_intro("Testing migrations")
 			.expect_confirm(
@@ -415,7 +420,13 @@ mod tests {
 		let mut command = TestOnRuntimeUpgradeCommand::default();
 		command.build_params.no_build = true;
 
-		source_try_runtime_binary(&mut MockCli::new(), &spinner(), &crate::cache()?, true).await?;
+		source_try_runtime_binary(
+			&mut MockCli::new(),
+			&crate::cli::Spinner::Mock,
+			&crate::cache()?,
+			true,
+		)
+		.await?;
 		let mut cli = MockCli::new()
 			.expect_intro("Testing migrations")
 			.expect_confirm(
@@ -490,7 +501,13 @@ mod tests {
 		cmd.build_params.profile = Some(Profile::Release);
 		cmd.command.state = Some(State::Snap { path: Some(get_mock_snapshot()) });
 
-		source_try_runtime_binary(&mut MockCli::new(), &spinner(), &crate::cache()?, true).await?;
+		source_try_runtime_binary(
+			&mut MockCli::new(),
+			&crate::cli::Spinner::Mock,
+			&crate::cache()?,
+			true,
+		)
+		.await?;
 		let mut cli = MockCli::new()
 			.expect_intro("Testing migrations")
 			.expect_confirm(
@@ -588,7 +605,13 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_on_runtime_upgrade_invalid_runtime_path() -> anyhow::Result<()> {
-		source_try_runtime_binary(&mut MockCli::new(), &spinner(), &crate::cache()?, true).await?;
+		source_try_runtime_binary(
+			&mut MockCli::new(),
+			&crate::cli::Spinner::Mock,
+			&crate::cache()?,
+			true,
+		)
+		.await?;
 		let mut cmd = TestOnRuntimeUpgradeCommand::default();
 		cmd.shared_params.runtime = Runtime::Path(PathBuf::from("./dummy-runtime-path"));
 		cmd.command.state = Some(State::Snap { path: Some(get_mock_snapshot()) });
@@ -601,7 +624,13 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_on_runtime_upgrade_missing_try_runtime_feature() -> anyhow::Result<()> {
-		source_try_runtime_binary(&mut MockCli::new(), &spinner(), &crate::cache()?, true).await?;
+		source_try_runtime_binary(
+			&mut MockCli::new(),
+			&crate::cli::Spinner::Mock,
+			&crate::cache()?,
+			true,
+		)
+		.await?;
 		let mut cmd = TestOnRuntimeUpgradeCommand::default();
 		cmd.shared_params.runtime = Runtime::Path(get_mock_runtime(None));
 		cmd.command.state = Some(State::Snap { path: Some(get_mock_snapshot()) });
@@ -618,7 +647,13 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_on_runtime_upgrade_invalid_live_uri() -> anyhow::Result<()> {
-		source_try_runtime_binary(&mut MockCli::new(), &spinner(), &crate::cache()?, true).await?;
+		source_try_runtime_binary(
+			&mut MockCli::new(),
+			&crate::cli::Spinner::Mock,
+			&crate::cache()?,
+			true,
+		)
+		.await?;
 		let mut cmd = TestOnRuntimeUpgradeCommand::default();
 		cmd.shared_params.runtime = Runtime::Path(PathBuf::from("./dummy-runtime-path"));
 		cmd.command.state = Some(State::Live(LiveState {

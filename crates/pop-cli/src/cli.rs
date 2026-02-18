@@ -39,6 +39,10 @@ pub(crate) mod traits {
 		fn warning(&mut self, message: impl Display) -> Result<()>;
 		/// Prints a plain message.
 		fn plain(&mut self, message: impl Display) -> Result<()>;
+		/// Creates a new spinner.
+		fn spinner(&self) -> super::Spinner;
+		/// Creates a new multi-progress container.
+		fn multi_progress(&self, msg: impl Display) -> super::MultiProgress;
 	}
 
 	/// A confirmation prompt.
@@ -174,6 +178,14 @@ impl traits::Cli for Cli {
 		println!("{message}");
 		Ok(())
 	}
+
+	fn spinner(&self) -> Spinner {
+		Spinner::Human(cliclack::spinner())
+	}
+
+	fn multi_progress(&self, msg: impl Display) -> MultiProgress {
+		MultiProgress::Human(cliclack::multi_progress(msg))
+	}
 }
 
 /// A confirmation prompt using cliclack.
@@ -291,6 +303,101 @@ impl<T: Clone + Eq> traits::Select<T> for Select<T> {
 	}
 }
 
+/// A progress spinner that adapts to the current output mode.
+///
+/// In human mode, wraps a [`cliclack::ProgressBar`] for interactive terminal output.
+/// In JSON mode, sends diagnostic messages to stderr.
+/// In test mode, silently discards all output.
+pub(crate) enum Spinner {
+	Human(cliclack::ProgressBar),
+	Json,
+	#[cfg(test)]
+	Mock,
+}
+
+impl Spinner {
+	/// Starts the spinner with the given message.
+	pub(crate) fn start(&self, msg: impl Display) {
+		match self {
+			Self::Human(pb) => pb.start(msg),
+			Self::Json => eprintln!("{msg}"),
+			#[cfg(test)]
+			Self::Mock => {},
+		}
+	}
+
+	/// Stops the spinner with a final message.
+	pub(crate) fn stop(&self, msg: impl Display) {
+		match self {
+			Self::Human(pb) => pb.stop(msg),
+			Self::Json => eprintln!("{msg}"),
+			#[cfg(test)]
+			Self::Mock => {},
+		}
+	}
+
+	/// Clears the spinner from the terminal.
+	pub(crate) fn clear(&self) {
+		match self {
+			Self::Human(pb) => pb.clear(),
+			Self::Json => {},
+			#[cfg(test)]
+			Self::Mock => {},
+		}
+	}
+
+	/// Displays an error message on the spinner.
+	pub(crate) fn error(&self, msg: impl Display) {
+		match self {
+			Self::Human(pb) => pb.error(msg),
+			Self::Json => eprintln!("{msg}"),
+			#[cfg(test)]
+			Self::Mock => {},
+		}
+	}
+
+	/// Updates the spinner message without changing its state.
+	pub(crate) fn set_message(&self, msg: impl Display) {
+		match self {
+			Self::Human(pb) => pb.set_message(msg),
+			Self::Json => {},
+			#[cfg(test)]
+			Self::Mock => {},
+		}
+	}
+}
+
+/// A multi-progress container that adapts to the current output mode.
+pub(crate) enum MultiProgress {
+	Human(cliclack::MultiProgress),
+	#[allow(dead_code)]
+	Json,
+	#[cfg(test)]
+	Mock,
+}
+
+impl MultiProgress {
+	/// Adds a new spinner to this multi-progress group.
+	pub(crate) fn add(&self) -> Spinner {
+		match self {
+			Self::Human(mp) => Spinner::Human(mp.add(cliclack::spinner())),
+			Self::Json => Spinner::Json,
+			#[cfg(test)]
+			Self::Mock => Spinner::Mock,
+		}
+	}
+
+	/// Stops the multi-progress container.
+	pub(crate) fn stop(&self) {
+		match self {
+			Self::Human(mp) => mp.stop(),
+			Self::Json => {},
+			#[cfg(test)]
+			Self::Mock => {},
+		}
+	}
+}
+
 /// A CLI implementation for `--json` mode.
 ///
 /// Suppresses all human-facing output (intro, outro, plain) and redirects
@@ -343,6 +450,14 @@ impl traits::Cli for JsonCli {
 	}
 	fn plain(&mut self, _message: impl Display) -> Result<()> {
 		Ok(())
+	}
+
+	fn spinner(&self) -> Spinner {
+		Spinner::Json
+	}
+
+	fn multi_progress(&self, _msg: impl Display) -> MultiProgress {
+		MultiProgress::Json
 	}
 }
 
@@ -741,6 +856,14 @@ pub(crate) mod tests {
 			let message = message.to_string();
 			self.plain_expectations.retain(|x| *x != message);
 			Ok(())
+		}
+
+		fn spinner(&self) -> super::Spinner {
+			super::Spinner::Mock
+		}
+
+		fn multi_progress(&self, _msg: impl Display) -> super::MultiProgress {
+			super::MultiProgress::Mock
 		}
 	}
 

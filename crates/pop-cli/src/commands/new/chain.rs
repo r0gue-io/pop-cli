@@ -286,7 +286,7 @@ async fn generate_parachain_from_template(
 
 	let destination_path = check_destination_path(Path::new(name_template), cli)?;
 
-	let spinner = cliclack::spinner();
+	let spinner = cli.spinner();
 	spinner.start("Generating parachain...");
 	let release = if let Some(tag_version) = tag_version {
 		Some(tag_version)

@@ -16,7 +16,6 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use clap::Args;
-use cliclack::spinner;
 use pop_common::{DefaultConfig, Keypair, parse_h160_account};
 use pop_contracts::{
 	BuildMode, CallExec, CallOpts, ContractCallable, ContractFunction, ContractStorage,
@@ -202,7 +201,7 @@ impl CallContractCommand {
 		let project_path = ensure_project_path(self.path.clone(), self.path_pos.clone());
 		// Build the contract in release mode
 		cli.warning("NOTE: contract has not yet been built.")?;
-		let spinner = spinner();
+		let spinner = cli.spinner();
 		spinner.start("Building contract in RELEASE mode...");
 		let results = match build_smart_contract(
 			&project_path,
@@ -504,7 +503,7 @@ impl CallContractCommand {
 		// it's required.
 		map_account(call_exec.opts(), cli).await?;
 
-		let spinner = spinner();
+		let spinner = cli.spinner();
 		spinner.start("Doing a dry run...");
 		let (call_dry_run_result, estimated_weight) =
 			match dry_run_gas_estimate_call(&call_exec).await {
@@ -590,10 +589,10 @@ impl CallContractCommand {
 			.get_contract_data(&call_exec, storage_deposit_limit)
 			.map_err(|err| anyhow!("An error occurred getting the call data: {err}"))?;
 
-		let maybe_payload = request_signature(call_data, self.url()?.to_string()).await?;
+		let maybe_payload = request_signature(cli, call_data, self.url()?.to_string()).await?;
 		if let Some(payload) = maybe_payload {
 			cli.success("Signed payload received.")?;
-			let spinner = spinner();
+			let spinner = cli.spinner();
 			spinner
 				.start("Calling the contract and waiting for finalization, please be patient...");
 

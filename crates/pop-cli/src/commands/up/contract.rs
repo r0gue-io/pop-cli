@@ -18,7 +18,6 @@ use crate::{
 	style::style,
 };
 use clap::Args;
-use cliclack::spinner;
 use console::Emoji;
 use pop_common::resolve_port;
 use pop_contracts::{
@@ -224,7 +223,7 @@ impl UpContractCommand {
 			if !contract_already_built {
 				Cli.warning("NOTE: contract has not yet been built.")?;
 			}
-			let spinner = spinner();
+			let spinner = Cli.spinner();
 			spinner.start("Building contract in RELEASE mode...");
 			let results = match build_smart_contract(
 				&self.path,
@@ -338,10 +337,10 @@ impl UpContractCommand {
 				},
 			};
 
-			let maybe_payload = request_signature(call_data, url.to_string()).await?;
+			let maybe_payload = request_signature(&Cli, call_data, url.to_string()).await?;
 			if let Some(payload) = maybe_payload {
 				Cli.success("Signed payload received.")?;
-				let spinner = spinner();
+				let spinner = Cli.spinner();
 				spinner.start(
 					"Uploading the contract and waiting for finalization, please be patient...",
 				);
@@ -434,7 +433,7 @@ impl UpContractCommand {
 
 				// Perform the dry run before attempting to execute the deployment, and since we are
 				// on it also to calculate the weight.
-				let spinner_1 = spinner();
+				let spinner_1 = Cli.spinner();
 				spinner_1.start("Doing a dry run...");
 				let calculated_weight =
 					match dry_run_gas_estimate_instantiate(&instantiate_exec).await {
@@ -477,7 +476,7 @@ impl UpContractCommand {
 
 				// Finally upload and instantiate.
 				if self.execute {
-					let spinner_2 = spinner();
+					let spinner_2 = Cli.spinner();
 					spinner_2.start("Uploading and instantiating the contract...");
 					let contract_info =
 						instantiate_smart_contract(instantiate_exec, weight_limit).await?;
@@ -559,7 +558,7 @@ impl UpContractCommand {
 				},
 			};
 		} else {
-			let spinner = spinner();
+			let spinner = Cli.spinner();
 			spinner.start("Uploading your contract...");
 			let code_hash = match upload_smart_contract(&upload_exec).await {
 				Ok(r) => r,
@@ -670,7 +669,7 @@ pub(crate) async fn start_ink_node(
 ) -> anyhow::Result<((Child, NamedTempFile), (Child, NamedTempFile))> {
 	let log_ink_node = NamedTempFile::new()?;
 	let log_eth_rpc = NamedTempFile::new()?;
-	let spinner = spinner();
+	let spinner = Cli.spinner();
 
 	// uses the cache location
 	let (ink_node_binary_path, eth_rpc_binary_path) =

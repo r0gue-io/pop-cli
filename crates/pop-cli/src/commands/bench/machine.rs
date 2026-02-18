@@ -5,7 +5,6 @@ use crate::{
 	common::{bench::check_omni_bencher_and_prompt, prompt::display_message},
 };
 use clap::Args;
-use cliclack::spinner;
 use pop_chains::{BenchmarkingCliCommand, bench::MachineCmd, generate_binary_benchmarks};
 use serde::Serialize;
 
@@ -30,7 +29,7 @@ impl BenchmarkMachine {
 	async fn benchmark(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		cli.intro("Benchmarking the hardware")?;
 
-		let spinner = spinner();
+		let spinner = cli.spinner();
 		let binary_path = check_omni_bencher_and_prompt(cli, &spinner, self.skip_confirm).await?;
 		spinner.clear();
 

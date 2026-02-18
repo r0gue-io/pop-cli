@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	cli::{self, traits::Confirm},
+	cli::{self, Spinner, traits::Confirm},
 	style::{Theme, style},
 };
 use clap::{
@@ -9,7 +9,6 @@ use clap::{
 	builder::{PossibleValue, PossibleValuesParser, StringValueParser, TypedValueParser},
 	error::ErrorKind,
 };
-use cliclack::{ProgressBar, multi_progress, spinner};
 use console::{Emoji, Style, Term};
 use duct::cmd;
 pub(crate) use pop_chains::up::Relay;
@@ -430,7 +429,7 @@ pub(crate) async fn spawn(
 	}
 
 	// Finally, spawn the network and wait for a signal to terminate
-	let progress = spinner();
+	let progress = cli.spinner();
 	progress.start("🚀 Launching local network...");
 	match zombienet.spawn().await {
 		Ok(network) => {
@@ -508,7 +507,7 @@ pub(crate) async fn spawn(
 						cli.error(format!("🚫 Using `{relay_chain}` with HRMP channels is currently unsupported. Please use `paseo-local` or `westend-local`."))?;
 					},
 					Some(_) => {
-						let progress = spinner();
+						let progress = cli.spinner();
 						progress.start("Connecting to relay chain to prepare channels...");
 						// Allow relay node time to start
 						sleep(Duration::from_secs(10)).await;
@@ -584,7 +583,7 @@ pub(crate) async fn spawn(
 
 				// Health check with progress feedback
 				{
-					let health_progress = spinner();
+					let health_progress = cli.spinner();
 					health_progress.start("Verifying network nodes are ready...");
 
 					match wait_for_rpc_endpoints_ready(&endpoints, &health_progress).await {
@@ -637,7 +636,7 @@ The network is running. Check endpoints manually if needed.",
 
 async fn wait_for_rpc_endpoints_ready(
 	endpoints: &[(String, String)],
-	progress: &ProgressBar,
+	progress: &Spinner,
 ) -> Result<(), anyhow::Error> {
 	wait_for_rpc_endpoints_ready_with_timeout(
 		endpoints,
@@ -651,7 +650,7 @@ async fn wait_for_rpc_endpoints_ready(
 /// Polls RPC endpoints to verify they are ready with configurable timeouts.
 async fn wait_for_rpc_endpoints_ready_with_timeout(
 	endpoints: &[(String, String)],
-	progress: &ProgressBar,
+	progress: &Spinner,
 	total_timeout: Duration,
 	per_attempt_timeout: Duration,
 ) -> Result<(), anyhow::Error> {
@@ -865,11 +864,11 @@ async fn source_binaries(
 			reporter.update("");
 		},
 		false => {
-			let multi = multi_progress("📦 Sourcing binaries...".to_string());
+			let multi = cli.multi_progress("📦 Sourcing binaries...");
 			let queue: Vec<_> = binaries
 				.into_iter()
 				.map(|binary| {
-					let progress = multi.add(spinner());
+					let progress = multi.add();
 					progress.start(format!("{}: waiting...", binary.name()));
 					(binary, progress)
 				})
@@ -897,7 +896,7 @@ async fn source_binaries(
 	Ok(false)
 }
 
-async fn run_custom_command(spinner: &ProgressBar, command: &str) -> Result<(), anyhow::Error> {
+async fn run_custom_command(spinner: &Spinner, command: &str) -> Result<(), anyhow::Error> {
 	spinner.set_message(format!("Spinning up network & running command: {}", command));
 	#[cfg(not(test))]
 	sleep(Duration::from_secs(15)).await;
@@ -915,7 +914,7 @@ async fn run_custom_command(spinner: &ProgressBar, command: &str) -> Result<(), 
 }
 
 /// Reports any observed status updates to a progress bar.
-struct ProgressReporter(String, ProgressBar);
+struct ProgressReporter(String, Spinner);
 
 impl Status for ProgressReporter {
 	fn update(&self, status: &str) {
@@ -1007,7 +1006,7 @@ mod tests {
 
 	#[tokio::test]
 	async fn test_run_custom_command() -> Result<(), anyhow::Error> {
-		let spinner = ProgressBar::new(1);
+		let spinner = Spinner::Mock;
 
 		// Define the command to be executed
 		let command = "echo 2 + 2";

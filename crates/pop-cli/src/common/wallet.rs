@@ -4,7 +4,7 @@ use crate::{
 	cli::traits::{Cli, Confirm},
 	wallet_integration::{FrontendFromString, TransactionData, WalletIntegrationManager},
 };
-use cliclack::{log, spinner};
+use cliclack::log;
 #[cfg(feature = "chain")]
 use {
 	anyhow::{Result, anyhow},
@@ -25,7 +25,11 @@ pub const USE_WALLET_PROMPT: &str = "Do you want to use your browser wallet to s
 /// * `url` - Chain rpc.
 /// # Returns
 /// * The signed payload, if it exists.
-pub async fn request_signature(call_data: Vec<u8>, rpc: String) -> anyhow::Result<Option<String>> {
+pub async fn request_signature(
+	cli: &impl crate::cli::traits::Cli,
+	call_data: Vec<u8>,
+	rpc: String,
+) -> anyhow::Result<Option<String>> {
 	let ui = FrontendFromString::new(include_str!("../assets/index.html").to_string());
 
 	let transaction_data = TransactionData::new(rpc, call_data);
@@ -34,7 +38,7 @@ pub async fn request_signature(call_data: Vec<u8>, rpc: String) -> anyhow::Resul
 	let url = format!("http://{}", &wallet.server_url);
 	log::step(format!("Wallet signing portal started at {url}."))?;
 
-	let spinner = spinner();
+	let spinner = cli.spinner();
 	spinner.start(format!("Opening browser to {url}"));
 	if let Err(e) = open::that(url) {
 		spinner.error(format!("Failed to launch browser. Please open link manually. {e}"));
@@ -81,10 +85,10 @@ pub(crate) async fn submit_extrinsic(
 	call_data: Vec<u8>,
 	cli: &mut impl Cli,
 ) -> Result<ExtrinsicEvents<SubstrateConfig>> {
-	let maybe_payload = request_signature(call_data, url.to_string()).await?;
+	let maybe_payload = request_signature(cli, call_data, url.to_string()).await?;
 	let payload = maybe_payload.ok_or_else(|| anyhow!("No signed payload received."))?;
 	cli.success("Signed payload received.")?;
-	let spinner = spinner();
+	let spinner = cli.spinner();
 	spinner.start("Submitting the extrinsic and waiting for finalization, please be patient...");
 
 	let result = submit_signed_extrinsic(client.clone(), payload)

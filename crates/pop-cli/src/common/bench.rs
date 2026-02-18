@@ -2,11 +2,10 @@
 
 use super::binary::{SemanticVersion, which_version};
 use crate::{
-	cli::traits::*,
+	cli::{Spinner, traits::*},
 	common::binary::{BinaryGenerator, check_and_prompt},
 	impl_binary_generator,
 };
-use cliclack::ProgressBar;
 use pop_chains::omni_bencher_generator;
 use std::{
 	self,
@@ -30,7 +29,7 @@ impl_binary_generator!(OmniBencherGenerator, omni_bencher_generator);
 /// * `skip_confirm`: A boolean indicating whether to skip confirmation prompts.
 pub async fn check_omni_bencher_and_prompt(
 	cli: &mut impl Cli,
-	spinner: &ProgressBar,
+	spinner: &Spinner,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
 	Ok(if let Ok(path) = which_version(BINARY_NAME, &TARGET_BINARY_VERSION, &Ordering::Greater) {
@@ -48,7 +47,7 @@ pub async fn check_omni_bencher_and_prompt(
 /// * `skip_confirm`: A boolean indicating whether to skip confirmation prompts.
 pub async fn source_omni_bencher_binary(
 	cli: &mut impl Cli,
-	spinner: &ProgressBar,
+	spinner: &Spinner,
 	cache_path: &Path,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
@@ -134,8 +133,10 @@ pub(crate) fn overwrite_weight_file_command(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{cli::MockCli, common::binary::SemanticVersion};
-	use cliclack::spinner;
+	use crate::{
+		cli::{MockCli, Spinner},
+		common::binary::SemanticVersion,
+	};
 	use fs::File;
 	use tempfile::tempdir;
 
@@ -148,7 +149,7 @@ mod tests {
 			.expect_warning(format!("⚠️ The {} binary is not found.", BINARY_NAME));
 
 		let path =
-			source_omni_bencher_binary(&mut cli, &spinner(), cache_path.path(), false).await?;
+			source_omni_bencher_binary(&mut cli, &Spinner::Mock, cache_path.path(), false).await?;
 		// Binary path is at least equal to the cache path + "frame-omni-bencher".
 		assert!(
 			path.to_str()
@@ -161,7 +162,7 @@ mod tests {
 		cli = MockCli::new();
 
 		let path =
-			source_omni_bencher_binary(&mut cli, &spinner(), cache_path.path(), true).await?;
+			source_omni_bencher_binary(&mut cli, &Spinner::Mock, cache_path.path(), true).await?;
 		assert!(
 			path.to_str()
 				.unwrap()
