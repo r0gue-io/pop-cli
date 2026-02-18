@@ -309,9 +309,9 @@ impl CallChainCommand {
 		// for background tasks to complete cleanly. This prevents "not connected"
 		// errors from being logged by subxt's background connection handler during
 		// shutdown (see issue #942).
-			drop(chain);
-			tokio::time::sleep(Duration::from_millis(100)).await;
-			tokio::task::yield_now().await;
+		drop(chain);
+		tokio::time::sleep(Duration::from_millis(100)).await;
+		tokio::task::yield_now().await;
 
 		Ok(())
 	}
@@ -393,28 +393,28 @@ impl CallChainCommand {
 						let key_param = type_to_param(&name.to_string(), registry, key_ty)
 							.map_err(|e| anyhow!("Failed to parse storage key type: {e}"))?;
 
-							let is_composite = key_param.sub_params.len() > 1;
-							let (mut params, len) =
-								if self.args.len() == key_param.sub_params.len() && is_composite {
-									(vec![to_tuple(self.args.as_slice())], self.args.len())
-								} else if self.args.len() == 1 && is_composite {
-									// Handle composite tuple string like "(A, B, C)"
-									let arg = self.args[0]
-										.trim()
-										.trim_start_matches("(")
-										.trim_start_matches("[")
-										.trim_end_matches(")")
-										.trim_end_matches("]")
-										.to_string();
-									let len = arg
-										.split(',')
-										.map(|s| s.trim().to_string())
-										.collect::<Vec<_>>()
-										.len();
-									(self.args.clone(), len)
-								} else {
-									(self.args.clone(), self.args.len())
-								};
+						let is_composite = key_param.sub_params.len() > 1;
+						let (mut params, len) =
+							if self.args.len() == key_param.sub_params.len() && is_composite {
+								(vec![to_tuple(self.args.as_slice())], self.args.len())
+							} else if self.args.len() == 1 && is_composite {
+								// Handle composite tuple string like "(A, B, C)"
+								let arg = self.args[0]
+									.trim()
+									.trim_start_matches("(")
+									.trim_start_matches("[")
+									.trim_end_matches(")")
+									.trim_end_matches("]")
+									.to_string();
+								let len = arg
+									.split(',')
+									.map(|s| s.trim().to_string())
+									.collect::<Vec<_>>()
+									.len();
+								(self.args.clone(), len)
+							} else {
+								(self.args.clone(), self.args.len())
+							};
 						if key_param.sub_params.is_empty() && params.is_empty() {
 							// Prompt user for the storage key
 							let key_value = prompt_for_param(cli, &key_param, false)?;
@@ -436,11 +436,11 @@ impl CallChainCommand {
 									break;
 								}
 							}
-								if is_composite && params.len() > 1 {
-									params = vec![to_tuple(params.as_slice())];
-								}
+							if is_composite && params.len() > 1 {
+								params = vec![to_tuple(params.as_slice())];
 							}
-							params
+						}
+						params
 					} else {
 						// Plain storage - no parameters needed
 						vec![]
