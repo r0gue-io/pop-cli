@@ -1,0 +1,37 @@
+name: 'Ensure Docker is running'
+description: 'Starts Docker daemon and waits until docker info succeeds'
+inputs:
+  max-attempts:
+    description: 'Maximum number of readiness checks'
+    required: false
+    default: '30'
+  sleep-seconds:
+    description: 'Seconds to wait between checks'
+    required: false
+    default: '1'
+runs:
+  using: 'composite'
+  steps:
+    - name: Start and verify Docker daemon
+      shell: bash
+      run: |
+        set -euo pipefail
+        if ! command -v docker >/dev/null 2>&1; then
+          echo "Docker CLI is not installed on this runner" >&2
+          exit 1
+        fi
+
+        sudo systemctl start docker || sudo service docker start
+
+        for _ in $(seq 1 "${{ inputs.max-attempts }}"); do
+          if docker info >/dev/null 2>&1; then
+            exit 0
+          fi
+          sleep "${{ inputs.sleep-seconds }}"
+        done
+
+        echo "Docker did not become ready in time" >&2
+        if command -v journalctl >/dev/null 2>&1; then
+          sudo journalctl -u docker --no-pager -n 200 || true
+        fi
+        exit 1

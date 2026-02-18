@@ -1,0 +1,23 @@
+name: 'Cache pop binaries'
+description: 'Caches Pop downloaded binaries across CI runs'
+inputs:
+  runner-os:
+    description: 'Runner OS label (e.g., ubuntu-latest, macos-latest)'
+    required: true
+  runner-arch:
+    description: 'Runner architecture (e.g., X64, ARM64)'
+    required: true
+  cache-key-suffix:
+    description: 'Suffix for the cache key, typically hashFiles(...)'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: Cache pop binaries
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ startsWith(inputs.runner-os, 'ubuntu') && '~/.cache/pop' || '~/Library/Caches/pop' }}
+        key: pop-binaries-${{ inputs.runner-os }}-${{ inputs.runner-arch }}-${{ inputs.cache-key-suffix }}
+        restore-keys: |
+          pop-binaries-${{ inputs.runner-os }}-${{ inputs.runner-arch }}-

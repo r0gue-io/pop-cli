@@ -1,0 +1,34 @@
+name: 'Install protobuf compiler'
+description: 'Installs protobuf-compiler on Linux or protobuf via Homebrew on macOS'
+inputs:
+  runner-os:
+    description: 'Runner OS value (e.g., Linux or macOS)'
+    required: true
+  linux-extra-packages:
+    description: 'Extra apt packages to install on Linux'
+    required: false
+    default: ''
+runs:
+  using: 'composite'
+  steps:
+    - name: Install protobuf on Linux
+      if: inputs.runner-os == 'Linux'
+      shell: bash
+      run: |
+        set -euo pipefail
+        EXTRA_PACKAGES="${{ inputs.linux-extra-packages }}"
+        sudo apt-get update
+        if [[ -n "$EXTRA_PACKAGES" ]]; then
+          sudo apt-get install -y protobuf-compiler $EXTRA_PACKAGES
+        else
+          sudo apt-get install -y protobuf-compiler
+        fi
+        protoc --version
+
+    - name: Install protobuf on macOS
+      if: inputs.runner-os == 'macOS'
+      shell: bash
+      run: |
+        set -euo pipefail
+        brew install protobuf
+        protoc --version

@@ -65,7 +65,7 @@ jobs:
         uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@cargo-nextest
+        uses: ./.github/actions/install-nextest
 
       - name: Build and archive instrumented tests
         run: |
@@ -98,7 +98,7 @@ jobs:
         uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@cargo-nextest
+        uses: ./.github/actions/install-nextest
 
       - name: Download test archive
         uses: actions/download-artifact@v4
@@ -106,17 +106,7 @@ jobs:
           name: nextest-archive
 
       - name: Ensure Docker is running
-        shell: bash
-        run: |
-          sudo systemctl start docker
-          for _ in {1..30}; do
-            if docker info >/dev/null 2>&1; then
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "Docker did not become ready in time" >&2
-          exit 1
+        uses: ./.github/actions/ensure-docker
 
       - name: Run tests with coverage
         run: |
@@ -153,7 +143,7 @@ jobs:
         uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@cargo-nextest
+        uses: ./.github/actions/install-nextest
 
       - name: Download test archive
         uses: actions/download-artifact@v4

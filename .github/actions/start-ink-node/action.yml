@@ -1,0 +1,64 @@
+name: 'Start detached ink-node'
+description: 'Sources and launches ink-node, then waits for RPC readiness'
+inputs:
+  runner-os:
+    description: 'Runner OS label (e.g., ubuntu-latest, macos-latest)'
+    required: true
+  tag:
+    description: 'ink-node release tag'
+    required: false
+    default: 'v0.47.0'
+  rpc-port:
+    description: 'RPC port to expose'
+    required: false
+    default: '9944'
+  timeout-seconds:
+    description: 'Seconds to wait for RPC readiness'
+    required: false
+    default: '30'
+runs:
+  using: 'composite'
+  steps:
+    - name: Start and wait for ink-node
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ "${{ inputs.runner-os }}" == macos-* ]]; then
+          CACHE_DIR="${HOME}/Library/Caches/pop"
+          ARCHIVE="ink-node-mac-universal.tar.gz"
+          BIN_RELATIVE_PATH="ink-node-mac/ink-node"
+        else
+          CACHE_DIR="${HOME}/.cache/pop"
+          ARCHIVE="ink-node-linux.tar.gz"
+          BIN_RELATIVE_PATH="ink-node-linux/ink-node"
+        fi
+
+        INK_NODE_BIN="${CACHE_DIR}/${BIN_RELATIVE_PATH}"
+        if [[ ! -x "${INK_NODE_BIN}" ]]; then
+          URL="https://github.com/use-ink/ink-node/releases/download/${{ inputs.tag }}/${ARCHIVE}"
+          curl --fail --show-error --silent --location \
+            --retry 3 \
+            --output "/tmp/${ARCHIVE}" \
+            "${URL}"
+          mkdir -p "${CACHE_DIR}"
+          tar -xzf "/tmp/${ARCHIVE}" -C "${CACHE_DIR}"
+          chmod +x "${INK_NODE_BIN}"
+        fi
+
+        nohup "${INK_NODE_BIN}" --dev --tmp --rpc-port="${{ inputs.rpc-port }}" \
+          >/tmp/ink-node.log 2>&1 &
+
+        ready=0
+        for _ in $(seq 1 "${{ inputs.timeout-seconds }}"); do
+          if nc -z 127.0.0.1 "${{ inputs.rpc-port }}"; then
+            ready=1
+            break
+          fi
+          sleep 1
+        done
+
+        if [[ $ready -ne 1 ]]; then
+          echo "ink-node RPC did not become ready within ${{ inputs.timeout-seconds }} seconds" >&2
+          tail -n 200 /tmp/ink-node.log || true
+          exit 1
+        fi

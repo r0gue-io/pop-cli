@@ -1,0 +1,9 @@
+name: 'Install cargo-nextest'
+description: 'Installs cargo-nextest via taiki-e/install-action'
+runs:
+  using: 'composite'
+  steps:
+    - name: Install cargo-nextest
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-nextest
