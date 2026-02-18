@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use std::path::Path;
+use std::{path::Path, time::Duration};
 
 use crate::{
 	cli::{self, traits::*},
@@ -20,17 +20,76 @@ use pop_chains::{
 	render_storage_key_values, sign_and_submit_extrinsic, supported_actions, type_to_param,
 };
 use scale_info::PortableRegistry;
+use scale_value::{Composite, Value, ValueDef};
 use serde::Serialize;
 use url::Url;
 
 const DEFAULT_URI: &str = "//Alice";
 const ENCODED_CALL_DATA_MAX_LEN: usize = 500; // Maximum length of encoded call data to display.
+type DynamicValue = Value<()>;
 
 fn to_tuple(args: &[String]) -> String {
 	if args.len() < 2 {
 		panic!("Cannot convert to tuple: too few arguments");
 	}
 	format!("({})", args.join(","))
+}
+
+fn is_tuple_encoding_error(err: &impl std::fmt::Display) -> bool {
+	// NOTE: Coupled to Subxt's current error text. If this stops matching after a
+	// Subxt upgrade, composite storage key queries can fail without retry fallback.
+	err.to_string().contains("Cannot encode Tuple into type")
+}
+
+fn flatten_single_tuple_key(keys: &[DynamicValue]) -> Option<Vec<DynamicValue>> {
+	if keys.len() != 1 {
+		return None;
+	}
+
+	match &keys[0].value {
+		ValueDef::Composite(Composite::Unnamed(values)) if values.len() > 1 => Some(values.clone()),
+		_ => None,
+	}
+}
+
+async fn query_storage_with_tuple_fallback(
+	storage: &pop_chains::Storage,
+	client: &OnlineClient<SubstrateConfig>,
+	keys: Vec<DynamicValue>,
+) -> Result<(Vec<DynamicValue>, Option<Value<u32>>), pop_chains::Error> {
+	let mut keys_to_query = keys;
+	let query_result = match storage.query(client, keys_to_query.clone()).await {
+		Err(e) if is_tuple_encoding_error(&e) => {
+			if let Some(flattened) = flatten_single_tuple_key(&keys_to_query) {
+				keys_to_query = flattened;
+				storage.query(client, keys_to_query.clone()).await
+			} else {
+				Err(e)
+			}
+		},
+		other => other,
+	}?;
+
+	Ok((keys_to_query, query_result))
+}
+
+async fn query_all_storage_with_tuple_fallback(
+	storage: &pop_chains::Storage,
+	client: &OnlineClient<SubstrateConfig>,
+	keys: Vec<DynamicValue>,
+) -> Result<Vec<(Vec<DynamicValue>, Value<u32>)>, pop_chains::Error> {
+	let mut keys_to_query = keys;
+	match storage.query_all(client, keys_to_query.clone()).await {
+		Err(e) if is_tuple_encoding_error(&e) => {
+			if let Some(flattened) = flatten_single_tuple_key(&keys_to_query) {
+				keys_to_query = flattened;
+				storage.query_all(client, keys_to_query).await
+			} else {
+				Err(e)
+			}
+		},
+		other => other,
+	}
 }
 
 /// Command to construct and execute extrinsics with configurable pallets, functions, arguments, and
@@ -205,7 +264,9 @@ impl CallChainCommand {
 
 					// Query the storage
 					if storage.query_all {
-						match storage.query_all(&chain.client, keys).await {
+						match query_all_storage_with_tuple_fallback(storage, &chain.client, keys)
+							.await
+						{
 							Ok(values) => {
 								cli.success(&render_storage_key_values(values.as_slice())?)?;
 							},
@@ -215,12 +276,13 @@ impl CallChainCommand {
 							},
 						}
 					} else {
-						match storage.query(&chain.client, keys.clone()).await {
-							Ok(Some(value)) => {
-								let result = vec![(keys, value)];
+						match query_storage_with_tuple_fallback(storage, &chain.client, keys).await
+						{
+							Ok((keys_to_query, Some(value))) => {
+								let result = vec![(keys_to_query, value)];
 								cli.success(&render_storage_key_values(result.as_slice())?)?;
 							},
-							Ok(None) => {
+							Ok((_, None)) => {
 								cli.warning("Storage value not found")?;
 							},
 							Err(e) => {
@@ -248,6 +310,7 @@ impl CallChainCommand {
 		// errors from being logged by subxt's background connection handler during
 		// shutdown (see issue #942).
 		drop(chain);
+		tokio::time::sleep(Duration::from_millis(100)).await;
 		tokio::task::yield_now().await;
 
 		Ok(())
@@ -1505,12 +1568,67 @@ mod tests {
 			..Default::default()
 		};
 
-		// Execute the command end-to-end; it should parse the composite key and perform the storage
-		// query. Currently, this fails with an encoding error, which should now properly return
-		// an error instead of silently succeeding.
+		// Execute the command end-to-end; it should parse and encode the composite key without
+		// failing.
 		let result = cmd.execute().await;
-		assert!(result.is_err(), "execute should return error for encoding failures");
-		assert!(result.unwrap_err().to_string().contains("Failed to query storage"));
+		assert!(result.is_ok(), "execute should succeed for composite storage keys");
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn query_storage_with_composite_key_tuple_arg_works() -> Result<()> {
+		let node_url = shared_substrate_ws_url().await;
+
+		// Build the command to directly execute a storage query using a single tuple argument.
+		let cmd = CallChainCommand {
+			pallet: Some("Assets".to_string()),
+			function: Some("Account".to_string()),
+			args: vec![
+				"(10000,0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d)"
+					.to_string(),
+			],
+			url: Some(Url::parse(&node_url)?),
+			skip_confirm: true,
+			..Default::default()
+		};
+
+		// Execute the command end-to-end; tuple-style input should also encode correctly.
+		let result = cmd.execute().await;
+		assert!(result.is_ok(), "execute should succeed for tuple-style composite storage keys");
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn query_all_storage_with_composite_key_tuple_arg_works() -> Result<()> {
+		let node_url = shared_substrate_ws_url().await;
+		let client = set_up_client(&node_url).await?;
+		let pallets = parse_chain_metadata(&client)?;
+
+		let account_storage = pallets
+			.iter()
+			.find(|p| p.name == "Assets")
+			.and_then(|p| p.state.iter().find(|s| s.name == "Account"))
+			.expect("Assets::Account storage should exist");
+
+		let key_ty = account_storage.key_id.expect("Assets::Account should have a key type");
+		let metadata = client.metadata();
+		let registry = metadata.types();
+		let type_info = registry
+			.resolve(key_ty)
+			.expect("Assets::Account key type should resolve in metadata");
+		let name = type_info.path.segments.last().unwrap_or(&"".to_string()).to_string();
+		let key_param = type_to_param(&name, registry, key_ty)?;
+
+		let keys = pop_chains::parse_dispatchable_arguments(
+			&[key_param],
+			vec![
+				"(4242,0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d)"
+					.to_string(),
+			],
+		)?;
+
+		let result = query_all_storage_with_tuple_fallback(account_storage, &client, keys).await?;
+		assert!(result.is_empty());
 		Ok(())
 	}
 
