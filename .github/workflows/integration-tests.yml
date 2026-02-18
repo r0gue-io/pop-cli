@@ -49,11 +49,11 @@ jobs:
           - macos-latest
     runs-on: ${{ matrix.os }}
     steps:
+      - uses: actions/checkout@v4
+
       - name: Free up space on runner (Linux)
         if: matrix.os == 'ubuntu-latest'
         uses: ./.github/actions/free-up-space
-
-      - uses: actions/checkout@v4
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup-rust-stable-wasm
@@ -196,11 +196,11 @@ jobs:
           - macos-latest
     runs-on: ${{ matrix.os }}
     steps:
+      - uses: actions/checkout@v4
+
       - name: Free up space on runner (Linux)
         if: matrix.os == 'ubuntu-latest'
         uses: ./.github/actions/free-up-space
-
-      - uses: actions/checkout@v4
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup-rust-stable-wasm
@@ -268,11 +268,11 @@ jobs:
           - macos-latest
     runs-on: ${{ matrix.os }}
     steps:
+      - uses: actions/checkout@v4
+
       - name: Free up space on runner (Linux)
         if: matrix.os == 'ubuntu-latest'
         uses: ./.github/actions/free-up-space
-
-      - uses: actions/checkout@v4
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup-rust-stable-wasm
