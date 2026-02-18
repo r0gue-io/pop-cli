@@ -119,6 +119,7 @@ pub fn has_contract_been_built(path: &Path) -> bool {
 }
 
 /// Builds contract artifacts and reports progress/errors to the user.
+#[allow(dead_code)]
 pub fn build_contract_artifacts(
 	cli: &mut impl Cli,
 	path: &Path,
