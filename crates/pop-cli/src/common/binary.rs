@@ -38,7 +38,7 @@ pub(crate) trait BinaryGenerator {
 #[cfg(any(feature = "contract", feature = "chain"))]
 pub async fn check_and_prompt<Generator: BinaryGenerator>(
 	cli: &mut impl Cli,
-	spinner: &cliclack::ProgressBar,
+	spinner: &crate::cli::Spinner,
 	binary_name: &'static str,
 	cache_path: &Path,
 	skip_confirm: bool,

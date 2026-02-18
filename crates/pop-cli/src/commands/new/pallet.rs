@@ -158,7 +158,7 @@ impl NewPalletCommand {
 		let workspace_toml = rustilities::manifest::find_workspace_manifest(&pallet_path);
 		check_destination_path(&pallet_path, cli)?;
 
-		let spinner = cliclack::spinner();
+		let spinner = cli.spinner();
 		spinner.start("Generating pallet...");
 		create_pallet_template(
 			pallet_path.clone(),

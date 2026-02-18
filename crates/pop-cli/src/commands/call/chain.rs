@@ -498,7 +498,7 @@ impl CallChainCommand {
 			)?;
 			return Ok(());
 		}
-		let spinner = cliclack::spinner();
+		let spinner = cli.spinner();
 		spinner.start(
 			"Signing and submitting the extrinsic and then waiting for finalization, please be patient...",
 		);
@@ -794,7 +794,7 @@ impl Call {
 			)?;
 			return Ok(());
 		}
-		let spinner = cliclack::spinner();
+		let spinner = cli.spinner();
 		spinner.start(
 			"Signing and submitting the extrinsic and then waiting for finalization, please be patient...",
 		);

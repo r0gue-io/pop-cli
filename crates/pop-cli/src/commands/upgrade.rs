@@ -3,7 +3,6 @@
 use crate::cli::traits::{Cli, Select};
 use anyhow::{Context, Result};
 use clap::Args;
-use cliclack::spinner;
 #[cfg(not(test))]
 use pop_common::{GitHub, polkadot_sdk::sort_by_latest_stable_version};
 use serde::Serialize;
@@ -76,7 +75,7 @@ impl Command {
 		let version = if let Some(version) = &args.version {
 			version.clone()
 		} else {
-			let spinner = spinner();
+			let spinner = cli.spinner();
 			spinner.start("Fetching available Polkadot SDK versions...");
 			let available_versions = fetch_polkadot_sdk_versions().await?;
 			spinner.clear();
@@ -89,7 +88,7 @@ impl Command {
 			version
 		};
 
-		let spinner = spinner();
+		let spinner = cli.spinner();
 		spinner.start(format!("Updating dependencies to {}...", version));
 		let crates_versions = psvm::get_version_mapping_with_fallback(DEFAULT_GIT_SERVER, &version)
 			.await

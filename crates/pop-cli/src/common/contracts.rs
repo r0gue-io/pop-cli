@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{
-	cli::traits::*,
+	cli::{Spinner, traits::*},
 	common::{
 		binary::{BinaryGenerator, check_and_prompt},
 		wallet::prompt_to_use_wallet,
@@ -9,7 +9,6 @@ use crate::{
 	impl_binary_generator,
 	style::style,
 };
-use cliclack::ProgressBar;
 use pop_common::{DefaultConfig, Keypair, manifest::from_path};
 use pop_contracts::{
 	AccountMapper, ContractFunction, DefaultEnvironment, ExtrinsicOpts, eth_rpc_generator,
@@ -45,7 +44,7 @@ static FIXED_U8_ARRAY: LazyLock<Regex> =
 /// * `skip_confirm`: A boolean indicating whether to skip confirmation prompts.
 pub async fn check_ink_node_and_prompt(
 	cli: &mut impl Cli,
-	spinner: &ProgressBar,
+	spinner: &Spinner,
 	cache_path: &Path,
 	skip_confirm: bool,
 ) -> anyhow::Result<(PathBuf, PathBuf)> {
@@ -328,8 +327,7 @@ pub fn resolve_signer(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::cli::MockCli;
-	use cliclack::spinner;
+	use crate::cli::{MockCli, Spinner};
 	use duct::cmd;
 	use pop_common::{resolve_port, set_executable_permission};
 	use pop_contracts::{Param, is_chain_alive, run_eth_rpc_node, run_ink_node};
@@ -599,7 +597,7 @@ mod tests {
 			.expect_warning(format!("⚠️ The {CONTRACTS_NODE_BINARY} binary is not found."));
 
 		let node_path =
-			check_ink_node_and_prompt(&mut cli, &spinner(), cache_path.path(), false).await?;
+			check_ink_node_and_prompt(&mut cli, &Spinner::Mock, cache_path.path(), false).await?;
 		// Binary path is at least equal to the cache path + the contracts node binary.
 		assert!(
 			node_path
@@ -618,7 +616,7 @@ mod tests {
 			.expect_warning(format!("⚠️ The {CONTRACTS_NODE_BINARY} binary is not found."));
 
 		let node_path =
-			check_ink_node_and_prompt(&mut cli, &spinner(), cache_path.path(), true).await?;
+			check_ink_node_and_prompt(&mut cli, &Spinner::Mock, cache_path.path(), true).await?;
 		// Binary path is at least equal to the cache path + the contracts node binary.
 		assert!(
 			node_path

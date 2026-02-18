@@ -38,18 +38,11 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.inputs.ref }}
 
-      - name: Install packages (Linux)
-        if: contains(matrix.platform.target, 'linux')
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y protobuf-compiler ${{ contains(matrix.platform.target, 'aarch64') && 'crossbuild-essential-arm64' || '' }}
-          protoc --version
-
-      - name: Install packages (macOS)
-        if: contains(matrix.platform.target, 'apple')
-        run: |
-          brew install protobuf
-          protoc --version
+      - name: Install protobuf compiler
+        uses: ./.github/actions/install-protobuf
+        with:
+          runner-os: ${{ runner.os }}
+          linux-extra-packages: ${{ contains(matrix.platform.target, 'aarch64') && 'crossbuild-essential-arm64' || '' }}
 
       - name: Add target
         run: rustup target add ${{ matrix.platform.target }}

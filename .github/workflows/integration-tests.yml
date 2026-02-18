@@ -49,29 +49,15 @@ jobs:
           - macos-latest
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Free up space on runner (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        shell: bash
-        run: |
-          set -xeuo pipefail
-          sudo rm -rf /usr/local/lib/android &
-          sudo rm -rf /usr/share/dotnet &
-          sudo rm -rf /usr/share/swift &
-          if command -v docker &> /dev/null; then
-            sudo docker image prune -af &
-          fi
-          sudo apt-get clean &
-          wait
-
       - uses: actions/checkout@v4
 
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
+      - name: Free up space on runner (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        uses: ./.github/actions/free-up-space
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup-rust-stable-wasm
         with:
-          profile: minimal
-          toolchain: stable
-          default: true
-          target: wasm32-unknown-unknown
           components: rust-src
 
       - name: Rust Cache Linux
@@ -90,83 +76,25 @@ jobs:
           shared-key: pop-cache
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Install packages (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y protobuf-compiler
-          protoc --version
-
-      - name: Install packages (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          brew install protobuf
-          protoc --version
+      - name: Install protobuf compiler
+        uses: ./.github/actions/install-protobuf
+        with:
+          runner-os: ${{ runner.os }}
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-nextest
+        uses: ./.github/actions/install-nextest
 
       - name: Cache pop binaries
-        uses: actions/cache@v4
+        uses: ./.github/actions/cache-pop-binaries
         with:
-          path: |
-            ${{ matrix.os == 'ubuntu-latest' && '~/.cache/pop' || '~/Library/Caches/pop' }}
-          key: pop-binaries-${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('.github/workflows/integration-tests.yml', 'crates/pop-chains/src/up/mod.rs', 'crates/pop-common/src/test_env.rs') }}
-          restore-keys: |
-            pop-binaries-${{ matrix.os }}-${{ runner.arch }}-
+          runner-os: ${{ matrix.os }}
+          runner-arch: ${{ runner.arch }}
+          cache-key-suffix: ${{ hashFiles('.github/workflows/integration-tests.yml', 'crates/pop-chains/src/up/mod.rs', 'crates/pop-common/src/test_env.rs') }}
 
       - name: Start detached ink-node
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          TAG="v0.47.0"
-          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            CACHE_DIR="${HOME}/Library/Caches/pop"
-            ARCHIVE="ink-node-mac-universal.tar.gz"
-            BIN_RELATIVE_PATH="ink-node-mac/ink-node"
-          else
-            CACHE_DIR="${HOME}/.cache/pop"
-            ARCHIVE="ink-node-linux.tar.gz"
-            BIN_RELATIVE_PATH="ink-node-linux/ink-node"
-          fi
-
-          INK_NODE_BIN="${CACHE_DIR}/${BIN_RELATIVE_PATH}"
-          if [[ ! -x "${INK_NODE_BIN}" ]]; then
-            URL="https://github.com/use-ink/ink-node/releases/download/${TAG}/${ARCHIVE}"
-            curl --fail --show-error --silent --location \
-              --retry 3 \
-              --output "/tmp/${ARCHIVE}" \
-              "${URL}"
-
-            mkdir -p "${CACHE_DIR}"
-            tar -xzf "/tmp/${ARCHIVE}" -C "${CACHE_DIR}"
-            chmod +x "${INK_NODE_BIN}"
-          fi
-          nohup "${INK_NODE_BIN}" --dev --tmp --rpc-port=9944 \
-            >/tmp/ink-node.log 2>&1 &
-
-      - name: Wait for ink-node RPC readiness
-        shell: bash
-        run: |
-          set -euo pipefail
-          ready=0
-          for _ in $(seq 1 30); do
-            if nc -z 127.0.0.1 9944; then
-              ready=1
-              break
-            fi
-            sleep 1
-          done
-
-          if [[ $ready -ne 1 ]]; then
-            echo "ink-node RPC did not become ready within 30 seconds" >&2
-            tail -n 200 /tmp/ink-node.log || true
-            exit 1
-          fi
+        uses: ./.github/actions/start-ink-node
+        with:
+          runner-os: ${{ matrix.os }}
 
       - name: Run pop-fork integration tests
         env:
@@ -185,9 +113,7 @@ jobs:
 
       - name: Stop detached ink-node
         if: always()
-        run: |
-          pkill ink-node || true
-          pkill eth-rpc || true
+        uses: ./.github/actions/stop-ink-node
 
   contract-integration-tests:
     needs: lint
@@ -203,26 +129,12 @@ jobs:
 
       - name: Free up space on runner
         if: matrix.os == 'ubuntu-latest'
-        shell: bash
-        run: |
-          set -xeuo pipefail
-          sudo rm -rf /usr/local/lib/android &
-          sudo rm -rf /usr/share/dotnet &
-          sudo rm -rf /usr/share/swift &
-          if command -v docker &> /dev/null; then
-            sudo docker image prune -af &
-          fi
-          sudo apt-get clean &
-          wait
+        uses: ./.github/actions/free-up-space
 
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup-rust-stable-wasm
         with:
-          profile: minimal
-          toolchain: stable
-          default: true
-          target: wasm32-unknown-unknown
-          components: rust-src, clippy
+          components: rust-src,clippy
 
       - name: Rust Cache Linux
         if: matrix.os == 'ubuntu-latest'
@@ -240,32 +152,24 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
           shared-key: pop-cache
 
-      - name: Install packages (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y protobuf-compiler
-          protoc --version
+      - name: Install protobuf compiler
+        uses: ./.github/actions/install-protobuf
+        with:
+          runner-os: ${{ runner.os }}
 
-      - name: Install packages (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          brew install protobuf
-          protoc --version
+      - name: Ensure Docker is running (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        uses: ./.github/actions/ensure-docker
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-nextest
+        uses: ./.github/actions/install-nextest
 
       - name: Cache pop binaries
-        uses: actions/cache@v4
+        uses: ./.github/actions/cache-pop-binaries
         with:
-          path: |
-            ${{ matrix.os == 'ubuntu-latest' && '~/.cache/pop' || '~/Library/Caches/pop' }}
-          key: pop-binaries-${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('.github/workflows/integration-tests.yml', 'crates/pop-chains/src/up/mod.rs', 'crates/pop-common/src/test_env.rs') }}
-          restore-keys: |
-            pop-binaries-${{ matrix.os }}-${{ runner.arch }}-
+          runner-os: ${{ matrix.os }}
+          runner-arch: ${{ runner.arch }}
+          cache-key-suffix: ${{ hashFiles('.github/workflows/integration-tests.yml', 'crates/pop-chains/src/up/mod.rs', 'crates/pop-common/src/test_env.rs') }}
 
       - name: Run integration tests
         env:
@@ -292,29 +196,15 @@ jobs:
           - macos-latest
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Free up space on runner (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        shell: bash
-        run: |
-          set -xeuo pipefail
-          sudo rm -rf /usr/local/lib/android &
-          sudo rm -rf /usr/share/dotnet &
-          sudo rm -rf /usr/share/swift &
-          if command -v docker &> /dev/null; then
-            sudo docker image prune -af &
-          fi
-          sudo apt-get clean &
-          wait
-
       - uses: actions/checkout@v4
 
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
+      - name: Free up space on runner (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        uses: ./.github/actions/free-up-space
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup-rust-stable-wasm
         with:
-          profile: minimal
-          toolchain: stable
-          default: true
-          target: wasm32-unknown-unknown
           components: rust-src
 
       - name: Rust Cache Linux
@@ -333,32 +223,24 @@ jobs:
           shared-key: pop-cache
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Install packages (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y protobuf-compiler
-          protoc --version
+      - name: Install protobuf compiler
+        uses: ./.github/actions/install-protobuf
+        with:
+          runner-os: ${{ runner.os }}
 
-      - name: Install packages (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          brew install protobuf
-          protoc --version
+      - name: Ensure Docker is running (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        uses: ./.github/actions/ensure-docker
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-nextest
+        uses: ./.github/actions/install-nextest
 
       - name: Cache pop binaries
-        uses: actions/cache@v4
+        uses: ./.github/actions/cache-pop-binaries
         with:
-          path: |
-            ${{ matrix.os == 'ubuntu-latest' && '~/.cache/pop' || '~/Library/Caches/pop' }}
-          key: pop-binaries-${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('.github/workflows/integration-tests.yml', 'crates/pop-chains/src/up/mod.rs', 'crates/pop-common/src/test_env.rs') }}
-          restore-keys: |
-            pop-binaries-${{ matrix.os }}-${{ runner.arch }}-
+          runner-os: ${{ matrix.os }}
+          runner-arch: ${{ runner.arch }}
+          cache-key-suffix: ${{ hashFiles('.github/workflows/integration-tests.yml', 'crates/pop-chains/src/up/mod.rs', 'crates/pop-common/src/test_env.rs') }}
 
       - name: Run integration tests
         env:
@@ -386,29 +268,15 @@ jobs:
           - macos-latest
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Free up space on runner (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        shell: bash
-        run: |
-          set -xeuo pipefail
-          sudo rm -rf /usr/local/lib/android &
-          sudo rm -rf /usr/share/dotnet &
-          sudo rm -rf /usr/share/swift &
-          if command -v docker &> /dev/null; then
-            sudo docker image prune -af &
-          fi
-          sudo apt-get clean &
-          wait
-
       - uses: actions/checkout@v4
 
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
+      - name: Free up space on runner (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        uses: ./.github/actions/free-up-space
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup-rust-stable-wasm
         with:
-          profile: minimal
-          toolchain: stable
-          default: true
-          target: wasm32-unknown-unknown
           components: rust-src
 
       - name: Rust Cache Linux
@@ -427,32 +295,24 @@ jobs:
           shared-key: pop-cache
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Install packages (Linux)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y protobuf-compiler
-          protoc --version
+      - name: Install protobuf compiler
+        uses: ./.github/actions/install-protobuf
+        with:
+          runner-os: ${{ runner.os }}
 
-      - name: Install packages (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          brew install protobuf
-          protoc --version
+      - name: Ensure Docker is running (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        uses: ./.github/actions/ensure-docker
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-nextest
+        uses: ./.github/actions/install-nextest
 
       - name: Cache pop binaries
-        uses: actions/cache@v4
+        uses: ./.github/actions/cache-pop-binaries
         with:
-          path: |
-            ${{ matrix.os == 'ubuntu-latest' && '~/.cache/pop' || '~/Library/Caches/pop' }}
-          key: pop-binaries-${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('.github/workflows/integration-tests.yml', 'crates/pop-chains/src/up/mod.rs', 'crates/pop-common/src/test_env.rs') }}
-          restore-keys: |
-            pop-binaries-${{ matrix.os }}-${{ runner.arch }}-
+          runner-os: ${{ matrix.os }}
+          runner-arch: ${{ runner.arch }}
+          cache-key-suffix: ${{ hashFiles('.github/workflows/integration-tests.yml', 'crates/pop-chains/src/up/mod.rs', 'crates/pop-common/src/test_env.rs') }}
 
       - name: Run pop-cli integration tests
         env:

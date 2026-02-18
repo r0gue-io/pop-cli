@@ -7,7 +7,7 @@ use super::{
 	runtime::{Feature, ensure_runtime_binary_exists},
 };
 use crate::{
-	cli::traits::*,
+	cli::{Spinner, traits::*},
 	common::{
 		binary::{BinaryGenerator, SemanticVersion, check_and_prompt},
 		urls,
@@ -15,7 +15,6 @@ use crate::{
 	impl_binary_generator,
 };
 use clap::Args;
-use cliclack::{ProgressBar, spinner};
 use console::style;
 use pop_chains::{
 	Runtime, SharedParams, parse, set_up_client,
@@ -76,7 +75,7 @@ impl BuildRuntimeParams {
 /// * `skip_confirm`: A boolean indicating whether to skip confirmation prompts.
 pub async fn check_try_runtime_and_prompt(
 	cli: &mut impl Cli,
-	spinner: &ProgressBar,
+	spinner: &Spinner,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
 	Ok(if let Ok(path) = which_version(BINARY_NAME, &TARGET_BINARY_VERSION, &Ordering::Greater) {
@@ -94,7 +93,7 @@ pub async fn check_try_runtime_and_prompt(
 /// * `skip_confirm`: A boolean indicating whether to skip confirmation prompts.
 pub async fn source_try_runtime_binary(
 	cli: &mut impl Cli,
-	spinner: &ProgressBar,
+	spinner: &Spinner,
 	cache_path: &Path,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
@@ -289,7 +288,7 @@ pub(crate) async fn guide_user_to_select_try_state(
 		},
 		s if s == try_state_label(&TryStateSelect::Only(vec![])) => match url {
 			Some(url) => {
-				let spinner = spinner();
+				let spinner = cli.spinner();
 				spinner.start("Retrieving available pallets...");
 				let client = set_up_client(&url).await?;
 				let pallets = get_pallets(&client).await?;
@@ -1164,9 +1163,9 @@ mod tests {
 	#[tokio::test]
 	async fn try_runtime_version_works() -> anyhow::Result<()> {
 		let cache_path = tempdir().expect("Could create temp dir");
-		let path =
-			source_try_runtime_binary(&mut MockCli::new(), &spinner(), cache_path.path(), true)
-				.await?;
+		let mut cli = MockCli::new();
+		let spinner = cli.spinner();
+		let path = source_try_runtime_binary(&mut cli, &spinner, cache_path.path(), true).await?;
 		assert!(
 			SemanticVersion::try_from(path.to_str().unwrap().to_string())? >= TARGET_BINARY_VERSION
 		);

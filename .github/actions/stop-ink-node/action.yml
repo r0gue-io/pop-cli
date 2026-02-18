@@ -1,0 +1,10 @@
+name: 'Stop detached ink-node'
+description: 'Stops detached ink-node and eth-rpc processes if running'
+runs:
+  using: 'composite'
+  steps:
+    - name: Stop detached ink-node
+      shell: bash
+      run: |
+        pkill ink-node || true
+        pkill eth-rpc || true

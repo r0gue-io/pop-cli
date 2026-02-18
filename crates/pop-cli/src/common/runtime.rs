@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 
 use crate::{cli::traits::*, common::builds::find_runtime_dir};
-use cliclack::spinner;
 use console::style;
 use pop_chains::utils::helpers::get_preset_names;
 #[cfg(feature = "chain")]
@@ -130,7 +129,7 @@ pub(crate) async fn build_runtime(
 ) -> anyhow::Result<(PathBuf, PathBuf)> {
 	cli.warning("NOTE: this may take some time...")?;
 	let binary_path = if deterministic {
-		let spinner = spinner();
+		let spinner = cli.spinner();
 		let manifest = from_path(runtime_path)?;
 		let package = manifest.package.as_ref().ok_or(anyhow::anyhow!(format!(
 			"Couldn't find package declaration at {:?}",
@@ -233,7 +232,7 @@ pub fn guide_user_to_select_genesis_preset(
 	runtime_path: &PathBuf,
 	default_value: &str,
 ) -> anyhow::Result<String> {
-	let spinner = spinner();
+	let spinner = cli.spinner();
 	spinner.start("Loading available genesis builder presets of your runtime...");
 	let mut prompt = cli
 		.select("Select the genesis builder preset:")

@@ -10,7 +10,6 @@ use crate::{
 	},
 };
 use clap::{Args, Parser};
-use cliclack::spinner;
 use pop_chains::{BenchmarkingCliCommand, bench::OverheadCmd, generate_omni_bencher_benchmarks};
 use pop_common::Profile;
 use serde::Serialize;
@@ -38,7 +37,7 @@ pub(crate) struct BenchmarkOverhead {
 
 impl BenchmarkOverhead {
 	pub(crate) async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		let spinner = spinner();
+		let spinner = cli.spinner();
 		cli.intro("Benchmarking the execution overhead per-block and per-extrinsic")?;
 
 		if let Err(e) = self.interact(cli).await {
@@ -136,7 +135,7 @@ impl BenchmarkOverhead {
 		}
 		self.command.params.weight.weight_path = Some(temp_dir.path().to_path_buf());
 
-		let spinner = spinner();
+		let spinner = cli.spinner();
 		let binary_path = check_omni_bencher_and_prompt(cli, &spinner, self.skip_confirm).await?;
 		spinner.clear();
 		let output = generate_omni_bencher_benchmarks(

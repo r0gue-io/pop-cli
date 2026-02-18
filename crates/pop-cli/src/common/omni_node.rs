@@ -22,7 +22,7 @@ impl_binary_generator!(PolkadotOmniNodeGenerator, polkadot_omni_node_generator);
 /// * `anyhow::Result<PathBuf>` - Path to the installed binary on success, or an error
 pub async fn source_polkadot_omni_node_binary(
 	cli: &mut impl Cli,
-	spinner: &cliclack::ProgressBar,
+	spinner: &crate::cli::Spinner,
 	cache_path: &Path,
 	skip_confirm: bool,
 ) -> anyhow::Result<PathBuf> {
@@ -40,7 +40,6 @@ pub async fn source_polkadot_omni_node_binary(
 mod tests {
 	use super::*;
 	use crate::cli::MockCli;
-	use cliclack::spinner;
 
 	#[tokio::test]
 	async fn source_polkadot_omni_node_binary_works() -> anyhow::Result<()> {
@@ -51,9 +50,13 @@ mod tests {
 			.expect_confirm("📦 Would you like to source it automatically now?", true)
 			.expect_warning(format!("⚠️ The {binary_name} binary is not found."));
 
-		let node_path =
-			source_polkadot_omni_node_binary(&mut cli, &spinner(), cache_path.path(), false)
-				.await?;
+		let node_path = source_polkadot_omni_node_binary(
+			&mut cli,
+			&crate::cli::Spinner::Mock,
+			cache_path.path(),
+			false,
+		)
+		.await?;
 
 		// Binary path should start with cache path + binary name
 		assert!(
@@ -72,8 +75,13 @@ mod tests {
 		let mut cli =
 			MockCli::new().expect_warning(format!("⚠️ The {binary_name} binary is not found."));
 
-		let node_path =
-			source_polkadot_omni_node_binary(&mut cli, &spinner(), cache_path.path(), true).await?;
+		let node_path = source_polkadot_omni_node_binary(
+			&mut cli,
+			&crate::cli::Spinner::Mock,
+			cache_path.path(),
+			true,
+		)
+		.await?;
 
 		// Binary path should start with cache path + binary name
 		assert!(

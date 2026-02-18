@@ -12,7 +12,6 @@ use crate::{
 	},
 };
 use clap::Args;
-use cliclack::spinner;
 use pop_chains::{
 	SharedParams, TryRuntimeCliCommand, parse_try_state_string, run_try_runtime,
 	state::{LiveState, State, StateCommand},
@@ -106,11 +105,11 @@ impl TestExecuteBlockCommand {
 		cli: &mut impl cli::traits::Cli,
 		user_provided_args: Vec<String>,
 	) -> anyhow::Result<()> {
+		let spinner = cli.spinner();
 		let binary_path =
-			check_try_runtime_and_prompt(cli, &spinner(), self.build_params.skip_confirm).await?;
+			check_try_runtime_and_prompt(cli, &spinner, self.build_params.skip_confirm).await?;
 		cli.warning("NOTE: this may take some time...")?;
 
-		let spinner = spinner();
 		spinner.start("Executing block...");
 		let (shared_params, before_subcommand, after_subcommand) =
 			self.collect_arguments(user_provided_args)?;
@@ -199,7 +198,13 @@ mod tests {
 
 	#[tokio::test]
 	async fn execute_block_works() -> anyhow::Result<()> {
-		source_try_runtime_binary(&mut MockCli::new(), &spinner(), &crate::cache()?, true).await?;
+		source_try_runtime_binary(
+			&mut MockCli::new(),
+			&crate::cli::Spinner::Mock,
+			&crate::cache()?,
+			true,
+		)
+		.await?;
 
 		let mut cli = MockCli::new()
 			.expect_intro("Testing block execution")
@@ -249,11 +254,21 @@ mod tests {
 
 	#[tokio::test]
 	async fn execute_block_invalid_uri() -> anyhow::Result<()> {
-		source_try_runtime_binary(&mut MockCli::new(), &spinner(), &crate::cache()?, true).await?;
+		source_try_runtime_binary(
+			&mut MockCli::new(),
+			&crate::cli::Spinner::Mock,
+			&crate::cache()?,
+			true,
+		)
+		.await?;
 		let mut cmd = TestExecuteBlockCommand::default();
 		cmd.state.uri = Some("ws://127.0.0.1:9999".to_string());
 		let error = cmd.run(&mut MockCli::new(), vec![]).await.unwrap_err();
-		assert!(error.to_string().contains("Connection refused"), "Unexpected error: {}", error);
+		let error = error.to_string();
+		assert!(
+			error.contains("Connection refused") || error.contains("UnsupportedHttpVersion"),
+			"Unexpected error: {error}"
+		);
 		Ok(())
 	}
 

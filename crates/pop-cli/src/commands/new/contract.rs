@@ -204,7 +204,7 @@ async fn generate_contract_from_template(
 
 	let contract_path = check_destination_path(path, cli)?;
 	fs::create_dir_all(contract_path.as_path())?;
-	let spinner = cliclack::spinner();
+	let spinner = cli.spinner();
 	spinner.start("Generating contract...");
 	create_smart_contract(name, contract_path.as_path(), template)?;
 	spinner.clear();

@@ -16,7 +16,6 @@ use crate::{
 };
 use anyhow::Result;
 use clap::Args;
-use cliclack::spinner;
 use pop_chains::{
 	Action, ChainTemplate, DeploymentProvider, Payload, Reserved, SupportedChains,
 	construct_proxy_extrinsic, find_callable_by_name,
@@ -483,7 +482,7 @@ async fn generate_spec_files(
 
 	let mut genesis_artifacts = build_spec.clone().build(cli).await?;
 	if let Some(api) = &deployment_config.api {
-		let spinner = spinner();
+		let spinner = cli.spinner();
 		spinner.start("Fetching collator keys...");
 		let keys = api.get_collator_keys(id).await?;
 		spinner.set_message("Rebuilding chain spec with updated collator keys...");

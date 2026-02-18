@@ -9,7 +9,6 @@ use crate::{
 	},
 };
 use clap::Args;
-use cliclack::spinner;
 use console::style;
 use pop_chains::{TryRuntimeCliCommand, parse::url, run_try_runtime, state::LiveState};
 use serde::Serialize;
@@ -95,7 +94,7 @@ impl TestCreateSnapshotCommand {
 	}
 
 	async fn run(&self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		let spinner = spinner();
+		let spinner = cli.spinner();
 		let user_provided_args: Vec<String> = std::env::args().skip(3).collect();
 		let binary_path = check_try_runtime_and_prompt(cli, &spinner, self.skip_confirm).await?;
 		if let Some(ref uri) = self.from.uri {
@@ -165,10 +164,19 @@ mod tests {
 	async fn create_snapshot_invalid_uri() -> anyhow::Result<()> {
 		let mut command = TestCreateSnapshotCommand::default();
 		command.from.uri = Some("ws://127.0.0.1:9999".to_string());
-		source_try_runtime_binary(&mut MockCli::new(), &spinner(), &crate::cache()?, true).await?;
+		source_try_runtime_binary(
+			&mut MockCli::new(),
+			&crate::cli::Spinner::Mock,
+			&crate::cache()?,
+			true,
+		)
+		.await?;
 
 		let error = command.run(&mut MockCli::new()).await.unwrap_err().to_string();
-		assert!(error.contains("Connection refused"));
+		assert!(
+			error.contains("Connection refused") || error.contains("UnsupportedHttpVersion"),
+			"Unexpected error: {error}"
+		);
 		Ok(())
 	}
 

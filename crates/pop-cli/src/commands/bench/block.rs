@@ -5,7 +5,6 @@ use crate::{
 	common::{bench::check_omni_bencher_and_prompt, prompt::display_message},
 };
 use clap::Args;
-use cliclack::spinner;
 use pop_chains::{
 	BenchmarkingCliCommand,
 	bench::{BlockCmd, generate_binary_benchmarks},
@@ -33,7 +32,7 @@ impl BenchmarkBlock {
 	async fn benchmark(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		cli.intro("Benchmarking the execution time of historic blocks")?;
 
-		let spinner = spinner();
+		let spinner = cli.spinner();
 		let binary_path = check_omni_bencher_and_prompt(cli, &spinner, self.skip_confirm).await?;
 		spinner.clear();
 		cli.warning("NOTE: this may take some time...")?;

@@ -1,0 +1,22 @@
+name: 'Setup Rust stable toolchain (wasm)'
+description: 'Installs the stable Rust toolchain with wasm target and optional components'
+inputs:
+  components:
+    description: 'Comma-separated Rust components to install'
+    required: false
+    default: 'rust-src'
+  target:
+    description: 'Rust target triple'
+    required: false
+    default: 'wasm32-unknown-unknown'
+runs:
+  using: 'composite'
+  steps:
+    - name: Install stable toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        default: true
+        target: ${{ inputs.target }}
+        components: ${{ inputs.components }}

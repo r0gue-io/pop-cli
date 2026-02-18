@@ -13,7 +13,6 @@ use crate::{
 	style::style,
 };
 use clap::{Args, ValueEnum};
-use cliclack::spinner;
 use pop_chains::{
 	ChainSpec, ChainSpecBuilder, generate_genesis_state_file_with_node, is_supported,
 };
@@ -686,7 +685,7 @@ impl BuildSpec {
 		}
 
 		// Generate chain spec.
-		let spinner = spinner();
+		let spinner = cli.spinner();
 		if !self.use_existing_plain_spec {
 			let chain_or_preset = if let Some(chain) = self.chain.clone() {
 				chain

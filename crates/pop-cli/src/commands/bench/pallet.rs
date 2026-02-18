@@ -16,7 +16,6 @@ use crate::{
 	},
 };
 use clap::Args;
-use cliclack::spinner;
 use pop_chains::{
 	GENESIS_BUILDER_DEV_PRESET, GenesisBuilderPolicy, PalletExtrinsicsRegistry,
 	generate_pallet_benchmarks, load_pallet_extrinsics, utils::helpers::get_preset_names,
@@ -642,7 +641,7 @@ impl BenchmarkPallet {
 	) -> anyhow::Result<()> {
 		if registry.is_empty() {
 			let runtime_path = self.runtime_binary()?;
-			let spinner = spinner();
+			let spinner = cli.spinner();
 			let binary_path =
 				check_omni_bencher_and_prompt(cli, &spinner, self.skip_confirm).await?;
 
@@ -1186,7 +1185,7 @@ async fn guide_user_to_select_menu_option(
 	cmd: &mut BenchmarkPallet,
 	cli: &mut impl cli::traits::Cli,
 ) -> anyhow::Result<BenchmarkPalletMenuOption> {
-	let spinner = spinner();
+	let spinner = cli.spinner();
 	let mut prompt = cli.select("Select the parameter to update:");
 
 	let mut index = 0;
@@ -1324,7 +1323,7 @@ fn format_pallet_extrinsic_item((pallet, extrinsic): (String, String)) -> String
 mod tests {
 	use super::*;
 	use crate::{
-		cli::MockCli,
+		cli::{MockCli, Spinner, traits::Cli},
 		common::{
 			bench::source_omni_bencher_binary,
 			runtime::{Feature::Benchmark, get_mock_runtime},
@@ -1723,7 +1722,8 @@ mod tests {
 	async fn ensure_pallet_registry_works() -> anyhow::Result<()> {
 		let mut cli = MockCli::new();
 		let runtime_path = get_mock_runtime(Some(Benchmark));
-		check_omni_bencher_and_prompt(&mut cli, &spinner(), true).await?;
+		let spinner = cli.spinner();
+		check_omni_bencher_and_prompt(&mut cli, &spinner, true).await?;
 		let cmd = BenchmarkPallet { runtime_binary: Some(runtime_path), ..Default::default() };
 		let mut registry = PalletExtrinsicsRegistry::default();
 
@@ -1857,7 +1857,8 @@ mod tests {
 		// Load pallet registry if the registry is empty.
 		let mut cli =
 			MockCli::new().expect_confirm("Would you like to benchmark all pallets?", true);
-		check_omni_bencher_and_prompt(&mut cli, &spinner(), true).await?;
+		let spinner = cli.spinner();
+		check_omni_bencher_and_prompt(&mut cli, &spinner, true).await?;
 		let mut registry = PalletExtrinsicsRegistry::default();
 		BenchmarkPallet {
 			runtime_binary: Some(get_mock_runtime(Some(Benchmark))),
@@ -1908,7 +1909,8 @@ mod tests {
 	#[tokio::test]
 	async fn update_extrinsic_works() -> anyhow::Result<()> {
 		let pallet = "pallet_timestamp";
-		check_omni_bencher_and_prompt(&mut MockCli::new(), &spinner(), true).await?;
+		let mut mock_cli = MockCli::new();
+		check_omni_bencher_and_prompt(&mut mock_cli, &Spinner::Mock, true).await?;
 		// Load pallet registry if the registry is empty.
 		let mut registry = PalletExtrinsicsRegistry::default();
 		BenchmarkPallet {
@@ -1958,7 +1960,7 @@ mod tests {
 			runtime_binary: Some(get_mock_runtime(Some(Benchmark))),
 			..Default::default()
 		};
-		check_omni_bencher_and_prompt(&mut cli, &spinner(), true).await?;
+		check_omni_bencher_and_prompt(&mut cli, &Spinner::Mock, true).await?;
 		let mut registry = PalletExtrinsicsRegistry::default();
 		cmd.update_excluded_pallets(&mut cli, &mut registry).await?;
 		assert!(!registry.is_empty());
@@ -1991,7 +1993,7 @@ mod tests {
 			runtime_binary: Some(get_mock_runtime(Some(Benchmark))),
 			..Default::default()
 		};
-		check_omni_bencher_and_prompt(&mut cli, &spinner(), true).await?;
+		check_omni_bencher_and_prompt(&mut cli, &Spinner::Mock, true).await?;
 		let mut registry = PalletExtrinsicsRegistry::default();
 		cmd.update_excluded_extrinsics(&mut cli, &mut registry).await?;
 		assert!(!registry.is_empty());
@@ -2150,7 +2152,8 @@ runtime-benchmarks = []
 	async fn get_registry(cache_dir: &Path) -> anyhow::Result<PalletExtrinsicsRegistry> {
 		let runtime_path = get_mock_runtime(Some(Benchmark));
 		let binary_path =
-			source_omni_bencher_binary(&mut MockCli::new(), &spinner(), cache_dir, true).await?;
+			source_omni_bencher_binary(&mut MockCli::new(), &Spinner::Mock, cache_dir, true)
+				.await?;
 		Ok(load_pallet_extrinsics(&runtime_path, binary_path.as_path()).await?)
 	}
 
