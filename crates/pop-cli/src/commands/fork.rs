@@ -137,6 +137,11 @@ impl Command {
 		if output_mode == OutputMode::Json && !args.detach {
 			anyhow::bail!("`fork --json` requires `--detach`");
 		}
+		if output_mode == OutputMode::Json && args.endpoint.is_none() && args.chain.is_none() {
+			anyhow::bail!(
+				"`fork --json --detach` requires either `--endpoint` or a chain argument"
+			);
+		}
 
 		// Show intro first so the cliclack session is set up before any prompts.
 		if args.detach {
@@ -581,6 +586,15 @@ mod tests {
 		let mut cli = MockCli::new();
 		let err = Command::execute(&mut args, &mut cli, OutputMode::Json).await.unwrap_err();
 		assert!(err.to_string().contains("requires `--detach`"));
+		cli.verify().unwrap();
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn execute_json_requires_source_without_prompting() {
+		let mut args = ForkArgs { detach: true, ..Default::default() };
+		let mut cli = MockCli::new();
+		let err = Command::execute(&mut args, &mut cli, OutputMode::Json).await.unwrap_err();
+		assert!(err.to_string().contains("requires either `--endpoint` or a chain argument"));
 		cli.verify().unwrap();
 	}
 

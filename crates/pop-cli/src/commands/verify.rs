@@ -56,20 +56,28 @@ pub(crate) struct VerifyCommand {
 }
 
 impl VerifyCommand {
+	fn json_output(
+		project_path: &std::path::Path,
+		address: Option<&str>,
+		image: Option<&str>,
+	) -> VerifyOutput {
+		VerifyOutput {
+			verified: true,
+			contract_path: project_path.display().to_string(),
+			image: image.map(str::to_string),
+			address: address.map(str::to_string),
+		}
+	}
+
 	pub(crate) async fn execute(&self, cli: &mut impl Cli, output_mode: OutputMode) -> Result<()> {
 		cli.intro("Contract verification started. This might take a bit⏳")?;
 
 		let project_path = ensure_project_path(self.path.clone(), self.path_pos.clone());
-		let mut output = VerifyOutput {
-			verified: true,
-			contract_path: project_path.display().to_string(),
-			image: None,
-			address: None,
-		};
+		let output =
+			Self::json_output(&project_path, self.address.as_deref(), self.image.as_deref());
 
 		if let Some(contract_path) = self.contract_path.as_ref() {
 			VerifyContract::new_local(project_path, contract_path.clone()).execute().await?;
-			output.contract_path = contract_path.display().to_string();
 		} else {
 			// SAFETY: clap enforces that if contract_path is not present,
 			// then url, address, and image must all be present
@@ -87,9 +95,6 @@ impl VerifyCommand {
 			)
 			.execute()
 			.await?;
-
-			output.address = Some(address.clone());
-			output.image = Some(image.clone());
 		}
 
 		if output_mode == OutputMode::Json {
@@ -132,5 +137,27 @@ mod tests {
 		assert_eq!(json["data"]["contract_path"], "contracts/flipper/flipper.contract");
 		assert_eq!(json["data"]["image"], "use-ink/cargo-contract:latest");
 		assert_eq!(json["data"]["address"], "0x1234");
+	}
+
+	#[test]
+	fn json_output_uses_project_path_consistently() {
+		let project_path = std::path::PathBuf::from("/tmp/flipper");
+
+		let local = VerifyCommand::json_output(&project_path, None, None);
+		assert_eq!(local.contract_path, "/tmp/flipper");
+		assert_eq!(local.address, None);
+		assert_eq!(local.image, None);
+
+		let deployed = VerifyCommand::json_output(
+			&project_path,
+			Some("0x0000000000000000000000000000000000000001"),
+			Some("use-ink/cargo-contract:latest"),
+		);
+		assert_eq!(deployed.contract_path, "/tmp/flipper");
+		assert_eq!(
+			deployed.address,
+			Some("0x0000000000000000000000000000000000000001".to_string())
+		);
+		assert_eq!(deployed.image, Some("use-ink/cargo-contract:latest".to_string()));
 	}
 }
