@@ -586,7 +586,8 @@ mod tests {
 	#[test]
 	fn build_contract_artifacts_reports_error() -> anyhow::Result<()> {
 		let temp_dir = tempfile::tempdir()?;
-		let err = build_contract_artifacts(temp_dir.path(), true, Verbosity::Quiet, None)
+		let mut cli = MockCli::new();
+		let err = build_contract_artifacts(&mut cli, temp_dir.path(), true, Verbosity::Quiet, None)
 			.expect_err("expected build to fail without a Cargo.toml");
 		assert!(err.to_string().contains("Use `pop build` to retry with build output."));
 		Ok(())
