@@ -79,6 +79,7 @@ subxt-signer = { workspace = true}
 subxt = { workspace = true }
 hex.workspace = true
 scale.workspace = true
+temp-env.workspace = true
 
 [features]
 default = ["chain", "telemetry", "contract"]

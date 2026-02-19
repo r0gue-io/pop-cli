@@ -9,10 +9,10 @@ use crate::{
 	impl_binary_generator,
 	style::style,
 };
-use pop_common::{DefaultConfig, Keypair, manifest::from_path};
+use pop_common::{DefaultConfig, Keypair, find_contract_artifact_path, manifest::from_path};
 use pop_contracts::{
-	AccountMapper, ContractFunction, DefaultEnvironment, ExtrinsicOpts, eth_rpc_generator,
-	ink_node_generator,
+	AccountMapper, BuildMode, ContractFunction, DefaultEnvironment, ExtrinsicOpts, MetadataSpec,
+	Verbosity, build_smart_contract, eth_rpc_generator, ink_node_generator,
 };
 use regex::{Captures, Regex};
 use std::{
@@ -100,20 +100,53 @@ pub async fn terminate_nodes(
 	Ok(())
 }
 
-/// Checks if a contract has been built by verifying the existence of the build directory and the
-/// {name}.contract file.
+/// Checks if a contract has been built by verifying the existence of the {name}.contract file in
+/// the project or workspace target/ink directories.
 ///
 /// # Arguments
-/// * `path` - An optional path to the project directory. If no path is provided, the current
-///   directory is used.
+/// * `path` - Path to the project directory or Cargo.toml.
 pub fn has_contract_been_built(path: &Path) -> bool {
 	let Ok(manifest) = from_path(path) else {
 		return false;
 	};
-	manifest
-		.package
-		.map(|p| path.join(format!("target/ink/{}.contract", p.name())).exists())
-		.unwrap_or_default()
+	let Some(package) = manifest.package.as_ref() else {
+		return false;
+	};
+
+	let project_root =
+		if path.ends_with("Cargo.toml") { path.parent().unwrap_or(path) } else { path };
+	find_contract_artifact_path(project_root, package.name()).is_some()
+}
+
+/// Builds contract artifacts and reports progress/errors to the user.
+pub fn build_contract_artifacts(
+	cli: &mut impl Cli,
+	path: &Path,
+	release: bool,
+	verbosity: Verbosity,
+	metadata: Option<MetadataSpec>,
+) -> anyhow::Result<()> {
+	let build_mode = if release { BuildMode::Release } else { BuildMode::Debug };
+	let build_profile = if release { "RELEASE" } else { "DEBUG" };
+	let spinner = cli.spinner();
+	spinner.start(format!("Building contract in {build_profile} mode..."));
+	let results = match build_smart_contract(path, build_mode, verbosity, metadata, None) {
+		Ok(results) => results,
+		Err(e) => {
+			return Err(anyhow::anyhow!(
+				"🚫 An error occurred building your contract: {e}\nUse `pop build` to retry with build output.",
+			));
+		},
+	};
+	spinner.stop(format!(
+		"Your contract artifacts are ready. You can find them in: {}",
+		results
+			.iter()
+			.map(|result| result.target_directory.display().to_string())
+			.collect::<Vec<_>>()
+			.join("\n")
+	));
+	Ok(())
 }
 
 fn validate_fixed_u8_array(value: &str, caps: &Captures) -> Result<(), &'static str> {
@@ -328,11 +361,25 @@ pub fn resolve_signer(
 mod tests {
 	use super::*;
 	use crate::cli::{MockCli, Spinner};
-	use duct::cmd;
 	use pop_common::{resolve_port, set_executable_permission};
-	use pop_contracts::{Param, is_chain_alive, run_eth_rpc_node, run_ink_node};
-	use std::fs::{self, File};
+	use pop_contracts::{Param, Verbosity, is_chain_alive, run_eth_rpc_node, run_ink_node};
+	use std::{
+		fs::{self, File},
+		path::{Path, PathBuf},
+	};
 	use url::Url;
+
+	// Minimal package layout for manifest parsing without shelling out to cargo.
+	fn write_package(root: &Path, name: &str) -> anyhow::Result<PathBuf> {
+		let package_root = root.join(name);
+		fs::create_dir_all(package_root.join("src"))?;
+		fs::write(
+			package_root.join("Cargo.toml"),
+			format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2024\"\n"),
+		)?;
+		fs::write(package_root.join("src/lib.rs"), "")?;
+		Ok(package_root)
+	}
 
 	#[test]
 	fn validate_type_optional_empty_is_ok() {
@@ -512,19 +559,37 @@ mod tests {
 		let temp_dir = tempfile::tempdir()?;
 		let path = temp_dir.path();
 
-		// Standard rust project
+		// Project-local target/ink lookup.
 		let name = "hello_world";
-		cmd("cargo", ["new", name]).dir(path).run()?;
-		let contract_path = path.join(name);
+		let contract_path = write_package(path, name)?;
 		assert!(!has_contract_been_built(&contract_path));
 
-		cmd("cargo", ["build"]).dir(&contract_path).run()?;
 		// Mock build directory
-		fs::create_dir(contract_path.join("target/ink"))?;
-		assert!(!has_contract_been_built(&path.join(name)));
+		fs::create_dir_all(contract_path.join("target/ink"))?;
+		assert!(!has_contract_been_built(&contract_path));
 		// Create a mocked .contract file inside the target directory
 		File::create(contract_path.join(format!("target/ink/{}.contract", name)))?;
-		assert!(has_contract_been_built(&path.join(name)));
+		assert!(has_contract_been_built(&contract_path));
+
+		// Workspace target/ink lookup.
+		let workspace_root = path.join("workspace");
+		fs::create_dir(&workspace_root)?;
+		fs::write(workspace_root.join("Cargo.toml"), "[workspace]\nmembers = [\"member\"]\n")?;
+		let member_path = write_package(&workspace_root, "member")?;
+		fs::create_dir_all(workspace_root.join("target/ink"))?;
+		File::create(workspace_root.join("target/ink/member.contract"))?;
+		assert!(has_contract_been_built(&member_path));
+
+		Ok(())
+	}
+
+	#[test]
+	fn build_contract_artifacts_reports_error() -> anyhow::Result<()> {
+		let temp_dir = tempfile::tempdir()?;
+		let mut cli = MockCli::new();
+		let err = build_contract_artifacts(&mut cli, temp_dir.path(), true, Verbosity::Quiet, None)
+			.expect_err("expected build to fail without a Cargo.toml");
+		assert!(err.to_string().contains("Use `pop build` to retry with build output."));
 		Ok(())
 	}
 
