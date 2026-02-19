@@ -103,15 +103,33 @@ pub async fn ensure_runtime_binary_exists(
 	}
 	// Rebuild the runtime if the binary is not found or the user has forced the build process.
 	if force {
-		return build_runtime(cli, &runtime_path, &target_path, mode, features, deterministic, tag)
-			.await;
+		return build_runtime(
+			cli,
+			&runtime_path,
+			&target_path,
+			mode,
+			features,
+			deterministic,
+			tag,
+			false,
+		)
+		.await;
 	}
 	match runtime_binary_path(&target_path, &runtime_path) {
 		Ok(binary_path) => Ok((binary_path, runtime_path)),
 		_ => {
 			cli.info("📦 Runtime binary was not found. The runtime will be built locally.")?;
-			build_runtime(cli, &runtime_path, &target_path, mode, features, deterministic, tag)
-				.await
+			build_runtime(
+				cli,
+				&runtime_path,
+				&target_path,
+				mode,
+				features,
+				deterministic,
+				tag,
+				false,
+			)
+			.await
 		},
 	}
 }
@@ -126,6 +144,7 @@ pub(crate) async fn build_runtime(
 	features: &[Feature],
 	deterministic: bool,
 	tag: Option<String>,
+	redirect_output_to_stderr: bool,
 ) -> anyhow::Result<(PathBuf, PathBuf)> {
 	cli.warning("NOTE: this may take some time...")?;
 	let binary_path = if deterministic {
@@ -143,7 +162,7 @@ pub(crate) async fn build_runtime(
 	} else {
 		cli.info(format!("Building your runtime in {mode} mode..."))?;
 		let features: Vec<String> = features.iter().map(|f| f.as_ref().to_string()).collect();
-		build_project(runtime_path, None, mode, &features, None)?;
+		build_project(runtime_path, None, mode, &features, None, redirect_output_to_stderr)?;
 		runtime_binary_path(target_path, runtime_path)?
 	};
 	cli.info(format!("The runtime was built in {mode} mode."))?;
@@ -377,6 +396,7 @@ mod tests {
 					&features,
 					false,
 					None,
+					false,
 				)
 				.await?;
 				cli.verify()?;

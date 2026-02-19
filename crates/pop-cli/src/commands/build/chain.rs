@@ -34,11 +34,25 @@ impl BuildChain {
 		self.build(&mut cli::Cli)
 	}
 
+	/// Executes the build process in JSON mode and returns the built artifact path.
+	pub(crate) fn execute_json(self) -> anyhow::Result<PathBuf> {
+		let mut json_cli = crate::cli::JsonCli;
+		Ok(self.build_inner(&mut json_cli, true)?.1)
+	}
+
 	/// Builds a chain.
 	///
 	/// # Arguments
 	/// * `cli` - The CLI implementation to be used.
 	fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<&'static str> {
+		Ok(self.build_inner(cli, false)?.0)
+	}
+
+	fn build_inner(
+		self,
+		cli: &mut impl cli::traits::Cli,
+		redirect_output_to_stderr: bool,
+	) -> anyhow::Result<(&'static str, PathBuf)> {
 		let project = if self.package.is_some() { PACKAGE } else { PARACHAIN };
 
 		// Enable the features based on the user's input.
@@ -72,7 +86,7 @@ impl BuildChain {
 			cli,
 		)?;
 		let features_arr: Vec<_> = features.into_iter().map(|s| s.to_string()).collect();
-		let binary = builder.build(features_arr.as_slice())?;
+		let binary = builder.build(features_arr.as_slice(), redirect_output_to_stderr)?;
 		cli.info(format!("The {project} was built in {} mode.", self.profile))?;
 		cli.outro("Build completed successfully!")?;
 		let generated_files = [format!("Binary generated at: {}", binary.display())];
@@ -86,7 +100,7 @@ impl BuildChain {
 			style("https://learn.onpop.io").magenta().underlined()
 		))?;
 
-		Ok(project)
+		Ok((project, binary))
 	}
 }
 

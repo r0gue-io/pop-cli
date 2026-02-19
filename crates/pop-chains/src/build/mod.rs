@@ -9,6 +9,7 @@ use serde_json::{Value, json};
 use sp_core::bytes::to_hex;
 use std::{
 	fs,
+	io::Write,
 	path::{Path, PathBuf},
 	str::FromStr,
 };
@@ -48,8 +49,15 @@ impl ChainSpecBuilder {
 	///
 	/// # Returns
 	/// The path to the built artifact
-	pub fn build(&self, features: &[String]) -> Result<PathBuf> {
-		build_project(&self.path(), None, &self.profile(), features, None)?;
+	pub fn build(&self, features: &[String], redirect_output_to_stderr: bool) -> Result<PathBuf> {
+		build_project(
+			&self.path(),
+			None,
+			&self.profile(),
+			features,
+			None,
+			redirect_output_to_stderr,
+		)?;
 		// Check the artifact is found after being built
 		self.artifact_path()
 	}
@@ -207,8 +215,9 @@ pub fn build_chain(
 	profile: &Profile,
 	node_path: Option<&Path>,
 	features: &[String],
+	redirect_output_to_stderr: bool,
 ) -> Result<PathBuf, Error> {
-	build_project(path, package, profile, features, None)?;
+	build_project(path, package, profile, features, None, redirect_output_to_stderr)?;
 	binary_path(&profile.target_directory(path), node_path.unwrap_or(&path.join("node")))
 }
 
@@ -233,6 +242,7 @@ pub fn build_project(
 	profile: &Profile,
 	features: &[String],
 	target: Option<&str>,
+	redirect_output_to_stderr: bool,
 ) -> Result<(), Error> {
 	fetch_dependencies(path)?;
 	let mut args = vec!["build"];
@@ -257,8 +267,42 @@ pub fn build_project(
 		args.push(target);
 	}
 
-	cmd("cargo", args).dir(path).run()?;
+	if redirect_output_to_stderr {
+		let output = cmd("cargo", args)
+			.dir(path)
+			.stdout_capture()
+			.stderr_capture()
+			.unchecked()
+			.run()?;
+		let combined = combine_streams_to_string(&output);
+		if !combined.is_empty() {
+			let _ = std::io::stderr().write_all(combined.as_bytes());
+			if !combined.ends_with('\n') {
+				let _ = std::io::stderr().write_all(b"\n");
+			}
+		}
+		if !output.status.success() {
+			let details =
+				if combined.is_empty() { "cargo build failed".to_string() } else { combined };
+			return Err(Error::AnyhowError(anyhow!("cargo build failed:\n{details}")));
+		}
+	} else {
+		cmd("cargo", args).dir(path).run()?;
+	}
 	Ok(())
+}
+
+fn combine_streams_to_string(output: &std::process::Output) -> String {
+	let mut combined = String::new();
+	let stdout = String::from_utf8_lossy(&output.stdout);
+	let stderr = String::from_utf8_lossy(&output.stderr);
+	if !stdout.is_empty() {
+		combined.push_str(&stdout);
+	}
+	if !stderr.is_empty() {
+		combined.push_str(&stderr);
+	}
+	combined
 }
 
 /// Determines whether the manifest at the supplied path is a supported chain project.
@@ -954,6 +998,7 @@ edition = "2021"
 						profile,
 						node_path,
 						&["dummy-feature".to_string()],
+						false,
 					)?;
 					let target_directory = profile.target_directory(&project);
 					assert!(target_directory.exists());
@@ -984,6 +1029,7 @@ edition = "2021"
 					profile,
 					&["dummy-feature".to_string()],
 					None,
+					false,
 				)?;
 				let target_directory = profile.target_directory(&project);
 				let binary = build_binary_path(&project, |runtime_name| {

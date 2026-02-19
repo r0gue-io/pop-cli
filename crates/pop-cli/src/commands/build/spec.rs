@@ -10,6 +10,7 @@ use crate::{
 		omni_node::source_polkadot_omni_node_binary,
 		runtime::build_deterministic_runtime,
 	},
+	output::{BuildCommandError, CliResponse, OutputMode, PromptRequiredError},
 	style::style,
 };
 use clap::{Args, ValueEnum};
@@ -34,6 +35,16 @@ const DEFAULT_PARA_ID: u32 = 2000;
 const DEFAULT_PROTOCOL_ID: &str = "my-protocol";
 const DEFAULT_RUNTIME_DIR: &str = "./runtime";
 const DEFAULT_SPEC_NAME: &str = "chain-spec.json";
+
+/// Structured output for `build spec --json`.
+#[derive(Serialize)]
+pub(crate) struct BuildSpecOutput {
+	chain_spec_path: String,
+	genesis_state_path: Option<String>,
+	genesis_code_path: Option<String>,
+	relay_chain: Option<String>,
+	para_id: Option<u32>,
+}
 
 #[derive(
 	AsRefStr,
@@ -220,21 +231,58 @@ pub struct BuildSpecCommand {
 
 impl BuildSpecCommand {
 	/// Executes the build spec command.
-	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
-		let mut cli = Cli;
-		cli.intro("Generate your chain spec")?;
-		// Checks for appchain project.
-		if is_supported(&self.path) {
-			let build_spec = self.configure_build_spec(&mut cli).await?;
-			if let Err(e) = build_spec.build(&mut cli).await {
-				cli.outro_cancel(e.to_string())?;
-			}
-		} else {
-			cli.outro_cancel(
-				"🚫 Can't build a specification for target. Maybe not a chain project ?",
-			)?;
+	pub(crate) async fn execute(&self, output_mode: OutputMode) -> anyhow::Result<()> {
+		match output_mode {
+			OutputMode::Human => {
+				let mut cli = Cli;
+				cli.intro("Generate your chain spec")?;
+				// Checks for appchain project.
+				if is_supported(&self.path) {
+					let build_spec = self.configure_build_spec(&mut cli).await?;
+					if let Err(e) = build_spec.build(&mut cli, false).await {
+						cli.outro_cancel(e.to_string())?;
+					}
+				} else {
+					cli.outro_cancel(
+						"🚫 Can't build a specification for target. Maybe not a chain project ?",
+					)?;
+				}
+				cli.info(self.display())?;
+				Ok(())
+			},
+			OutputMode::Json => self.execute_json().await,
 		}
-		cli.info(self.display())?;
+	}
+
+	async fn execute_json(&self) -> anyhow::Result<()> {
+		if !is_supported(&self.path) {
+			return Err(BuildCommandError::new(
+				"Can't build a specification for target. Maybe not a chain project?",
+			)
+			.into());
+		}
+		let mut cli = crate::cli::JsonCli;
+		let build_spec = self.configure_build_spec_json()?;
+		let relay_chain = build_spec.relay.map(|relay| relay.as_ref().to_string());
+		let para_id = build_spec.para_id;
+		let artifacts = build_spec.build(&mut cli, true).await.map_err(|e| {
+			let message = e.to_string();
+			BuildCommandError::new("Build spec failed").with_details(message)
+		})?;
+		CliResponse::ok(BuildSpecOutput {
+			chain_spec_path: artifacts.chain_spec.display().to_string(),
+			genesis_state_path: artifacts
+				.genesis_state_file
+				.as_ref()
+				.map(|path| path.display().to_string()),
+			genesis_code_path: artifacts
+				.genesis_code_file
+				.as_ref()
+				.map(|path| path.display().to_string()),
+			relay_chain,
+			para_id,
+		})
+		.print_json();
 		Ok(())
 	}
 
@@ -305,6 +353,106 @@ impl BuildSpecCommand {
 			full_message.push_str(" --raw");
 		}
 		full_message
+	}
+
+	fn configure_build_spec_json(&self) -> anyhow::Result<BuildSpec> {
+		let output_file = self
+			.output_file
+			.clone()
+			.ok_or_else(|| PromptRequiredError("--output is required with --json".to_string()))?;
+		let profile = self
+			.profile
+			.ok_or_else(|| PromptRequiredError("--profile is required with --json".to_string()))?;
+		let chain_type = self
+			.chain_type
+			.clone()
+			.ok_or_else(|| PromptRequiredError("--type is required with --json".to_string()))?;
+		let chain = self
+			.chain
+			.clone()
+			.ok_or_else(|| PromptRequiredError("--chain is required with --json".to_string()))?;
+		let protocol_id = self.protocol_id.clone().ok_or_else(|| {
+			PromptRequiredError("--protocol-id is required with --json".to_string())
+		})?;
+		let default_bootnode = self.default_bootnode.ok_or_else(|| {
+			PromptRequiredError("--default-bootnode is required with --json".to_string())
+		})?;
+		let genesis_state = self.genesis_state.ok_or_else(|| {
+			PromptRequiredError("--genesis-state is required with --json".to_string())
+		})?;
+		let genesis_code = self.genesis_code.ok_or_else(|| {
+			PromptRequiredError("--genesis-code is required with --json".to_string())
+		})?;
+		let deterministic = self.deterministic.ok_or_else(|| {
+			PromptRequiredError("--deterministic is required with --json".to_string())
+		})?;
+
+		let (para_id, relay) = if self.is_relay {
+			(None, None)
+		} else {
+			let para_id = self.para_id.ok_or_else(|| {
+				PromptRequiredError("--para-id is required with --json".to_string())
+			})?;
+			let relay = self.relay.ok_or_else(|| {
+				PromptRequiredError("--relay is required with --json".to_string())
+			})?;
+			(Some(para_id), Some(relay))
+		};
+
+		let runtime_dir = if deterministic {
+			Some(self.runtime_dir.clone().ok_or_else(|| {
+				PromptRequiredError(
+					"--runtime-dir is required with --json when --deterministic is true"
+						.to_string(),
+				)
+			})?)
+		} else {
+			self.runtime_dir.clone()
+		};
+
+		let package = if deterministic {
+			self.package.clone().ok_or_else(|| {
+				PromptRequiredError(
+					"--package is required with --json when --deterministic is true".to_string(),
+				)
+			})?
+		} else {
+			DEFAULT_PACKAGE.to_string()
+		};
+
+		let features = self
+			.features
+			.split(',')
+			.map(|s| s.trim())
+			.filter(|s| !s.is_empty())
+			.map(|s| s.to_string())
+			.collect();
+
+		Ok(BuildSpec {
+			path: self.path.clone(),
+			output_file: prepare_output_path(output_file)?,
+			profile,
+			is_relay: self.is_relay,
+			para_id,
+			default_bootnode,
+			chain_type,
+			chain: Some(chain),
+			relay,
+			protocol_id,
+			name: self.name.clone(),
+			id: self.id.clone(),
+			properties: self.properties.clone(),
+			features,
+			skip_build: self.skip_build,
+			genesis_state,
+			genesis_code,
+			deterministic,
+			tag: self.tag.clone(),
+			package,
+			runtime_dir,
+			use_existing_plain_spec: false,
+			raw: self.raw,
+		})
 	}
 
 	/// Configure chain specification requirements by prompting for missing inputs, validating
@@ -666,6 +814,7 @@ impl BuildSpec {
 	pub(crate) async fn build(
 		self,
 		cli: &mut impl cli::traits::Cli,
+		redirect_output_to_stderr: bool,
 	) -> anyhow::Result<GenesisArtifacts> {
 		let mut generated_files = vec![];
 		let builder_path = if let Some(runtime_dir) = &self.runtime_dir {
@@ -681,7 +830,7 @@ impl BuildSpec {
 			cli.warning("The node or runtime artifacts are missing. Ignoring the --skip-build flag and performing the build")?;
 		}
 		if !self.skip_build || !artifact_exists {
-			builder.build(&self.features)?;
+			builder.build(&self.features, redirect_output_to_stderr)?;
 		}
 
 		// Generate chain spec.
@@ -1521,6 +1670,52 @@ mod tests {
 		fs::write(&genesis_code_path, "0x1234")?;
 		assert_eq!(artifacts.read_genesis_code()?, "0x1234");
 
+		Ok(())
+	}
+
+	#[test]
+	fn configure_build_spec_json_requires_flags() {
+		let err = BuildSpecCommand::default().configure_build_spec_json().unwrap_err();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+		assert!(err.to_string().contains("--output is required with --json"));
+	}
+
+	#[test]
+	fn configure_build_spec_json_builds_non_interactive_spec() -> anyhow::Result<()> {
+		let temp_dir = tempdir()?;
+		let output_file = temp_dir.path().join("chain-spec.json");
+		let command = BuildSpecCommand {
+			path: PathBuf::from("./"),
+			output_file: Some(output_file.clone()),
+			profile: Some(Profile::Release),
+			para_id: Some(2000),
+			default_bootnode: Some(false),
+			chain_type: Some(ChainType::Development),
+			features: "runtime-benchmarks".to_string(),
+			skip_build: true,
+			chain: Some("local".to_string()),
+			is_relay: false,
+			relay: Some(RelayChain::Paseo),
+			name: Some("Json Spec".to_string()),
+			id: Some("json_spec".to_string()),
+			protocol_id: Some("json".to_string()),
+			properties: Some("tokenSymbol=UNIT,decimals=12".to_string()),
+			genesis_state: Some(true),
+			genesis_code: Some(false),
+			deterministic: Some(false),
+			tag: None,
+			runtime_dir: None,
+			package: None,
+			raw: false,
+		};
+		let build_spec = command.configure_build_spec_json()?;
+		assert_eq!(build_spec.output_file, output_file);
+		assert_eq!(build_spec.profile, Profile::Release);
+		assert_eq!(build_spec.para_id, Some(2000));
+		assert_eq!(build_spec.relay, Some(RelayChain::Paseo));
+		assert_eq!(build_spec.protocol_id, "json".to_string());
+		assert_eq!(build_spec.features, vec!["runtime-benchmarks".to_string()]);
+		assert!(!build_spec.use_existing_plain_spec);
 		Ok(())
 	}
 

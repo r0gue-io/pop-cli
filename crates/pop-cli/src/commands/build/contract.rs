@@ -24,6 +24,23 @@ impl BuildContract {
 		self.build(&mut cli::Cli)
 	}
 
+	/// Executes the command in JSON mode and returns the built artifact path.
+	pub(crate) fn execute_json(self) -> anyhow::Result<PathBuf> {
+		let build_results = build_smart_contract(
+			&self.path,
+			self.build_mode,
+			Verbosity::Quiet,
+			self.metadata,
+			self.image,
+		)?;
+		let artifact_path = build_results
+			.iter()
+			.find_map(|result| result.dest_binary.clone())
+			.or_else(|| build_results.first().map(|result| result.target_directory.clone()))
+			.unwrap_or_else(|| self.path.clone());
+		Ok(artifact_path)
+	}
+
 	/// Builds a smart contract
 	///
 	/// # Arguments

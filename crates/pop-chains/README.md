@@ -30,13 +30,13 @@ use std::path::Path;
 
 let path = Path::new("./");
 let builder = ChainSpecBuilder::Node { node_path: path.join("node"), default_bootnode: false, profile: Profile::Release };
-let binary_path = builder.build(&[]).unwrap();
+let binary_path = builder.build(&[], false).unwrap();
 ```
 
 Build a chain with `runtime-benchmarks` feature:
 
 ```rs
-let binary_path = builder.build(&["runtime-benchmarks".to_string()]).unwrap();
+let binary_path = builder.build(&["runtime-benchmarks".to_string()], false).unwrap();
 ```
 
 Generate a plain chain specification file and customize it with your specific chain values:
@@ -51,7 +51,7 @@ let builder = ChainSpecBuilder::Node { node_path: path.join("node"), default_boo
 let spec_name = "MySpec";
 let spec_id = "my_spec";
 // Build the node binary first
-builder.build(&[]).unwrap();
+builder.build(&[], false).unwrap();
 // Generate a plain chain specification file of a parachain
 let plain_chain_spec_path = path.join("plain-parachain-chainspec.json");
 builder.generate_plain_chain_spec("dev", &plain_chain_spec_path, Some(spec_name), Some(spec_id)).unwrap();
@@ -77,7 +77,7 @@ let builder = ChainSpecBuilder::Node { node_path: path.join("node"), default_boo
 let spec_name = "MySpec";
 let spec_id = "my_spec";
 // Build the node binary first
-let binary_path = builder.build(&[]).unwrap();
+let binary_path = builder.build(&[], false).unwrap();
 // Generate a plain chain specification file of a parachain
 let plain_chain_spec_path = path.join("plain-parachain-chainspec.json");
 builder.generate_plain_chain_spec("dev", &plain_chain_spec_path, Some(spec_name), Some(spec_id)).unwrap();

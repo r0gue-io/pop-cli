@@ -6,7 +6,8 @@ use anyhow::{Result, anyhow};
 use clap::Parser;
 use commands::*;
 use output::{
-	CliError, CliResponse, ErrorCode, OutputMode, PromptRequiredError, UnsupportedJsonError,
+	BuildCommandError, CliError, CliResponse, ErrorCode, OutputMode, PromptRequiredError,
+	UnsupportedJsonError,
 };
 #[cfg(feature = "telemetry")]
 use pop_telemetry::{Telemetry, config_file_path, record_cli_command, record_cli_used};
@@ -75,10 +76,18 @@ async fn main() -> Result<()> {
 					ErrorCode::UnsupportedJson
 				} else if e.downcast_ref::<PromptRequiredError>().is_some() {
 					ErrorCode::PromptRequired
+				} else if e.downcast_ref::<BuildCommandError>().is_some() {
+					ErrorCode::BuildError
 				} else {
 					ErrorCode::Internal
 				};
-				CliResponse::err(CliError::new(code, e.to_string())).print_json_err();
+				let mut cli_error = CliError::new(code, e.to_string());
+				if let Some(build_error) = e.downcast_ref::<BuildCommandError>() &&
+					let Some(details) = build_error.details()
+				{
+					cli_error = cli_error.with_details(details.to_string());
+				}
+				CliResponse::err(cli_error).print_json_err();
 				std::process::exit(1);
 			}
 			Err(e)

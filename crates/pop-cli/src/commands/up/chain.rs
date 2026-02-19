@@ -480,7 +480,7 @@ async fn generate_spec_files(
 	.configure_build_spec(cli)
 	.await?;
 
-	let mut genesis_artifacts = build_spec.clone().build(cli).await?;
+	let mut genesis_artifacts = build_spec.clone().build(cli, false).await?;
 	if let Some(api) = &deployment_config.api {
 		let spinner = cli.spinner();
 		spinner.start("Fetching collator keys...");
@@ -489,7 +489,7 @@ async fn generate_spec_files(
 		build_spec
 			.update_chain_spec_with_keys(keys.collator_keys, &genesis_artifacts.chain_spec)?;
 		build_spec.enable_existing_plain_spec();
-		genesis_artifacts = build_spec.build(cli).await?;
+		genesis_artifacts = build_spec.build(cli, false).await?;
 		deployment_config.collator_file_id = Some(keys.collator_file_id);
 		spinner.stop("Collator keys successfully fetched and chain spec updated.");
 	}
