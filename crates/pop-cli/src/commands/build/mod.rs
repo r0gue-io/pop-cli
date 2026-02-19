@@ -514,7 +514,10 @@ impl Command {
 		} else if profile == Profile::Production {
 			cargo_args.push("--profile=production");
 		}
+		#[cfg(feature = "chain")]
 		let mut features = explicit_features(args);
+		#[cfg(not(feature = "chain"))]
+		let features = explicit_features(args);
 		#[cfg(feature = "chain")]
 		{
 			if args.benchmark && !features.iter().any(|f| f == Benchmark.as_ref()) {

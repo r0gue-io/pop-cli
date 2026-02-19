@@ -100,36 +100,6 @@ impl std::fmt::Display for PromptRequiredError {
 
 impl std::error::Error for PromptRequiredError {}
 
-/// Error returned when a build subprocess fails.
-#[derive(Debug)]
-pub(crate) struct BuildCommandError {
-	message: String,
-	details: Option<String>,
-}
-
-impl BuildCommandError {
-	pub(crate) fn new(message: impl Into<String>) -> Self {
-		Self { message: message.into(), details: None }
-	}
-
-	pub(crate) fn with_details(mut self, details: impl Into<String>) -> Self {
-		self.details = Some(details.into());
-		self
-	}
-
-	pub(crate) fn details(&self) -> Option<&str> {
-		self.details.as_deref()
-	}
-}
-
-impl std::fmt::Display for BuildCommandError {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.message)
-	}
-}
-
-impl std::error::Error for BuildCommandError {}
-
 /// Error returned when `--json` is requested for a command that doesn't support it.
 #[derive(Debug)]
 pub(crate) struct UnsupportedJsonError(pub String);

@@ -131,6 +131,7 @@ impl Command {
 			Self::Install(_) => true,
 			#[cfg(feature = "chain")]
 			Self::Bench(_) => true,
+			#[cfg(any(feature = "chain", feature = "contract"))]
 			_ => false,
 		}
 	}
