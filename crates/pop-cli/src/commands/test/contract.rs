@@ -18,7 +18,7 @@ pub(crate) struct TestContractCommand {
 	pub(crate) path: PathBuf,
 	/// Run end-to-end tests
 	#[arg(short, long)]
-	e2e: bool,
+	pub(crate) e2e: bool,
 	/// Path to the contracts node binary to run e2e tests [default: none]
 	#[arg(short, long)]
 	node: Option<PathBuf>,

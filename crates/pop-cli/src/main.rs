@@ -6,8 +6,8 @@ use anyhow::{Result, anyhow};
 use clap::Parser;
 use commands::*;
 use output::{
-	BuildCommandError, CliError, CliResponse, ErrorCode, OutputMode, PromptRequiredError,
-	UnsupportedJsonError,
+	BuildCommandError, CliError, CliResponse, ErrorCode, InvalidInputError, OutputMode,
+	PromptRequiredError, UnsupportedJsonError,
 };
 #[cfg(feature = "telemetry")]
 use pop_telemetry::{Telemetry, config_file_path, record_cli_command, record_cli_used};
@@ -72,27 +72,41 @@ async fn main() -> Result<()> {
 		Ok(_) => Ok(()),
 		Err(e) => {
 			if output_mode == OutputMode::Json {
-				let code = if e.downcast_ref::<UnsupportedJsonError>().is_some() {
-					ErrorCode::UnsupportedJson
-				} else if e.downcast_ref::<PromptRequiredError>().is_some() {
-					ErrorCode::PromptRequired
-				} else if e.downcast_ref::<BuildCommandError>().is_some() {
-					ErrorCode::BuildError
-				} else {
-					ErrorCode::Internal
-				};
-				let mut cli_error = CliError::new(code, e.to_string());
-				if let Some(build_error) = e.downcast_ref::<BuildCommandError>() &&
-					let Some(details) = build_error.details()
-				{
-					cli_error = cli_error.with_details(details.to_string());
-				}
-				CliResponse::err(cli_error).print_json_err();
+				CliResponse::err(json_error_response(&e)).print_json_err();
 				std::process::exit(1);
 			}
 			Err(e)
 		},
 	}
+}
+
+fn json_error_response(error: &anyhow::Error) -> CliError {
+	if error.downcast_ref::<UnsupportedJsonError>().is_some() {
+		CliError::new(ErrorCode::UnsupportedJson, error.to_string())
+	} else if is_prompt_required_error(error) {
+		CliError::new(ErrorCode::InvalidInput, output::JSON_PROMPT_ERR)
+	} else if error.downcast_ref::<InvalidInputError>().is_some() {
+		CliError::new(ErrorCode::InvalidInput, error.to_string())
+	} else if let Some(build_error) = error.downcast_ref::<BuildCommandError>() {
+		let mut response = CliError::new(ErrorCode::BuildError, build_error.to_string());
+		if let Some(details) = build_error.details() {
+			response = response.with_details(details.to_string());
+		}
+		response
+	} else {
+		CliError::new(ErrorCode::Internal, error.to_string())
+	}
+}
+
+fn is_prompt_required_error(error: &anyhow::Error) -> bool {
+	error.chain().any(|cause| {
+		cause.downcast_ref::<PromptRequiredError>().is_some() ||
+			cause
+				.downcast_ref::<std::io::Error>()
+				.and_then(std::io::Error::get_ref)
+				.and_then(|inner| inner.downcast_ref::<PromptRequiredError>())
+				.is_some()
+	})
 }
 
 /// An all-in-one tool for Polkadot development.
@@ -155,6 +169,34 @@ mod tests {
 		let path = cache()?;
 		assert_eq!(path.file_name().unwrap().to_str().unwrap().to_string(), "pop");
 		Ok(())
+	}
+
+	#[test]
+	fn json_error_response_maps_build_error_with_details() {
+		let error = crate::output::build_error_with_details("test failed", "stdout/stderr");
+		let response = super::json_error_response(&error);
+		let json = serde_json::to_value(&response).unwrap();
+		assert_eq!(json["code"], "BUILD_ERROR");
+		assert_eq!(json["message"], "test failed");
+		assert_eq!(json["details"], "stdout/stderr");
+	}
+
+	#[test]
+	fn json_error_response_maps_invalid_input_error() {
+		let error = crate::output::invalid_input_error("missing required flag");
+		let response = super::json_error_response(&error);
+		let json = serde_json::to_value(&response).unwrap();
+		assert_eq!(json["code"], "INVALID_INPUT");
+		assert_eq!(json["message"], "missing required flag");
+	}
+
+	#[test]
+	fn json_error_response_maps_prompt_error() {
+		let error: anyhow::Error = crate::output::prompt_required_io_error().into();
+		let response = super::json_error_response(&error);
+		let json = serde_json::to_value(&response).unwrap();
+		assert_eq!(json["code"], "INVALID_INPUT");
+		assert_eq!(json["message"], crate::output::JSON_PROMPT_ERR);
 	}
 
 	#[cfg(feature = "telemetry")]

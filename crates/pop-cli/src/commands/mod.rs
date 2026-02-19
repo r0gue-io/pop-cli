@@ -6,7 +6,7 @@ use crate::cli::Cli;
 use crate::cli::traits::Cli as _;
 use crate::{
 	cache,
-	output::{OutputMode, reject_unsupported_json},
+	output::{CliResponse, OutputMode, reject_unsupported_json},
 };
 #[cfg(any(feature = "chain", feature = "contract"))]
 use pop_common::templates::Template;
@@ -118,6 +118,7 @@ impl Command {
 		match self {
 			Self::Hash(_) |
 			Self::Convert(_) |
+			Self::Test(_) |
 			Self::Clean(_) |
 			Self::Completion(_) |
 			Self::Upgrade(_) |
@@ -265,26 +266,85 @@ impl Command {
 			},
 			Self::Test(args) => {
 				env_logger::init();
+				if output_mode == OutputMode::Json {
+					#[cfg(feature = "chain")]
+					{
+						let mut json_cli = crate::cli::JsonCli;
+						match &mut args.command {
+							None => {
+								let output = test::Command::execute(args, output_mode).await?;
+								CliResponse::ok(output).print_json();
+								return Ok(());
+							},
+							Some(cmd) => {
+								let runtime_output = match cmd {
+									test::Command::OnRuntimeUpgrade(cmd) =>
+										cmd.execute(&mut json_cli, output_mode).await?,
+									test::Command::ExecuteBlock(cmd) =>
+										cmd.execute(&mut json_cli, output_mode).await?,
+									test::Command::CreateSnapshot(cmd) =>
+										cmd.execute(&mut json_cli, output_mode).await?,
+									test::Command::FastForward(cmd) =>
+										cmd.execute(&mut json_cli, output_mode).await?,
+								};
+								CliResponse::ok(runtime_output).print_json();
+								return Ok(());
+							},
+						}
+					}
+
+					#[cfg(all(feature = "contract", not(feature = "chain")))]
+					{
+						let output = test::Command::execute(args, output_mode).await?;
+						CliResponse::ok(output).print_json();
+						return Ok(());
+					}
+
+					#[cfg(not(any(feature = "contract", feature = "chain")))]
+					{
+						let output = test::Command::execute(args, output_mode).await?;
+						CliResponse::ok(output).print_json();
+						return Ok(());
+					}
+				}
 
 				#[cfg(any(feature = "contract", feature = "chain"))]
 				match &mut args.command {
-					None => test::Command::execute(args).await,
+					None => {
+						test::Command::execute(args, output_mode).await?;
+						Ok(())
+					},
 					Some(cmd) => match cmd {
 						#[cfg(feature = "chain")]
-						test::Command::OnRuntimeUpgrade(cmd) => cmd.execute(&mut Cli).await,
+						test::Command::OnRuntimeUpgrade(cmd) => {
+							cmd.execute(&mut Cli, output_mode).await?;
+							Ok(())
+						},
 						#[cfg(feature = "chain")]
-						test::Command::ExecuteBlock(cmd) => cmd.execute(&mut Cli).await,
+						test::Command::ExecuteBlock(cmd) => {
+							cmd.execute(&mut Cli, output_mode).await?;
+							Ok(())
+						},
 						#[cfg(feature = "chain")]
-						test::Command::CreateSnapshot(cmd) => cmd.execute(&mut Cli).await,
+						test::Command::CreateSnapshot(cmd) => {
+							cmd.execute(&mut Cli, output_mode).await?;
+							Ok(())
+						},
 						#[cfg(feature = "chain")]
-						test::Command::FastForward(cmd) => cmd.execute(&mut Cli).await,
+						test::Command::FastForward(cmd) => {
+							cmd.execute(&mut Cli, output_mode).await?;
+							Ok(())
+						},
 						#[cfg(not(feature = "chain"))]
 						_ => Ok(()),
 					},
 				}
 
 				#[cfg(not(any(feature = "contract", feature = "chain")))]
-				test::Command::execute(args).await
+				{
+					test::Command::execute(args, output_mode).await?;
+					Ok(())
+				}
 			},
 			Self::Hash(args) => {
 				env_logger::init();
@@ -555,5 +615,10 @@ mod tests {
 			})
 			.supports_json()
 		);
+	}
+
+	#[test]
+	fn test_command_supports_json() {
+		assert!(Command::Test(test::TestArgs::default()).supports_json());
 	}
 }
