@@ -450,7 +450,11 @@ impl BenchmarkPallet {
 			anyhow::bail!("--json and --json-file cannot be used together");
 		}
 
-		cli.intro("Benchmarking your pallets")?;
+		cli.intro(if self.list {
+			"Listing available pallets and extrinsics"
+		} else {
+			"Benchmarking your pallets"
+		})?;
 		cli.warning(
 			"NOTE: the `pop bench pallet` is not yet battle tested - double check the results.",
 		)?;
@@ -466,10 +470,19 @@ impl BenchmarkPallet {
 		}
 
 		self.validate_json_mode_requirements()?;
+		if self.list {
+			// Without overriding the genesis builder policy, listing will fail for a runtime
+			// that is not built with the `runtime-benchmarks` feature.
+			self.genesis_builder = Some(GenesisBuilderPolicy::None);
+		}
 		self.resolve_runtime_binary_for_json(cli).await?;
 
 		cli.warning("NOTE: this may take some time...")?;
-		cli.info("Benchmarking extrinsic weights of selected pallets...")?;
+		cli.info(if self.list {
+			"Listing all pallets and extrinsics..."
+		} else {
+			"Benchmarking extrinsic weights of selected pallets..."
+		})?;
 
 		let spinner = cli.spinner();
 		let omni_bencher_binary = check_omni_bencher_and_prompt(cli, &spinner, true).await?;
@@ -482,6 +495,10 @@ impl BenchmarkPallet {
 	}
 
 	fn validate_json_mode_requirements(&self) -> anyhow::Result<()> {
+		if self.list {
+			return self.validate_json_mode_list_requirements();
+		}
+
 		if self.pallets.is_empty() {
 			return Err(PromptRequiredError("--pallet is required with --json".into()).into());
 		}
@@ -495,6 +512,13 @@ impl BenchmarkPallet {
 			return Err(
 				PromptRequiredError("--skip-parameters is required with --json".into()).into()
 			);
+		}
+		Ok(())
+	}
+
+	fn validate_json_mode_list_requirements(&self) -> anyhow::Result<()> {
+		if self.runtime.is_none() {
+			return Err(PromptRequiredError("--runtime is required with --json".into()).into());
 		}
 		Ok(())
 	}
@@ -528,9 +552,14 @@ impl BenchmarkPallet {
 	}
 
 	fn build_json_output(&self, raw_results: Option<JsonValue>) -> anyhow::Result<BenchOutput> {
+		let extrinsic = if self.list {
+			self.extrinsic.clone().unwrap_or_else(|| ARGUMENT_NO_VALUE.to_string())
+		} else {
+			self.extrinsic()?.clone()
+		};
 		Ok(BenchOutput {
 			pallets: self.pallets.clone(),
-			extrinsic: self.extrinsic()?.clone(),
+			extrinsic,
 			runtime: self.runtime_binary()?.display().to_string(),
 			weight_output_path: self.output.as_ref().map(|path| path.display().to_string()),
 			raw_results,
@@ -1667,6 +1696,21 @@ mod tests {
 			.validate_json_mode_requirements()
 			.is_ok()
 		);
+
+		let err =
+			BenchmarkPallet { list: true, ..Default::default() }.validate_json_mode_requirements();
+		assert!(err.is_err());
+		assert!(err.unwrap_err().to_string().contains("--runtime is required with --json"));
+
+		assert!(
+			BenchmarkPallet {
+				list: true,
+				runtime: Some(get_mock_runtime(Some(Benchmark))),
+				..Default::default()
+			}
+			.validate_json_mode_requirements()
+			.is_ok()
+		);
 	}
 
 	#[test]
@@ -1703,6 +1747,18 @@ mod tests {
 		assert_eq!(output.runtime, runtime.display().to_string());
 		assert_eq!(output.weight_output_path, Some(output_path.display().to_string()));
 		assert_eq!(output.raw_results, raw_results);
+
+		let list_output = BenchmarkPallet {
+			list: true,
+			runtime_binary: Some(runtime.clone()),
+			..Default::default()
+		}
+		.build_json_output(None)?;
+		assert!(list_output.pallets.is_empty());
+		assert_eq!(list_output.extrinsic, ARGUMENT_NO_VALUE.to_string());
+		assert_eq!(list_output.runtime, runtime.display().to_string());
+		assert_eq!(list_output.weight_output_path, None);
+		assert_eq!(list_output.raw_results, None);
 		Ok(())
 	}
 
