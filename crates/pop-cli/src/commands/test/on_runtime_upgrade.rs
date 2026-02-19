@@ -5,6 +5,7 @@ use crate::{
 		self,
 		traits::{Confirm, Select},
 	},
+	commands::test::RuntimeTestOutput,
 	common::{
 		prompt::display_message,
 		try_runtime::{
@@ -14,6 +15,7 @@ use crate::{
 			update_state_source,
 		},
 	},
+	output::{OutputMode, build_error_with_details, invalid_input_error},
 };
 use clap::Args;
 #[cfg(test)]
@@ -106,7 +108,11 @@ pub(crate) struct TestOnRuntimeUpgradeCommand {
 
 impl TestOnRuntimeUpgradeCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	pub(crate) async fn execute(
+		&mut self,
+		cli: &mut impl cli::traits::Cli,
+		output_mode: OutputMode,
+	) -> anyhow::Result<RuntimeTestOutput> {
 		cli.intro("Testing migrations")?;
 		let user_provided_args = std::env::args().collect::<Vec<String>>();
 		if let Err(e) = update_runtime_source(
@@ -119,19 +125,33 @@ impl TestOnRuntimeUpgradeCommand {
 		)
 		.await
 		{
-			return display_message(&e.to_string(), false, cli);
+			if output_mode == OutputMode::Json {
+				return Err(invalid_input_error(e.to_string()));
+			}
+			display_message(&e.to_string(), false, cli)?;
+			return Ok(RuntimeTestOutput::success("on-runtime-upgrade", None));
 		}
 
 		// Prompt the user to select the source of runtime state.
 		if let Err(e) = update_state_source(cli, &mut self.command.state) {
-			return display_message(&e.to_string(), false, cli);
+			if output_mode == OutputMode::Json {
+				return Err(invalid_input_error(e.to_string()));
+			}
+			display_message(&e.to_string(), false, cli)?;
+			return Ok(RuntimeTestOutput::success("on-runtime-upgrade", None));
 		};
 
 		// If the `checks` argument is not provided, prompt the user to select the upgrade checks.
 		if !argument_exists(&user_provided_args, "--checks") {
 			match guide_user_to_select_upgrade_checks(cli) {
 				Ok(checks) => self.command.checks = checks,
-				Err(e) => return display_message(&e.to_string(), false, cli),
+				Err(e) => {
+					if output_mode == OutputMode::Json {
+						return Err(invalid_input_error(e.to_string()));
+					}
+					display_message(&e.to_string(), false, cli)?;
+					return Ok(RuntimeTestOutput::success("on-runtime-upgrade", None));
+				},
 			}
 		}
 
@@ -140,16 +160,24 @@ impl TestOnRuntimeUpgradeCommand {
 			let result = self.run(cli).await;
 			// Display the `on-runtime-upgrade` command.
 			if let Err(e) = result {
+				if output_mode == OutputMode::Json {
+					return Err(build_error_with_details(
+						"Failed to test runtime upgrade",
+						e.to_string(),
+					));
+				}
 				match self.handle_check_errors(e.to_string(), cli) {
 					Ok(()) => continue,
 					Err(e) => {
 						cli.info(self.display()?)?;
-						return display_message(&e.to_string(), false, cli);
+						display_message(&e.to_string(), false, cli)?;
+						return Ok(RuntimeTestOutput::success("on-runtime-upgrade", None));
 					},
 				}
 			}
 			cli.info(self.display()?)?;
-			return display_message("Tested migrations successfully!", true, cli);
+			display_message("Tested migrations successfully!", true, cli)?;
+			return Ok(RuntimeTestOutput::success("on-runtime-upgrade", None));
 		}
 	}
 
@@ -411,8 +439,20 @@ mod tests {
 				urls::LOCAL,
 				DEFAULT_BLOCK_HASH.strip_prefix("0x").unwrap_or_default()
 			));
-		command.execute(&mut cli).await?;
+		command.execute(&mut cli, OutputMode::Human).await?;
 		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn on_runtime_upgrade_requires_flags_in_json_mode() -> anyhow::Result<()> {
+		let mut command = TestOnRuntimeUpgradeCommand::default();
+		let error = command
+			.execute(&mut crate::cli::JsonCli, OutputMode::Json)
+			.await
+			.unwrap_err()
+			.to_string();
+		assert!(error.contains("interactive prompt required but --json mode is active"));
+		Ok(())
 	}
 
 	#[tokio::test]
@@ -490,7 +530,7 @@ mod tests {
 				get_mock_runtime(Some(TryRuntime)).to_str().unwrap(),
 				get_mock_snapshot().to_str().unwrap()
 			));
-		command.execute(&mut cli).await?;
+		command.execute(&mut cli, OutputMode::Human).await?;
 		cli.verify()
 	}
 
@@ -546,7 +586,7 @@ mod tests {
 				Do you want to disable the spec version check and try again?",
 				true,
 			);
-		cmd.execute(&mut cli).await?;
+		cmd.execute(&mut cli, OutputMode::Human).await?;
 		cli.verify()
 	}
 

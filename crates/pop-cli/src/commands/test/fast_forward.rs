@@ -5,6 +5,7 @@ use crate::{
 		self,
 		traits::{Confirm, Input},
 	},
+	commands::test::RuntimeTestOutput,
 	common::{
 		prompt::display_message,
 		try_runtime::{
@@ -14,6 +15,7 @@ use crate::{
 			update_runtime_source, update_state_source,
 		},
 	},
+	output::{OutputMode, build_error_with_details, invalid_input_error},
 };
 use clap::Args;
 use console::style;
@@ -84,16 +86,21 @@ impl Default for TestFastForwardCommand {
 }
 
 impl TestFastForwardCommand {
-	pub(crate) async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	pub(crate) async fn execute(
+		&mut self,
+		cli: &mut impl cli::traits::Cli,
+		output_mode: OutputMode,
+	) -> anyhow::Result<RuntimeTestOutput> {
 		let user_provided_args = collect_args(std::env::args().skip(3));
-		self.fast_forward(cli, &user_provided_args).await
+		self.fast_forward(cli, &user_provided_args, output_mode).await
 	}
 
 	async fn fast_forward(
 		&mut self,
 		cli: &mut impl cli::traits::Cli,
 		user_provided_args: &[String],
-	) -> anyhow::Result<()> {
+		output_mode: OutputMode,
+	) -> anyhow::Result<RuntimeTestOutput> {
 		cli.intro("Performing try-state checks on simulated block execution")?;
 		if let Err(e) = update_runtime_source(
 			cli,
@@ -105,7 +112,11 @@ impl TestFastForwardCommand {
 		)
 		.await
 		{
-			return display_message(&e.to_string(), false, cli);
+			if output_mode == OutputMode::Json {
+				return Err(invalid_input_error(e.to_string()));
+			}
+			display_message(&e.to_string(), false, cli)?;
+			return Ok(RuntimeTestOutput::success("fast-forward", None));
 		}
 		if self.n_blocks.is_none() {
 			let input = cli
@@ -123,7 +134,11 @@ impl TestFastForwardCommand {
 		}
 		// Prompt the user to select the source of runtime state.
 		if let Err(e) = update_state_source(cli, &mut self.state) {
-			return display_message(&e.to_string(), false, cli);
+			if output_mode == OutputMode::Json {
+				return Err(invalid_input_error(e.to_string()));
+			}
+			display_message(&e.to_string(), false, cli)?;
+			return Ok(RuntimeTestOutput::success("fast-forward", None));
 		};
 		// Prompt the user to select the try state if no `--try-state` argument is provided.
 		if self.try_state.is_none() {
@@ -140,9 +155,21 @@ impl TestFastForwardCommand {
 		// Display the `fast-forward` command.
 		cli.info(self.display(user_provided_args)?)?;
 		if let Err(e) = result {
-			return display_message(&e.to_string(), false, cli);
+			if output_mode == OutputMode::Json {
+				return Err(build_error_with_details(
+					"Failed to run fast-forward test",
+					e.to_string(),
+				));
+			}
+			display_message(&e.to_string(), false, cli)?;
+			return Ok(RuntimeTestOutput::success("fast-forward", None));
 		}
-		display_message("Runtime upgrades and try-state checks completed successfully!", true, cli)
+		display_message(
+			"Runtime upgrades and try-state checks completed successfully!",
+			true,
+			cli,
+		)?;
+		Ok(RuntimeTestOutput::success("fast-forward", None))
 	}
 
 	async fn run(
@@ -315,8 +342,20 @@ mod tests {
                 Profile::Debug,
                 urls::LOCAL,
 			));
-		cmd.fast_forward(&mut cli, &[]).await?;
+		cmd.fast_forward(&mut cli, &[], OutputMode::Human).await?;
 		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn fast_forward_requires_flags_in_json_mode() -> anyhow::Result<()> {
+		let mut command = TestFastForwardCommand::default();
+		let error = command
+			.execute(&mut crate::cli::JsonCli, OutputMode::Json)
+			.await
+			.unwrap_err()
+			.to_string();
+		assert!(error.contains("interactive prompt required but --json mode is active"));
+		Ok(())
 	}
 
 	#[tokio::test]
@@ -394,7 +433,7 @@ mod tests {
     			get_mock_snapshot().to_str().unwrap()
 			))
 			.expect_outro("Runtime upgrades and try-state checks completed successfully!");
-		cmd.fast_forward(&mut cli, &[]).await?;
+		cmd.fast_forward(&mut cli, &[], OutputMode::Human).await?;
 		cli.verify()
 	}
 
