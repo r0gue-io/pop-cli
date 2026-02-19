@@ -93,9 +93,31 @@ impl NewPalletCommand {
 			)
 		})?;
 
+		if let Some(Mode::Advanced(advanced_mode_args)) = &self.mode &&
+			advanced_mode_args.config_common_types.is_empty() &&
+			advanced_mode_args.storage.is_empty() &&
+			!(advanced_mode_args.genesis_config ||
+				advanced_mode_args.default_config ||
+				advanced_mode_args.custom_origin)
+		{
+			return Err(PromptRequiredError(
+				"--json mode does not support interactive advanced prompts. Provide one or more advanced flags.".into(),
+			)
+			.into());
+		}
+
+		let path = PathBuf::from(name);
+		if path.exists() {
+			return Err(PromptRequiredError(format!(
+				"--json mode cannot confirm deleting existing path \"{}\". Remove it first or choose a different name.",
+				path.display()
+			))
+			.into());
+		}
+
 		self.generate_pallet(&mut cli::JsonCli).await?;
 
-		let path = PathBuf::from(name).canonicalize().unwrap_or_else(|_| PathBuf::from(name));
+		let path = path.canonicalize().unwrap_or(path);
 
 		CliResponse::ok(NewOutput {
 			kind: "pallet".into(),
@@ -387,6 +409,43 @@ mod tests {
 		};
 		let err = cmd.execute(OutputMode::Json).await.unwrap_err();
 		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+	}
+
+	#[tokio::test]
+	async fn execute_json_advanced_without_flags_returns_prompt_required() -> anyhow::Result<()> {
+		let dir = tempdir()?;
+		let pallet_path = dir.path().join("my-pallet");
+		let cmd = NewPalletCommand {
+			name: Some(pallet_path.display().to_string()),
+			authors: Some("Test".into()),
+			description: Some("A test pallet".into()),
+			mode: Some(Mode::Advanced(AdvancedMode {
+				config_common_types: vec![],
+				default_config: false,
+				storage: vec![],
+				genesis_config: false,
+				custom_origin: false,
+			})),
+		};
+		let err = cmd.execute(OutputMode::Json).await.unwrap_err();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn execute_json_existing_path_returns_prompt_required() -> anyhow::Result<()> {
+		let dir = tempdir()?;
+		let pallet_path = dir.path().join("my-pallet");
+		fs::create_dir_all(&pallet_path)?;
+		let cmd = NewPalletCommand {
+			name: Some(pallet_path.display().to_string()),
+			authors: Some("Test".into()),
+			description: Some("A test pallet".into()),
+			mode: None,
+		};
+		let err = cmd.execute(OutputMode::Json).await.unwrap_err();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+		Ok(())
 	}
 
 	#[tokio::test]

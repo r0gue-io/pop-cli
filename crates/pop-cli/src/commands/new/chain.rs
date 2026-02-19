@@ -181,6 +181,15 @@ impl NewChainCommand {
 			)
 		})?;
 
+		let destination_path = Path::new(name);
+		if destination_path.exists() {
+			return Err(PromptRequiredError(format!(
+				"--json mode cannot confirm deleting existing path \"{}\". Remove it first or choose a different name.",
+				destination_path.display()
+			))
+			.into());
+		}
+
 		// Bare --with-frontend (empty string = needs prompt) is not allowed.
 		if let Some(frontend_arg) = &self.with_frontend &&
 			frontend_arg.is_empty()
@@ -599,6 +608,7 @@ fn prompt_customizable_options(cli: &mut impl Cli) -> Result<Config> {
 mod tests {
 	use super::*;
 	use cli::MockCli;
+	use tempfile::tempdir;
 
 	#[test]
 	fn test_new_chain_command_display() {
@@ -819,5 +829,17 @@ mod tests {
 		};
 		let err = cmd.execute(OutputMode::Json).await.unwrap_err();
 		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+	}
+
+	#[tokio::test]
+	async fn execute_json_existing_path_returns_prompt_required() -> Result<()> {
+		let dir = tempdir()?;
+		let chain_path = dir.path().join("my-chain");
+		std::fs::create_dir_all(&chain_path)?;
+		let cmd =
+			NewChainCommand { name: Some(chain_path.display().to_string()), ..Default::default() };
+		let err = cmd.execute(OutputMode::Json).await.unwrap_err();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+		Ok(())
 	}
 }

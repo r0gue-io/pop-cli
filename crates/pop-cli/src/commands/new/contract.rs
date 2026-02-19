@@ -170,6 +170,13 @@ impl NewContractCommand {
 		}
 
 		let path = Path::new(name);
+		if path.exists() {
+			return Err(PromptRequiredError(format!(
+				"--json mode cannot confirm deleting existing path \"{}\". Remove it first or choose a different name.",
+				path.display()
+			))
+			.into());
+		}
 		let contract_name = get_project_name_from_path(path, "my-contract");
 
 		// Validate contract name.
@@ -493,6 +500,21 @@ mod tests {
 		};
 		let err = cmd.execute(OutputMode::Json).await.unwrap_err();
 		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+	}
+
+	#[tokio::test]
+	async fn execute_json_existing_path_returns_prompt_required() -> Result<()> {
+		let dir = tempdir()?;
+		let contract_path = dir.path().join("my-contract");
+		fs::create_dir_all(&contract_path)?;
+		let mut cmd = NewContractCommand {
+			name: Some(contract_path.display().to_string()),
+			template: Some(ContractTemplate::Standard),
+			..Default::default()
+		};
+		let err = cmd.execute(OutputMode::Json).await.unwrap_err();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+		Ok(())
 	}
 
 	#[tokio::test]
