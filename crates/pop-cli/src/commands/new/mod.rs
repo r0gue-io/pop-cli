@@ -6,6 +6,38 @@ use clap::{Args, Subcommand};
 use serde::Serialize;
 use std::fmt::{Display, Formatter, Result};
 
+/// Structured output emitted by `new` subcommands in JSON mode.
+#[derive(Debug, Serialize)]
+pub(crate) struct NewOutput {
+	pub kind: String,
+	pub name: String,
+	pub path: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub template: Option<String>,
+}
+
+/// Metadata for a single template entry in JSON listing output.
+#[derive(Debug, Serialize)]
+pub(crate) struct TemplateInfo {
+	pub name: String,
+	pub description: String,
+}
+
+/// Root `--list` output containing all template categories.
+#[derive(Debug, Serialize)]
+pub(crate) struct TemplateListOutput {
+	#[cfg(feature = "chain")]
+	pub chain_templates: Vec<TemplateInfo>,
+	#[cfg(feature = "contract")]
+	pub contract_templates: Vec<TemplateInfo>,
+}
+
+/// Subcommand-level `--list` output for a single template category.
+#[derive(Debug, Serialize)]
+pub(crate) struct SubcommandTemplateListOutput {
+	pub templates: Vec<TemplateInfo>,
+}
+
 #[cfg(feature = "chain")]
 pub mod chain;
 #[cfg(feature = "contract")]
@@ -146,6 +178,60 @@ mod tests {
 		assert_eq!(Command::Pallet(Default::default()).to_string(), "pallet");
 		#[cfg(feature = "contract")]
 		assert_eq!(Command::Contract(Default::default()).to_string(), "contract");
+	}
+
+	#[test]
+	fn new_output_serializes() {
+		let output = NewOutput {
+			kind: "contract".into(),
+			name: "flipper".into(),
+			path: "/tmp/flipper".into(),
+			template: Some("Standard".into()),
+		};
+		let json = serde_json::to_value(&output).unwrap();
+		assert_eq!(json["kind"], "contract");
+		assert_eq!(json["name"], "flipper");
+		assert_eq!(json["path"], "/tmp/flipper");
+		assert_eq!(json["template"], "Standard");
+	}
+
+	#[test]
+	fn new_output_without_template_skips_field() {
+		let output = NewOutput {
+			kind: "pallet".into(),
+			name: "my-pallet".into(),
+			path: "/tmp/my-pallet".into(),
+			template: None,
+		};
+		let json = serde_json::to_value(&output).unwrap();
+		assert!(json.get("template").is_none());
+	}
+
+	#[test]
+	fn template_list_output_serializes() {
+		let output = TemplateListOutput {
+			#[cfg(feature = "chain")]
+			chain_templates: vec![TemplateInfo {
+				name: "standard".into(),
+				description: "A standard chain".into(),
+			}],
+			#[cfg(feature = "contract")]
+			contract_templates: vec![TemplateInfo {
+				name: "erc20".into(),
+				description: "An ERC20 token".into(),
+			}],
+		};
+		let json = serde_json::to_value(&output).unwrap();
+		#[cfg(feature = "chain")]
+		{
+			assert_eq!(json["chain_templates"][0]["name"], "standard");
+			assert_eq!(json["chain_templates"][0]["description"], "A standard chain");
+		}
+		#[cfg(feature = "contract")]
+		{
+			assert_eq!(json["contract_templates"][0]["name"], "erc20");
+			assert_eq!(json["contract_templates"][0]["description"], "An ERC20 token");
+		}
 	}
 
 	#[test]

@@ -4,6 +4,8 @@ use crate::{
 	cli::{self, traits::*},
 	common::helpers::check_destination_path,
 	multiselect_pick,
+	new::NewOutput,
+	output::{CliResponse, OutputMode, PromptRequiredError},
 };
 
 use clap::{Args, Subcommand};
@@ -76,8 +78,34 @@ pub struct AdvancedMode {
 
 impl NewPalletCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(&self) -> anyhow::Result<()> {
+	pub(crate) async fn execute(&self, output_mode: OutputMode) -> anyhow::Result<()> {
+		if output_mode == OutputMode::Json {
+			return self.execute_json().await;
+		}
 		self.generate_pallet(&mut cli::Cli).await
+	}
+
+	/// Executes the command in JSON mode.
+	async fn execute_json(&self) -> anyhow::Result<()> {
+		let name = self.name.as_ref().ok_or_else(|| {
+			PromptRequiredError(
+				"--json mode requires the pallet name as a positional argument".into(),
+			)
+		})?;
+
+		self.generate_pallet(&mut cli::JsonCli).await?;
+
+		let path = PathBuf::from(name).canonicalize().unwrap_or_else(|_| PathBuf::from(name));
+
+		CliResponse::ok(NewOutput {
+			kind: "pallet".into(),
+			name: name.clone(),
+			path: path.display().to_string(),
+			template: None,
+		})
+		.print_json();
+
+		Ok(())
 	}
 
 	/// Generates a pallet
@@ -348,6 +376,32 @@ mod tests {
 		.generate_pallet(&mut cli)
 		.await, anyhow::Result::Err(message) if message.to_string() == "Specify at least a config common type to use default config."));
 		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn execute_json_missing_name_returns_prompt_required() {
+		let cmd = NewPalletCommand {
+			authors: Some("Anonymous".into()),
+			description: Some("Frame Pallet".into()),
+			..Default::default()
+		};
+		let err = cmd.execute(OutputMode::Json).await.unwrap_err();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+	}
+
+	#[tokio::test]
+	async fn execute_json_success() -> anyhow::Result<()> {
+		let dir = tempdir()?;
+		let pallet_path = dir.path().join("my-pallet");
+		let cmd = NewPalletCommand {
+			name: Some(pallet_path.display().to_string()),
+			authors: Some("Test".into()),
+			description: Some("A test pallet".into()),
+			mode: None,
+		};
+		cmd.execute(OutputMode::Json).await?;
+		assert!(pallet_path.exists());
+		Ok(())
 	}
 
 	#[tokio::test]
