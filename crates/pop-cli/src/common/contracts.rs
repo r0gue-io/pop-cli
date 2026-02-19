@@ -9,7 +9,7 @@ use crate::{
 	impl_binary_generator,
 	style::style,
 };
-use pop_common::{DefaultConfig, Keypair, manifest::from_path};
+use pop_common::{DefaultConfig, Keypair, find_contract_artifact_path, manifest::from_path};
 use pop_contracts::{
 	AccountMapper, BuildMode, ContractFunction, DefaultEnvironment, ExtrinsicOpts, MetadataSpec,
 	Verbosity, build_smart_contract, eth_rpc_generator, ink_node_generator,
@@ -119,7 +119,6 @@ pub fn has_contract_been_built(path: &Path) -> bool {
 }
 
 /// Builds contract artifacts and reports progress/errors to the user.
-#[allow(dead_code)]
 pub fn build_contract_artifacts(
 	cli: &mut impl Cli,
 	path: &Path,

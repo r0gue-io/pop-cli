@@ -223,7 +223,9 @@ impl UpContractCommand {
 			if !contract_already_built {
 				Cli.warning("NOTE: contract has not yet been built.")?;
 			}
-			if let Err(e) = build_contract_artifacts(&self.path, true, Verbosity::Quiet, None) {
+			if let Err(e) =
+				build_contract_artifacts(&mut Cli, &self.path, true, Verbosity::Quiet, None)
+			{
 				Cli.outro_cancel(e.to_string())?;
 				return Ok(());
 			}

@@ -199,7 +199,7 @@ impl CallContractCommand {
 	async fn ensure_contract_built(&self, cli: &mut impl Cli) -> Result<()> {
 		let project_path = ensure_project_path(self.path.clone(), self.path_pos.clone());
 		cli.warning("NOTE: contract has not yet been built.")?;
-		build_contract_artifacts(&project_path, true, Verbosity::Quiet, None)
+		build_contract_artifacts(cli, &project_path, true, Verbosity::Quiet, None)
 	}
 	/// Prompts the user to confirm if the contract has already been deployed.
 	fn confirm_contract_deployment(&self, cli: &mut impl Cli) -> Result<()> {
