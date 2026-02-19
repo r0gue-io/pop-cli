@@ -551,11 +551,7 @@ impl Command {
 			return Err(BuildCommandError::new("Build failed").with_details(details).into());
 		}
 
-		let artifact_path = if let Some(package) = &args.package {
-			profile.target_directory(path).join(package.replace('-', "_"))
-		} else {
-			profile.target_directory(path)
-		};
+		let artifact_path = profile.target_directory(path);
 		Ok(BuildOutput {
 			artifact_path: artifact_path.display().to_string(),
 			profile: profile.to_string(),
@@ -1083,6 +1079,56 @@ mod tests {
 		)?;
 		assert_eq!(output.profile, "debug");
 		assert!(output.artifact_path.contains("target/debug"));
+		assert_eq!(output.features, Vec::<String>::new());
+		Ok(())
+	}
+
+	#[test]
+	fn build_json_package_library_returns_existing_profile_directory() -> anyhow::Result<()> {
+		let name = "json_build_lib";
+		let temp_dir = tempfile::tempdir()?;
+		let path = temp_dir.path();
+		let project_path = path.join(name);
+		cmd("cargo", ["new", name, "--lib"]).dir(path).run()?;
+		std::fs::write(
+			project_path.join("src/lib.rs"),
+			"//! test library\n\n/// Returns the sum of two numbers.\npub fn add(left: u64, right: u64) -> u64 {\n\tleft + right\n}\n",
+		)?;
+
+		let output = Command::build_json(
+			&BuildArgs {
+				#[cfg(feature = "chain")]
+				command: None,
+				path: Some(project_path.clone()),
+				path_pos: None,
+				package: Some(name.to_string()),
+				release: false,
+				profile: Some(Profile::Debug),
+				features: None,
+				#[cfg(feature = "chain")]
+				benchmark: false,
+				#[cfg(feature = "chain")]
+				try_runtime: false,
+				#[cfg(feature = "chain")]
+				deterministic: false,
+				#[cfg(feature = "chain")]
+				tag: None,
+				#[cfg(feature = "chain")]
+				only_runtime: false,
+				#[cfg(feature = "contract")]
+				metadata: None,
+				#[cfg(feature = "contract")]
+				verifiable: false,
+				#[cfg(feature = "contract")]
+				image: None,
+			},
+			&project_path,
+		)?;
+		let artifact_path = PathBuf::from(&output.artifact_path);
+		assert_eq!(artifact_path, Profile::Debug.target_directory(&project_path));
+		assert!(artifact_path.exists());
+		assert!(artifact_path.is_dir());
+		assert_eq!(output.profile, "debug");
 		assert_eq!(output.features, Vec::<String>::new());
 		Ok(())
 	}

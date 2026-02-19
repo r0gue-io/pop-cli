@@ -265,10 +265,8 @@ impl BuildSpecCommand {
 		let build_spec = self.configure_build_spec_json()?;
 		let relay_chain = build_spec.relay.map(|relay| relay.as_ref().to_string());
 		let para_id = build_spec.para_id;
-		let artifacts = build_spec.build(&mut cli, true).await.map_err(|e| {
-			let message = e.to_string();
-			BuildCommandError::new("Build spec failed").with_details(message)
-		})?;
+		let artifacts =
+			build_spec.build(&mut cli, true).await.map_err(map_json_build_spec_error)?;
 		CliResponse::ok(BuildSpecOutput {
 			chain_spec_path: artifacts.chain_spec.display().to_string(),
 			genesis_state_path: artifacts
@@ -741,6 +739,23 @@ impl BuildSpecCommand {
 			raw: *raw,
 		})
 	}
+}
+
+fn map_json_build_spec_error(err: anyhow::Error) -> anyhow::Error {
+	let message = err.to_string();
+	if err.downcast_ref::<PromptRequiredError>().is_some() ||
+		err.downcast_ref::<BuildCommandError>().is_some()
+	{
+		return err;
+	}
+	if message.contains(super::JSON_PROMPT_ERR) {
+		return PromptRequiredError(
+			"`build spec --json` requires explicit runtime selection when multiple runtimes are available"
+				.to_string(),
+		)
+		.into();
+	}
+	BuildCommandError::new("Build spec failed").with_details(message).into()
 }
 
 /// Represents the generated chain specification artifacts.
@@ -1678,6 +1693,27 @@ mod tests {
 		let err = BuildSpecCommand::default().configure_build_spec_json().unwrap_err();
 		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
 		assert!(err.to_string().contains("--output is required with --json"));
+	}
+
+	#[test]
+	fn map_json_build_spec_error_preserves_prompt_required_errors() {
+		let mapped = map_json_build_spec_error(
+			PromptRequiredError("--runtime-dir is required with --json".to_string()).into(),
+		);
+		assert!(mapped.downcast_ref::<PromptRequiredError>().is_some());
+		assert!(mapped.to_string().contains("--runtime-dir is required with --json"));
+	}
+
+	#[test]
+	fn map_json_build_spec_error_maps_json_prompt_failures_to_prompt_required() {
+		let mapped =
+			map_json_build_spec_error(anyhow::anyhow!("prefix: {}", super::super::JSON_PROMPT_ERR));
+		assert!(mapped.downcast_ref::<PromptRequiredError>().is_some());
+		assert!(
+			mapped
+				.to_string()
+				.contains("`build spec --json` requires explicit runtime selection")
+		);
 	}
 
 	#[test]
