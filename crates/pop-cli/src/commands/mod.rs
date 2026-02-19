@@ -5,10 +5,11 @@ use crate::cli::Cli;
 #[cfg(any(feature = "chain", feature = "contract"))]
 use crate::cli::traits::Cli as _;
 #[cfg(any(feature = "chain", feature = "contract"))]
-use crate::output::{CliResponse, PromptRequiredError};
+use crate::output::PromptRequiredError;
+use crate::output::CliResponse;
 use crate::{
 	cache,
-	output::{CliResponse, OutputMode, reject_unsupported_json},
+	output::{OutputMode, reject_unsupported_json},
 };
 #[cfg(any(feature = "chain", feature = "contract"))]
 use pop_common::templates::Template;
