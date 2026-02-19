@@ -3,6 +3,7 @@
 use crate::{
 	cli::{self},
 	common::{rpc::prompt_to_select_chain_rpc, urls},
+	output::{CliResponse, OutputMode},
 };
 use anyhow::Result;
 use clap::{ArgGroup, Args};
@@ -14,7 +15,7 @@ use pop_fork::{
 };
 use serde::Serialize;
 use std::{
-	path::PathBuf,
+	path::{Path, PathBuf},
 	process::{Child, Command as StdCommand, Stdio},
 	sync::Arc,
 	thread,
@@ -105,12 +106,25 @@ pub(crate) struct ForkArgs {
 	pub ready_file: Option<PathBuf>,
 }
 
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub(crate) struct ForkOutput {
+	endpoint: String,
+	chain: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	block_number: Option<u64>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pid: Option<u32>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	log_file: Option<String>,
+}
+
 pub(crate) struct Command;
 
 impl Command {
 	pub(crate) async fn execute(
 		args: &mut ForkArgs,
 		cli: &mut impl cli::traits::Cli,
+		output_mode: OutputMode,
 	) -> Result<()> {
 		// --serve is an internal flag used by spawn_detached; it always receives the
 		// endpoint via CLI args, so no prompting or intro is needed.
@@ -119,6 +133,14 @@ impl Command {
 				anyhow::bail!("--serve requires --endpoint");
 			}
 			return Self::run_server(args).await;
+		}
+		if output_mode == OutputMode::Json && !args.detach {
+			anyhow::bail!("`fork --json` requires `--detach`");
+		}
+		if output_mode == OutputMode::Json && args.endpoint.is_none() && args.chain.is_none() {
+			anyhow::bail!(
+				"`fork --json --detach` requires either `--endpoint` or a chain argument"
+			);
 		}
 
 		// Show intro first so the cliclack session is set up before any prompts.
@@ -130,7 +152,12 @@ impl Command {
 
 		// When a well-known chain is specified, try each RPC URL with fallback.
 		if let Some(chain) = args.chain {
-			return Self::execute_with_fallback(args, &chain, cli).await;
+			if let Some(output) = Self::execute_with_fallback(args, &chain, cli).await? &&
+				output_mode == OutputMode::Json
+			{
+				CliResponse::ok(output).print_json();
+			}
+			return Ok(());
 		}
 
 		// Prompt for endpoint if none provided.
@@ -147,7 +174,11 @@ impl Command {
 		}
 
 		if args.detach {
-			return Self::spawn_detached(args, cli);
+			let output = Self::spawn_detached(args, cli)?;
+			if output_mode == OutputMode::Json {
+				CliResponse::ok(output).print_json();
+			}
+			return Ok(());
 		}
 
 		Self::run_interactive(args, cli).await
@@ -158,7 +189,7 @@ impl Command {
 		args: &ForkArgs,
 		chain: &SupportedChains,
 		cli: &mut impl cli::traits::Cli,
-	) -> Result<()> {
+	) -> Result<Option<ForkOutput>> {
 		let rpc_urls = chain.rpc_urls();
 		let mut last_error = None;
 
@@ -167,7 +198,7 @@ impl Command {
 				ForkArgs { endpoint: Some(rpc_url.to_string()), chain: None, ..args.clone() };
 
 			match Self::execute_resolved(&resolved, cli).await {
-				Ok(()) => return Ok(()),
+				Ok(output) => return Ok(output),
 				Err(e) => {
 					cli.warning(format!("{} did not respond, trying next endpoint...", rpc_url))?;
 					last_error = Some(e);
@@ -180,15 +211,19 @@ impl Command {
 	}
 
 	/// Execute with an already-resolved endpoint (no chain fallback).
-	async fn execute_resolved(args: &ForkArgs, cli: &mut impl cli::traits::Cli) -> Result<()> {
+	async fn execute_resolved(
+		args: &ForkArgs,
+		cli: &mut impl cli::traits::Cli,
+	) -> Result<Option<ForkOutput>> {
 		if args.detach {
-			return Self::spawn_detached(args, cli);
+			return Self::spawn_detached(args, cli).map(Some);
 		}
-		Self::run_interactive(args, cli).await
+		Self::run_interactive(args, cli).await?;
+		Ok(None)
 	}
 
 	/// Spawn a detached background process and return immediately.
-	fn spawn_detached(args: &ForkArgs, cli: &mut impl cli::traits::Cli) -> Result<()> {
+	fn spawn_detached(args: &ForkArgs, cli: &mut impl cli::traits::Cli) -> Result<ForkOutput> {
 		// Create log file that persists after we exit.
 		let log_file = NamedTempFile::new()?;
 		let log_path = log_file.path().to_path_buf();
@@ -209,6 +244,12 @@ impl Command {
 		// Wait for the server to signal readiness and display fork info.
 		match Self::wait_for_ready(&ready_path, &mut child, cli) {
 			Ok(()) => {
+				let output = Self::fork_output_from_ready_file(
+					&ready_path,
+					pid,
+					&log_path,
+					args.endpoint.as_deref(),
+				)?;
 				let _ = std::fs::remove_file(&ready_path);
 				cli.success(format!("Fork started with PID {}", pid))?;
 				cli.info(format!("Log file: {}", log_path.display()))?;
@@ -216,7 +257,7 @@ impl Command {
 					"Run `kill -9 {}` or `pop clean node -p {}` to stop.",
 					pid, pid
 				))?;
-				Ok(())
+				Ok(output)
 			},
 			Err(e) => {
 				let _ = child.kill();
@@ -409,6 +450,38 @@ impl Command {
 		]
 	}
 
+	fn parse_forked_summary_line(line: &str) -> Option<(String, u64, String)> {
+		let line = line.strip_prefix("Forked ")?;
+		let (chain, remainder) = line.split_once(" at block #")?;
+		let (block_number, endpoint) = remainder.split_once(" -> ")?;
+		Some((chain.to_string(), block_number.parse().ok()?, endpoint.to_string()))
+	}
+
+	fn fork_output_from_ready_file(
+		ready_path: &Path,
+		pid: u32,
+		log_path: &Path,
+		fallback_endpoint: Option<&str>,
+	) -> Result<ForkOutput> {
+		let ready_content = std::fs::read_to_string(ready_path)?;
+		let first_line = ready_content.lines().next().unwrap_or_default();
+		let parsed = Self::parse_forked_summary_line(first_line);
+		Ok(ForkOutput {
+			endpoint: parsed
+				.as_ref()
+				.map(|(_, _, endpoint)| endpoint.clone())
+				.or_else(|| fallback_endpoint.map(str::to_string))
+				.unwrap_or_default(),
+			chain: parsed
+				.as_ref()
+				.map(|(chain, _, _)| chain.clone())
+				.unwrap_or_else(|| "unknown".to_string()),
+			block_number: parsed.as_ref().map(|(_, block_number, _)| *block_number),
+			pid: Some(pid),
+			log_file: Some(log_path.display().to_string()),
+		})
+	}
+
 	/// Build command arguments for spawning a serve subprocess.
 	/// Extracted for testability.
 	fn build_serve_args(args: &ForkArgs) -> Vec<String> {
@@ -443,7 +516,7 @@ impl Command {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::cli::MockCli;
+	use crate::{cli::MockCli, output::CliResponse};
 
 	#[tokio::test(flavor = "multi_thread")]
 	async fn execute_prompts_when_no_endpoint_selects_local() {
@@ -460,7 +533,7 @@ mod tests {
 			None,
 		);
 		// execute will fail connecting, but the prompt should populate endpoint
-		let _ = Command::execute(&mut args, &mut cli).await;
+		let _ = Command::execute(&mut args, &mut cli, OutputMode::Human).await;
 		assert_eq!(args.endpoint, Some("ws://localhost:9944/".to_string()));
 		cli.verify().unwrap();
 	}
@@ -481,7 +554,7 @@ mod tests {
 				None,
 			)
 			.expect_input("Type the chain RPC URL", "ws://127.0.0.1:1".to_string());
-		let _ = Command::execute(&mut args, &mut cli).await;
+		let _ = Command::execute(&mut args, &mut cli, OutputMode::Human).await;
 		assert_eq!(args.endpoint, Some("ws://127.0.0.1:1/".to_string()));
 		cli.verify().unwrap();
 	}
@@ -492,7 +565,7 @@ mod tests {
 			ForkArgs { endpoint: Some("ws://127.0.0.1:1".to_string()), ..Default::default() };
 		// No select expectation -- prompt should not be triggered
 		let mut cli = MockCli::new();
-		let _ = Command::execute(&mut args, &mut cli).await;
+		let _ = Command::execute(&mut args, &mut cli, OutputMode::Human).await;
 		assert_eq!(args.endpoint, Some("ws://127.0.0.1:1".to_string()));
 		cli.verify().unwrap();
 	}
@@ -501,8 +574,27 @@ mod tests {
 	async fn execute_errors_when_serve_without_endpoint() {
 		let mut args = ForkArgs { serve: true, ..Default::default() };
 		let mut cli = MockCli::new();
-		let err = Command::execute(&mut args, &mut cli).await.unwrap_err();
+		let err = Command::execute(&mut args, &mut cli, OutputMode::Human).await.unwrap_err();
 		assert!(err.to_string().contains("--serve requires --endpoint"));
+		cli.verify().unwrap();
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn execute_json_requires_detach() {
+		let mut args =
+			ForkArgs { endpoint: Some("ws://127.0.0.1:9944".to_string()), ..Default::default() };
+		let mut cli = MockCli::new();
+		let err = Command::execute(&mut args, &mut cli, OutputMode::Json).await.unwrap_err();
+		assert!(err.to_string().contains("requires `--detach`"));
+		cli.verify().unwrap();
+	}
+
+	#[tokio::test(flavor = "multi_thread")]
+	async fn execute_json_requires_source_without_prompting() {
+		let mut args = ForkArgs { detach: true, ..Default::default() };
+		let mut cli = MockCli::new();
+		let err = Command::execute(&mut args, &mut cli, OutputMode::Json).await.unwrap_err();
+		assert!(err.to_string().contains("requires either `--endpoint` or a chain argument"));
 		cli.verify().unwrap();
 	}
 
@@ -676,5 +768,37 @@ mod tests {
 		let result = Command::wait_for_ready(&ready_path, &mut child, &mut cli);
 		assert!(result.is_err());
 		assert!(result.unwrap_err().to_string().contains("Fork process exited unexpectedly"));
+	}
+
+	#[test]
+	fn parse_forked_summary_line_works() {
+		let parsed =
+			Command::parse_forked_summary_line("Forked paseo at block #42 -> ws://127.0.0.1:9944");
+		assert_eq!(parsed, Some(("paseo".to_string(), 42, "ws://127.0.0.1:9944".to_string())));
+	}
+
+	#[test]
+	fn parse_forked_summary_line_returns_none_for_invalid_format() {
+		let parsed = Command::parse_forked_summary_line("not a summary line");
+		assert_eq!(parsed, None);
+	}
+
+	#[test]
+	fn fork_output_serializes_with_detached_metadata() {
+		let output = ForkOutput {
+			endpoint: "ws://127.0.0.1:9944".to_string(),
+			chain: "paseo".to_string(),
+			block_number: Some(42),
+			pid: Some(1337),
+			log_file: Some("/tmp/pop-fork.log".to_string()),
+		};
+		let json = serde_json::to_value(CliResponse::ok(output)).unwrap();
+		assert_eq!(json["schema_version"], 1);
+		assert_eq!(json["success"], true);
+		assert_eq!(json["data"]["endpoint"], "ws://127.0.0.1:9944");
+		assert_eq!(json["data"]["chain"], "paseo");
+		assert_eq!(json["data"]["block_number"], 42);
+		assert_eq!(json["data"]["pid"], 1337);
+		assert_eq!(json["data"]["log_file"], "/tmp/pop-fork.log");
 	}
 }
