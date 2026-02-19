@@ -187,6 +187,23 @@ pub(crate) fn build_error_with_details(
 	BuildCommandError::new(message).with_details(details).into()
 }
 
+/// Error returned when deployment/launch fails while producing JSON output.
+#[derive(Debug)]
+pub(crate) struct DeployCommandError(pub String);
+
+impl std::fmt::Display for DeployCommandError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.0)
+	}
+}
+
+impl std::error::Error for DeployCommandError {}
+
+/// Returns a deployment error that maps to `DEPLOY_ERROR` in the JSON envelope.
+pub(crate) fn deploy_error(message: impl Into<String>) -> anyhow::Error {
+	DeployCommandError(message.into()).into()
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;

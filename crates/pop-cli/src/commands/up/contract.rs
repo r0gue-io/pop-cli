@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use super::UpContractOutput;
 use crate::{
 	cli::{
-		Cli,
+		Cli, JsonCli,
 		traits::{Cli as _, Confirm},
 	},
 	commands::call::contract::CallContractCommand,
@@ -16,6 +17,7 @@ use crate::{
 		urls,
 		wallet::request_signature,
 	},
+	output::deploy_error,
 	style::style,
 };
 use clap::Args;
@@ -495,6 +497,108 @@ impl UpContractCommand {
 			Cli.outro(COMPLETE)?;
 		}
 		Ok(())
+	}
+
+	/// Executes the contract deployment in JSON mode and returns structured output.
+	pub(crate) async fn execute_json(&mut self) -> anyhow::Result<UpContractOutput> {
+		self.skip_confirm = true;
+		let mut json_cli = JsonCli;
+		if self.use_wallet {
+			return Err(deploy_error(
+				"`pop --json up` does not support `--use-wallet`; provide `--suri`",
+			));
+		}
+		if self.upload_only {
+			return Err(deploy_error(
+				"`pop --json up` does not support `--upload-only`; deployment must instantiate a contract",
+			));
+		}
+
+		let contract_already_built = has_contract_been_built(&self.path);
+		if !self.skip_build || !contract_already_built {
+			if let Err(e) =
+				build_contract_artifacts(&mut json_cli, &self.path, true, Verbosity::Quiet, None)
+			{
+				return Err(deploy_error(e.to_string()));
+			}
+		}
+
+		resolve_signer(self.skip_confirm, &mut self.use_wallet, &mut self.suri, &mut json_cli)
+			.map_err(|e| deploy_error(e.to_string()))?;
+
+		let mut url = if let Some(url) = self.url.clone() {
+			url
+		} else {
+			Url::parse(urls::LOCAL).expect("default url is valid")
+		};
+		let processes =
+			if !is_chain_alive(url.clone()).await.map_err(|e| deploy_error(e.to_string()))? {
+				let local_url = Url::parse(urls::LOCAL).expect("default url is valid");
+				if url == local_url {
+					let ports = resolve_ink_node_ports(DEFAULT_PORT, DEFAULT_ETH_RPC_PORT)
+						.map_err(|e| deploy_error(e.to_string()))?;
+					url = Url::parse(&format!("ws://localhost:{}", ports.ink_node_port))
+						.map_err(|e| deploy_error(e.to_string()))?;
+					Some(
+						start_ink_node(&url, true, ports.ink_node_port, ports.eth_rpc_port)
+							.await
+							.map_err(|e| deploy_error(e.to_string()))?,
+					)
+				} else {
+					return Err(deploy_error(
+						"You need to specify an accessible endpoint to deploy the contract.",
+					));
+				}
+			} else {
+				None
+			};
+		self.url = Some(url.clone());
+
+		let function =
+			extract_function(self.path.clone(), &self.constructor, FunctionType::Constructor)
+				.map_err(|e| deploy_error(e.to_string()))?;
+		if !function.args.is_empty() {
+			resolve_function_args(&function, &mut json_cli, &mut self.args, self.skip_confirm)
+				.map_err(|e| deploy_error(e.to_string()))?;
+		}
+		normalize_call_args(&mut self.args, &function);
+
+		if !self.execute {
+			terminate_nodes(&mut json_cli, processes, true)
+				.await
+				.map_err(|e| deploy_error(e.to_string()))?;
+			return Err(deploy_error(
+				"`pop --json up` requires `--execute` to return contract deployment output",
+			));
+		}
+
+		let instantiate_exec = set_up_deployment(self.clone().into())
+			.await
+			.map_err(|e| deploy_error(e.to_string()))?;
+
+		let calculated_weight = dry_run_gas_estimate_instantiate(&instantiate_exec)
+			.await
+			.map_err(|e| deploy_error(e.to_string()))?;
+		let weight_limit =
+			if let (Some(gas_limit), Some(proof_size)) = (self.gas_limit, self.proof_size) {
+				Weight::from_parts(gas_limit, proof_size)
+			} else {
+				calculated_weight
+			};
+
+		let contract_info = instantiate_smart_contract(instantiate_exec, weight_limit)
+			.await
+			.map_err(|e| deploy_error(e.to_string()))?;
+
+		terminate_nodes(&mut json_cli, processes, true)
+			.await
+			.map_err(|e| deploy_error(e.to_string()))?;
+
+		Ok(UpContractOutput {
+			contract_address: contract_info.address.to_string(),
+			url: url.to_string(),
+			code_hash: contract_info.code_hash,
+		})
 	}
 
 	async fn keep_interacting_with_node(

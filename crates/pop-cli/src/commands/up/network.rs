@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use super::{NetworkInfo, UpNetworkOutput};
 use crate::{
 	cli::{self, Spinner, traits::Confirm},
+	output::deploy_error,
 	style::{Theme, style},
 };
 use clap::{
@@ -19,6 +21,7 @@ use pop_chains::{
 };
 use pop_common::Status;
 use serde::Serialize;
+use serde_json::Value;
 use std::{
 	collections::HashMap,
 	ffi::OsStr,
@@ -94,11 +97,38 @@ impl ConfigFileCommand {
 			self.auto_remove,
 			self.detach,
 			self.command.as_deref(),
+			false,
 			cli,
 		)
 		.await?;
 		cli.info(self.display())?;
 		Ok(())
+	}
+
+	/// Executes the command in JSON mode and returns structured network information.
+	pub(crate) async fn execute_json(&self) -> anyhow::Result<UpNetworkOutput> {
+		let mut cli = crate::cli::JsonCli;
+		let path = self.path.canonicalize().map_err(|e| deploy_error(e.to_string()))?;
+		cd_into_chain_base_dir(&path);
+		let config: NetworkConfiguration =
+			path.as_path().try_into().map_err(|e: Error| deploy_error(e.to_string()))?;
+		let output = spawn(
+			config,
+			self.relay_chain.as_deref(),
+			self.relay_chain_runtime.as_deref(),
+			self.system_parachain.as_deref(),
+			self.system_parachain_runtime.as_deref(),
+			self.parachain.as_ref(),
+			self.verbose,
+			true,
+			self.auto_remove,
+			true,
+			self.command.as_deref(),
+			true,
+			&mut cli,
+		)
+		.await?;
+		output.ok_or_else(|| deploy_error("expected detached network output for JSON mode"))
 	}
 
 	fn display(&self) -> String {
@@ -243,6 +273,7 @@ impl<const FILTER: u8> BuildCommand<FILTER> {
 			self.auto_remove,
 			self.detach,
 			self.command.as_deref(),
+			false,
 			cli,
 		)
 		.await?;
@@ -372,8 +403,9 @@ pub(crate) async fn spawn(
 	auto_remove: bool,
 	detach: bool,
 	command: Option<&str>,
+	json_mode: bool,
 	cli: &mut impl cli::traits::Cli,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Option<UpNetworkOutput>> {
 	// Initialize from arguments
 	let cache = crate::cache()?;
 	let mut zombienet = match Zombienet::new(
@@ -391,12 +423,22 @@ pub(crate) async fn spawn(
 		Err(e) => {
 			return match e {
 				Error::Config(message) => {
+					if json_mode {
+						return Err(deploy_error(format!(
+							"A configuration error occurred: `{message}`"
+						)));
+					}
 					cli.outro_cancel(format!("🚫 A configuration error occurred: `{message}`"))?;
-					Ok(())
+					Ok(None)
 				},
 				Error::MissingBinary(name) => {
+					if json_mode {
+						return Err(deploy_error(format!(
+							"The `{name}` binary is specified in the network configuration file, but cannot be resolved to a source. Are you missing a `--parachain` argument?"
+						)));
+					}
 					cli.outro_cancel(format!("🚫 The `{name}` binary is specified in the network configuration file, but cannot be resolved to a source. Are you missing a `--parachain` argument?"))?;
-					Ok(())
+					Ok(None)
 				},
 				_ => Err(e.into()),
 			};
@@ -405,7 +447,12 @@ pub(crate) async fn spawn(
 
 	// Source any missing/stale binaries
 	if source_binaries(&mut zombienet, &cache, verbose, skip_confirm, cli).await? {
-		return Ok(());
+		if json_mode {
+			return Err(deploy_error(
+				"Cannot launch the network until all required binaries are available.",
+			));
+		}
+		return Ok(None);
 	}
 
 	// Output the binaries and versions used if verbose logging enabled.
@@ -578,6 +625,42 @@ pub(crate) async fn spawn(
 					}
 				}
 
+				let relay_chain_name = network.relaychain().chain().to_string();
+				let relay_nodes: Vec<_> = {
+					let mut validators = network.relaychain().nodes();
+					validators.sort_by_key(|n| n.name());
+					validators
+						.into_iter()
+						.map(|node| NodeSummary {
+							name: node.name().to_string(),
+							url: node.ws_uri().to_string(),
+						})
+						.collect()
+				};
+				let parachain_summaries: Vec<_> = {
+					let mut chains = network.parachains();
+					chains.sort_by_key(|p| p.para_id());
+					chains
+						.into_iter()
+						.map(|chain| {
+							let name = chain
+								.chain_id()
+								.map_or_else(|| chain.para_id().to_string(), |id| id.to_string());
+							let mut collators = chain.collators();
+							collators.sort_by_key(|n| n.name());
+							let nodes = collators
+								.into_iter()
+								.map(|node| NodeSummary {
+									name: node.name().to_string(),
+									url: node.ws_uri().to_string(),
+								})
+								.collect();
+							ChainSummary { name, nodes }
+						})
+						.collect()
+				};
+				let zombie_json = base_dir.join("zombie.json");
+
 				network.detach().await;
 				std::mem::forget(network);
 
@@ -592,6 +675,11 @@ pub(crate) async fn spawn(
 							cli.info("✅ All nodes are ready and responding")?;
 						},
 						Err(e) => {
+							if json_mode {
+								return Err(deploy_error(format!(
+									"Could not verify all nodes are ready: {e}"
+								)));
+							}
 							health_progress.stop("⚠️ Some nodes may still be starting");
 							cli.warning(format!(
 								"Could not verify all nodes are ready: {}
@@ -600,6 +688,17 @@ The network is running. Check endpoints manually if needed.",
 							))?;
 						},
 					}
+				}
+				let pids_by_node = read_node_pids_from_zombie_json(&zombie_json)
+					.map_err(|e| deploy_error(e.to_string()))?;
+				let json_output = build_network_output(
+					&relay_chain_name,
+					relay_nodes,
+					parachain_summaries,
+					&pids_by_node,
+				);
+				if json_mode {
+					return Ok(Some(json_output));
 				}
 
 				cli.info(detached_output)?;
@@ -610,7 +709,7 @@ The network is running. Check endpoints manually if needed.",
 					))?;
 				}
 				cli.outro("✅ Network is running in the background.")?;
-				return Ok(());
+				return Ok(Some(json_output));
 			}
 
 			tokio::signal::ctrl_c().await?;
@@ -627,11 +726,14 @@ The network is running. Check endpoints manually if needed.",
 			cli.outro("Done")?;
 		},
 		Err(e) => {
+			if json_mode {
+				return Err(deploy_error(format!("Could not launch local network: {e}")));
+			}
 			cli.outro_cancel(format!("🚫 Could not launch local network: {e}"))?;
 		},
 	}
 
-	Ok(())
+	Ok(None)
 }
 
 async fn wait_for_rpc_endpoints_ready(
@@ -717,6 +819,96 @@ async fn check_node_health(uri: &str) -> Result<(), anyhow::Error> {
 	let _: serde_json::Value = client.request("system_health", rpc_params![]).await?;
 
 	Ok(())
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct NodeSummary {
+	name: String,
+	url: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ChainSummary {
+	name: String,
+	nodes: Vec<NodeSummary>,
+}
+
+fn build_network_output(
+	relay_chain_name: &str,
+	relay_nodes: Vec<NodeSummary>,
+	parachain_chains: Vec<ChainSummary>,
+	pids_by_node: &HashMap<String, Vec<u32>>,
+) -> UpNetworkOutput {
+	UpNetworkOutput {
+		relay_chain: NetworkInfo {
+			name: relay_chain_name.to_string(),
+			urls: relay_nodes.iter().map(|n| n.url.clone()).collect(),
+			pids: collect_group_pids(&relay_nodes, pids_by_node),
+		},
+		parachains: parachain_chains
+			.into_iter()
+			.map(|chain| NetworkInfo {
+				name: chain.name,
+				urls: chain.nodes.iter().map(|n| n.url.clone()).collect(),
+				pids: collect_group_pids(&chain.nodes, pids_by_node),
+			})
+			.collect(),
+	}
+}
+
+fn collect_group_pids(nodes: &[NodeSummary], pids_by_node: &HashMap<String, Vec<u32>>) -> Vec<u32> {
+	let mut pids = Vec::new();
+	for node in nodes {
+		if let Some(node_pids) = pids_by_node.get(&node.name) {
+			pids.extend(node_pids.iter().copied());
+		}
+	}
+	pids.sort_unstable();
+	pids.dedup();
+	pids
+}
+
+fn read_node_pids_from_zombie_json(path: &Path) -> anyhow::Result<HashMap<String, Vec<u32>>> {
+	let contents = std::fs::read_to_string(path)?;
+	let value: Value = serde_json::from_str(&contents)?;
+	let mut pids_by_node = HashMap::<String, Vec<u32>>::new();
+	collect_node_pid_entries(&value, &mut pids_by_node);
+	for pids in pids_by_node.values_mut() {
+		pids.sort_unstable();
+		pids.dedup();
+	}
+	Ok(pids_by_node)
+}
+
+fn collect_node_pid_entries(value: &Value, pids_by_node: &mut HashMap<String, Vec<u32>>) {
+	match value {
+		Value::Object(map) => {
+			let maybe_name = map.get("name").and_then(Value::as_str);
+			let maybe_pid = map
+				.get("pid")
+				.and_then(parse_pid_value)
+				.or_else(|| map.get("process").and_then(parse_pid_value));
+			if let (Some(name), Some(pid)) = (maybe_name, maybe_pid) {
+				pids_by_node.entry(name.to_string()).or_default().push(pid);
+			}
+			for nested in map.values() {
+				collect_node_pid_entries(nested, pids_by_node);
+			}
+		},
+		Value::Array(items) =>
+			for item in items {
+				collect_node_pid_entries(item, pids_by_node);
+			},
+		_ => {},
+	}
+}
+
+fn parse_pid_value(value: &Value) -> Option<u32> {
+	match value {
+		Value::Number(number) => number.as_u64().and_then(|pid| u32::try_from(pid).ok()),
+		Value::String(pid) => pid.parse::<u32>().ok(),
+		_ => None,
+	}
 }
 
 async fn source_binaries(
@@ -1093,5 +1285,60 @@ cumulus-client-collator = "0.14"
 
 		// Cleanup
 		fs::remove_dir_all(&base).ok();
+	}
+
+	#[test]
+	fn read_node_pids_from_zombie_json_works() -> anyhow::Result<()> {
+		let temp = tempfile::tempdir()?;
+		let zombie_json = temp.path().join("zombie.json");
+		std::fs::write(
+			&zombie_json,
+			r#"{
+				"nodes": [
+					{ "name": "alice", "pid": 1234 },
+					{ "name": "bob", "process": "4567" }
+				],
+				"nested": {
+					"items": [
+						{ "name": "alice", "process": 9876 },
+						{ "name": "charlie", "pid": "invalid" }
+					]
+				}
+			}"#,
+		)?;
+
+		let pids = read_node_pids_from_zombie_json(&zombie_json)?;
+		assert_eq!(pids.get("alice"), Some(&vec![1234, 9876]));
+		assert_eq!(pids.get("bob"), Some(&vec![4567]));
+		assert!(!pids.contains_key("charlie"));
+		Ok(())
+	}
+
+	#[test]
+	fn build_network_output_uses_urls_and_pids() {
+		let mut pids_by_node = std::collections::HashMap::new();
+		pids_by_node.insert("alice".to_string(), vec![101]);
+		pids_by_node.insert("collator-01".to_string(), vec![202, 303]);
+
+		let output = build_network_output(
+			"paseo-local",
+			vec![NodeSummary { name: "alice".into(), url: "ws://127.0.0.1:9944".into() }],
+			vec![ChainSummary {
+				name: "asset-hub".into(),
+				nodes: vec![NodeSummary {
+					name: "collator-01".into(),
+					url: "ws://127.0.0.1:9988".into(),
+				}],
+			}],
+			&pids_by_node,
+		);
+
+		assert_eq!(output.relay_chain.name, "paseo-local");
+		assert_eq!(output.relay_chain.urls, vec!["ws://127.0.0.1:9944"]);
+		assert_eq!(output.relay_chain.pids, vec![101]);
+		assert_eq!(output.parachains.len(), 1);
+		assert_eq!(output.parachains[0].name, "asset-hub");
+		assert_eq!(output.parachains[0].urls, vec!["ws://127.0.0.1:9988"]);
+		assert_eq!(output.parachains[0].pids, vec![202, 303]);
 	}
 }

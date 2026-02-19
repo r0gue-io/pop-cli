@@ -132,6 +132,8 @@ impl Command {
 			#[cfg(feature = "chain")]
 			Self::Bench(_) => true,
 			#[cfg(any(feature = "chain", feature = "contract"))]
+			Self::Up(_) => true,
+			#[cfg(any(feature = "chain", feature = "contract"))]
 			_ => false,
 		}
 	}
@@ -621,5 +623,17 @@ mod tests {
 	#[test]
 	fn test_command_supports_json() {
 		assert!(Command::Test(test::TestArgs::default()).supports_json());
+	}
+
+	#[test]
+	fn up_command_supports_json() {
+		let command = Command::Up(
+			up::UpArgs {
+				command: Some(up::Command::Network(Default::default())),
+				..Default::default()
+			}
+			.into(),
+		);
+		assert!(command.supports_json());
 	}
 }
