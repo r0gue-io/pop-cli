@@ -1,11 +1,25 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{cli::traits::Cli, common::builds::ensure_project_path};
+use crate::{
+	cli::traits::Cli,
+	common::builds::ensure_project_path,
+	output::{CliResponse, OutputMode},
+};
 use anyhow::Result;
 use clap::{ArgGroup, Args};
 use pop_contracts::{DeployedContract, ImageVariant, VerifyContract};
 use serde::Serialize;
 use std::path::PathBuf;
+
+#[derive(Debug, Serialize)]
+pub(crate) struct VerifyOutput {
+	verified: bool,
+	contract_path: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	image: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	address: Option<String>,
+}
 
 #[derive(Args, Serialize)]
 #[command(
@@ -42,13 +56,20 @@ pub(crate) struct VerifyCommand {
 }
 
 impl VerifyCommand {
-	pub(crate) async fn execute(&self, cli: &mut impl Cli) -> Result<()> {
+	pub(crate) async fn execute(&self, cli: &mut impl Cli, output_mode: OutputMode) -> Result<()> {
 		cli.intro("Contract verification started. This might take a bit⏳")?;
 
 		let project_path = ensure_project_path(self.path.clone(), self.path_pos.clone());
+		let mut output = VerifyOutput {
+			verified: true,
+			contract_path: project_path.display().to_string(),
+			image: None,
+			address: None,
+		};
 
 		if let Some(contract_path) = self.contract_path.as_ref() {
 			VerifyContract::new_local(project_path, contract_path.clone()).execute().await?;
+			output.contract_path = contract_path.display().to_string();
 		} else {
 			// SAFETY: clap enforces that if contract_path is not present,
 			// then url, address, and image must all be present
@@ -66,6 +87,14 @@ impl VerifyCommand {
 			)
 			.execute()
 			.await?;
+
+			output.address = Some(address.clone());
+			output.image = Some(image.clone());
+		}
+
+		if output_mode == OutputMode::Json {
+			CliResponse::ok(output).print_json();
+			return Ok(());
 		}
 
 		let success_message = if let (Some(endpoint), Some(address)) = (&self.url, &self.address) {
@@ -80,5 +109,28 @@ impl VerifyCommand {
 		let _ = cli.success(success_message);
 
 		Ok(())
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::output::CliResponse;
+
+	#[test]
+	fn verify_output_serializes_for_json() {
+		let output = VerifyOutput {
+			verified: true,
+			contract_path: "contracts/flipper/flipper.contract".to_string(),
+			image: Some("use-ink/cargo-contract:latest".to_string()),
+			address: Some("0x1234".to_string()),
+		};
+		let json = serde_json::to_value(CliResponse::ok(output)).unwrap();
+		assert_eq!(json["schema_version"], 1);
+		assert_eq!(json["success"], true);
+		assert_eq!(json["data"]["verified"], true);
+		assert_eq!(json["data"]["contract_path"], "contracts/flipper/flipper.contract");
+		assert_eq!(json["data"]["image"], "use-ink/cargo-contract:latest");
+		assert_eq!(json["data"]["address"], "0x1234");
 	}
 }

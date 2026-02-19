@@ -116,6 +116,10 @@ impl Command {
 	fn supports_json(&self) -> bool {
 		match self {
 			Self::Hash(_) | Self::Convert(_) => true,
+			#[cfg(feature = "contract")]
+			Self::Verify(_) => true,
+			#[cfg(feature = "chain")]
+			Self::Fork(_) => true,
 			#[cfg(feature = "chain")]
 			Self::Bench(_) => true,
 			_ => false,
@@ -324,14 +328,25 @@ impl Command {
 			},
 			Command::Completion(args) => completion::Command::execute(args),
 			#[cfg(feature = "contract")]
-			Self::Verify(verify) => verify.execute(&mut Cli).await,
+			Self::Verify(verify) =>
+				if output_mode == OutputMode::Json {
+					let mut json_cli = crate::cli::JsonCli;
+					verify.execute(&mut json_cli, output_mode).await
+				} else {
+					verify.execute(&mut Cli, output_mode).await
+				},
 			#[cfg(feature = "chain")]
 			Self::Fork(args) => {
 				env_logger::Builder::new()
 					.filter_level(log::LevelFilter::Info)
 					.parse_default_env()
 					.init();
-				fork::Command::execute(args, &mut Cli).await
+				if output_mode == OutputMode::Json {
+					let mut json_cli = crate::cli::JsonCli;
+					fork::Command::execute(args, &mut json_cli, output_mode).await
+				} else {
+					fork::Command::execute(args, &mut Cli, output_mode).await
+				}
 			},
 		}
 	}
@@ -550,6 +565,22 @@ mod tests {
 		assert_eq!(
 			format!("convert {command}"),
 			Command::Convert(ConvertArgs { command }).to_string()
+		);
+	}
+
+	#[test]
+	fn fork_and_verify_support_json() {
+		assert!(Command::Fork(Default::default()).supports_json());
+		assert!(
+			Command::Verify(verify::VerifyCommand {
+				path: None,
+				path_pos: None,
+				contract_path: Some(std::path::PathBuf::from("test.contract")),
+				url: None,
+				address: None,
+				image: None,
+			})
+			.supports_json()
 		);
 	}
 }
