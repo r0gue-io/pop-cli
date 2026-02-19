@@ -13,6 +13,7 @@ use crate::{
 		urls,
 		wallet::request_signature,
 	},
+	output::{invalid_input_error, network_error, prompt_required_error},
 };
 use anyhow::{Result, anyhow};
 use clap::Args;
@@ -116,6 +117,22 @@ impl Default for CallContractCommand {
 	}
 }
 
+/// Structured output for `pop --json call contract`.
+#[derive(Debug, Serialize)]
+pub(crate) struct CallContractOutput {
+	contract: String,
+	message: String,
+	result: CallContractResult,
+}
+
+/// Result details for a contract call.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case", tag = "kind")]
+pub(crate) enum CallContractResult {
+	DryRun { return_value: String, gas_consumed: String, gas_required: String },
+	Executed { tx_hash: String, events: Vec<String> },
+}
+
 impl CallContractCommand {
 	fn url(&self) -> Result<url::Url> {
 		self.url.as_ref().ok_or(anyhow::anyhow!("url not set")).cloned()
@@ -148,6 +165,127 @@ impl CallContractCommand {
 		// Finally execute the call.
 		self.execute_call(cli, prompt_to_repeat_call, callable).await?;
 		Ok(())
+	}
+
+	/// Executes `call contract` in JSON mode and returns structured output.
+	pub(crate) async fn execute_json(mut self) -> Result<CallContractOutput> {
+		if self.use_wallet {
+			return Err(invalid_input_error(
+				"`pop --json call contract` does not support `--use-wallet`; provide `--suri`",
+			));
+		}
+
+		let mut missing = Vec::new();
+		if self.url.is_none() {
+			missing.push("--url");
+		}
+		if self.contract.is_none() {
+			missing.push("--contract");
+		}
+		if self.message.is_none() {
+			missing.push("--message");
+		}
+		if !missing.is_empty() {
+			return Err(prompt_required_error(format!(
+				"Missing required flags for `pop --json call contract`: {}",
+				missing.join(", ")
+			)));
+		}
+
+		let project_path = ensure_project_path(self.path.clone(), self.path_pos.clone());
+		let messages =
+			get_messages(&project_path).map_err(|e| invalid_input_error(e.to_string()))?;
+		let message_name = self.message.clone().expect("checked above; qed");
+		let message = messages
+			.into_iter()
+			.find(|m| m.label == message_name)
+			.ok_or_else(|| invalid_input_error(format!("Message `{message_name}` not found")))?;
+
+		if self.args.len() < message.args.len() {
+			return Err(prompt_required_error(format!(
+				"Missing required `--args` values for `{}`: expected {}, got {}",
+				message.label,
+				message.args.len(),
+				self.args.len()
+			)));
+		}
+		if self.args.len() > message.args.len() {
+			return Err(invalid_input_error(format!(
+				"Expected {} arguments for `{}`, but received {}.",
+				message.args.len(),
+				message.label,
+				self.args.len()
+			)));
+		}
+		normalize_call_args(&mut self.args, &message);
+
+		let suri = self.suri.clone().unwrap_or_else(|| DEFAULT_URI.to_string());
+		let call_exec = set_up_call(CallOpts {
+			path: project_path,
+			contract: self.contract.clone().expect("checked above; qed"),
+			message: message.label.clone(),
+			args: self.args.clone(),
+			value: self.value.clone(),
+			gas_limit: self.gas_limit,
+			proof_size: self.proof_size,
+			url: self.url()?,
+			suri,
+			execute: self.execute,
+		})
+		.await
+		.map_err(map_contract_json_error)?;
+
+		let dry_run = call_exec.call_dry_run().await.map_err(map_contract_json_error)?;
+		let return_value = match &dry_run.result {
+			Ok(ret_val) => call_exec
+				.transcoder()
+				.decode_message_return(call_exec.message(), &mut &ret_val.data[..])
+				.map_err(|e| invalid_input_error(e.to_string()))?
+				.to_string(),
+			Err(err) => return Err(invalid_input_error(format!("{err:?}"))),
+		};
+
+		let result = if self.execute {
+			if !message.mutates {
+				return Err(invalid_input_error("`--execute` requires a mutating contract message"));
+			}
+			if self.suri.is_none() {
+				return Err(prompt_required_error(
+					"`pop --json call contract --execute` requires `--suri`",
+				));
+			}
+
+			let weight_limit =
+				if let (Some(gas_limit), Some(proof_size)) = (self.gas_limit, self.proof_size) {
+					Weight::from_parts(gas_limit, proof_size)
+				} else {
+					dry_run.gas_required
+				};
+			let events = call_exec
+				.call(Some(weight_limit), call_exec.opts().storage_deposit_limit())
+				.await
+				.map_err(map_contract_json_error)?;
+			let tx_hash = format!("{:?}", events.extrinsic_hash());
+			let decoded_events = events
+				.iter()
+				.filter_map(|event| {
+					event.ok().map(|ev| format!("{}::{}", ev.pallet_name(), ev.variant_name()))
+				})
+				.collect::<Vec<_>>();
+			CallContractResult::Executed { tx_hash, events: decoded_events }
+		} else {
+			CallContractResult::DryRun {
+				return_value,
+				gas_consumed: dry_run.gas_consumed.to_string(),
+				gas_required: dry_run.gas_required.to_string(),
+			}
+		};
+
+		Ok(CallContractOutput {
+			contract: self.contract.expect("checked above; qed"),
+			message: message.label,
+			result,
+		})
 	}
 
 	fn display(&self) -> String {
@@ -608,6 +746,10 @@ impl CallContractCommand {
 		self.use_wallet = false;
 		self.execute = false;
 	}
+}
+
+fn map_contract_json_error(err: impl std::fmt::Display) -> anyhow::Error {
+	network_error(err.to_string())
 }
 
 #[cfg(test)]
@@ -1345,5 +1487,12 @@ mod tests {
 		assert_eq!(command.proof_size, None);
 		assert!(!command.use_wallet);
 		assert!(!command.execute);
+	}
+
+	#[tokio::test]
+	async fn execute_json_requires_required_flags() {
+		let cmd = CallContractCommand::default();
+		let err = cmd.execute_json().await.expect_err("expected prompt required error");
+		assert!(err.downcast_ref::<crate::output::PromptRequiredError>().is_some());
 	}
 }

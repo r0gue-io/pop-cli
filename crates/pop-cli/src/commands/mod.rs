@@ -125,6 +125,8 @@ impl Command {
 			Self::Completion(_) |
 			Self::Upgrade(_) |
 			Self::Build(_) => true,
+			#[cfg(any(feature = "chain", feature = "contract"))]
+			Self::Call(_) => true,
 			#[cfg(feature = "contract")]
 			Self::Verify(_) => true,
 			#[cfg(feature = "chain")]
@@ -267,6 +269,16 @@ impl Command {
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::Call(args) => {
 				env_logger::init();
+				if output_mode == OutputMode::Json {
+					let output = match args.resolve_command()? {
+						#[cfg(feature = "chain")]
+						call::Command::Chain(cmd) => call::CallJsonOutput::Chain(cmd.execute_json().await?),
+						#[cfg(feature = "contract")]
+						call::Command::Contract(cmd) => call::CallJsonOutput::Contract(cmd.execute_json().await?),
+					};
+					CliResponse::ok(output).print_json();
+					return Ok(());
+				}
 				match args.resolve_command()? {
 					#[cfg(feature = "chain")]
 					call::Command::Chain(cmd) => cmd.execute().await,
@@ -654,6 +666,12 @@ mod tests {
 	fn fork_and_verify_support_json() {
 		assert!(Command::Build(Default::default()).supports_json());
 		assert!(Command::Fork(Default::default()).supports_json());
+		assert!(
+			Command::Call(call::CallArgs {
+				command: Some(call::Command::Chain(Default::default())),
+			})
+			.supports_json()
+		);
 		assert!(
 			Command::Verify(verify::VerifyCommand {
 				path: None,

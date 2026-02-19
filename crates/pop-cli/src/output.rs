@@ -130,7 +130,6 @@ impl std::fmt::Display for InvalidInputError {
 impl std::error::Error for InvalidInputError {}
 
 /// Returns an invalid-input error that maps to `INVALID_INPUT` in the JSON envelope.
-#[allow(dead_code)]
 pub(crate) fn invalid_input_error(message: impl Into<String>) -> anyhow::Error {
 	InvalidInputError(message.into()).into()
 }
@@ -142,6 +141,11 @@ pub(crate) const JSON_PROMPT_ERR: &str = "interactive prompt required but --json
 #[allow(dead_code)]
 pub(crate) fn prompt_required_io_error() -> std::io::Error {
 	std::io::Error::other(PromptRequiredError(JSON_PROMPT_ERR.to_string()))
+}
+
+/// Returns a prompt-required error that maps to `PROMPT_REQUIRED` in the JSON envelope.
+pub(crate) fn prompt_required_error(message: impl Into<String>) -> anyhow::Error {
+	PromptRequiredError(message.into()).into()
 }
 
 /// Error returned when a build/test command fails while producing JSON output.
@@ -202,6 +206,23 @@ impl std::error::Error for DeployCommandError {}
 #[allow(dead_code)]
 pub(crate) fn deploy_error(message: impl Into<String>) -> anyhow::Error {
 	DeployCommandError(message.into()).into()
+}
+
+/// Error returned when command execution fails due to network/RPC issues.
+#[derive(Debug)]
+pub(crate) struct NetworkError(pub String);
+
+impl std::fmt::Display for NetworkError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.0)
+	}
+}
+
+impl std::error::Error for NetworkError {}
+
+/// Returns a network error that maps to `NETWORK_ERROR` in the JSON envelope.
+pub(crate) fn network_error(message: impl Into<String>) -> anyhow::Error {
+	NetworkError(message.into()).into()
 }
 
 #[cfg(test)]
