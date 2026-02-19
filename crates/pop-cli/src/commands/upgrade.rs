@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::traits::{Cli, Select};
+use crate::{
+	cli::traits::{Cli, Select},
+	output::{CliResponse, OutputMode, PromptRequiredError},
+};
 use anyhow::{Context, Result};
 use clap::Args;
 #[cfg(not(test))]
@@ -49,6 +52,55 @@ async fn fetch_polkadot_sdk_versions() -> Result<Vec<String>, anyhow::Error> {
 	Ok(releases)
 }
 
+/// Structured output for JSON mode.
+#[derive(Serialize)]
+struct UpgradeOutput {
+	version: String,
+	toml_path: String,
+}
+
+/// Resolves the path to the Cargo.toml file from the upgrade arguments.
+fn resolve_toml_path(args: &UpgradeArgs) -> Result<PathBuf> {
+	let toml_file = if let Some(path) = &args.path {
+		if matches!(path.file_name().map(|n| n.to_str().unwrap()), Some(CARGO_TOML_FILE)) {
+			path.clone()
+		} else {
+			path.join(CARGO_TOML_FILE)
+		}
+	} else {
+		let current_dir = env::current_dir().context("Failed to get current directory")?;
+		current_dir.join(CARGO_TOML_FILE)
+	};
+	if !toml_file.exists() {
+		anyhow::bail!("{CARGO_TOML_FILE} file not found at specified path");
+	}
+	Ok(toml_file)
+}
+
+/// Entry point called from the command dispatcher.
+pub(crate) async fn execute(args: &mut UpgradeArgs, output_mode: OutputMode) -> Result<()> {
+	match output_mode {
+		OutputMode::Human => Command::execute(args, &mut crate::cli::Cli).await,
+		OutputMode::Json => {
+			let version = args
+				.version
+				.as_ref()
+				.ok_or_else(|| PromptRequiredError("--version is required with --json".into()))?
+				.clone();
+			let toml_file = resolve_toml_path(args)?;
+			let crates_versions =
+				psvm::get_version_mapping_with_fallback(DEFAULT_GIT_SERVER, &version)
+					.await
+					.map_err(|e| anyhow::anyhow!("Failed to get version mapping: {}", e))?;
+			psvm::update_dependencies(&toml_file.canonicalize()?, &crates_versions, false, false)
+				.map_err(|e| anyhow::anyhow!("Failed to update dependencies: {}", e))?;
+			CliResponse::ok(UpgradeOutput { version, toml_path: toml_file.display().to_string() })
+				.print_json();
+			Ok(())
+		},
+	}
+}
+
 /// Upgrade command executor.
 pub(crate) struct Command;
 
@@ -56,19 +108,7 @@ impl Command {
 	/// Executes the polkadot-sdk version upgrade.
 	pub(crate) async fn execute(args: &mut UpgradeArgs, cli: &mut impl Cli) -> Result<()> {
 		cli.intro("Upgrade Polkadot SDK version")?;
-		let toml_file = if let Some(path) = &args.path {
-			if matches!(path.file_name().map(|n| n.to_str().unwrap()), Some(CARGO_TOML_FILE)) {
-				path.clone()
-			} else {
-				path.join(CARGO_TOML_FILE)
-			}
-		} else {
-			let current_dir = env::current_dir().context("Failed to get current directory")?;
-			current_dir.join(CARGO_TOML_FILE)
-		};
-		if !toml_file.exists() {
-			anyhow::bail!("{CARGO_TOML_FILE} file not found at specified path");
-		}
+		let toml_file = resolve_toml_path(args)?;
 
 		cli.info(format!("Using {CARGO_TOML_FILE} file at {}", toml_file.display()))?;
 

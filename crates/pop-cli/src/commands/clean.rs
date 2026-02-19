@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{cli::traits::*, style::style};
+use crate::{
+	cli::traits::*,
+	output::{CliResponse, OutputMode, PromptRequiredError},
+	style::style,
+};
 use anyhow::Result;
 use clap::{Args, Subcommand};
 use serde::Serialize;
@@ -67,6 +71,187 @@ async fn destroy_network(zombie_json: &Path) -> Result<()> {
 #[cfg(not(feature = "chain"))]
 async fn destroy_network(_zombie_json: &Path) -> Result<()> {
 	anyhow::bail!("network cleanup requires the `chain` feature")
+}
+
+/// Structured output for `clean cache --json`.
+#[derive(Serialize)]
+struct CleanCacheOutput {
+	removed: Vec<CleanCacheItem>,
+}
+
+#[derive(Serialize)]
+struct CleanCacheItem {
+	name: String,
+	size_bytes: u64,
+}
+
+/// Structured output for `clean node --json`.
+#[derive(Serialize)]
+struct CleanNodeOutput {
+	killed: Vec<CleanNodeItem>,
+}
+
+#[derive(Serialize)]
+struct CleanNodeItem {
+	name: String,
+	pid: String,
+	ports: String,
+}
+
+/// Structured output for `clean network --json`.
+#[derive(Serialize)]
+struct CleanNetworkOutput {
+	stopped: Vec<String>,
+	failures: usize,
+}
+
+/// Entry point called from the command dispatcher.
+pub(crate) async fn execute(
+	args: &CleanArgs,
+	cache: PathBuf,
+	output_mode: OutputMode,
+) -> Result<()> {
+	match output_mode {
+		OutputMode::Human => match &args.command {
+			Command::Cache(cmd_args) =>
+				CleanCacheCommand { cli: &mut crate::cli::Cli, cache, all: cmd_args.all }.execute(),
+			Command::Node(cmd_args) => CleanNodesCommand {
+				cli: &mut crate::cli::Cli,
+				all: cmd_args.all,
+				pid: cmd_args.pid.clone(),
+				#[cfg(test)]
+				list_nodes: None,
+				#[cfg(test)]
+				kill_fn: None,
+			}
+			.execute(),
+			Command::Network(cmd_args) =>
+				CleanNetworkCommand {
+					cli: &mut crate::cli::Cli,
+					all: cmd_args.all,
+					path: cmd_args.path.clone(),
+					keep_state: cmd_args.keep_state,
+				}
+				.execute()
+				.await,
+		},
+		OutputMode::Json => match &args.command {
+			Command::Cache(cmd_args) => execute_cache_json(cache, cmd_args),
+			Command::Node(cmd_args) => execute_node_json(cmd_args),
+			Command::Network(cmd_args) => execute_network_json(cmd_args).await,
+		},
+	}
+}
+
+fn execute_cache_json(cache: PathBuf, args: &CleanCommandArgs) -> Result<()> {
+	if !args.all {
+		return Err(PromptRequiredError("--all is required with --json".into()).into());
+	}
+	if !cache.exists() {
+		CliResponse::ok(CleanCacheOutput { removed: vec![] }).print_json();
+		return Ok(());
+	}
+	let items = contents(&cache)?;
+	if items.is_empty() {
+		CliResponse::ok(CleanCacheOutput { removed: vec![] }).print_json();
+		return Ok(());
+	}
+	let mut removed = Vec::new();
+	for (name, file, size) in &items {
+		remove_file(file)?;
+		removed.push(CleanCacheItem { name: name.clone(), size_bytes: *size });
+	}
+	CliResponse::ok(CleanCacheOutput { removed }).print_json();
+	Ok(())
+}
+
+fn execute_node_json(args: &CleanCommandArgs) -> Result<()> {
+	if !args.all && args.pid.is_none() {
+		return Err(PromptRequiredError("--all or --pid is required with --json".into()).into());
+	}
+	let processes = get_node_processes()?;
+	if processes.is_empty() {
+		CliResponse::ok(CleanNodeOutput { killed: vec![] }).print_json();
+		return Ok(());
+	}
+	let pids_to_kill: Vec<String> = if args.all {
+		processes.iter().map(|(_, pid, _)| pid.clone()).collect()
+	} else if let Some(pids) = &args.pid {
+		let valid_pids: Vec<&str> = processes.iter().map(|(_, pid, _)| pid.as_str()).collect();
+		let invalid: Vec<&String> =
+			pids.iter().filter(|pid| !valid_pids.contains(&pid.as_str())).collect();
+		if !invalid.is_empty() {
+			anyhow::bail!(
+				"Invalid PID(s): {}",
+				invalid.iter().map(|p| p.as_str()).collect::<Vec<_>>().join(", ")
+			);
+		}
+		pids.clone()
+	} else {
+		vec![]
+	};
+
+	let mut killed = Vec::new();
+	for pid in &pids_to_kill {
+		let info = processes.iter().find(|(_, p, _)| p == pid);
+		kill_process(pid)?;
+		if let Some((name, _, ports)) = info {
+			killed.push(CleanNodeItem {
+				name: name.clone(),
+				pid: pid.clone(),
+				ports: ports.clone(),
+			});
+		}
+	}
+	CliResponse::ok(CleanNodeOutput { killed }).print_json();
+	Ok(())
+}
+
+async fn execute_network_json(args: &CleanNetworkCommandArgs) -> Result<()> {
+	if !args.all && args.path.is_none() {
+		return Err(PromptRequiredError("--all or PATH is required with --json".into()).into());
+	}
+	let zombie_jsons = if args.all {
+		let candidates = find_zombie_jsons()?;
+		if candidates.is_empty() {
+			CliResponse::ok(CleanNetworkOutput { stopped: vec![], failures: 0 }).print_json();
+			return Ok(());
+		}
+		candidates.into_iter().map(|c| c.path).collect()
+	} else {
+		vec![resolve_zombie_json_path(args.path.as_ref().unwrap())?]
+	};
+
+	let mut stopped = Vec::new();
+	let mut failures = 0;
+	for zombie_json in &zombie_jsons {
+		let base_dir = zombie_json
+			.parent()
+			.ok_or_else(|| anyhow::anyhow!("invalid zombie.json path"))?
+			.to_path_buf();
+		if let Err(e) = destroy_network(zombie_json).await {
+			let error_message = e.to_string();
+			if should_fallback_to_process_cleanup(&error_message) {
+				let pids = read_pids_from_zombie_json(zombie_json)?;
+				for pid in pids {
+					kill_process(&pid)?;
+				}
+			} else if !is_already_stopped_error(&error_message) {
+				failures += 1;
+				continue;
+			}
+		}
+
+		if args.keep_state {
+			let _ = mark_cleared(&base_dir);
+		} else if remove_dir_all(&base_dir).is_err() {
+			failures += 1;
+			continue;
+		}
+		stopped.push(base_dir.display().to_string());
+	}
+	CliResponse::ok(CleanNetworkOutput { stopped, failures }).print_json();
+	Ok(())
 }
 
 /// Removes cached artifacts.

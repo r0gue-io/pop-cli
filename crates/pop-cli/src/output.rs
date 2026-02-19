@@ -88,6 +88,18 @@ pub(crate) enum ErrorCode {
 	UnsupportedJson,
 }
 
+/// Error returned when `--json` mode requires a flag that was not provided.
+#[derive(Debug)]
+pub(crate) struct PromptRequiredError(pub String);
+
+impl std::fmt::Display for PromptRequiredError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.0)
+	}
+}
+
+impl std::error::Error for PromptRequiredError {}
+
 /// Error returned when `--json` is requested for a command that doesn't support it.
 #[derive(Debug)]
 pub(crate) struct UnsupportedJsonError(pub String);
