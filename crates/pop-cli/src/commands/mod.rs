@@ -301,7 +301,7 @@ impl Command {
 			},
 			Self::Clean(args) => {
 				env_logger::init();
-				clean::execute(args, cache()?, output_mode).await
+				clean::execute(args, cache, output_mode).await
 			},
 			Command::Convert(args) => {
 				env_logger::init();

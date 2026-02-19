@@ -108,13 +108,17 @@ struct CleanNetworkOutput {
 /// Entry point called from the command dispatcher.
 pub(crate) async fn execute(
 	args: &CleanArgs,
-	cache: PathBuf,
+	cache_fn: impl FnOnce() -> Result<PathBuf>,
 	output_mode: OutputMode,
 ) -> Result<()> {
 	match output_mode {
 		OutputMode::Human => match &args.command {
-			Command::Cache(cmd_args) =>
-				CleanCacheCommand { cli: &mut crate::cli::Cli, cache, all: cmd_args.all }.execute(),
+			Command::Cache(cmd_args) => CleanCacheCommand {
+				cli: &mut crate::cli::Cli,
+				cache: cache_fn()?,
+				all: cmd_args.all,
+			}
+			.execute(),
 			Command::Node(cmd_args) => CleanNodesCommand {
 				cli: &mut crate::cli::Cli,
 				all: cmd_args.all,
@@ -136,7 +140,7 @@ pub(crate) async fn execute(
 				.await,
 		},
 		OutputMode::Json => match &args.command {
-			Command::Cache(cmd_args) => execute_cache_json(cache, cmd_args),
+			Command::Cache(cmd_args) => execute_cache_json(cache_fn()?, cmd_args),
 			Command::Node(cmd_args) => execute_node_json(cmd_args),
 			Command::Network(cmd_args) => execute_network_json(cmd_args).await,
 		},
