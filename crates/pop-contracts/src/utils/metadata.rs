@@ -153,19 +153,17 @@ fn get_contract_transcoder(path: &Path) -> anyhow::Result<ContractMessageTransco
 			if path.ends_with("Cargo.toml") { path.to_path_buf() } else { path.join("Cargo.toml") };
 		let artifact_from_manifest =
 			|| ContractArtifacts::from_manifest_or_file(Some(&cargo_toml_path), None);
-		if let Ok(manifest) = from_path(&cargo_toml_path) {
-			if let Some(package) = manifest.package {
+
+		let artifact = from_path(&cargo_toml_path)
+			.ok()
+			.and_then(|manifest| manifest.package)
+			.and_then(|package| {
 				let project_root = cargo_toml_path.parent().unwrap_or(&cargo_toml_path);
-				if let Some(contract_path) =
-					find_contract_artifact_path(project_root, package.name())
-				{
-					ContractArtifacts::from_manifest_or_file(None, Some(&contract_path))?
-				} else {
-					artifact_from_manifest()?
-				}
-			} else {
-				artifact_from_manifest()?
-			}
+				find_contract_artifact_path(project_root, package.name())
+			});
+
+		if let Some(contract_path) = artifact {
+			ContractArtifacts::from_manifest_or_file(None, Some(&contract_path))?
 		} else {
 			artifact_from_manifest()?
 		}

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::{Error, manifest::from_path};
+use crate::{
+	Error,
+	manifest::{from_path, get_workspace_project_names},
+};
 use std::{
 	collections::HashMap,
 	fs,
@@ -73,18 +76,30 @@ pub fn find_contract_artifact_path(project_root: &Path, package_name: &str) -> O
 }
 
 fn find_workspace_root(start: &Path) -> Option<PathBuf> {
-	let mut current = Some(start);
+	let start = start.canonicalize().ok().unwrap_or_else(|| start.to_path_buf());
+	let mut current = Some(start.as_path());
 	while let Some(dir) = current {
 		let manifest_path = dir.join("Cargo.toml");
 		if manifest_path.is_file() &&
 			let Ok(manifest) = from_path(dir) &&
-			manifest.workspace.is_some()
+			manifest.workspace.is_some() &&
+			workspace_includes_project(dir, &start)
 		{
 			return Some(dir.to_path_buf());
 		}
 		current = dir.parent();
 	}
 	None
+}
+
+fn workspace_includes_project(workspace_root: &Path, project_root: &Path) -> bool {
+	get_workspace_project_names(workspace_root)
+		.map(|members| {
+			members.into_iter().map(|(_, member_path)| member_path).any(|member_path| {
+				project_root == member_path || project_root.starts_with(&member_path)
+			})
+		})
+		.unwrap_or(false)
 }
 
 /// Temporarily changes the current working directory while executing a closure.
@@ -322,6 +337,27 @@ echo 1000"#,
 			assert_eq!(path, workspace_artifact);
 			Ok(())
 		}
+
+		#[test]
+		fn find_contract_artifact_ignores_unrelated_workspace() -> anyhow::Result<()> {
+			let temp_dir = tempfile::tempdir()?;
+			let workspace_root = temp_dir.path().join("workspace");
+			let project_root = workspace_root.join("member");
+			fs::create_dir_all(project_root.join("target").join("ink"))?;
+			fs::create_dir_all(workspace_root.join("target").join("ink"))?;
+			let workspace_artifact =
+				workspace_root.join("target").join("ink").join("my_contract.contract");
+			fs::write(&workspace_artifact, b"workspace")?;
+			fs::write(workspace_root.join("Cargo.toml"), "[workspace]\nmembers = [\"other\"]\n")?;
+			fs::write(
+				project_root.join("Cargo.toml"),
+				"[package]\nname = \"my_contract\"\nversion = \"0.1.0\"\n",
+			)?;
+
+			let path = find_contract_artifact_path(&project_root, "my_contract");
+			assert_eq!(path, None);
+			Ok(())
+		}
 	}
 
 	#[test]
@@ -351,6 +387,22 @@ echo 1000"#,
 		)?;
 
 		assert_eq!(find_workspace_root(&project_root), None);
+		Ok(())
+	}
+
+	#[test]
+	fn find_workspace_root_ignores_unrelated_workspace() -> anyhow::Result<()> {
+		let temp_dir = tempfile::tempdir()?;
+		let workspace_root = temp_dir.path().join("workspace");
+		let member_root = workspace_root.join("member");
+		fs::create_dir_all(&member_root)?;
+		fs::write(workspace_root.join("Cargo.toml"), "[workspace]\nmembers = [\"other\"]\n")?;
+		fs::write(
+			member_root.join("Cargo.toml"),
+			"[package]\nname = \"member\"\nversion = \"0.1.0\"\n",
+		)?;
+
+		assert_eq!(find_workspace_root(&member_root), None);
 		Ok(())
 	}
 }
