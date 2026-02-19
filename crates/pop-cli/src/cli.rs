@@ -408,6 +408,7 @@ impl MultiProgress {
 /// diagnostic messages (info, success, warning, error) to stderr.
 /// All interactive prompts return an error telling the caller that `--json`
 /// mode cannot drive an interactive session.
+#[allow(dead_code)]
 pub(crate) struct JsonCli;
 
 impl traits::Cli for JsonCli {
@@ -464,8 +465,10 @@ impl traits::Cli for JsonCli {
 	}
 }
 
+#[allow(dead_code)]
 const JSON_PROMPT_ERR: &str = "interactive prompt required but --json mode is active";
 
+#[allow(dead_code)]
 struct JsonConfirm;
 impl traits::Confirm for JsonConfirm {
 	fn initial_value(self, _initial_value: bool) -> Self {
@@ -476,6 +479,7 @@ impl traits::Confirm for JsonConfirm {
 	}
 }
 
+#[allow(dead_code)]
 struct JsonInput;
 impl traits::Input for JsonInput {
 	fn default_input(self, _value: &str) -> Self {
@@ -498,6 +502,7 @@ impl traits::Input for JsonInput {
 	}
 }
 
+#[allow(dead_code)]
 struct JsonMultiSelect<T>(std::marker::PhantomData<T>);
 impl<T: Clone + Eq> traits::MultiSelect<T> for JsonMultiSelect<T> {
 	fn interact(&mut self) -> Result<Vec<T>> {
@@ -514,6 +519,7 @@ impl<T: Clone + Eq> traits::MultiSelect<T> for JsonMultiSelect<T> {
 	}
 }
 
+#[allow(dead_code)]
 struct JsonPassword;
 impl traits::Password for JsonPassword {
 	fn interact(&mut self) -> Result<String> {
@@ -521,6 +527,7 @@ impl traits::Password for JsonPassword {
 	}
 }
 
+#[allow(dead_code)]
 struct JsonSelect<T>(std::marker::PhantomData<T>);
 impl<T: Clone + Eq> traits::Select<T> for JsonSelect<T> {
 	fn initial_value(self, _initial_value: T) -> Self {

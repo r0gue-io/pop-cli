@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
 #[cfg(any(feature = "chain", feature = "contract"))]
+use crate::cli::Cli;
+#[cfg(any(feature = "chain", feature = "contract"))]
 use crate::cli::traits::Cli as _;
 use crate::{
 	cache,
-	cli::Cli,
 	output::{OutputMode, reject_unsupported_json},
 };
 #[cfg(any(feature = "chain", feature = "contract"))]
