@@ -14,14 +14,17 @@ use crate::{
 			guide_user_to_select_genesis_preset,
 		},
 	},
+	output::{CliResponse, OutputMode, PromptRequiredError},
 };
 use clap::Args;
 use pop_chains::{
-	GENESIS_BUILDER_DEV_PRESET, GenesisBuilderPolicy, PalletExtrinsicsRegistry,
-	generate_pallet_benchmarks, load_pallet_extrinsics, utils::helpers::get_preset_names,
+	BenchmarkingCliCommand, GENESIS_BUILDER_DEV_PRESET, GenesisBuilderPolicy,
+	PalletExtrinsicsRegistry, generate_omni_bencher_benchmarks, generate_pallet_benchmarks,
+	load_pallet_extrinsics, utils::helpers::get_preset_names,
 };
-use pop_common::get_relative_or_absolute_path;
+use pop_common::{Profile, get_relative_or_absolute_path};
 use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
 use std::{
 	collections::BTreeMap,
 	env::current_dir,
@@ -39,6 +42,17 @@ const DEFAULT_BENCH_FILE: &str = "pop-bench.toml";
 const ARGUMENT_NO_VALUE: &str = "None";
 
 type PalletExtrinsicItem = (String, String);
+
+#[derive(Serialize)]
+struct BenchOutput {
+	pallets: Vec<String>,
+	extrinsic: String,
+	runtime: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	weight_output_path: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	raw_results: Option<JsonValue>,
+}
 
 #[derive(Args, Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub(crate) struct BenchmarkPallet {
@@ -272,6 +286,21 @@ impl Default for BenchmarkPallet {
 
 impl BenchmarkPallet {
 	pub async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+		self.execute_with_output_mode(cli, OutputMode::Human).await
+	}
+
+	pub async fn execute_with_output_mode(
+		&mut self,
+		cli: &mut impl cli::traits::Cli,
+		output_mode: OutputMode,
+	) -> anyhow::Result<()> {
+		match output_mode {
+			OutputMode::Human => self.execute_human(cli).await,
+			OutputMode::Json => self.execute_json(cli).await,
+		}
+	}
+
+	async fn execute_human(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		// If `all` is provided, we override the value of `pallet` and `extrinsic` to select all.
 		if self.all {
 			self.pallets = vec![ALL_SELECTED.to_string()];
@@ -409,6 +438,105 @@ impl BenchmarkPallet {
 		Ok(())
 	}
 
+	async fn execute_json(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+		// If `all` is provided, we override the value of `pallet` and `extrinsic` to select all.
+		if self.all {
+			self.pallets = vec![ALL_SELECTED.to_string()];
+			self.extrinsic = Some(ALL_SELECTED.to_string());
+			self.all = false;
+		}
+
+		if self.json_file.is_some() {
+			anyhow::bail!("--json and --json-file cannot be used together");
+		}
+
+		cli.intro("Benchmarking your pallets")?;
+		cli.warning(
+			"NOTE: the `pop bench pallet` is not yet battle tested - double check the results.",
+		)?;
+
+		// If bench file is provided, load the provided parameters in the file.
+		if let Some(bench_file) = self.bench_file.clone() {
+			cli.info(format!(
+				"Benchmarking parameter file found at {:?}. Loading parameters...",
+				bench_file.display()
+			))?;
+			*self = VersionedBenchmarkPallet::try_from(bench_file.as_path())?.parameters();
+			self.bench_file = Some(bench_file);
+		}
+
+		self.validate_json_mode_requirements()?;
+		self.resolve_runtime_binary_for_json(cli).await?;
+
+		cli.warning("NOTE: this may take some time...")?;
+		cli.info("Benchmarking extrinsic weights of selected pallets...")?;
+
+		let spinner = cli.spinner();
+		let omni_bencher_binary = check_omni_bencher_and_prompt(cli, &spinner, true).await?;
+		spinner.clear();
+
+		let raw_results = self.run_json(cli, omni_bencher_binary.as_path())?;
+		let output = self.build_json_output(raw_results)?;
+		CliResponse::ok(output).print_json();
+		Ok(())
+	}
+
+	fn validate_json_mode_requirements(&self) -> anyhow::Result<()> {
+		if self.pallets.is_empty() {
+			return Err(PromptRequiredError("--pallet is required with --json".into()).into());
+		}
+		if self.extrinsic.is_none() {
+			return Err(PromptRequiredError("--extrinsic is required with --json".into()).into());
+		}
+		if self.runtime.is_none() {
+			return Err(PromptRequiredError("--runtime is required with --json".into()).into());
+		}
+		if !self.skip_parameters {
+			return Err(
+				PromptRequiredError("--skip-parameters is required with --json".into()).into()
+			);
+		}
+		Ok(())
+	}
+
+	async fn resolve_runtime_binary_for_json(
+		&mut self,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<()> {
+		// If a runtime binary is already provided, use it directly.
+		if let Some(ref runtime) = self.runtime &&
+			runtime.is_file()
+		{
+			self.runtime_binary = Some(runtime.clone());
+			return Ok(());
+		}
+
+		let (binary_path, project_path) = ensure_runtime_binary_exists(
+			cli,
+			&get_current_directory(),
+			&Profile::Release,
+			&[Feature::Benchmark],
+			!self.no_build,
+			false,
+			&self.runtime,
+			None,
+		)
+		.await?;
+		self.runtime_binary = Some(binary_path);
+		self.runtime = Some(get_relative_path(project_path.as_path()));
+		Ok(())
+	}
+
+	fn build_json_output(&self, raw_results: Option<JsonValue>) -> anyhow::Result<BenchOutput> {
+		Ok(BenchOutput {
+			pallets: self.pallets.clone(),
+			extrinsic: self.extrinsic()?.clone(),
+			runtime: self.runtime_binary()?.display().to_string(),
+			weight_output_path: self.output.as_ref().map(|path| path.display().to_string()),
+			raw_results,
+		})
+	}
+
 	fn run(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
 		if let Some(original_weight_path) = self.output.clone() {
 			if original_weight_path.extension().is_some() {
@@ -476,6 +604,106 @@ impl BenchmarkPallet {
 		}
 		cli.info(info)?;
 		Ok(())
+	}
+
+	fn run_json(
+		&mut self,
+		cli: &mut impl cli::traits::Cli,
+		omni_bencher_binary: &Path,
+	) -> anyhow::Result<Option<JsonValue>> {
+		if let Some(original_weight_path) = self.output.clone() {
+			if original_weight_path.extension().is_some() {
+				self.run_with_weight_file_json(cli, original_weight_path, omni_bencher_binary)
+			} else {
+				self.run_with_weight_dir_json(cli, original_weight_path, omni_bencher_binary)
+			}
+		} else {
+			let raw_output = generate_omni_bencher_benchmarks(
+				omni_bencher_binary,
+				BenchmarkingCliCommand::Pallet,
+				self.collect_run_arguments(),
+				false,
+			)?;
+			self.parse_raw_results(raw_output)
+		}
+	}
+
+	fn run_with_weight_file_json(
+		&mut self,
+		cli: &mut impl cli::traits::Cli,
+		weight_path: PathBuf,
+		omni_bencher_binary: &Path,
+	) -> anyhow::Result<Option<JsonValue>> {
+		let temp_dir = tempdir()?;
+		let temp_file_path = temp_dir.path().join("temp_weights.rs");
+		self.output = Some(temp_file_path.clone());
+
+		let raw_output = generate_omni_bencher_benchmarks(
+			omni_bencher_binary,
+			BenchmarkingCliCommand::Pallet,
+			self.collect_run_arguments(),
+			false,
+		)?;
+		cli.info(format!("Weight file is generated to {:?}", weight_path.display()))?;
+
+		// Restore the original weight path.
+		self.output = Some(weight_path.clone());
+		// Overwrite the weight files with the correct executed command.
+		overwrite_weight_file_command(
+			&temp_file_path,
+			&weight_path,
+			&self.collect_display_arguments(),
+		)?;
+		self.parse_raw_results(raw_output)
+	}
+
+	fn run_with_weight_dir_json(
+		&mut self,
+		cli: &mut impl cli::traits::Cli,
+		weight_path: PathBuf,
+		omni_bencher_binary: &Path,
+	) -> anyhow::Result<Option<JsonValue>> {
+		let temp_dir = tempdir()?;
+		let temp_dir_path = temp_dir.path().to_path_buf();
+		self.output = Some(temp_dir_path.clone());
+
+		let raw_output = generate_omni_bencher_benchmarks(
+			omni_bencher_binary,
+			BenchmarkingCliCommand::Pallet,
+			self.collect_run_arguments(),
+			false,
+		)?;
+
+		// Restore the original weight path.
+		self.output = Some(weight_path.clone());
+		// Overwrite the weight files with the correct executed command.
+		let mut info = String::default();
+		for entry in fs::read_dir(temp_dir_path)? {
+			let entry = entry?;
+			let path = entry.path();
+			let original_path = weight_path.join(entry.file_name());
+			overwrite_weight_file_command(
+				&path,
+				&original_path,
+				&self.collect_display_arguments(),
+			)?;
+			info.push_str(&format!("Created file: {:?}\n", original_path));
+		}
+		cli.info(info)?;
+		self.parse_raw_results(raw_output)
+	}
+
+	fn parse_raw_results(&self, output: String) -> anyhow::Result<Option<JsonValue>> {
+		if !self.json_output {
+			return Ok(None);
+		}
+		let output = output.trim();
+		if output.is_empty() {
+			anyhow::bail!("No raw benchmark output was produced");
+		}
+		let value = serde_json::from_str(output)
+			.map_err(|e| anyhow::anyhow!("Failed to parse raw benchmark JSON output: {e}"))?;
+		Ok(Some(value))
 	}
 
 	fn display(&self) -> String {
@@ -1328,6 +1556,7 @@ mod tests {
 			bench::source_omni_bencher_binary,
 			runtime::{Feature::Benchmark, get_mock_runtime},
 		},
+		output::PromptRequiredError,
 	};
 	use anyhow::Ok;
 	use pop_common::{Profile, helpers::with_current_dir_async};
@@ -1391,6 +1620,90 @@ mod tests {
 		.execute(&mut cli)
 		.await?;
 		cli.verify()
+	}
+
+	#[test]
+	fn validate_json_mode_requirements_works() {
+		let err = BenchmarkPallet::default().validate_json_mode_requirements().unwrap_err();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+		assert!(err.to_string().contains("--pallet is required with --json"));
+
+		let err =
+			BenchmarkPallet { pallets: vec!["pallet_timestamp".to_string()], ..Default::default() }
+				.validate_json_mode_requirements()
+				.unwrap_err();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+		assert!(err.to_string().contains("--extrinsic is required with --json"));
+
+		let err = BenchmarkPallet {
+			pallets: vec!["pallet_timestamp".to_string()],
+			extrinsic: Some(ALL_SELECTED.to_string()),
+			..Default::default()
+		}
+		.validate_json_mode_requirements()
+		.unwrap_err();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+		assert!(err.to_string().contains("--runtime is required with --json"));
+
+		let err = BenchmarkPallet {
+			pallets: vec!["pallet_timestamp".to_string()],
+			extrinsic: Some(ALL_SELECTED.to_string()),
+			runtime: Some(get_mock_runtime(Some(Benchmark))),
+			..Default::default()
+		}
+		.validate_json_mode_requirements()
+		.unwrap_err();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+		assert!(err.to_string().contains("--skip-parameters is required with --json"));
+
+		assert!(
+			BenchmarkPallet {
+				pallets: vec!["pallet_timestamp".to_string()],
+				extrinsic: Some(ALL_SELECTED.to_string()),
+				runtime: Some(get_mock_runtime(Some(Benchmark))),
+				skip_parameters: true,
+				..Default::default()
+			}
+			.validate_json_mode_requirements()
+			.is_ok()
+		);
+	}
+
+	#[test]
+	fn parse_raw_results_works() -> anyhow::Result<()> {
+		let command = BenchmarkPallet { json_output: true, ..Default::default() };
+		assert_eq!(
+			command.parse_raw_results(r#"{"foo": "bar"}"#.to_string())?,
+			Some(serde_json::json!({ "foo": "bar" }))
+		);
+
+		let err = command.parse_raw_results("not json".to_string()).unwrap_err();
+		assert!(err.to_string().contains("Failed to parse raw benchmark JSON output"));
+
+		let command = BenchmarkPallet::default();
+		assert_eq!(command.parse_raw_results("not json".to_string())?, None);
+		Ok(())
+	}
+
+	#[test]
+	fn build_json_output_works() -> anyhow::Result<()> {
+		let runtime = get_mock_runtime(Some(Benchmark));
+		let output_path = std::path::PathBuf::from("weights.rs");
+		let command = BenchmarkPallet {
+			pallets: vec!["pallet_timestamp".to_string()],
+			extrinsic: Some(ALL_SELECTED.to_string()),
+			runtime_binary: Some(runtime.clone()),
+			output: Some(output_path.clone()),
+			..Default::default()
+		};
+		let raw_results = Some(serde_json::json!({ "foo": "bar" }));
+		let output = command.build_json_output(raw_results.clone())?;
+		assert_eq!(output.pallets, vec!["pallet_timestamp".to_string()]);
+		assert_eq!(output.extrinsic, ALL_SELECTED.to_string());
+		assert_eq!(output.runtime, runtime.display().to_string());
+		assert_eq!(output.weight_output_path, Some(output_path.display().to_string()));
+		assert_eq!(output.raw_results, raw_results);
+		Ok(())
 	}
 
 	#[tokio::test]
