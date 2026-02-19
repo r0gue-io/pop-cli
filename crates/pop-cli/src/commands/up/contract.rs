@@ -531,7 +531,7 @@ impl UpContractCommand {
 		} else {
 			Url::parse(urls::LOCAL).expect("default url is valid")
 		};
-		let processes =
+		let mut processes =
 			if !is_chain_alive(url.clone()).await.map_err(|e| deploy_error(e.to_string()))? {
 				let local_url = Url::parse(urls::LOCAL).expect("default url is valid");
 				if url == local_url {
@@ -554,51 +554,57 @@ impl UpContractCommand {
 			};
 		self.url = Some(url.clone());
 
-		let function =
-			extract_function(self.path.clone(), &self.constructor, FunctionType::Constructor)
-				.map_err(|e| deploy_error(e.to_string()))?;
-		if !function.args.is_empty() {
-			resolve_function_args(&function, &mut json_cli, &mut self.args, self.skip_confirm)
-				.map_err(|e| deploy_error(e.to_string()))?;
-		}
-		normalize_call_args(&mut self.args, &function);
+		let deploy_result = async {
+			let function =
+				extract_function(self.path.clone(), &self.constructor, FunctionType::Constructor)
+					.map_err(|e| deploy_error(e.to_string()))?;
+			if !function.args.is_empty() {
+				resolve_function_args(&function, &mut json_cli, &mut self.args, self.skip_confirm)
+					.map_err(|e| deploy_error(e.to_string()))?;
+			}
+			normalize_call_args(&mut self.args, &function);
 
-		if !self.execute {
-			terminate_nodes(&mut json_cli, processes, true)
+			if !self.execute {
+				return Err(deploy_error(
+					"`pop --json up` requires `--execute` to return contract deployment output",
+				));
+			}
+
+			let instantiate_exec = set_up_deployment(self.clone().into())
 				.await
 				.map_err(|e| deploy_error(e.to_string()))?;
-			return Err(deploy_error(
-				"`pop --json up` requires `--execute` to return contract deployment output",
-			));
+
+			let calculated_weight = dry_run_gas_estimate_instantiate(&instantiate_exec)
+				.await
+				.map_err(|e| deploy_error(e.to_string()))?;
+			let weight_limit =
+				if let (Some(gas_limit), Some(proof_size)) = (self.gas_limit, self.proof_size) {
+					Weight::from_parts(gas_limit, proof_size)
+				} else {
+					calculated_weight
+				};
+
+			let contract_info = instantiate_smart_contract(instantiate_exec, weight_limit)
+				.await
+				.map_err(|e| deploy_error(e.to_string()))?;
+
+			Ok(UpContractOutput {
+				contract_address: contract_info.address.to_string(),
+				url: url.to_string(),
+				code_hash: contract_info.code_hash,
+			})
 		}
+		.await;
 
-		let instantiate_exec = set_up_deployment(self.clone().into())
-			.await
-			.map_err(|e| deploy_error(e.to_string()))?;
+		let cleanup_result = if processes.is_some() {
+			terminate_nodes(&mut json_cli, processes.take(), true)
+				.await
+				.map_err(|e| deploy_error(e.to_string()))
+		} else {
+			Ok(())
+		};
 
-		let calculated_weight = dry_run_gas_estimate_instantiate(&instantiate_exec)
-			.await
-			.map_err(|e| deploy_error(e.to_string()))?;
-		let weight_limit =
-			if let (Some(gas_limit), Some(proof_size)) = (self.gas_limit, self.proof_size) {
-				Weight::from_parts(gas_limit, proof_size)
-			} else {
-				calculated_weight
-			};
-
-		let contract_info = instantiate_smart_contract(instantiate_exec, weight_limit)
-			.await
-			.map_err(|e| deploy_error(e.to_string()))?;
-
-		terminate_nodes(&mut json_cli, processes, true)
-			.await
-			.map_err(|e| deploy_error(e.to_string()))?;
-
-		Ok(UpContractOutput {
-			contract_address: contract_info.address.to_string(),
-			url: url.to_string(),
-			code_hash: contract_info.code_hash,
-		})
+		finalize_json_deploy_result(deploy_result, cleanup_result)
 	}
 
 	async fn keep_interacting_with_node(
@@ -730,6 +736,19 @@ impl UpContractCommand {
 			full_message.push_str(" --skip-build");
 		}
 		full_message
+	}
+}
+
+fn finalize_json_deploy_result<T>(
+	deploy_result: anyhow::Result<T>,
+	cleanup_result: anyhow::Result<()>,
+) -> anyhow::Result<T> {
+	match (deploy_result, cleanup_result) {
+		(Ok(output), Ok(())) => Ok(output),
+		(Ok(_), Err(cleanup_error)) => Err(cleanup_error),
+		(Err(deploy_error), Ok(())) => Err(deploy_error),
+		// Preserve the original deploy error when both deployment and cleanup fail.
+		(Err(deploy_error), Err(_cleanup_error)) => Err(deploy_error),
 	}
 }
 
@@ -1008,5 +1027,35 @@ mod tests {
 			.expect("default ports should resolve");
 		assert_eq!(ports.ink_node_port, DEFAULT_PORT);
 		assert_eq!(ports.eth_rpc_port, DEFAULT_ETH_RPC_PORT);
+	}
+
+	#[test]
+	fn finalize_json_deploy_result_returns_output_when_both_succeed() {
+		let output = finalize_json_deploy_result::<u32>(Ok(7), Ok(())).expect("expected success");
+		assert_eq!(output, 7);
+	}
+
+	#[test]
+	fn finalize_json_deploy_result_returns_cleanup_error_when_deploy_succeeds() {
+		let error = finalize_json_deploy_result::<u32>(Ok(7), Err(deploy_error("cleanup failed")))
+			.expect_err("expected cleanup failure");
+		assert_eq!(error.to_string(), "cleanup failed");
+	}
+
+	#[test]
+	fn finalize_json_deploy_result_returns_deploy_error_when_deploy_fails() {
+		let error = finalize_json_deploy_result::<u32>(Err(deploy_error("deploy failed")), Ok(()))
+			.expect_err("expected deploy failure");
+		assert_eq!(error.to_string(), "deploy failed");
+	}
+
+	#[test]
+	fn finalize_json_deploy_result_preserves_deploy_error_when_both_fail() {
+		let error = finalize_json_deploy_result::<u32>(
+			Err(deploy_error("deploy failed")),
+			Err(deploy_error("cleanup failed")),
+		)
+		.expect_err("expected deploy failure");
+		assert_eq!(error.to_string(), "deploy failed");
 	}
 }

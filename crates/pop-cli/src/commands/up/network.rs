@@ -3,7 +3,7 @@
 use super::{NetworkInfo, UpNetworkOutput};
 use crate::{
 	cli::{self, Spinner, traits::Confirm},
-	output::deploy_error,
+	output::{deploy_error, invalid_input_error},
 	style::{Theme, style},
 };
 use clap::{
@@ -32,6 +32,9 @@ use tokio::time::sleep;
 
 use jsonrpsee::{core::client::ClientT, rpc_params, ws_client::WsClientBuilder};
 use tokio::time::timeout;
+
+const PID_PARSE_WARNING: &str =
+	"Could not read process IDs from zombie.json. Continuing without PIDs in output.";
 
 /// Launch a local network by specifying a network configuration file.
 #[derive(Args, Clone, Default, Serialize)]
@@ -107,6 +110,11 @@ impl ConfigFileCommand {
 
 	/// Executes the command in JSON mode and returns structured network information.
 	pub(crate) async fn execute_json(&self) -> anyhow::Result<UpNetworkOutput> {
+		if self.command.is_some() {
+			return Err(invalid_input_error(
+				"`pop --json up network` does not support `--cmd` because it can pollute JSON output",
+			));
+		}
 		let mut cli = crate::cli::JsonCli;
 		let path = self.path.canonicalize().map_err(|e| deploy_error(e.to_string()))?;
 		cd_into_chain_base_dir(&path);
@@ -689,8 +697,7 @@ The network is running. Check endpoints manually if needed.",
 						},
 					}
 				}
-				let pids_by_node = read_node_pids_from_zombie_json(&zombie_json)
-					.map_err(|e| deploy_error(e.to_string()))?;
+				let pids_by_node = resolve_node_pids_for_output(json_mode, &zombie_json, cli)?;
 				let json_output = build_network_output(
 					&relay_chain_name,
 					relay_nodes,
@@ -878,6 +885,23 @@ fn read_node_pids_from_zombie_json(path: &Path) -> anyhow::Result<HashMap<String
 		pids.dedup();
 	}
 	Ok(pids_by_node)
+}
+
+fn resolve_node_pids_for_output(
+	json_mode: bool,
+	zombie_json: &Path,
+	cli: &mut impl cli::traits::Cli,
+) -> anyhow::Result<HashMap<String, Vec<u32>>> {
+	match read_node_pids_from_zombie_json(zombie_json) {
+		Ok(pids) => Ok(pids),
+		Err(e) => {
+			if json_mode {
+				return Err(deploy_error(e.to_string()));
+			}
+			cli.warning(PID_PARSE_WARNING)?;
+			Ok(HashMap::new())
+		},
+	}
 }
 
 fn collect_node_pid_entries(value: &Value, pids_by_node: &mut HashMap<String, Vec<u32>>) {
@@ -1151,6 +1175,10 @@ fn cd_into_chain_base_dir(network_file: &Path) {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::{
+		cli::MockCli,
+		output::{DeployCommandError, InvalidInputError},
+	};
 
 	use std::{env, fs};
 
@@ -1340,5 +1368,38 @@ cumulus-client-collator = "0.14"
 		assert_eq!(output.parachains[0].name, "asset-hub");
 		assert_eq!(output.parachains[0].urls, vec!["ws://127.0.0.1:9988"]);
 		assert_eq!(output.parachains[0].pids, vec![202, 303]);
+	}
+
+	#[tokio::test]
+	async fn execute_json_rejects_cmd_flag() {
+		let cmd =
+			ConfigFileCommand { command: Some("echo hello".to_string()), ..Default::default() };
+		let err = cmd.execute_json().await.expect_err("expected invalid input");
+		assert!(err.downcast_ref::<InvalidInputError>().is_some());
+	}
+
+	#[test]
+	fn resolve_node_pids_for_output_warns_and_continues_in_human_mode() -> anyhow::Result<()> {
+		let temp = tempfile::tempdir()?;
+		let zombie_json = temp.path().join("zombie.json");
+		std::fs::write(&zombie_json, "{invalid-json}")?;
+
+		let mut cli = MockCli::new().expect_warning(PID_PARSE_WARNING);
+		let pids = resolve_node_pids_for_output(false, &zombie_json, &mut cli)?;
+		assert!(pids.is_empty());
+		cli.verify()
+	}
+
+	#[test]
+	fn resolve_node_pids_for_output_fails_in_json_mode() -> anyhow::Result<()> {
+		let temp = tempfile::tempdir()?;
+		let zombie_json = temp.path().join("zombie.json");
+		std::fs::write(&zombie_json, "{invalid-json}")?;
+
+		let mut cli = MockCli::new();
+		let err =
+			resolve_node_pids_for_output(true, &zombie_json, &mut cli).expect_err("expected error");
+		assert!(err.downcast_ref::<DeployCommandError>().is_some());
+		Ok(())
 	}
 }

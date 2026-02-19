@@ -186,7 +186,6 @@ pub(crate) fn build_error_with_details(
 ) -> anyhow::Error {
 	BuildCommandError::new(message).with_details(details).into()
 }
-
 /// Error returned when deployment/launch fails while producing JSON output.
 #[derive(Debug)]
 pub(crate) struct DeployCommandError(pub String);

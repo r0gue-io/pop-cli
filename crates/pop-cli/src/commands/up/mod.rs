@@ -3,7 +3,7 @@
 use crate::{
 	cli::{self, Cli},
 	common::builds::ensure_project_path,
-	output::reject_unsupported_json,
+	output::{invalid_input_error, reject_unsupported_json},
 };
 use clap::{Args, Subcommand};
 #[cfg(feature = "chain")]
@@ -212,7 +212,9 @@ fn require_detach_for_json(command: &Command) -> anyhow::Result<()> {
 	if let Command::Network(cmd) = command &&
 		!cmd.detach
 	{
-		anyhow::bail!("`pop --json up network` requires `--detach` to provide a completion signal");
+		return Err(invalid_input_error(
+			"`pop --json up network` requires `--detach` to provide a completion signal",
+		));
 	}
 	Ok(())
 }
@@ -249,6 +251,8 @@ mod tests {
 	#[cfg(feature = "contract")]
 	use super::contract::UpContractCommand;
 	use super::*;
+	#[cfg(feature = "chain")]
+	use crate::output::InvalidInputError;
 	use cli::MockCli;
 	use duct::cmd;
 	#[cfg(feature = "chain")]
@@ -356,6 +360,7 @@ mod tests {
 			..Default::default()
 		});
 		let err = require_detach_for_json(&command).expect_err("expected detach requirement");
+		assert!(err.downcast_ref::<InvalidInputError>().is_some());
 		assert_eq!(
 			err.to_string(),
 			"`pop --json up network` requires `--detach` to provide a completion signal"
