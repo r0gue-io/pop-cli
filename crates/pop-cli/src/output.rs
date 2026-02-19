@@ -117,6 +117,88 @@ pub(crate) fn reject_unsupported_json(command_name: &str) -> anyhow::Result<()> 
 	Err(UnsupportedJsonError(command_name.to_string()).into())
 }
 
+/// Error returned when command inputs are invalid.
+#[derive(Debug)]
+pub(crate) struct InvalidInputError(pub String);
+
+impl std::fmt::Display for InvalidInputError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.0)
+	}
+}
+
+impl std::error::Error for InvalidInputError {}
+
+/// Returns an invalid-input error that maps to `INVALID_INPUT` in the JSON envelope.
+#[allow(dead_code)]
+pub(crate) fn invalid_input_error(message: impl Into<String>) -> anyhow::Error {
+	InvalidInputError(message.into()).into()
+}
+
+/// Message used when `--json` mode cannot satisfy an interactive prompt.
+pub(crate) const JSON_PROMPT_ERR: &str = "interactive prompt required but --json mode is active";
+
+/// Error returned when a command in `--json` mode requires an interactive prompt.
+#[derive(Debug)]
+pub(crate) struct PromptRequiredError;
+
+impl std::fmt::Display for PromptRequiredError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", JSON_PROMPT_ERR)
+	}
+}
+
+impl std::error::Error for PromptRequiredError {}
+
+/// Builds an I/O error carrying a typed prompt-required cause.
+#[allow(dead_code)]
+pub(crate) fn prompt_required_io_error() -> std::io::Error {
+	std::io::Error::other(PromptRequiredError)
+}
+
+/// Error returned when a build/test command fails while producing JSON output.
+#[derive(Debug)]
+pub(crate) struct BuildCommandError {
+	message: String,
+	details: Option<String>,
+}
+
+impl BuildCommandError {
+	pub(crate) fn new(message: impl Into<String>) -> Self {
+		Self { message: message.into(), details: None }
+	}
+
+	pub(crate) fn with_details(mut self, details: impl Into<String>) -> Self {
+		self.details = Some(details.into());
+		self
+	}
+
+	pub(crate) fn details(&self) -> Option<&str> {
+		self.details.as_deref()
+	}
+}
+
+impl std::fmt::Display for BuildCommandError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.message)
+	}
+}
+
+impl std::error::Error for BuildCommandError {}
+
+/// Returns a build/test error that maps to `BUILD_ERROR` in the JSON envelope.
+pub(crate) fn build_error(message: impl Into<String>) -> anyhow::Error {
+	BuildCommandError::new(message).into()
+}
+
+/// Returns a build/test error with details that maps to `BUILD_ERROR` in the JSON envelope.
+pub(crate) fn build_error_with_details(
+	message: impl Into<String>,
+	details: impl Into<String>,
+) -> anyhow::Error {
+	BuildCommandError::new(message).with_details(details).into()
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;

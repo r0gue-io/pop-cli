@@ -2,11 +2,13 @@
 
 use crate::{
 	cli::{self, traits::Input},
+	commands::test::RuntimeTestOutput,
 	common::{
 		prompt::display_message,
 		try_runtime::{ArgumentConstructor, check_try_runtime_and_prompt, collect_args},
 		urls,
 	},
+	output::{OutputMode, build_error_with_details},
 };
 use clap::Args;
 use console::style;
@@ -37,7 +39,11 @@ pub(crate) struct TestCreateSnapshotCommand {
 
 impl TestCreateSnapshotCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	pub(crate) async fn execute(
+		&mut self,
+		cli: &mut impl cli::traits::Cli,
+		output_mode: OutputMode,
+	) -> anyhow::Result<RuntimeTestOutput> {
 		cli.intro("Creating a snapshot file")?;
 		cli.warning(
 			"NOTE: `create-snapshot` only works with the remote node. No runtime required.",
@@ -74,7 +80,11 @@ impl TestCreateSnapshotCommand {
 		// Display the `create-snapshot` command.
 		cli.info(self.display())?;
 		if let Err(e) = result {
-			return display_message(&e.to_string(), false, cli);
+			if output_mode == OutputMode::Json {
+				return Err(build_error_with_details("Failed to create snapshot", e.to_string()));
+			}
+			display_message(&e.to_string(), false, cli)?;
+			return Ok(RuntimeTestOutput::success("create-snapshot", self.snapshot_path.clone()));
 		}
 		display_message(
 			&format!(
@@ -90,7 +100,7 @@ impl TestCreateSnapshotCommand {
 			true,
 			cli,
 		)?;
-		Ok(())
+		Ok(RuntimeTestOutput::success("create-snapshot", self.snapshot_path.clone()))
 	}
 
 	async fn run(&self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
@@ -177,6 +187,18 @@ mod tests {
 			error.contains("Connection refused") || error.contains("UnsupportedHttpVersion"),
 			"Unexpected error: {error}"
 		);
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn create_snapshot_requires_flags_in_json_mode() -> anyhow::Result<()> {
+		let mut command = TestCreateSnapshotCommand::default();
+		let error = command
+			.execute(&mut crate::cli::JsonCli, OutputMode::Json)
+			.await
+			.unwrap_err()
+			.to_string();
+		assert!(error.contains("interactive prompt required but --json mode is active"));
 		Ok(())
 	}
 

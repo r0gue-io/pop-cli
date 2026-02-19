@@ -466,16 +466,13 @@ impl traits::Cli for JsonCli {
 }
 
 #[allow(dead_code)]
-const JSON_PROMPT_ERR: &str = "interactive prompt required but --json mode is active";
-
-#[allow(dead_code)]
 struct JsonConfirm;
 impl traits::Confirm for JsonConfirm {
 	fn initial_value(self, _initial_value: bool) -> Self {
 		self
 	}
 	fn interact(&mut self) -> Result<bool> {
-		Err(std::io::Error::other(JSON_PROMPT_ERR))
+		Err(crate::output::prompt_required_io_error())
 	}
 }
 
@@ -486,7 +483,7 @@ impl traits::Input for JsonInput {
 		self
 	}
 	fn interact(&mut self) -> Result<String> {
-		Err(std::io::Error::other(JSON_PROMPT_ERR))
+		Err(crate::output::prompt_required_io_error())
 	}
 	fn placeholder(self, _value: &str) -> Self {
 		self
@@ -506,7 +503,7 @@ impl traits::Input for JsonInput {
 struct JsonMultiSelect<T>(std::marker::PhantomData<T>);
 impl<T: Clone + Eq> traits::MultiSelect<T> for JsonMultiSelect<T> {
 	fn interact(&mut self) -> Result<Vec<T>> {
-		Err(std::io::Error::other(JSON_PROMPT_ERR))
+		Err(crate::output::prompt_required_io_error())
 	}
 	fn item(self, _value: T, _label: impl Display, _hint: impl Display) -> Self {
 		self
@@ -523,7 +520,7 @@ impl<T: Clone + Eq> traits::MultiSelect<T> for JsonMultiSelect<T> {
 struct JsonPassword;
 impl traits::Password for JsonPassword {
 	fn interact(&mut self) -> Result<String> {
-		Err(std::io::Error::other(JSON_PROMPT_ERR))
+		Err(crate::output::prompt_required_io_error())
 	}
 }
 
@@ -534,7 +531,7 @@ impl<T: Clone + Eq> traits::Select<T> for JsonSelect<T> {
 		self
 	}
 	fn interact(&mut self) -> Result<T> {
-		Err(std::io::Error::other(JSON_PROMPT_ERR))
+		Err(crate::output::prompt_required_io_error())
 	}
 	fn item(self, _value: T, _label: impl Display, _hint: impl Display) -> Self {
 		self

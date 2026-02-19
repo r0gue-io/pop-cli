@@ -2,6 +2,7 @@
 
 use crate::{
 	cli,
+	commands::test::RuntimeTestOutput,
 	common::{
 		prompt::display_message,
 		try_runtime::{
@@ -10,6 +11,7 @@ use crate::{
 			update_live_state, update_runtime_source,
 		},
 	},
+	output::{OutputMode, build_error_with_details, invalid_input_error},
 };
 use clap::Args;
 use pop_chains::{
@@ -51,15 +53,20 @@ pub(crate) struct TestExecuteBlockCommand {
 }
 
 impl TestExecuteBlockCommand {
-	pub(crate) async fn execute(&mut self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
-		self.execute_block(cli, std::env::args().skip(3).collect()).await
+	pub(crate) async fn execute(
+		&mut self,
+		cli: &mut impl cli::traits::Cli,
+		output_mode: OutputMode,
+	) -> anyhow::Result<RuntimeTestOutput> {
+		self.execute_block(cli, std::env::args().skip(3).collect(), output_mode).await
 	}
 
 	async fn execute_block(
 		&mut self,
 		cli: &mut impl cli::traits::Cli,
 		user_provided_args: Vec<String>,
-	) -> anyhow::Result<()> {
+		output_mode: OutputMode,
+	) -> anyhow::Result<RuntimeTestOutput> {
 		cli.intro("Testing block execution")?;
 		if let Err(e) = update_runtime_source(
 			cli,
@@ -71,12 +78,20 @@ impl TestExecuteBlockCommand {
 		)
 		.await
 		{
-			return display_message(&e.to_string(), false, cli);
+			if output_mode == OutputMode::Json {
+				return Err(invalid_input_error(e.to_string()));
+			}
+			display_message(&e.to_string(), false, cli)?;
+			return Ok(RuntimeTestOutput::success("execute-block", None));
 		}
 
 		// Prompt the update the live state.
 		if let Err(e) = update_live_state(cli, &mut self.state, &mut None) {
-			return display_message(&e.to_string(), false, cli);
+			if output_mode == OutputMode::Json {
+				return Err(invalid_input_error(e.to_string()));
+			}
+			display_message(&e.to_string(), false, cli)?;
+			return Ok(RuntimeTestOutput::success("execute-block", None));
 		};
 
 		// Prompt the user to select the try state if no `--try-state` argument is provided.
@@ -95,9 +110,17 @@ impl TestExecuteBlockCommand {
 		// Display the `execute-block` command.
 		cli.info(self.display(user_provided_args)?)?;
 		if let Err(e) = result {
-			return display_message(&e.to_string(), false, cli);
+			if output_mode == OutputMode::Json {
+				return Err(build_error_with_details(
+					"Failed to execute block tests",
+					e.to_string(),
+				));
+			}
+			display_message(&e.to_string(), false, cli)?;
+			return Ok(RuntimeTestOutput::success("execute-block", None));
 		}
-		display_message("Block executed successfully!", true, cli)
+		display_message("Block executed successfully!", true, cli)?;
+		Ok(RuntimeTestOutput::success("execute-block", None))
 	}
 
 	async fn run(
@@ -248,8 +271,20 @@ mod tests {
 			);
 		let mut command = TestExecuteBlockCommand::default();
 		command.build_params.no_build = true;
-		command.execute(&mut cli).await?;
+		command.execute(&mut cli, OutputMode::Human).await?;
 		cli.verify()
+	}
+
+	#[tokio::test]
+	async fn execute_block_requires_flags_in_json_mode() -> anyhow::Result<()> {
+		let mut command = TestExecuteBlockCommand::default();
+		let error = command
+			.execute(&mut crate::cli::JsonCli, OutputMode::Json)
+			.await
+			.unwrap_err()
+			.to_string();
+		assert!(error.contains("interactive prompt required but --json mode is active"));
+		Ok(())
 	}
 
 	#[tokio::test]
