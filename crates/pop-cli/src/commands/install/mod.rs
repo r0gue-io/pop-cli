@@ -523,7 +523,7 @@ pub(crate) async fn run_external_script(script_url: &str, args: &[&str]) -> anyh
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::cli::MockCli;
+	use crate::{cli::MockCli, output::PromptRequiredError};
 	use std::io::Write;
 
 	#[tokio::test]
@@ -691,5 +691,13 @@ mod tests {
 			}
 		}
 		assert_eq!(found, Some(Type::Redhat));
+	}
+
+	#[tokio::test]
+	async fn json_mode_requires_skip_confirm() {
+		let args = InstallArgs { skip_confirm: false, frontend: false };
+		let err = Command.execute(&args, OutputMode::Json).await.unwrap_err();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+		assert!(err.to_string().contains("-y/--skip-confirm is required with --json"));
 	}
 }

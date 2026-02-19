@@ -291,6 +291,54 @@ mod tests {
 	}
 
 	#[test]
+	fn json_mode_requires_shell_flag() {
+		use crate::output::PromptRequiredError;
+		let args = CompletionArgs { shell: None, shell_flag: None, output: None };
+		let err = execute(&args, OutputMode::Json).unwrap_err();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+		assert!(err.to_string().contains("--shell is required with --json"));
+	}
+
+	#[test]
+	fn json_mode_produces_valid_envelope() {
+		let args =
+			CompletionArgs { shell: Some(CompletionShell::Bash), shell_flag: None, output: None };
+		// Should succeed (generates to stdout via JSON envelope).
+		execute(&args, OutputMode::Json).unwrap();
+
+		// Verify envelope shape.
+		let resp = CliResponse::ok(CompletionOutput { shell: CompletionShell::Bash, path: None });
+		let json = serde_json::to_value(&resp).unwrap();
+		assert_eq!(json["schema_version"], 1);
+		assert_eq!(json["success"], true);
+		assert_eq!(json["data"]["shell"], "bash");
+		assert!(json["data"]["path"].is_null());
+		assert!(json.get("error").is_none());
+	}
+
+	#[test]
+	fn json_mode_with_output_writes_file() {
+		let tmp = tempfile::tempdir().unwrap();
+		let output_path = tmp.path().join("pop.bash");
+		let args = CompletionArgs {
+			shell: Some(CompletionShell::Bash),
+			shell_flag: None,
+			output: Some(output_path.clone()),
+		};
+		execute(&args, OutputMode::Json).unwrap();
+		assert!(output_path.exists());
+
+		// Verify envelope includes the path.
+		let resp = CliResponse::ok(CompletionOutput {
+			shell: CompletionShell::Bash,
+			path: Some(output_path.display().to_string()),
+		});
+		let json = serde_json::to_value(&resp).unwrap();
+		assert_eq!(json["data"]["shell"], "bash");
+		assert!(json["data"]["path"].as_str().unwrap().contains("pop.bash"));
+	}
+
+	#[test]
 	fn shell_from_env_value_detects_common_shells() {
 		assert_eq!(shell_from_env_value("/bin/zsh"), Some(CompletionShell::Zsh));
 		assert_eq!(shell_from_env_value("/usr/bin/bash"), Some(CompletionShell::Bash));

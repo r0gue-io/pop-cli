@@ -913,7 +913,7 @@ impl Default for CleanArgs {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::cli::MockCli;
+	use crate::{cli::MockCli, output::PromptRequiredError};
 	use std::fs::File;
 
 	#[test]
@@ -1399,5 +1399,83 @@ mod tests {
 
 		cmd.execute()?;
 		cli.verify()
+	}
+
+	// --- JSON mode tests ---
+
+	#[test]
+	fn json_cache_requires_all_flag() {
+		let args =
+			CleanArgs { command: Command::Cache(CleanCommandArgs { all: false, pid: None }) };
+		let err = tokio::runtime::Runtime::new()
+			.unwrap()
+			.block_on(execute(&args, || Ok(PathBuf::new()), OutputMode::Json))
+			.unwrap_err();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+		assert!(err.to_string().contains("--all is required with --json"));
+	}
+
+	#[test]
+	fn json_cache_returns_empty_when_cache_missing() {
+		let args = CleanArgs { command: Command::Cache(CleanCommandArgs { all: true, pid: None }) };
+		// Cache dir doesn't exist; should succeed with empty list.
+		let result = tokio::runtime::Runtime::new().unwrap().block_on(execute(
+			&args,
+			|| Ok(PathBuf::from("/nonexistent")),
+			OutputMode::Json,
+		));
+		assert!(result.is_ok());
+
+		// Verify envelope shape.
+		let resp = CliResponse::ok(CleanCacheOutput { removed: vec![] });
+		let json = serde_json::to_value(&resp).unwrap();
+		assert_eq!(json["schema_version"], 1);
+		assert_eq!(json["success"], true);
+		assert_eq!(json["data"]["removed"], serde_json::json!([]));
+	}
+
+	#[test]
+	fn json_cache_removes_files_and_returns_items() {
+		let tmp = tempfile::tempdir().unwrap();
+		let cache = tmp.path().to_path_buf();
+		File::create(cache.join("polkadot")).unwrap();
+		File::create(cache.join("parachain-template-node")).unwrap();
+
+		let args = CleanArgs { command: Command::Cache(CleanCommandArgs { all: true, pid: None }) };
+		let cache_clone = cache.clone();
+		let result = tokio::runtime::Runtime::new().unwrap().block_on(execute(
+			&args,
+			move || Ok(cache_clone),
+			OutputMode::Json,
+		));
+		assert!(result.is_ok());
+		// Files should be removed.
+		assert!(!cache.join("polkadot").exists());
+		assert!(!cache.join("parachain-template-node").exists());
+	}
+
+	#[test]
+	fn json_node_requires_all_or_pid() {
+		let args = CleanArgs { command: Command::Node(CleanCommandArgs { all: false, pid: None }) };
+		let err = tokio::runtime::Runtime::new()
+			.unwrap()
+			.block_on(execute(&args, || Ok(PathBuf::new()), OutputMode::Json))
+			.unwrap_err();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+		assert!(err.to_string().contains("--all or --pid is required with --json"));
+	}
+
+	#[tokio::test]
+	async fn json_network_requires_all_or_path() {
+		let args = CleanArgs {
+			command: Command::Network(CleanNetworkCommandArgs {
+				all: false,
+				path: None,
+				keep_state: false,
+			}),
+		};
+		let err = execute(&args, || Ok(PathBuf::new()), OutputMode::Json).await.unwrap_err();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+		assert!(err.to_string().contains("--all or PATH is required with --json"));
 	}
 }

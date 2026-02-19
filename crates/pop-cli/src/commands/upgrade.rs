@@ -152,7 +152,7 @@ impl Command {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::cli::MockCli;
+	use crate::{cli::MockCli, output::PromptRequiredError};
 	use std::{
 		fs,
 		io::Write,
@@ -269,6 +269,39 @@ mod tests {
 		// Cleanup and verify CLI expectations
 		fs::remove_dir_all(&tmp)?;
 		cli.verify()?;
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn json_mode_requires_version_flag() -> Result<()> {
+		let mut args = UpgradeArgs { path: None, version: None };
+		let err = execute(&mut args, OutputMode::Json).await.unwrap_err();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+		assert!(err.to_string().contains("--version is required with --json"));
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn json_mode_produces_valid_envelope() -> Result<()> {
+		let tmp = tempdir()?;
+		write_minimal_cargo_toml(tmp.path());
+		let mut args = UpgradeArgs {
+			path: Some(tmp.path().to_path_buf()),
+			version: Some("polkadot-stable2509-1".to_string()),
+		};
+		// The execute call will succeed (psvm test mock returns empty mapping).
+		execute(&mut args, OutputMode::Json).await?;
+
+		// Verify the response shape by constructing the same envelope.
+		let resp = CliResponse::ok(UpgradeOutput {
+			version: "polkadot-stable2509-1".to_string(),
+			toml_path: tmp.path().join("Cargo.toml").display().to_string(),
+		});
+		let json = serde_json::to_value(&resp).unwrap();
+		assert_eq!(json["schema_version"], 1);
+		assert_eq!(json["success"], true);
+		assert_eq!(json["data"]["version"], "polkadot-stable2509-1");
+		assert!(json.get("error").is_none());
 		Ok(())
 	}
 

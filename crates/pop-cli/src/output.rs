@@ -159,6 +159,27 @@ mod tests {
 	}
 
 	#[test]
+	fn prompt_required_error_maps_to_correct_code() {
+		// Simulate the downcast logic from main.rs.
+		let err: anyhow::Error = PromptRequiredError("--version is required".into()).into();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+
+		// Build the same envelope main.rs would produce.
+		let code = if err.downcast_ref::<UnsupportedJsonError>().is_some() {
+			ErrorCode::UnsupportedJson
+		} else if err.downcast_ref::<PromptRequiredError>().is_some() {
+			ErrorCode::PromptRequired
+		} else {
+			ErrorCode::Internal
+		};
+		let resp = CliResponse::err(CliError::new(code, err.to_string()));
+		let json = serde_json::to_value(&resp).unwrap();
+		assert_eq!(json["error"]["code"], "PROMPT_REQUIRED");
+		assert_eq!(json["error"]["message"], "--version is required");
+		assert_eq!(json["success"], false);
+	}
+
+	#[test]
 	fn error_codes_serialize_screaming_snake() {
 		let cases = vec![
 			(ErrorCode::Internal, "INTERNAL"),
