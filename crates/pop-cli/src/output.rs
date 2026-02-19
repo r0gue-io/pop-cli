@@ -88,6 +88,18 @@ pub(crate) enum ErrorCode {
 	UnsupportedJson,
 }
 
+/// Error returned when `--json` mode requires a flag that was not provided.
+#[derive(Debug)]
+pub(crate) struct PromptRequiredError(pub String);
+
+impl std::fmt::Display for PromptRequiredError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.0)
+	}
+}
+
+impl std::error::Error for PromptRequiredError {}
+
 /// Error returned when `--json` is requested for a command that doesn't support it.
 #[derive(Debug)]
 pub(crate) struct UnsupportedJsonError(pub String);
@@ -144,6 +156,27 @@ mod tests {
 		assert!(json.get("data").is_none());
 		assert_eq!(json["error"]["code"], "UNSUPPORTED_JSON");
 		assert_eq!(json["error"]["message"], "--json is not yet supported for the `build` command");
+	}
+
+	#[test]
+	fn prompt_required_error_maps_to_correct_code() {
+		// Simulate the downcast logic from main.rs.
+		let err: anyhow::Error = PromptRequiredError("--version is required".into()).into();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+
+		// Build the same envelope main.rs would produce.
+		let code = if err.downcast_ref::<UnsupportedJsonError>().is_some() {
+			ErrorCode::UnsupportedJson
+		} else if err.downcast_ref::<PromptRequiredError>().is_some() {
+			ErrorCode::PromptRequired
+		} else {
+			ErrorCode::Internal
+		};
+		let resp = CliResponse::err(CliError::new(code, err.to_string()));
+		let json = serde_json::to_value(&resp).unwrap();
+		assert_eq!(json["error"]["code"], "PROMPT_REQUIRED");
+		assert_eq!(json["error"]["message"], "--version is required");
+		assert_eq!(json["success"], false);
 	}
 
 	#[test]

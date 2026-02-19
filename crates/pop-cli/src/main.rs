@@ -5,7 +5,9 @@
 use anyhow::{Result, anyhow};
 use clap::Parser;
 use commands::*;
-use output::{CliError, CliResponse, ErrorCode, OutputMode, UnsupportedJsonError};
+use output::{
+	CliError, CliResponse, ErrorCode, OutputMode, PromptRequiredError, UnsupportedJsonError,
+};
 #[cfg(feature = "telemetry")]
 use pop_telemetry::{Telemetry, config_file_path, record_cli_command, record_cli_used};
 use std::{
@@ -71,6 +73,8 @@ async fn main() -> Result<()> {
 			if output_mode == OutputMode::Json {
 				let code = if e.downcast_ref::<UnsupportedJsonError>().is_some() {
 					ErrorCode::UnsupportedJson
+				} else if e.downcast_ref::<PromptRequiredError>().is_some() {
+					ErrorCode::PromptRequired
 				} else {
 					ErrorCode::Internal
 				};

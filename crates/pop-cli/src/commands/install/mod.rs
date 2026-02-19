@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::{
-	self, Cli,
-	traits::{Cli as _, *},
+use crate::{
+	cli::{self, Cli, traits::*},
+	output::{CliResponse, OutputMode, PromptRequiredError},
 };
 use Dependencies::*;
 use anyhow::Context;
@@ -72,17 +72,49 @@ pub(crate) struct InstallArgs {
 	frontend: bool,
 }
 
+/// Structured output for JSON mode.
+#[derive(Serialize)]
+struct InstallOutput {
+	os: String,
+}
+
 /// Setup user environment for development.
 pub(crate) struct Command;
 
 impl Command {
 	/// Executes the command.
-	pub(crate) async fn execute(self, args: &InstallArgs) -> anyhow::Result<()> {
-		let mut cli = Cli;
+	pub(crate) async fn execute(
+		self,
+		args: &InstallArgs,
+		output_mode: OutputMode,
+	) -> anyhow::Result<()> {
+		match output_mode {
+			OutputMode::Human => self.execute_inner(args, &mut Cli).await,
+			OutputMode::Json => {
+				if !args.skip_confirm {
+					return Err(PromptRequiredError(
+						"-y/--skip-confirm is required with --json".into(),
+					)
+					.into());
+				}
+				let mut cli = crate::cli::JsonCli;
+				self.execute_inner(args, &mut cli).await?;
+				let os = detect_os_label();
+				CliResponse::ok(InstallOutput { os }).print_json();
+				Ok(())
+			},
+		}
+	}
+
+	async fn execute_inner(
+		self,
+		args: &InstallArgs,
+		cli: &mut impl cli::traits::Cli,
+	) -> anyhow::Result<()> {
 		cli.intro("Install dependencies for development")?;
 		if cfg!(target_os = "macos") {
 			cli.info("ℹ️ Mac OS (Darwin) detected.")?;
-			install_mac(args.skip_confirm, &mut cli).await?;
+			install_mac(args.skip_confirm, cli).await?;
 		} else if cfg!(target_os = "linux") {
 			let os_type = os_info::get().os_type();
 			let distro_type = match os_type {
@@ -93,32 +125,55 @@ impl Command {
 			match distro_type {
 				Some(Type::Arch) => {
 					cli.info("ℹ️ Arch Linux (or compatible) detected.")?;
-					install_arch(args.skip_confirm, args.frontend, &mut cli).await?;
+					install_arch(args.skip_confirm, args.frontend, cli).await?;
 				},
 				Some(Type::Debian) => {
 					cli.info("ℹ️ Debian Linux (or compatible) detected.")?;
-					install_debian(args.skip_confirm, args.frontend, &mut cli).await?;
+					install_debian(args.skip_confirm, args.frontend, cli).await?;
 				},
 				Some(Type::Redhat) => {
 					cli.info("ℹ️ Redhat Linux (or compatible) detected.")?;
-					install_redhat(args.skip_confirm, &mut cli).await?;
+					install_redhat(args.skip_confirm, cli).await?;
 				},
 				Some(Type::Ubuntu) => {
 					cli.info("ℹ️ Ubuntu (or compatible) detected.")?;
-					install_ubuntu(args.skip_confirm, args.frontend, &mut cli).await?;
+					install_ubuntu(args.skip_confirm, args.frontend, cli).await?;
 				},
-				_ => not_supported_message(&mut cli)?,
+				_ => not_supported_message(cli)?,
 			}
 		} else {
-			return not_supported_message(&mut cli);
+			return not_supported_message(cli);
 		};
-		install_rustup(&mut cli).await?;
+		install_rustup(cli).await?;
 
 		if args.frontend {
-			frontend::install_frontend_dependencies(args.skip_confirm, &mut cli).await?;
+			frontend::install_frontend_dependencies(args.skip_confirm, cli).await?;
 		}
 		cli.outro("✅ Installation complete.")?;
 		Ok(())
+	}
+}
+
+fn detect_os_label() -> String {
+	if cfg!(target_os = "macos") {
+		"macos".into()
+	} else if cfg!(target_os = "linux") {
+		let os_type = os_info::get().os_type();
+		match os_type {
+			Type::Arch => "arch".into(),
+			Type::Debian => "debian".into(),
+			Type::Redhat => "redhat".into(),
+			Type::Ubuntu => "ubuntu".into(),
+			_ => match get_compatible_distro() {
+				Some(Type::Arch) => "arch".into(),
+				Some(Type::Debian) => "debian".into(),
+				Some(Type::Redhat) => "redhat".into(),
+				Some(Type::Ubuntu) => "ubuntu".into(),
+				_ => "unsupported".into(),
+			},
+		}
+	} else {
+		"unsupported".into()
 	}
 }
 
@@ -468,7 +523,7 @@ pub(crate) async fn run_external_script(script_url: &str, args: &[&str]) -> anyh
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::cli::MockCli;
+	use crate::{cli::MockCli, output::PromptRequiredError};
 	use std::io::Write;
 
 	#[tokio::test]
@@ -636,5 +691,13 @@ mod tests {
 			}
 		}
 		assert_eq!(found, Some(Type::Redhat));
+	}
+
+	#[tokio::test]
+	async fn json_mode_requires_skip_confirm() {
+		let args = InstallArgs { skip_confirm: false, frontend: false };
+		let err = Command.execute(&args, OutputMode::Json).await.unwrap_err();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+		assert!(err.to_string().contains("-y/--skip-confirm is required with --json"));
 	}
 }

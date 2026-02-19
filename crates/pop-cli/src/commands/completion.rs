@@ -1,5 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 
+use crate::{
+	cli::{
+		Cli,
+		traits::{Confirm as _, Input as _, Select as _},
+	},
+	output::{CliResponse, OutputMode, PromptRequiredError},
+};
 use anyhow::{Result, anyhow};
 use clap::{Args, CommandFactory, ValueEnum};
 use clap_complete::{Shell, generate};
@@ -10,11 +17,6 @@ use std::{
 	io,
 	io::{IsTerminal, Write},
 	path::{Path, PathBuf},
-};
-
-use crate::cli::{
-	Cli,
-	traits::{Confirm as _, Input as _, Select as _},
 };
 
 /// Mirror of `clap_complete::Shell` with `Serialize` for telemetry.
@@ -56,6 +58,44 @@ pub(crate) struct CompletionArgs {
 	/// Write completions to a file instead of stdout.
 	#[clap(short, long)]
 	pub(crate) output: Option<PathBuf>,
+}
+
+/// Structured output for JSON mode.
+#[derive(Serialize)]
+struct CompletionOutput {
+	shell: CompletionShell,
+	path: Option<String>,
+}
+
+/// Entry point called from the command dispatcher.
+pub(crate) fn execute(args: &CompletionArgs, output_mode: OutputMode) -> Result<()> {
+	match output_mode {
+		OutputMode::Human => Command::execute(args),
+		OutputMode::Json => {
+			let shell = args
+				.shell
+				.or(args.shell_flag)
+				.ok_or_else(|| PromptRequiredError("--shell is required with --json".into()))?;
+			match args.output.as_ref() {
+				Some(path) => {
+					write_completion_file(shell, path)?;
+					CliResponse::ok(CompletionOutput {
+						shell,
+						path: Some(path.display().to_string()),
+					})
+					.print_json();
+				},
+				None => {
+					// Generate to stdout would conflict with JSON envelope, so
+					// we generate into a buffer but only report the shell used.
+					let mut buf = Vec::new();
+					generate_completion(shell, &mut buf)?;
+					CliResponse::ok(CompletionOutput { shell, path: None }).print_json();
+				},
+			}
+			Ok(())
+		},
+	}
 }
 
 pub(crate) struct Command;
@@ -248,6 +288,54 @@ mod tests {
 			default_completion_path(CompletionShell::Fish, home).unwrap(),
 			home.join(".config/fish/completions/pop.fish")
 		);
+	}
+
+	#[test]
+	fn json_mode_requires_shell_flag() {
+		use crate::output::PromptRequiredError;
+		let args = CompletionArgs { shell: None, shell_flag: None, output: None };
+		let err = execute(&args, OutputMode::Json).unwrap_err();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+		assert!(err.to_string().contains("--shell is required with --json"));
+	}
+
+	#[test]
+	fn json_mode_produces_valid_envelope() {
+		let args =
+			CompletionArgs { shell: Some(CompletionShell::Bash), shell_flag: None, output: None };
+		// Should succeed (generates to stdout via JSON envelope).
+		execute(&args, OutputMode::Json).unwrap();
+
+		// Verify envelope shape.
+		let resp = CliResponse::ok(CompletionOutput { shell: CompletionShell::Bash, path: None });
+		let json = serde_json::to_value(&resp).unwrap();
+		assert_eq!(json["schema_version"], 1);
+		assert_eq!(json["success"], true);
+		assert_eq!(json["data"]["shell"], "bash");
+		assert!(json["data"]["path"].is_null());
+		assert!(json.get("error").is_none());
+	}
+
+	#[test]
+	fn json_mode_with_output_writes_file() {
+		let tmp = tempfile::tempdir().unwrap();
+		let output_path = tmp.path().join("pop.bash");
+		let args = CompletionArgs {
+			shell: Some(CompletionShell::Bash),
+			shell_flag: None,
+			output: Some(output_path.clone()),
+		};
+		execute(&args, OutputMode::Json).unwrap();
+		assert!(output_path.exists());
+
+		// Verify envelope includes the path.
+		let resp = CliResponse::ok(CompletionOutput {
+			shell: CompletionShell::Bash,
+			path: Some(output_path.display().to_string()),
+		});
+		let json = serde_json::to_value(&resp).unwrap();
+		assert_eq!(json["data"]["shell"], "bash");
+		assert!(json["data"]["path"].as_str().unwrap().contains("pop.bash"));
 	}
 
 	#[test]

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
 #[cfg(any(feature = "chain", feature = "contract"))]
+use crate::cli::Cli;
+#[cfg(any(feature = "chain", feature = "contract"))]
 use crate::cli::traits::Cli as _;
 use crate::{
 	cache,
-	cli::Cli,
 	output::{OutputMode, reject_unsupported_json},
 };
 #[cfg(any(feature = "chain", feature = "contract"))]
@@ -115,11 +116,17 @@ impl Command {
 	/// Returns `true` when this command can produce JSON output.
 	fn supports_json(&self) -> bool {
 		match self {
-			Self::Hash(_) | Self::Convert(_) => true,
+			Self::Hash(_) |
+			Self::Convert(_) |
+			Self::Clean(_) |
+			Self::Completion(_) |
+			Self::Upgrade(_) => true,
 			#[cfg(feature = "contract")]
 			Self::Verify(_) => true,
 			#[cfg(feature = "chain")]
 			Self::Fork(_) => true,
+			#[cfg(any(feature = "chain", feature = "contract"))]
+			Self::Install(_) => true,
 			#[cfg(feature = "chain")]
 			Self::Bench(_) => true,
 			_ => false,
@@ -135,7 +142,7 @@ impl Command {
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::Install(args) => {
 				env_logger::init();
-				install::Command.execute(args).await
+				install::Command.execute(args, output_mode).await
 			},
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::New(args) => {
@@ -263,7 +270,7 @@ impl Command {
 			},
 			Self::Upgrade(args) => {
 				env_logger::init();
-				upgrade::Command::execute(args, &mut Cli).await
+				upgrade::execute(args, output_mode).await
 			},
 			Self::Test(args) => {
 				env_logger::init();
@@ -294,39 +301,13 @@ impl Command {
 			},
 			Self::Clean(args) => {
 				env_logger::init();
-				match &args.command {
-					clean::Command::Cache(cmd_args) => clean::CleanCacheCommand {
-						cli: &mut Cli,
-						cache: cache()?,
-						all: cmd_args.all,
-					}
-					.execute(),
-					clean::Command::Node(cmd_args) => clean::CleanNodesCommand {
-						cli: &mut Cli,
-						all: cmd_args.all,
-						pid: cmd_args.pid.clone(),
-						#[cfg(test)]
-						list_nodes: None,
-						#[cfg(test)]
-						kill_fn: None,
-					}
-					.execute(),
-					clean::Command::Network(cmd_args) =>
-						clean::CleanNetworkCommand {
-							cli: &mut Cli,
-							all: cmd_args.all,
-							path: cmd_args.path.clone(),
-							keep_state: cmd_args.keep_state,
-						}
-						.execute()
-						.await,
-				}
+				clean::execute(args, cache, output_mode).await
 			},
 			Command::Convert(args) => {
 				env_logger::init();
 				convert::execute(&args.command, output_mode)
 			},
-			Command::Completion(args) => completion::Command::execute(args),
+			Command::Completion(args) => completion::execute(args, output_mode),
 			#[cfg(feature = "contract")]
 			Self::Verify(verify) =>
 				if output_mode == OutputMode::Json {
