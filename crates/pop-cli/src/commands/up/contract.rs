@@ -513,6 +513,11 @@ impl UpContractCommand {
 				"`pop --json up` does not support `--upload-only`; deployment must instantiate a contract",
 			));
 		}
+		if !self.execute {
+			return Err(deploy_error(
+				"`pop --json up` requires `--execute` to return contract deployment output",
+			));
+		}
 
 		let contract_already_built = has_contract_been_built(&self.path);
 		if !self.skip_build || !contract_already_built {
@@ -563,12 +568,6 @@ impl UpContractCommand {
 					.map_err(|e| deploy_error(e.to_string()))?;
 			}
 			normalize_call_args(&mut self.args, &function);
-
-			if !self.execute {
-				return Err(deploy_error(
-					"`pop --json up` requires `--execute` to return contract deployment output",
-				));
-			}
 
 			let instantiate_exec = set_up_deployment(self.clone().into())
 				.await
@@ -1057,5 +1056,20 @@ mod tests {
 		)
 		.expect_err("expected deploy failure");
 		assert_eq!(error.to_string(), "deploy failed");
+	}
+
+	#[tokio::test]
+	async fn execute_json_requires_execute_before_setup_work() {
+		let mut cmd = UpContractCommand {
+			path: PathBuf::from("__non_existent_contract_path_for_execute_json_test__"),
+			execute: false,
+			..Default::default()
+		};
+
+		let error = cmd.execute_json().await.expect_err("expected missing execute error");
+		assert_eq!(
+			error.to_string(),
+			"`pop --json up` requires `--execute` to return contract deployment output",
+		);
 	}
 }
