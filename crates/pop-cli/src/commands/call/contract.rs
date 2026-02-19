@@ -20,9 +20,10 @@ use clap::Args;
 use pop_common::{DefaultConfig, Keypair, parse_h160_account};
 use pop_contracts::{
 	CallExec, CallOpts, ContractCallable, ContractFunction, ContractStorage, DefaultEnvironment,
-	Verbosity, Weight, call_smart_contract, call_smart_contract_from_signed_payload,
-	dry_run_gas_estimate_call, fetch_contract_storage_with_param, get_call_payload,
-	get_contract_storage_info, get_messages, set_up_call,
+	Verbosity, Weight, call_smart_contract,
+	call_smart_contract_from_signed_payload, dry_run_gas_estimate_call,
+	fetch_contract_storage_with_param, get_call_payload, get_contract_storage_info, get_messages,
+	set_up_call,
 };
 use serde::Serialize;
 use std::path::PathBuf;
@@ -233,9 +234,9 @@ impl CallContractCommand {
 			execute: self.execute,
 		})
 		.await
-		.map_err(map_contract_json_error)?;
+		.map_err(map_contract_json_setup_error)?;
 
-		let dry_run = call_exec.call_dry_run().await.map_err(map_contract_json_error)?;
+		let dry_run = call_exec.call_dry_run().await.map_err(map_contract_json_network_error)?;
 		let return_value = match &dry_run.result {
 			Ok(ret_val) => call_exec
 				.transcoder()
@@ -264,7 +265,7 @@ impl CallContractCommand {
 			let events = call_exec
 				.call(Some(weight_limit), call_exec.opts().storage_deposit_limit())
 				.await
-				.map_err(map_contract_json_error)?;
+				.map_err(map_contract_json_call_error)?;
 			let tx_hash = format!("{:?}", events.extrinsic_hash());
 			let decoded_events = events
 				.iter()
@@ -748,8 +749,23 @@ impl CallContractCommand {
 	}
 }
 
-fn map_contract_json_error(err: impl std::fmt::Display) -> anyhow::Error {
+/// Maps `set_up_call` errors (local validation, ABI/metadata loading) to `INVALID_INPUT`.
+/// Input flags are already validated before this point, so failures here are typically
+/// local setup issues (bad contract path, malformed metadata, address parsing).
+fn map_contract_json_setup_error(err: impl std::fmt::Display) -> anyhow::Error {
+	invalid_input_error(err.to_string())
+}
+
+/// Maps RPC/dry-run errors to `NETWORK_ERROR`.
+fn map_contract_json_network_error(err: impl std::fmt::Display) -> anyhow::Error {
 	network_error(err.to_string())
+}
+
+/// Maps on-chain execution errors to `INTERNAL`. These are contract-level or runtime
+/// failures (reverts, dispatch errors), not transport issues, since the connection was
+/// already established during setup/dry-run.
+fn map_contract_json_call_error(err: impl std::fmt::Display) -> anyhow::Error {
+	anyhow::anyhow!("{err}")
 }
 
 #[cfg(test)]

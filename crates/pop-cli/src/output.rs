@@ -88,18 +88,6 @@ pub(crate) enum ErrorCode {
 	UnsupportedJson,
 }
 
-/// Error returned when `--json` mode requires a flag that was not provided.
-#[derive(Debug)]
-pub(crate) struct PromptRequiredError(pub String);
-
-impl std::fmt::Display for PromptRequiredError {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.0)
-	}
-}
-
-impl std::error::Error for PromptRequiredError {}
-
 /// Error returned when `--json` is requested for a command that doesn't support it.
 #[derive(Debug)]
 pub(crate) struct UnsupportedJsonError(pub String);
@@ -133,6 +121,18 @@ impl std::error::Error for InvalidInputError {}
 pub(crate) fn invalid_input_error(message: impl Into<String>) -> anyhow::Error {
 	InvalidInputError(message.into()).into()
 }
+
+/// Error returned when `--json` mode requires a flag that was not provided.
+#[derive(Debug)]
+pub(crate) struct PromptRequiredError(pub String);
+
+impl std::fmt::Display for PromptRequiredError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.0)
+	}
+}
+
+impl std::error::Error for PromptRequiredError {}
 
 /// Message used when `--json` mode cannot satisfy an interactive prompt.
 pub(crate) const JSON_PROMPT_ERR: &str = "interactive prompt required but --json mode is active";

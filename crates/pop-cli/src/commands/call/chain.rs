@@ -432,7 +432,7 @@ impl CallChainCommand {
 		let result = if self.execute {
 			let submit_output = sign_and_submit_extrinsic(&chain.client, &chain.url, xt, &suri)
 				.await
-				.map_err(map_chain_network_error)?;
+				.map_err(map_chain_submit_error)?;
 			let (tx_hash, events) = parse_chain_submit_output(&submit_output);
 			CallChainResult::Submitted { tx_hash, block_hash: None, events }
 		} else {
@@ -1159,6 +1159,13 @@ fn parse_pallet_name(name: &str) -> Result<String, String> {
 
 fn map_chain_network_error(err: impl std::fmt::Display) -> anyhow::Error {
 	network_error(err.to_string())
+}
+
+/// Maps extrinsic submission errors to `INTERNAL`. By this point, the RPC connection is
+/// already established (metadata was fetched). Failures here are typically runtime
+/// validation or dispatch errors, not transport issues.
+fn map_chain_submit_error(err: impl std::fmt::Display) -> anyhow::Error {
+	anyhow::anyhow!("{err}")
 }
 
 fn parse_chain_submit_output(output: &str) -> (String, Vec<String>) {
