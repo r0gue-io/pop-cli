@@ -138,22 +138,10 @@ pub(crate) fn invalid_input_error(message: impl Into<String>) -> anyhow::Error {
 /// Message used when `--json` mode cannot satisfy an interactive prompt.
 pub(crate) const JSON_PROMPT_ERR: &str = "interactive prompt required but --json mode is active";
 
-/// Error returned when a command in `--json` mode requires an interactive prompt.
-#[derive(Debug)]
-pub(crate) struct PromptRequiredError;
-
-impl std::fmt::Display for PromptRequiredError {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", JSON_PROMPT_ERR)
-	}
-}
-
-impl std::error::Error for PromptRequiredError {}
-
 /// Builds an I/O error carrying a typed prompt-required cause.
 #[allow(dead_code)]
 pub(crate) fn prompt_required_io_error() -> std::io::Error {
-	std::io::Error::other(PromptRequiredError)
+	std::io::Error::other(PromptRequiredError(JSON_PROMPT_ERR.to_string()))
 }
 
 /// Error returned when a build/test command fails while producing JSON output.
