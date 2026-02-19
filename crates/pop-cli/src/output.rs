@@ -199,6 +199,7 @@ impl std::fmt::Display for DeployCommandError {
 impl std::error::Error for DeployCommandError {}
 
 /// Returns a deployment error that maps to `DEPLOY_ERROR` in the JSON envelope.
+#[allow(dead_code)]
 pub(crate) fn deploy_error(message: impl Into<String>) -> anyhow::Error {
 	DeployCommandError(message.into()).into()
 }
