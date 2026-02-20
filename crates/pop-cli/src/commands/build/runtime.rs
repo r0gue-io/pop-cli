@@ -40,10 +40,27 @@ impl BuildRuntime {
 				cli,
 			);
 		}
-		self.build(cli).await
+		self.build(cli, false).await.map(|_| ())
 	}
 
-	async fn build(self, cli: &mut impl cli::traits::Cli) -> anyhow::Result<()> {
+	/// Executes the build process in JSON mode and returns the built artifact path.
+	pub(crate) async fn execute_json(self) -> anyhow::Result<PathBuf> {
+		let mut json_cli = crate::cli::JsonCli;
+		let is_parachain = pop_chains::is_supported(&self.path);
+		let is_runtime = pop_chains::runtime::is_supported(&self.path);
+		if !is_parachain && !is_runtime {
+			return Err(anyhow::anyhow!(
+				"Can't build a runtime. Must be at the root of the chain project or a runtime."
+			));
+		}
+		self.build(&mut json_cli, true).await
+	}
+
+	async fn build(
+		self,
+		cli: &mut impl cli::traits::Cli,
+		redirect_output_to_stderr: bool,
+	) -> anyhow::Result<PathBuf> {
 		// Enable the features based on the user's input.
 		let mut features = HashSet::new();
 		self.features.iter().for_each(|f| {
@@ -73,7 +90,7 @@ impl BuildRuntime {
 			.profile
 			.target_directory(&workspace_root.unwrap_or(self.path.to_path_buf()))
 			.join("wbuild");
-		build_runtime(
+		let (binary_path, _) = build_runtime(
 			cli,
 			&self.path,
 			&target_path,
@@ -81,9 +98,10 @@ impl BuildRuntime {
 			&features,
 			self.deterministic,
 			self.tag,
+			redirect_output_to_stderr,
 		)
 		.await?;
-		Ok(())
+		Ok(binary_path)
 	}
 }
 
@@ -178,7 +196,7 @@ mod tests {
 			features: raw_features,
 			tag: None,
 		}
-		.build(&mut cli)
+		.build(&mut cli, false)
 		.await?;
 		cli.verify()
 	}

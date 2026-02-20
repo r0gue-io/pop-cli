@@ -121,7 +121,8 @@ impl Command {
 			Self::Test(_) |
 			Self::Clean(_) |
 			Self::Completion(_) |
-			Self::Upgrade(_) => true,
+			Self::Upgrade(_) |
+			Self::Build(_) => true,
 			#[cfg(feature = "contract")]
 			Self::Verify(_) => true,
 			#[cfg(feature = "chain")]
@@ -130,6 +131,7 @@ impl Command {
 			Self::Install(_) => true,
 			#[cfg(feature = "chain")]
 			Self::Bench(_) => true,
+			#[cfg(any(feature = "chain", feature = "contract"))]
 			_ => false,
 		}
 	}
@@ -216,17 +218,7 @@ impl Command {
 			},
 			Self::Build(args) => {
 				env_logger::init();
-				#[cfg(feature = "chain")]
-				match &args.command {
-					None => build::Command::execute(args).await,
-					Some(cmd) => match cmd {
-						#[cfg(feature = "chain")]
-						build::Command::Spec(cmd) => cmd.execute().await,
-					},
-				}
-
-				#[cfg(not(feature = "chain"))]
-				build::Command::execute(args).await
+				build::execute(args, output_mode).await
 			},
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::Call(args) => {
@@ -611,6 +603,7 @@ mod tests {
 
 	#[test]
 	fn fork_and_verify_support_json() {
+		assert!(Command::Build(Default::default()).supports_json());
 		assert!(Command::Fork(Default::default()).supports_json());
 		assert!(
 			Command::Verify(verify::VerifyCommand {
