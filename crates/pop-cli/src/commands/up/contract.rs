@@ -520,12 +520,11 @@ impl UpContractCommand {
 		}
 
 		let contract_already_built = has_contract_been_built(&self.path);
-		if !self.skip_build || !contract_already_built {
-			if let Err(e) =
+		if (!self.skip_build || !contract_already_built) &&
+			let Err(e) =
 				build_contract_artifacts(&mut json_cli, &self.path, true, Verbosity::Quiet, None)
-			{
-				return Err(deploy_error(e.to_string()));
-			}
+		{
+			return Err(deploy_error(e.to_string()));
 		}
 
 		resolve_signer(self.skip_confirm, &mut self.use_wallet, &mut self.suri, &mut json_cli)
