@@ -219,6 +219,20 @@ impl CallContractCommand {
 		}
 		normalize_call_args(&mut self.args, &message);
 
+		// Validate --execute preconditions before any I/O so JSON clients get
+		// deterministic PROMPT_REQUIRED / INVALID_INPUT errors regardless of
+		// network state.
+		if self.execute {
+			if !message.mutates {
+				return Err(invalid_input_error("`--execute` requires a mutating contract message"));
+			}
+			if self.suri.is_none() {
+				return Err(prompt_required_error(
+					"`pop --json call contract --execute` requires `--suri`",
+				));
+			}
+		}
+
 		let suri = self.suri.clone().unwrap_or_else(|| DEFAULT_URI.to_string());
 		let call_exec = set_up_call(CallOpts {
 			path: project_path,
@@ -246,15 +260,6 @@ impl CallContractCommand {
 		};
 
 		let result = if self.execute {
-			if !message.mutates {
-				return Err(invalid_input_error("`--execute` requires a mutating contract message"));
-			}
-			if self.suri.is_none() {
-				return Err(prompt_required_error(
-					"`pop --json call contract --execute` requires `--suri`",
-				));
-			}
-
 			let weight_limit =
 				if let (Some(gas_limit), Some(proof_size)) = (self.gas_limit, self.proof_size) {
 					Weight::from_parts(gas_limit, proof_size)
@@ -748,11 +753,11 @@ impl CallContractCommand {
 	}
 }
 
-/// Maps `set_up_call` errors (local validation, ABI/metadata loading) to `INVALID_INPUT`.
-/// Input flags are already validated before this point, so failures here are typically
-/// local setup issues (bad contract path, malformed metadata, address parsing).
+/// Maps `set_up_call` errors to `INTERNAL`. This function performs both local
+/// validation and RPC operations (connecting, fetching token metadata), so we
+/// cannot reliably distinguish network failures from input errors here.
 fn map_contract_json_setup_error(err: impl std::fmt::Display) -> anyhow::Error {
-	invalid_input_error(err.to_string())
+	anyhow::anyhow!("{err}")
 }
 
 /// Maps RPC/dry-run errors to `NETWORK_ERROR`.
