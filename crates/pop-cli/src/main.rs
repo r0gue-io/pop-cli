@@ -113,7 +113,6 @@ fn is_prompt_required_error(error: &anyhow::Error) -> bool {
 	})
 }
 
-
 /// An all-in-one tool for Polkadot development.
 #[derive(Parser)]
 #[command(author, version, about, styles=style::get_styles())]

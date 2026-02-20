@@ -118,6 +118,7 @@ impl std::fmt::Display for InvalidInputError {
 impl std::error::Error for InvalidInputError {}
 
 /// Returns an invalid-input error that maps to `INVALID_INPUT` in the JSON envelope.
+#[allow(dead_code)]
 pub(crate) fn invalid_input_error(message: impl Into<String>) -> anyhow::Error {
 	InvalidInputError(message.into()).into()
 }
@@ -144,6 +145,7 @@ pub(crate) fn prompt_required_io_error() -> std::io::Error {
 }
 
 /// Returns a prompt-required error that maps to `PROMPT_REQUIRED` in the JSON envelope.
+#[allow(dead_code)]
 pub(crate) fn prompt_required_error(message: impl Into<String>) -> anyhow::Error {
 	PromptRequiredError(message.into()).into()
 }
@@ -221,6 +223,7 @@ impl std::fmt::Display for NetworkError {
 impl std::error::Error for NetworkError {}
 
 /// Returns a network error that maps to `NETWORK_ERROR` in the JSON envelope.
+#[allow(dead_code)]
 pub(crate) fn network_error(message: impl Into<String>) -> anyhow::Error {
 	NetworkError(message.into()).into()
 }

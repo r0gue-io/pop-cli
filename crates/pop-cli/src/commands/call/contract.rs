@@ -20,10 +20,9 @@ use clap::Args;
 use pop_common::{DefaultConfig, Keypair, parse_h160_account};
 use pop_contracts::{
 	CallExec, CallOpts, ContractCallable, ContractFunction, ContractStorage, DefaultEnvironment,
-	Verbosity, Weight, call_smart_contract,
-	call_smart_contract_from_signed_payload, dry_run_gas_estimate_call,
-	fetch_contract_storage_with_param, get_call_payload, get_contract_storage_info, get_messages,
-	set_up_call,
+	Verbosity, Weight, call_smart_contract, call_smart_contract_from_signed_payload,
+	dry_run_gas_estimate_call, fetch_contract_storage_with_param, get_call_payload,
+	get_contract_storage_info, get_messages, set_up_call,
 };
 use serde::Serialize;
 use std::path::PathBuf;
