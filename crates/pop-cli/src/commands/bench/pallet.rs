@@ -488,7 +488,18 @@ impl BenchmarkPallet {
 		let omni_bencher_binary = check_omni_bencher_and_prompt(cli, &spinner, true).await?;
 		spinner.clear();
 
-		let raw_results = self.run_json(cli, omni_bencher_binary.as_path())?;
+		let raw_results = if self.list {
+			// List mode: omni-bencher outputs CSV-style text, not JSON.
+			let raw_output = generate_omni_bencher_benchmarks(
+				omni_bencher_binary.as_path(),
+				BenchmarkingCliCommand::Pallet,
+				self.collect_run_arguments(),
+				false,
+			)?;
+			Some(Self::parse_list_output(&raw_output)?)
+		} else {
+			self.run_json(cli, omni_bencher_binary.as_path())?
+		};
 		let output = self.build_json_output(raw_results)?;
 		CliResponse::ok(output).print_json();
 		Ok(())
@@ -517,6 +528,9 @@ impl BenchmarkPallet {
 	}
 
 	fn validate_json_mode_list_requirements(&self) -> anyhow::Result<()> {
+		if self.json_output {
+			anyhow::bail!("--raw-json cannot be used with --list");
+		}
 		if self.runtime.is_none() {
 			return Err(PromptRequiredError("--runtime is required with --json".into()).into());
 		}
@@ -733,6 +747,26 @@ impl BenchmarkPallet {
 		let value = serde_json::from_str(output)
 			.map_err(|e| anyhow::anyhow!("Failed to parse raw benchmark JSON output: {e}"))?;
 		Ok(Some(value))
+	}
+
+	fn parse_list_output(output: &str) -> anyhow::Result<JsonValue> {
+		let results: Vec<JsonValue> = output
+			.lines()
+			.filter_map(|line| {
+				let line = line.trim();
+				if line.is_empty() || line.starts_with("Pallet") {
+					return None;
+				}
+				let mut parts = line.splitn(2, ',');
+				let pallet = parts.next()?.trim();
+				let extrinsic = parts.next()?.trim();
+				Some(serde_json::json!({
+					"pallet": pallet,
+					"extrinsic": extrinsic,
+				}))
+			})
+			.collect();
+		Ok(serde_json::json!(results))
 	}
 
 	fn display(&self) -> String {
@@ -1711,6 +1745,16 @@ mod tests {
 			.validate_json_mode_requirements()
 			.is_ok()
 		);
+
+		let err = BenchmarkPallet {
+			list: true,
+			json_output: true,
+			runtime: Some(get_mock_runtime(Some(Benchmark))),
+			..Default::default()
+		}
+		.validate_json_mode_requirements();
+		assert!(err.is_err());
+		assert!(err.unwrap_err().to_string().contains("--raw-json cannot be used with --list"));
 	}
 
 	#[test]
@@ -1726,6 +1770,29 @@ mod tests {
 
 		let command = BenchmarkPallet::default();
 		assert_eq!(command.parse_raw_results("not json".to_string())?, None);
+		Ok(())
+	}
+
+	#[test]
+	fn parse_list_output_works() -> anyhow::Result<()> {
+		let csv =
+			"Pallet, Extrinsic\npallet_balances, transfer_allow_death\npallet_timestamp, set\n";
+		let result = BenchmarkPallet::parse_list_output(csv)?;
+		assert_eq!(
+			result,
+			serde_json::json!([
+				{"pallet": "pallet_balances", "extrinsic": "transfer_allow_death"},
+				{"pallet": "pallet_timestamp", "extrinsic": "set"},
+			])
+		);
+
+		// Empty output.
+		let result = BenchmarkPallet::parse_list_output("")?;
+		assert_eq!(result, serde_json::json!([]));
+
+		// Header only.
+		let result = BenchmarkPallet::parse_list_output("Pallet, Extrinsic\n")?;
+		assert_eq!(result, serde_json::json!([]));
 		Ok(())
 	}
 
@@ -1748,17 +1815,20 @@ mod tests {
 		assert_eq!(output.weight_output_path, Some(output_path.display().to_string()));
 		assert_eq!(output.raw_results, raw_results);
 
+		let list_data = Some(serde_json::json!([
+			{"pallet": "pallet_balances", "extrinsic": "transfer_allow_death"},
+		]));
 		let list_output = BenchmarkPallet {
 			list: true,
 			runtime_binary: Some(runtime.clone()),
 			..Default::default()
 		}
-		.build_json_output(None)?;
+		.build_json_output(list_data.clone())?;
 		assert!(list_output.pallets.is_empty());
 		assert_eq!(list_output.extrinsic, ARGUMENT_NO_VALUE.to_string());
 		assert_eq!(list_output.runtime, runtime.display().to_string());
 		assert_eq!(list_output.weight_output_path, None);
-		assert_eq!(list_output.raw_results, None);
+		assert_eq!(list_output.raw_results, list_data);
 		Ok(())
 	}
 
