@@ -18,7 +18,7 @@ documentation = "https://learn.onpop.io/"
 license = "GPL-3.0"
 repository = "https://github.com/r0gue-io/pop-cli"
 rust-version = "1.93"
-version = "0.13.0"
+version = "0.14.0"
 
 [workspace.dependencies]
 anyhow = { version = "1.0", default-features = false }

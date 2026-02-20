@@ -9350,7 +9350,7 @@ dependencies = [
 
 [[package]]
 name = "pop-chains"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "anyhow",
  "askama",
@@ -9393,7 +9393,7 @@ dependencies = [
 
 [[package]]
 name = "pop-cli"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -9443,7 +9443,7 @@ dependencies = [
 
 [[package]]
 name = "pop-common"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -9483,7 +9483,7 @@ dependencies = [
 
 [[package]]
 name = "pop-contracts"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "anyhow",
  "cargo_toml 0.20.5",
@@ -9522,7 +9522,7 @@ dependencies = [
 
 [[package]]
 name = "pop-fork"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "async-trait",
  "bb8",
@@ -9556,7 +9556,7 @@ dependencies = [
 
 [[package]]
 name = "pop-telemetry"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "dirs",
  "env_logger",

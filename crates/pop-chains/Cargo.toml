@@ -54,7 +54,7 @@ sc-cli.workspace = true
 sp-version.workspace = true
 
 # Pop
-pop-common = { path = "../pop-common", version = "0.13.0" }
+pop-common = { path = "../pop-common", version = "0.14.0" }
 
 [dev-dependencies]
 # Used in doc tests.
