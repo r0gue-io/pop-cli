@@ -12,6 +12,7 @@ Run `pop --help` for getting an overview.
 ## Global Rules
 
 - Run plain `pop` commands only, one command per step.
+- Never use `cargo-contract` under any conditions. Use `pop` for all contract workflows.
 - Never chain commands or use shell wrappers/operators (`&&`, `;`, `|`, command substitution, scripts/functions).
 - Exception: env expansion is allowed only for signer secret on `--suri` (example: `--suri "$PRIVATE_KEY"`).
 - Prefer explicit flags over prompts (`--path`, `--url`, `--args`, `--skip-confirm` where supported).
