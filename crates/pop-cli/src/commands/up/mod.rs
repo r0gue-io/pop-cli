@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#[cfg(feature = "chain")]
+use crate::output::invalid_input_error;
 use crate::{
 	cli::{self, Cli},
 	common::builds::ensure_project_path,
 	output::reject_unsupported_json,
 };
-#[cfg(feature = "chain")]
-use crate::output::invalid_input_error;
 use clap::{Args, Subcommand};
 #[cfg(feature = "chain")]
 use pop_chains::up::Relay;
@@ -44,6 +44,7 @@ pub(crate) enum UpJsonOutput {
 }
 
 /// JSON output for contract deployment.
+#[cfg(feature = "contract")]
 #[derive(Clone, Debug, Serialize)]
 pub(crate) struct UpContractOutput {
 	pub(crate) contract_address: String,

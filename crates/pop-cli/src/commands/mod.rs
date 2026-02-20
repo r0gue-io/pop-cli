@@ -4,11 +4,9 @@
 use crate::cli::Cli;
 #[cfg(any(feature = "chain", feature = "contract"))]
 use crate::cli::traits::Cli as _;
-#[cfg(any(feature = "chain", feature = "contract"))]
-use crate::output::CliResponse;
 use crate::{
 	cache,
-	output::{OutputMode, reject_unsupported_json},
+	output::{CliResponse, OutputMode, reject_unsupported_json},
 };
 #[cfg(any(feature = "chain", feature = "contract"))]
 use pop_common::templates::Template;
@@ -237,6 +235,11 @@ impl Command {
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::Up(args) => {
 				env_logger::init();
+				if output_mode == OutputMode::Json {
+					let output = up::execute_json(args).await?;
+					CliResponse::ok(output).print_json();
+					return Ok(());
+				}
 				match &mut args.command {
 					None => up::Command::execute(args).await,
 					Some(cmd) => match cmd {
