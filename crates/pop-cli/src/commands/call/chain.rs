@@ -10,6 +10,7 @@ use crate::{
 		urls,
 		wallet::{self, prompt_to_use_wallet},
 	},
+	output::{invalid_input_error, network_error, prompt_required_error},
 };
 use anyhow::{Result, anyhow};
 use clap::Args;
@@ -19,6 +20,7 @@ use pop_chains::{
 	encode_call_data, find_callable_by_name, find_pallet_by_name, raw_value_to_string,
 	render_storage_key_values, sign_and_submit_extrinsic, supported_actions, type_to_param,
 };
+use pop_common::create_signer;
 use scale_info::PortableRegistry;
 use scale_value::{Composite, Value, ValueDef};
 use serde::Serialize;
@@ -146,6 +148,23 @@ pub struct CallChainCommand {
 		conflicts_with_all = ["function", "args", "suri", "use-wallet", "call", "sudo", "execute"]
 	)]
 	metadata: bool,
+}
+
+/// Structured output for `pop --json call chain`.
+#[derive(Debug, Serialize)]
+pub(crate) struct CallChainOutput {
+	pallet: String,
+	function: String,
+	call_data: String,
+	result: CallChainResult,
+}
+
+/// Result details for a chain call.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case", tag = "kind")]
+pub(crate) enum CallChainResult {
+	DryRun { return_value: String },
+	Submitted { tx_hash: String, block_hash: Option<String>, events: Vec<String> },
 }
 
 impl CallChainCommand {
@@ -314,6 +333,126 @@ impl CallChainCommand {
 		tokio::task::yield_now().await;
 
 		Ok(())
+	}
+
+	/// Executes `call chain` in JSON mode and returns structured output.
+	pub(crate) async fn execute_json(self) -> Result<CallChainOutput> {
+		if self.metadata {
+			return Err(invalid_input_error(
+				"`pop --json call chain` does not support `--metadata`",
+			));
+		}
+		if self.use_wallet {
+			return Err(invalid_input_error(
+				"`pop --json call chain` does not support `--use-wallet`; provide `--suri`",
+			));
+		}
+		if self.call_data.is_some() {
+			return Err(invalid_input_error(
+				"`pop --json call chain` does not support `--call`; provide --pallet/--function/--args",
+			));
+		}
+
+		let mut missing = Vec::new();
+		if self.url.is_none() {
+			missing.push("--url");
+		}
+		if self.pallet.is_none() {
+			missing.push("--pallet");
+		}
+		if self.function.is_none() {
+			missing.push("--function");
+		}
+		if self.suri.is_none() {
+			missing.push("--suri");
+		}
+		if !missing.is_empty() {
+			return Err(prompt_required_error(format!(
+				"Missing required flags for `pop --json call chain`: {}",
+				missing.join(", ")
+			)));
+		}
+
+		let mut json_cli = crate::cli::JsonCli;
+		let chain = chain::configure(
+			"Select a chain (type to filter)",
+			"Which chain would you like to interact with?",
+			urls::LOCAL,
+			&self.url,
+			|_| true,
+			&mut json_cli,
+		)
+		.await
+		.map_err(map_chain_network_error)?;
+
+		let pallet_name = self.pallet.as_ref().expect("checked above; qed");
+		let function_name = self.function.as_ref().expect("checked above; qed");
+		let call_item = find_callable_by_name(&chain.pallets, pallet_name, function_name)
+			.map_err(|e| invalid_input_error(e.to_string()))?;
+		let function = call_item.as_function().ok_or_else(|| {
+			invalid_input_error(
+				"`pop --json call chain` currently supports dispatchable functions only",
+			)
+		})?;
+
+		let expanded_args = self.expand_file_arguments()?;
+		if expanded_args.len() < function.params.len() {
+			return Err(prompt_required_error(format!(
+				"Missing required `--args` values for `{}`: expected {}, got {}",
+				function.name,
+				function.params.len(),
+				expanded_args.len()
+			)));
+		}
+		if expanded_args.len() > function.params.len() {
+			return Err(invalid_input_error(format!(
+				"Expected {} arguments for `{}`, but received {}.",
+				function.params.len(),
+				function.name,
+				expanded_args.len()
+			)));
+		}
+
+		let call = Call {
+			function: call_item.clone(),
+			args: expanded_args,
+			suri: self.suri.clone(),
+			use_wallet: false,
+			skip_confirm: true,
+			execute: self.execute,
+			sudo: self.sudo,
+		};
+		let xt = call
+			.prepare_extrinsic(&chain.client, &mut json_cli)
+			.map_err(|e| invalid_input_error(e.to_string()))?;
+		let call_data =
+			encode_call_data(&chain.client, &xt).map_err(|e| invalid_input_error(e.to_string()))?;
+		let suri = self.suri.expect("checked above; qed");
+
+		let result = if self.execute {
+			let submit_output = sign_and_submit_extrinsic(&chain.client, &chain.url, xt, &suri)
+				.await
+				.map_err(map_chain_submit_error)?;
+			let (tx_hash, events) = parse_chain_submit_output(&submit_output);
+			CallChainResult::Submitted { tx_hash, block_hash: None, events }
+		} else {
+			let signer = create_signer(&suri).map_err(|e| invalid_input_error(e.to_string()))?;
+			let tx = chain
+				.client
+				.tx()
+				.create_signed(&xt, &signer, Default::default())
+				.await
+				.map_err(map_chain_network_error)?;
+			let validation = tx.validate().await.map_err(map_chain_network_error)?;
+			CallChainResult::DryRun { return_value: format!("{validation:?}") }
+		};
+
+		Ok(CallChainOutput {
+			pallet: function.pallet.clone(),
+			function: function.name.clone(),
+			call_data,
+			result,
+		})
 	}
 
 	// Configure the call based on command line arguments/call UI.
@@ -1016,6 +1155,32 @@ fn parse_pallet_name(name: &str) -> Result<String, String> {
 		Some(c) => Ok(c.to_ascii_uppercase().to_string() + chars.as_str()),
 		None => Err("Pallet cannot be empty".to_string()),
 	}
+}
+
+fn map_chain_network_error(err: impl std::fmt::Display) -> anyhow::Error {
+	network_error(err.to_string())
+}
+
+/// Maps extrinsic submission errors to `INTERNAL`. By this point, the RPC connection is
+/// already established (metadata was fetched). Failures here are typically runtime
+/// validation or dispatch errors, not transport issues.
+fn map_chain_submit_error(err: impl std::fmt::Display) -> anyhow::Error {
+	anyhow::anyhow!("{err}")
+}
+
+fn parse_chain_submit_output(output: &str) -> (String, Vec<String>) {
+	let mut lines = output.lines();
+	let tx_hash = lines
+		.next()
+		.and_then(|line| line.split_once("hash:").map(|(_, hash)| hash.trim().to_string()))
+		.filter(|hash| !hash.is_empty())
+		.unwrap_or_else(|| "unknown".to_string());
+	let events = lines
+		.map(str::trim)
+		.filter(|line| !line.is_empty())
+		.map(ToOwned::to_owned)
+		.collect();
+	(tx_hash, events)
 }
 
 #[cfg(test)]
@@ -1808,5 +1973,21 @@ mod tests {
 		assert_eq!(suri, DEFAULT_URI);
 		cli.verify()?;
 		Ok(())
+	}
+
+	#[test]
+	fn parse_chain_submit_output_works() {
+		let output =
+			"Extrinsic Submitted with hash: 0x1234\n\nSystem.ExtrinsicSuccess\nBalances.Transfer";
+		let (tx_hash, events) = parse_chain_submit_output(output);
+		assert_eq!(tx_hash, "0x1234");
+		assert_eq!(events, vec!["System.ExtrinsicSuccess", "Balances.Transfer"]);
+	}
+
+	#[tokio::test]
+	async fn execute_json_requires_required_flags() {
+		let cmd = CallChainCommand::default();
+		let err = cmd.execute_json().await.expect_err("expected prompt required error");
+		assert!(err.downcast_ref::<crate::output::PromptRequiredError>().is_some());
 	}
 }

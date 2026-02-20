@@ -88,18 +88,6 @@ pub(crate) enum ErrorCode {
 	UnsupportedJson,
 }
 
-/// Error returned when `--json` mode requires a flag that was not provided.
-#[derive(Debug)]
-pub(crate) struct PromptRequiredError(pub String);
-
-impl std::fmt::Display for PromptRequiredError {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}", self.0)
-	}
-}
-
-impl std::error::Error for PromptRequiredError {}
-
 /// Error returned when `--json` is requested for a command that doesn't support it.
 #[derive(Debug)]
 pub(crate) struct UnsupportedJsonError(pub String);
@@ -135,6 +123,18 @@ pub(crate) fn invalid_input_error(message: impl Into<String>) -> anyhow::Error {
 	InvalidInputError(message.into()).into()
 }
 
+/// Error returned when `--json` mode requires a flag that was not provided.
+#[derive(Debug)]
+pub(crate) struct PromptRequiredError(pub String);
+
+impl std::fmt::Display for PromptRequiredError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.0)
+	}
+}
+
+impl std::error::Error for PromptRequiredError {}
+
 /// Message used when `--json` mode cannot satisfy an interactive prompt.
 pub(crate) const JSON_PROMPT_ERR: &str = "interactive prompt required but --json mode is active";
 
@@ -142,6 +142,12 @@ pub(crate) const JSON_PROMPT_ERR: &str = "interactive prompt required but --json
 #[allow(dead_code)]
 pub(crate) fn prompt_required_io_error() -> std::io::Error {
 	std::io::Error::other(PromptRequiredError(JSON_PROMPT_ERR.to_string()))
+}
+
+/// Returns a prompt-required error that maps to `PROMPT_REQUIRED` in the JSON envelope.
+#[allow(dead_code)]
+pub(crate) fn prompt_required_error(message: impl Into<String>) -> anyhow::Error {
+	PromptRequiredError(message.into()).into()
 }
 
 /// Error returned when a build/test command fails while producing JSON output.
@@ -202,6 +208,24 @@ impl std::error::Error for DeployCommandError {}
 #[allow(dead_code)]
 pub(crate) fn deploy_error(message: impl Into<String>) -> anyhow::Error {
 	DeployCommandError(message.into()).into()
+}
+
+/// Error returned when command execution fails due to network/RPC issues.
+#[derive(Debug)]
+pub(crate) struct NetworkError(pub String);
+
+impl std::fmt::Display for NetworkError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.0)
+	}
+}
+
+impl std::error::Error for NetworkError {}
+
+/// Returns a network error that maps to `NETWORK_ERROR` in the JSON envelope.
+#[allow(dead_code)]
+pub(crate) fn network_error(message: impl Into<String>) -> anyhow::Error {
+	NetworkError(message.into()).into()
 }
 
 #[cfg(test)]

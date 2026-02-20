@@ -30,6 +30,16 @@ pub(crate) enum Command {
 	Contract(contract::CallContractCommand),
 }
 
+/// Structured JSON output for `pop --json call ...`.
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case", tag = "target")]
+pub(crate) enum CallJsonOutput {
+	#[cfg(feature = "chain")]
+	Chain(chain::CallChainOutput),
+	#[cfg(feature = "contract")]
+	Contract(contract::CallContractOutput),
+}
+
 impl CallArgs {
 	/// Auto-detects the project type and returns the appropriate command if none was specified.
 	pub(crate) fn resolve_command(&self) -> anyhow::Result<Command> {

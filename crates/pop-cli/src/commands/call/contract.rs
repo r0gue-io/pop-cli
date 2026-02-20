@@ -13,15 +13,17 @@ use crate::{
 		urls,
 		wallet::request_signature,
 	},
+	output::{invalid_input_error, network_error, prompt_required_error},
 };
 use anyhow::{Result, anyhow};
 use clap::Args;
 use pop_common::{DefaultConfig, Keypair, parse_h160_account};
 use pop_contracts::{
 	CallExec, CallOpts, ContractCallable, ContractFunction, ContractStorage, DefaultEnvironment,
-	Verbosity, Weight, call_smart_contract, call_smart_contract_from_signed_payload,
-	dry_run_gas_estimate_call, fetch_contract_storage_with_param, get_call_payload,
-	get_contract_storage_info, get_messages, set_up_call,
+	Error as ContractsError, Verbosity, Weight, call_smart_contract,
+	call_smart_contract_from_signed_payload, dry_run_gas_estimate_call,
+	fetch_contract_storage_with_param, get_call_payload, get_contract_storage_info, get_messages,
+	set_up_call,
 };
 use serde::Serialize;
 use std::path::PathBuf;
@@ -116,6 +118,22 @@ impl Default for CallContractCommand {
 	}
 }
 
+/// Structured output for `pop --json call contract`.
+#[derive(Debug, Serialize)]
+pub(crate) struct CallContractOutput {
+	contract: String,
+	message: String,
+	result: CallContractResult,
+}
+
+/// Result details for a contract call.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case", tag = "kind")]
+pub(crate) enum CallContractResult {
+	DryRun { return_value: String, gas_consumed: String, gas_required: String },
+	Executed { tx_hash: String, events: Vec<String> },
+}
+
 impl CallContractCommand {
 	fn url(&self) -> Result<url::Url> {
 		self.url.as_ref().ok_or(anyhow::anyhow!("url not set")).cloned()
@@ -148,6 +166,132 @@ impl CallContractCommand {
 		// Finally execute the call.
 		self.execute_call(cli, prompt_to_repeat_call, callable).await?;
 		Ok(())
+	}
+
+	/// Executes `call contract` in JSON mode and returns structured output.
+	pub(crate) async fn execute_json(mut self) -> Result<CallContractOutput> {
+		if self.use_wallet {
+			return Err(invalid_input_error(
+				"`pop --json call contract` does not support `--use-wallet`; provide `--suri`",
+			));
+		}
+
+		let mut missing = Vec::new();
+		if self.url.is_none() {
+			missing.push("--url");
+		}
+		if self.contract.is_none() {
+			missing.push("--contract");
+		}
+		if self.message.is_none() {
+			missing.push("--message");
+		}
+		if !missing.is_empty() {
+			return Err(prompt_required_error(format!(
+				"Missing required flags for `pop --json call contract`: {}",
+				missing.join(", ")
+			)));
+		}
+
+		let project_path = ensure_project_path(self.path.clone(), self.path_pos.clone());
+		let messages =
+			get_messages(&project_path).map_err(|e| invalid_input_error(e.to_string()))?;
+		let message_name = self.message.clone().expect("checked above; qed");
+		let message = messages
+			.into_iter()
+			.find(|m| m.label == message_name)
+			.ok_or_else(|| invalid_input_error(format!("Message `{message_name}` not found")))?;
+
+		if self.args.len() < message.args.len() {
+			return Err(prompt_required_error(format!(
+				"Missing required `--args` values for `{}`: expected {}, got {}",
+				message.label,
+				message.args.len(),
+				self.args.len()
+			)));
+		}
+		if self.args.len() > message.args.len() {
+			return Err(invalid_input_error(format!(
+				"Expected {} arguments for `{}`, but received {}.",
+				message.args.len(),
+				message.label,
+				self.args.len()
+			)));
+		}
+		normalize_call_args(&mut self.args, &message);
+
+		// Validate --execute preconditions before any I/O so JSON clients get
+		// deterministic PROMPT_REQUIRED / INVALID_INPUT errors regardless of
+		// network state.
+		if self.execute {
+			if !message.mutates {
+				return Err(invalid_input_error("`--execute` requires a mutating contract message"));
+			}
+			if self.suri.is_none() {
+				return Err(prompt_required_error(
+					"`pop --json call contract --execute` requires `--suri`",
+				));
+			}
+		}
+
+		let suri = self.suri.clone().unwrap_or_else(|| DEFAULT_URI.to_string());
+		let call_exec = set_up_call(CallOpts {
+			path: project_path,
+			contract: self.contract.clone().expect("checked above; qed"),
+			message: message.label.clone(),
+			args: self.args.clone(),
+			value: self.value.clone(),
+			gas_limit: self.gas_limit,
+			proof_size: self.proof_size,
+			url: self.url()?,
+			suri,
+			execute: self.execute,
+		})
+		.await
+		.map_err(map_contract_json_setup_error)?;
+
+		let dry_run = call_exec.call_dry_run().await.map_err(map_contract_json_network_error)?;
+		let return_value = match &dry_run.result {
+			Ok(ret_val) => call_exec
+				.transcoder()
+				.decode_message_return(call_exec.message(), &mut &ret_val.data[..])
+				.map_err(|e| invalid_input_error(e.to_string()))?
+				.to_string(),
+			Err(err) => return Err(invalid_input_error(format!("{err:?}"))),
+		};
+
+		let result = if self.execute {
+			let weight_limit =
+				if let (Some(gas_limit), Some(proof_size)) = (self.gas_limit, self.proof_size) {
+					Weight::from_parts(gas_limit, proof_size)
+				} else {
+					dry_run.gas_required
+				};
+			let events = call_exec
+				.call(Some(weight_limit), call_exec.opts().storage_deposit_limit())
+				.await
+				.map_err(map_contract_json_call_error)?;
+			let tx_hash = format!("{:?}", events.extrinsic_hash());
+			let decoded_events = events
+				.iter()
+				.filter_map(|event| {
+					event.ok().map(|ev| format!("{}::{}", ev.pallet_name(), ev.variant_name()))
+				})
+				.collect::<Vec<_>>();
+			CallContractResult::Executed { tx_hash, events: decoded_events }
+		} else {
+			CallContractResult::DryRun {
+				return_value,
+				gas_consumed: dry_run.gas_consumed.to_string(),
+				gas_required: dry_run.gas_required.to_string(),
+			}
+		};
+
+		Ok(CallContractOutput {
+			contract: self.contract.expect("checked above; qed"),
+			message: message.label,
+			result,
+		})
 	}
 
 	fn display(&self) -> String {
@@ -610,12 +754,101 @@ impl CallContractCommand {
 	}
 }
 
+/// Maps `set_up_call` errors into JSON envelope categories.
+///
+/// `set_up_call` performs a mix of local validation (paths, ABI, args, address parsing)
+/// and network operations (RPC metadata fetch). We classify obvious transport failures as
+/// `NETWORK_ERROR`, local validation failures as `INVALID_INPUT`, and everything else as
+/// `INTERNAL` to avoid over-classifying unknown failures.
+fn map_contract_json_setup_error(err: ContractsError) -> anyhow::Error {
+	if is_contract_setup_network_error(&err) {
+		return network_error(err.to_string());
+	}
+
+	match err {
+		ContractsError::BalanceParsing(_) |
+		ContractsError::CommonError(_) |
+		ContractsError::ContractMetadata(_) |
+		ContractsError::HexParsing(_) |
+		ContractsError::IncorrectArguments { .. } |
+		ContractsError::InvalidConstructorName(_) |
+		ContractsError::InvalidMessageName(_) |
+		ContractsError::InvalidName(_) |
+		ContractsError::IO(_) |
+		ContractsError::ManifestPath(_) |
+		ContractsError::MapAccountError(_) |
+		ContractsError::MissingArgument(_) |
+		ContractsError::ParseError(_) |
+		ContractsError::SerdeJson(_) => invalid_input_error(err.to_string()),
+		_ => anyhow::anyhow!("{err}"),
+	}
+}
+
+fn is_contract_setup_network_error(err: &ContractsError) -> bool {
+	match err {
+		ContractsError::HttpError(_) => true,
+		ContractsError::AnyhowError(inner) =>
+			anyhow_chain_contains_network_causes(inner) ||
+				looks_like_network_error_message(&inner.to_string()),
+		_ => looks_like_network_error_message(&err.to_string()),
+	}
+}
+
+fn anyhow_chain_contains_network_causes(err: &anyhow::Error) -> bool {
+	err.chain().any(|cause| {
+		cause.downcast_ref::<reqwest::Error>().is_some() ||
+			cause.downcast_ref::<std::io::Error>().is_some_and(|io| {
+				matches!(
+					io.kind(),
+					std::io::ErrorKind::ConnectionRefused |
+						std::io::ErrorKind::ConnectionReset |
+						std::io::ErrorKind::ConnectionAborted |
+						std::io::ErrorKind::NotConnected |
+						std::io::ErrorKind::TimedOut |
+						std::io::ErrorKind::BrokenPipe |
+						std::io::ErrorKind::UnexpectedEof
+				)
+			})
+	})
+}
+
+fn looks_like_network_error_message(message: &str) -> bool {
+	const NETWORK_HINTS: [&str; 11] = [
+		"rpc error",
+		"transport error",
+		"websocket",
+		"connection refused",
+		"connection reset",
+		"connection closed",
+		"not connected",
+		"timed out",
+		"timeout",
+		"dns",
+		"failed to lookup",
+	];
+	let lowercase = message.to_ascii_lowercase();
+	NETWORK_HINTS.iter().any(|hint| lowercase.contains(hint))
+}
+
+/// Maps RPC/dry-run errors to `NETWORK_ERROR`.
+fn map_contract_json_network_error(err: impl std::fmt::Display) -> anyhow::Error {
+	network_error(err.to_string())
+}
+
+/// Maps on-chain execution errors to `INTERNAL`. These are contract-level or runtime
+/// failures (reverts, dispatch errors), not transport issues, since the connection was
+/// already established during setup/dry-run.
+fn map_contract_json_call_error(err: impl std::fmt::Display) -> anyhow::Error {
+	anyhow::anyhow!("{err}")
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use crate::{
 		cli::MockCli,
 		common::{urls, wallet::USE_WALLET_PROMPT},
+		output::{InvalidInputError, NetworkError},
 	};
 	use pop_contracts::{Param, mock_build_process, new_environment};
 	use std::{env, fs::write};
@@ -1345,5 +1578,35 @@ mod tests {
 		assert_eq!(command.proof_size, None);
 		assert!(!command.use_wallet);
 		assert!(!command.execute);
+	}
+
+	#[tokio::test]
+	async fn execute_json_requires_required_flags() {
+		let cmd = CallContractCommand::default();
+		let err = cmd.execute_json().await.expect_err("expected prompt required error");
+		assert!(err.downcast_ref::<crate::output::PromptRequiredError>().is_some());
+	}
+
+	#[test]
+	fn map_contract_json_setup_error_maps_rpc_like_anyhow_to_network_error() {
+		let source = anyhow::anyhow!("RPC error: client error: connection refused (os error 61)");
+		let mapped = map_contract_json_setup_error(ContractsError::AnyhowError(source));
+		assert!(mapped.downcast_ref::<NetworkError>().is_some());
+	}
+
+	#[test]
+	fn map_contract_json_setup_error_maps_connection_refused_io_to_network_error() {
+		let source: anyhow::Error =
+			std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "no route").into();
+		let mapped = map_contract_json_setup_error(ContractsError::AnyhowError(source));
+		assert!(mapped.downcast_ref::<NetworkError>().is_some());
+	}
+
+	#[test]
+	fn map_contract_json_setup_error_maps_validation_errors_to_invalid_input() {
+		let mapped = map_contract_json_setup_error(ContractsError::InvalidMessageName(
+			"message does not exist".into(),
+		));
+		assert!(mapped.downcast_ref::<InvalidInputError>().is_some());
 	}
 }

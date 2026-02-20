@@ -7,7 +7,7 @@ use clap::Parser;
 use commands::*;
 use output::{
 	BuildCommandError, CliError, CliResponse, DeployCommandError, ErrorCode, InvalidInputError,
-	OutputMode, PromptRequiredError, UnsupportedJsonError,
+	NetworkError, OutputMode, PromptRequiredError, UnsupportedJsonError,
 };
 #[cfg(feature = "telemetry")]
 use pop_telemetry::{Telemetry, config_file_path, record_cli_command, record_cli_used};
@@ -84,9 +84,11 @@ fn json_error_response(error: &anyhow::Error) -> CliError {
 	if error.downcast_ref::<UnsupportedJsonError>().is_some() {
 		CliError::new(ErrorCode::UnsupportedJson, error.to_string())
 	} else if is_prompt_required_error(error) {
-		CliError::new(ErrorCode::InvalidInput, output::JSON_PROMPT_ERR)
+		CliError::new(ErrorCode::PromptRequired, error.to_string())
 	} else if error.downcast_ref::<InvalidInputError>().is_some() {
 		CliError::new(ErrorCode::InvalidInput, error.to_string())
+	} else if error.downcast_ref::<NetworkError>().is_some() {
+		CliError::new(ErrorCode::NetworkError, error.to_string())
 	} else if let Some(build_error) = error.downcast_ref::<BuildCommandError>() {
 		let mut response = CliError::new(ErrorCode::BuildError, build_error.to_string());
 		if let Some(details) = build_error.details() {
@@ -158,6 +160,7 @@ fn init() -> Result<Option<Telemetry>> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::output::{network_error, prompt_required_error};
 
 	#[test]
 	fn verify_cli() {
@@ -193,12 +196,29 @@ mod tests {
 	}
 
 	#[test]
-	fn json_error_response_maps_prompt_error() {
+	fn json_error_response_maps_prompt_io_error() {
 		let error: anyhow::Error = crate::output::prompt_required_io_error().into();
 		let response = super::json_error_response(&error);
 		let json = serde_json::to_value(&response).unwrap();
-		assert_eq!(json["code"], "INVALID_INPUT");
-		assert_eq!(json["message"], crate::output::JSON_PROMPT_ERR);
+		assert_eq!(json["code"], "PROMPT_REQUIRED");
+	}
+
+	#[test]
+	fn json_error_response_maps_prompt_required_error() {
+		let error = prompt_required_error("missing flags");
+		let response = super::json_error_response(&error);
+		let json = serde_json::to_value(&response).unwrap();
+		assert_eq!(json["code"], "PROMPT_REQUIRED");
+		assert_eq!(json["message"], "missing flags");
+	}
+
+	#[test]
+	fn json_error_response_maps_network_error() {
+		let error = network_error("rpc unavailable");
+		let response = super::json_error_response(&error);
+		let json = serde_json::to_value(&response).unwrap();
+		assert_eq!(json["code"], "NETWORK_ERROR");
+		assert_eq!(json["message"], "rpc unavailable");
 	}
 
 	#[test]
