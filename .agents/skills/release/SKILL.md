@@ -76,8 +76,9 @@ Complete checklist for releasing a new version of Pop CLI.
 ```bash
 cargo publish -p pop-common --dry-run
 cargo publish -p pop-telemetry --dry-run
-cargo publish -p pop-contracts --dry-run
 cargo publish -p pop-chains --dry-run
+cargo publish -p pop-contracts --dry-run
+cargo publish -p pop-fork --dry-run
 cargo publish -p pop-cli --dry-run
 ```
 
@@ -85,8 +86,9 @@ cargo publish -p pop-cli --dry-run
 ```bash
 cargo publish -p pop-common
 cargo publish -p pop-telemetry
-cargo publish -p pop-contracts
 cargo publish -p pop-chains
+cargo publish -p pop-contracts
+cargo publish -p pop-fork
 cargo publish -p pop-cli
 ```
 
@@ -124,7 +126,7 @@ grep -A5 "\[workspace.package\]" Cargo.toml | grep version
 git cliff --bump -o CHANGELOG.md
 
 # Dry run all publishes
-for crate in pop-common pop-telemetry pop-contracts pop-chains pop-cli; do
+for crate in pop-common pop-telemetry pop-chains pop-contracts pop-fork pop-cli; do
   cargo publish -p $crate --dry-run
 done
 
