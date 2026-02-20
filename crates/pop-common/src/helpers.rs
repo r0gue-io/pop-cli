@@ -75,7 +75,8 @@ pub fn find_contract_artifact_path(project_root: &Path, package_name: &str) -> O
 		.find(|path| path.exists())
 }
 
-fn find_workspace_root(start: &Path) -> Option<PathBuf> {
+/// Walks up from `start` to find the nearest Cargo workspace root that includes the given path.
+pub fn find_workspace_root(start: &Path) -> Option<PathBuf> {
 	let start = start.canonicalize().ok().unwrap_or_else(|| start.to_path_buf());
 	let mut current = Some(start.as_path());
 	while let Some(dir) = current {

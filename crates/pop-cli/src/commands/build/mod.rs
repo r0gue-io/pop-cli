@@ -554,7 +554,8 @@ impl Command {
 			return Err(BuildCommandError::new("Build failed").with_details(details).into());
 		}
 
-		let artifact_path = profile.target_directory(path);
+		let root = pop_common::find_workspace_root(path).unwrap_or_else(|| path.to_path_buf());
+		let artifact_path = profile.target_directory(&root);
 		Ok(BuildOutput {
 			artifact_path: artifact_path.display().to_string(),
 			profile: profile.to_string(),
@@ -1133,6 +1134,63 @@ mod tests {
 		assert!(artifact_path.is_dir());
 		assert_eq!(output.profile, "debug");
 		assert_eq!(output.features, Vec::<String>::new());
+		Ok(())
+	}
+
+	#[test]
+	fn build_json_workspace_member_uses_workspace_root_target() -> anyhow::Result<()> {
+		let temp_dir = tempfile::tempdir()?;
+		let ws = temp_dir.path();
+
+		// Create workspace Cargo.toml
+		std::fs::write(ws.join("Cargo.toml"), "[workspace]\nmembers = [\"member\"]\n")?;
+
+		// Create a member crate
+		cmd("cargo", ["new", "member", "--bin"]).dir(ws).run()?;
+		let member_path = ws.join("member");
+		std::fs::write(
+			member_path.join("src/main.rs"),
+			"//! test binary\nfn main() { println!(\"ok\"); }\n",
+		)?;
+		let output = Command::build_json(
+			&BuildArgs {
+				#[cfg(feature = "chain")]
+				command: None,
+				path: Some(member_path.clone()),
+				path_pos: None,
+				package: None,
+				release: false,
+				profile: Some(Profile::Debug),
+				features: None,
+				#[cfg(feature = "chain")]
+				benchmark: false,
+				#[cfg(feature = "chain")]
+				try_runtime: false,
+				#[cfg(feature = "chain")]
+				deterministic: false,
+				#[cfg(feature = "chain")]
+				tag: None,
+				#[cfg(feature = "chain")]
+				only_runtime: false,
+				#[cfg(feature = "contract")]
+				metadata: None,
+				#[cfg(feature = "contract")]
+				verifiable: false,
+				#[cfg(feature = "contract")]
+				image: None,
+			},
+			&member_path,
+		)?;
+
+		// artifact_path must point to the workspace root target, not the member's
+		let artifact = PathBuf::from(&output.artifact_path);
+		let ws_canonical = ws.canonicalize()?;
+		assert!(
+			artifact.starts_with(&ws_canonical),
+			"expected artifact under workspace root {ws_canonical:?}, got {artifact:?}"
+		);
+		assert!(!artifact.starts_with(ws_canonical.join("member")));
+		assert!(artifact.exists());
 		Ok(())
 	}
 

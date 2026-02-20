@@ -11,8 +11,8 @@ pub use docker::Docker;
 pub use errors::Error;
 pub use git::{Git, GitHub, Release};
 pub use helpers::{
-	find_contract_artifact_path, get_project_name_from_path, get_relative_or_absolute_path,
-	is_root, replace_in_file,
+	find_contract_artifact_path, find_workspace_root, get_project_name_from_path,
+	get_relative_or_absolute_path, is_root, replace_in_file,
 };
 pub use metadata::format_type;
 pub use signer::create_signer;
