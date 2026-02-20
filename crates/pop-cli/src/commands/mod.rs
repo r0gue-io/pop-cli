@@ -4,6 +4,8 @@
 use crate::cli::Cli;
 #[cfg(any(feature = "chain", feature = "contract"))]
 use crate::cli::traits::Cli as _;
+#[cfg(any(feature = "chain", feature = "contract"))]
+use crate::output::PromptRequiredError;
 use crate::{
 	cache,
 	output::{CliResponse, OutputMode, reject_unsupported_json},
@@ -129,6 +131,8 @@ impl Command {
 			Self::Fork(_) => true,
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::Install(_) => true,
+			#[cfg(any(feature = "chain", feature = "contract"))]
+			Self::New(_) => true,
 			#[cfg(feature = "chain")]
 			Self::Bench(_) => true,
 			#[cfg(any(feature = "chain", feature = "contract"))]
@@ -150,6 +154,48 @@ impl Command {
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::New(args) => {
 				env_logger::init();
+
+				if output_mode == OutputMode::Json {
+					if args.list {
+						let output = new::TemplateListOutput {
+							#[cfg(feature = "chain")]
+							chain_templates: pop_chains::ChainTemplate::templates()
+								.iter()
+								.filter(|t| !t.is_deprecated())
+								.map(|t| new::TemplateInfo {
+									name: t.name().to_string(),
+									description: t.description().to_string(),
+								})
+								.collect(),
+							#[cfg(feature = "contract")]
+							contract_templates: pop_contracts::Contract::templates()
+								.iter()
+								.filter(|t| !t.is_deprecated())
+								.map(|t| new::TemplateInfo {
+									name: t.name().to_string(),
+									description: t.description().to_string(),
+								})
+								.collect(),
+						};
+						CliResponse::ok(output).print_json();
+						return Ok(());
+					}
+
+					return match &mut args.command {
+						None => Err(PromptRequiredError(
+							"--json mode requires a subcommand (chain, pallet, or contract)".into(),
+						)
+						.into()),
+						Some(cmd) => match cmd {
+							#[cfg(feature = "chain")]
+							new::Command::Chain(cmd) => cmd.execute(output_mode).await,
+							#[cfg(feature = "chain")]
+							new::Command::Pallet(cmd) => cmd.execute(output_mode).await,
+							#[cfg(feature = "contract")]
+							new::Command::Contract(cmd) => cmd.execute(output_mode).await,
+						},
+					};
+				}
 
 				if args.list {
 					Cli.intro("Available templates")?;
@@ -190,11 +236,11 @@ impl Command {
 
 				match command {
 					#[cfg(feature = "chain")]
-					new::Command::Chain(cmd) => cmd.execute().await,
+					new::Command::Chain(cmd) => cmd.execute(output_mode).await,
 					#[cfg(feature = "chain")]
-					new::Command::Pallet(cmd) => cmd.execute().await,
+					new::Command::Pallet(cmd) => cmd.execute(output_mode).await,
 					#[cfg(feature = "contract")]
-					new::Command::Contract(cmd) => cmd.execute().await,
+					new::Command::Contract(cmd) => cmd.execute(output_mode).await,
 				}
 			},
 			#[cfg(feature = "chain")]

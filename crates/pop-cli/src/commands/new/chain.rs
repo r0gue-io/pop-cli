@@ -3,7 +3,11 @@
 use crate::{
 	cli::{self, traits::*},
 	common::helpers::check_destination_path,
-	new::frontend::{PackageManager, create_frontend, prompt_frontend_template},
+	new::{
+		NewOutput, SubcommandTemplateListOutput, TemplateInfo,
+		frontend::{PackageManager, create_frontend, prompt_frontend_template},
+	},
+	output::{CliResponse, OutputMode, PromptRequiredError},
 };
 use anyhow::Result;
 use clap::{
@@ -85,7 +89,10 @@ pub struct NewChainCommand {
 
 impl NewChainCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(&self) -> Result<()> {
+	pub(crate) async fn execute(&self, output_mode: OutputMode) -> Result<()> {
+		if output_mode == OutputMode::Json {
+			return self.execute_json().await;
+		}
 		if self.list {
 			let mut cli = cli::Cli;
 			cli.intro("Available templates")?;
@@ -148,6 +155,93 @@ impl NewChainCommand {
 		)
 		.await?;
 		cli::Cli.info(parachain_config.display())?;
+		Ok(())
+	}
+
+	/// Executes the command in JSON mode.
+	async fn execute_json(&self) -> Result<()> {
+		// --list: return structured template listing.
+		if self.list {
+			let templates: Vec<TemplateInfo> = ChainTemplate::templates()
+				.iter()
+				.filter(|t| !t.is_deprecated())
+				.map(|t| TemplateInfo {
+					name: t.name().to_string(),
+					description: t.description().to_string(),
+				})
+				.collect();
+			CliResponse::ok(SubcommandTemplateListOutput { templates }).print_json();
+			return Ok(());
+		}
+
+		// Name is required in JSON mode.
+		let name = self.name.as_ref().ok_or_else(|| {
+			PromptRequiredError(
+				"--json mode requires the chain name as a positional argument".into(),
+			)
+		})?;
+
+		let destination_path = Path::new(name);
+		if destination_path.exists() {
+			return Err(PromptRequiredError(format!(
+				"--json mode cannot confirm deleting existing path \"{}\". Remove it first or choose a different name.",
+				destination_path.display()
+			))
+			.into());
+		}
+
+		// Bare --with-frontend (empty string = needs prompt) is not allowed.
+		if let Some(frontend_arg) = &self.with_frontend &&
+			frontend_arg.is_empty()
+		{
+			return Err(PromptRequiredError(
+				"--json mode requires --with-frontend=<TEMPLATE_NAME> (e.g. create-dot-app)".into(),
+			)
+			.into());
+		}
+
+		// Generate the chain using JsonCli (suppresses interactive output).
+		let template = self.template.clone().unwrap_or_default();
+		let config = get_customization_value(
+			&template,
+			self.symbol.clone(),
+			self.decimals,
+			self.initial_endowment.clone(),
+			&mut cli::JsonCli,
+		)?;
+		let tag_version = self.release_tag.clone();
+
+		let frontend_template: Option<FrontendTemplate> = self
+			.with_frontend
+			.as_ref()
+			.map(|arg| {
+				FrontendTemplate::from_str(arg)
+					.map_err(|_| anyhow::anyhow!("Invalid frontend template: {}", arg))
+			})
+			.transpose()?;
+
+		generate_parachain_from_template(
+			name,
+			&template,
+			tag_version,
+			config,
+			self.verify,
+			frontend_template,
+			self.package_manager,
+			&mut cli::JsonCli,
+		)
+		.await?;
+
+		let path = std::path::PathBuf::from(name).canonicalize().unwrap_or_else(|_| name.into());
+
+		CliResponse::ok(NewOutput {
+			kind: "chain".into(),
+			name: name.clone(),
+			path: path.display().to_string(),
+			template: Some(template.name().to_string()),
+		})
+		.print_json();
+
 		Ok(())
 	}
 
@@ -514,6 +608,7 @@ fn prompt_customizable_options(cli: &mut impl Cli) -> Result<Config> {
 mod tests {
 	use super::*;
 	use cli::MockCli;
+	use tempfile::tempdir;
 
 	#[test]
 	fn test_new_chain_command_display() {
@@ -714,7 +809,37 @@ mod tests {
 	#[tokio::test]
 	async fn test_new_chain_list_templates() -> Result<()> {
 		let command = NewChainCommand { list: true, ..Default::default() };
-		command.execute().await?;
+		command.execute(OutputMode::Human).await?;
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn execute_json_missing_name_returns_prompt_required() {
+		let cmd = NewChainCommand { ..Default::default() };
+		let err = cmd.execute(OutputMode::Json).await.unwrap_err();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+	}
+
+	#[tokio::test]
+	async fn execute_json_bare_with_frontend_returns_prompt_required() {
+		let cmd = NewChainCommand {
+			name: Some("test-chain".into()),
+			with_frontend: Some(String::new()),
+			..Default::default()
+		};
+		let err = cmd.execute(OutputMode::Json).await.unwrap_err();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+	}
+
+	#[tokio::test]
+	async fn execute_json_existing_path_returns_prompt_required() -> Result<()> {
+		let dir = tempdir()?;
+		let chain_path = dir.path().join("my-chain");
+		std::fs::create_dir_all(&chain_path)?;
+		let cmd =
+			NewChainCommand { name: Some(chain_path.display().to_string()), ..Default::default() };
+		let err = cmd.execute(OutputMode::Json).await.unwrap_err();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
 		Ok(())
 	}
 }

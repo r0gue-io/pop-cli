@@ -6,7 +6,11 @@ use crate::{
 		traits::{Cli as _, *},
 	},
 	common::helpers::check_destination_path,
-	new::frontend::{PackageManager, create_frontend, prompt_frontend_template},
+	new::{
+		NewOutput, SubcommandTemplateListOutput, TemplateInfo,
+		frontend::{PackageManager, create_frontend, prompt_frontend_template},
+	},
+	output::{CliResponse, OutputMode, PromptRequiredError},
 };
 
 use anyhow::Result;
@@ -57,7 +61,10 @@ pub struct NewContractCommand {
 
 impl NewContractCommand {
 	/// Executes the command.
-	pub(crate) async fn execute(&mut self) -> Result<()> {
+	pub(crate) async fn execute(&mut self, output_mode: OutputMode) -> Result<()> {
+		if output_mode == OutputMode::Json {
+			return self.execute_json().await;
+		}
 		let mut cli = Cli;
 
 		if self.list {
@@ -120,6 +127,99 @@ impl NewContractCommand {
 		}
 
 		cli.info(self.display())?;
+		Ok(())
+	}
+
+	/// Executes the command in JSON mode.
+	async fn execute_json(&mut self) -> Result<()> {
+		// --list: return structured template listing.
+		if self.list {
+			let templates: Vec<TemplateInfo> = Contract::templates()
+				.iter()
+				.filter(|t| !t.is_deprecated())
+				.map(|t| TemplateInfo {
+					name: t.name().to_string(),
+					description: t.description().to_string(),
+				})
+				.collect();
+			CliResponse::ok(SubcommandTemplateListOutput { templates }).print_json();
+			return Ok(());
+		}
+
+		// Name and template are required in JSON mode.
+		let name = self.name.as_ref().ok_or_else(|| {
+			PromptRequiredError(
+				"--json mode requires the contract name as a positional argument".into(),
+			)
+		})?;
+		if self.template.is_none() {
+			return Err(
+				PromptRequiredError("--json mode requires --template <TEMPLATE>".into()).into()
+			);
+		}
+
+		// Bare --with-frontend (empty string = needs prompt) is not allowed.
+		if let Some(frontend_arg) = &self.with_frontend &&
+			frontend_arg.is_empty()
+		{
+			return Err(PromptRequiredError(
+				"--json mode requires --with-frontend=<TEMPLATE_NAME> (e.g. typink, inkathon)"
+					.into(),
+			)
+			.into());
+		}
+
+		let path = Path::new(name);
+		if path.exists() {
+			return Err(PromptRequiredError(format!(
+				"--json mode cannot confirm deleting existing path \"{}\". Remove it first or choose a different name.",
+				path.display()
+			))
+			.into());
+		}
+		let contract_name = get_project_name_from_path(path, "my-contract");
+
+		// Validate contract name.
+		is_valid_contract_name(&contract_name)?;
+
+		let template = self.template.clone().unwrap_or_default();
+		let frontend_template: Option<FrontendTemplate> = self
+			.with_frontend
+			.as_ref()
+			.map(|arg| {
+				FrontendTemplate::from_str(arg)
+					.map_err(|_| anyhow::anyhow!("Invalid frontend template: {}", arg))
+			})
+			.transpose()?;
+
+		let contract_path = generate_contract_from_template(
+			&contract_name,
+			path,
+			&template,
+			frontend_template,
+			self.package_manager,
+			&mut cli::JsonCli,
+		)
+		.await?;
+
+		// If the contract is part of a workspace, add it to that workspace
+		if let Some(workspace_toml) = rustilities::manifest::find_workspace_manifest(path) {
+			rustilities::manifest::add_crate_to_workspace(
+				&workspace_toml.canonicalize()?,
+				&contract_path.canonicalize()?,
+			)?;
+		}
+
+		let abs_path = contract_path.canonicalize().unwrap_or_else(|_| contract_path.clone());
+
+		CliResponse::ok(NewOutput {
+			kind: "contract".into(),
+			name: contract_name,
+			path: abs_path.display().to_string(),
+			template: Some(template.name().to_string()),
+		})
+		.print_json();
+
 		Ok(())
 	}
 
@@ -295,7 +395,7 @@ mod tests {
 			panic!("unable to parse command")
 		};
 		// Execute
-		command.execute().await?;
+		command.execute(OutputMode::Human).await?;
 		Ok(())
 	}
 
@@ -370,7 +470,64 @@ mod tests {
 		// Just ensure it can be executed without error.
 		// Since it uses the real Cli internally, we can't easily verify output in this unit test
 		// without refactoring execute to take a Cli trait object.
-		command.execute().await?;
+		command.execute(OutputMode::Human).await?;
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn execute_json_missing_name_returns_prompt_required() {
+		let mut cmd =
+			NewContractCommand { template: Some(ContractTemplate::Standard), ..Default::default() };
+		let err = cmd.execute(OutputMode::Json).await.unwrap_err();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+	}
+
+	#[tokio::test]
+	async fn execute_json_missing_template_returns_prompt_required() {
+		let mut cmd =
+			NewContractCommand { name: Some("test-contract".into()), ..Default::default() };
+		let err = cmd.execute(OutputMode::Json).await.unwrap_err();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+	}
+
+	#[tokio::test]
+	async fn execute_json_bare_with_frontend_returns_prompt_required() {
+		let mut cmd = NewContractCommand {
+			name: Some("test-contract".into()),
+			template: Some(ContractTemplate::Standard),
+			with_frontend: Some(String::new()),
+			..Default::default()
+		};
+		let err = cmd.execute(OutputMode::Json).await.unwrap_err();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+	}
+
+	#[tokio::test]
+	async fn execute_json_existing_path_returns_prompt_required() -> Result<()> {
+		let dir = tempdir()?;
+		let contract_path = dir.path().join("my-contract");
+		fs::create_dir_all(&contract_path)?;
+		let mut cmd = NewContractCommand {
+			name: Some(contract_path.display().to_string()),
+			template: Some(ContractTemplate::Standard),
+			..Default::default()
+		};
+		let err = cmd.execute(OutputMode::Json).await.unwrap_err();
+		assert!(err.downcast_ref::<PromptRequiredError>().is_some());
+		Ok(())
+	}
+
+	#[tokio::test]
+	async fn execute_json_success() -> Result<()> {
+		let dir = tempdir()?;
+		let contract_path = dir.path().join("my-contract");
+		let mut cmd = NewContractCommand {
+			name: Some(contract_path.display().to_string()),
+			template: Some(ContractTemplate::Standard),
+			..Default::default()
+		};
+		cmd.execute(OutputMode::Json).await?;
+		assert!(contract_path.exists());
 		Ok(())
 	}
 
@@ -407,7 +564,7 @@ edition = "2024"
 		let New(NewArgs { command: Some(Contract(mut command)), .. }) = cli.command else {
 			panic!("unable to parse command")
 		};
-		let result = command.execute().await;
+		let result = command.execute(OutputMode::Human).await;
 		// Restore original directory
 		std::env::set_current_dir(original_dir)?;
 		result?;

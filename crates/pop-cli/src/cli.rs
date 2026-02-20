@@ -466,6 +466,9 @@ impl traits::Cli for JsonCli {
 }
 
 #[allow(dead_code)]
+const JSON_PROMPT_ERR: &str = "interactive prompt required but --json mode is active";
+
+#[allow(dead_code)]
 struct JsonConfirm;
 impl traits::Confirm for JsonConfirm {
 	fn initial_value(self, _initial_value: bool) -> Self {
