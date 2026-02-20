@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0
 
+#[cfg(feature = "chain")]
+use crate::output::invalid_input_error;
 use crate::{
 	cli::{self, Cli},
 	common::builds::ensure_project_path,
+	output::reject_unsupported_json,
 };
 use clap::{Args, Subcommand};
 #[cfg(feature = "chain")]
@@ -29,6 +32,42 @@ const PASEO: u8 = Relay::Paseo as u8;
 const POLKADOT: u8 = Relay::Polkadot as u8;
 #[cfg(feature = "chain")]
 const WESTEND: u8 = Relay::Westend as u8;
+
+/// JSON output payload for `up` command.
+#[derive(Clone, Debug, Serialize)]
+#[serde(untagged)]
+pub(crate) enum UpJsonOutput {
+	#[cfg(feature = "contract")]
+	Contract(UpContractOutput),
+	#[cfg(feature = "chain")]
+	Network(UpNetworkOutput),
+}
+
+/// JSON output for contract deployment.
+#[cfg(feature = "contract")]
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct UpContractOutput {
+	pub(crate) contract_address: String,
+	pub(crate) url: String,
+	pub(crate) code_hash: Option<String>,
+}
+
+/// JSON output for local network launch.
+#[cfg(feature = "chain")]
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct UpNetworkOutput {
+	pub(crate) relay_chain: NetworkInfo,
+	pub(crate) parachains: Vec<NetworkInfo>,
+}
+
+/// JSON output for one network group.
+#[cfg(feature = "chain")]
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct NetworkInfo {
+	pub(crate) name: String,
+	pub(crate) urls: Vec<String>,
+	pub(crate) pids: Vec<u32>,
+}
 
 /// Arguments for launching or deploying a project.
 #[derive(Args, Clone, Serialize)]
@@ -131,6 +170,65 @@ impl Command {
 	}
 }
 
+/// Executes `up` in JSON mode and returns structured output.
+pub(crate) async fn execute_json(args: &mut UpArgs) -> anyhow::Result<UpJsonOutput> {
+	match &mut args.command {
+		Some(command) => {
+			require_detach_for_json(command)?;
+			match command {
+				#[cfg(feature = "chain")]
+				Command::Network(cmd) => Ok(UpJsonOutput::Network(cmd.execute_json().await?)),
+				#[cfg(feature = "chain")]
+				Command::Paseo(_) => reject_unsupported_json("up paseo").map(|_| unreachable!()),
+				#[cfg(feature = "chain")]
+				Command::Kusama(_) => reject_unsupported_json("up kusama").map(|_| unreachable!()),
+				#[cfg(feature = "chain")]
+				Command::Polkadot(_) => reject_unsupported_json("up polkadot").map(|_| unreachable!()),
+				#[cfg(feature = "chain")]
+				Command::Westend(_) => reject_unsupported_json("up westend").map(|_| unreachable!()),
+				#[cfg(feature = "chain")]
+				Command::AssetHub(_) => reject_unsupported_json("up asset-hub").map(|_| unreachable!()),
+				Command::Frontend(_) =>
+					reject_unsupported_json("up frontend").map(|_| unreachable!()),
+				#[cfg(feature = "contract")]
+				Command::InkNode(_) => reject_unsupported_json("up ink-node").map(|_| unreachable!()),
+			}
+		},
+		None => {
+			let project_path = ensure_project_path(args.path.clone(), args.path_pos.clone());
+			#[cfg(feature = "contract")]
+			if pop_contracts::is_supported(&project_path)? {
+				args.contract.path = project_path.clone();
+				return Ok(UpJsonOutput::Contract(args.contract.execute_json().await?));
+			}
+			#[cfg(feature = "chain")]
+			if project_path.is_file() || pop_chains::is_supported(&project_path) {
+				return reject_unsupported_json("up").map(|_| unreachable!());
+			}
+			anyhow::bail!(
+				"No contract or chain detected. Ensure you are in a valid project directory."
+			)
+		},
+	}
+}
+
+#[cfg(feature = "chain")]
+fn require_detach_for_json(command: &Command) -> anyhow::Result<()> {
+	if let Command::Network(cmd) = command &&
+		!cmd.detach
+	{
+		return Err(invalid_input_error(
+			"`pop --json up network` requires `--detach` to provide a completion signal",
+		));
+	}
+	Ok(())
+}
+
+#[cfg(not(feature = "chain"))]
+fn require_detach_for_json(_command: &Command) -> anyhow::Result<()> {
+	Ok(())
+}
+
 impl Display for Command {
 	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
 		match self {
@@ -158,6 +256,8 @@ mod tests {
 	#[cfg(feature = "contract")]
 	use super::contract::UpContractCommand;
 	use super::*;
+	#[cfg(feature = "chain")]
+	use crate::output::InvalidInputError;
 	use cli::MockCli;
 	use duct::cmd;
 	#[cfg(feature = "chain")]
@@ -255,5 +355,31 @@ mod tests {
 	fn command_display_works() {
 		#[cfg(feature = "chain")]
 		assert_eq!(Command::Network(Default::default()).to_string(), "network");
+	}
+
+	#[cfg(feature = "chain")]
+	#[test]
+	fn require_detach_for_json_rejects_network_without_detach() {
+		let command = Command::Network(network::ConfigFileCommand {
+			path: PathBuf::from("network.toml"),
+			..Default::default()
+		});
+		let err = require_detach_for_json(&command).expect_err("expected detach requirement");
+		assert!(err.downcast_ref::<InvalidInputError>().is_some());
+		assert_eq!(
+			err.to_string(),
+			"`pop --json up network` requires `--detach` to provide a completion signal"
+		);
+	}
+
+	#[cfg(feature = "chain")]
+	#[test]
+	fn require_detach_for_json_accepts_network_with_detach() {
+		let command = Command::Network(network::ConfigFileCommand {
+			path: PathBuf::from("network.toml"),
+			detach: true,
+			..Default::default()
+		});
+		require_detach_for_json(&command).expect("detach should be accepted");
 	}
 }

@@ -6,8 +6,8 @@ use anyhow::{Result, anyhow};
 use clap::Parser;
 use commands::*;
 use output::{
-	BuildCommandError, CliError, CliResponse, ErrorCode, InvalidInputError, OutputMode,
-	PromptRequiredError, UnsupportedJsonError,
+	BuildCommandError, CliError, CliResponse, DeployCommandError, ErrorCode, InvalidInputError,
+	OutputMode, PromptRequiredError, UnsupportedJsonError,
 };
 #[cfg(feature = "telemetry")]
 use pop_telemetry::{Telemetry, config_file_path, record_cli_command, record_cli_used};
@@ -93,6 +93,8 @@ fn json_error_response(error: &anyhow::Error) -> CliError {
 			response = response.with_details(details.to_string());
 		}
 		response
+	} else if error.downcast_ref::<DeployCommandError>().is_some() {
+		CliError::new(ErrorCode::DeployError, error.to_string())
 	} else {
 		CliError::new(ErrorCode::Internal, error.to_string())
 	}
@@ -197,6 +199,15 @@ mod tests {
 		let json = serde_json::to_value(&response).unwrap();
 		assert_eq!(json["code"], "INVALID_INPUT");
 		assert_eq!(json["message"], crate::output::JSON_PROMPT_ERR);
+	}
+
+	#[test]
+	fn json_error_response_maps_deploy_error() {
+		let error = crate::output::deploy_error("deployment failed");
+		let response = super::json_error_response(&error);
+		let json = serde_json::to_value(&response).unwrap();
+		assert_eq!(json["code"], "DEPLOY_ERROR");
+		assert_eq!(json["message"], "deployment failed");
 	}
 
 	#[cfg(feature = "telemetry")]

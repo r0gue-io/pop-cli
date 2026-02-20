@@ -136,6 +136,8 @@ impl Command {
 			#[cfg(feature = "chain")]
 			Self::Bench(_) => true,
 			#[cfg(any(feature = "chain", feature = "contract"))]
+			Self::Up(_) => true,
+			#[cfg(any(feature = "chain", feature = "contract"))]
 			_ => false,
 		}
 	}
@@ -275,6 +277,11 @@ impl Command {
 			#[cfg(any(feature = "chain", feature = "contract"))]
 			Self::Up(args) => {
 				env_logger::init();
+				if output_mode == OutputMode::Json {
+					let output = up::execute_json(args).await?;
+					CliResponse::ok(output).print_json();
+					return Ok(());
+				}
 				match &mut args.command {
 					None => up::Command::execute(args).await,
 					Some(cmd) => match cmd {
@@ -663,5 +670,17 @@ mod tests {
 	#[test]
 	fn test_command_supports_json() {
 		assert!(Command::Test(test::TestArgs::default()).supports_json());
+	}
+
+	#[test]
+	fn up_command_supports_json() {
+		let command = Command::Up(
+			up::UpArgs {
+				command: Some(up::Command::Network(Default::default())),
+				..Default::default()
+			}
+			.into(),
+		);
+		assert!(command.supports_json());
 	}
 }
