@@ -3,7 +3,7 @@ name: pop-cli-release
 description: Use when releasing Pop CLI versions, including version bump, changelog prep, publishing crates, and release announcements.
 ---
 
-# NewRelease Workflow
+# New Release Workflow
 
 Complete checklist for releasing a new version of Pop CLI.
 
@@ -60,19 +60,9 @@ Complete checklist for releasing a new version of Pop CLI.
   - https://github.com/r0gue-io/pop-cli/pull/760
   - https://github.com/r0gue-io/pop-cli/pull/756
 
-### Phase 3: GitHub Release
+### Phase 3: Publish to crates.io
 
-#### 3.1 Create Release
-- [ ] Go to https://github.com/r0gue-io/pop-cli/releases
-- [ ] Click "Draft a new release"
-- [ ] Create new tag: `vX.Y.Z`
-- [ ] Generate release notes automatically
-- [ ] Add **Community Contributions** section manually
-- [ ] Match format of previous releases
-
-### Phase 4: Publish to crates.io
-
-#### 4.1 Dry Run
+#### 3.1 Dry Run
 ```bash
 cargo publish -p pop-common --dry-run
 cargo publish -p pop-telemetry --dry-run
@@ -82,7 +72,7 @@ cargo publish -p pop-fork --dry-run
 cargo publish -p pop-cli --dry-run
 ```
 
-#### 4.2 Publish (in order)
+#### 3.2 Publish (in order)
 ```bash
 cargo publish -p pop-common
 cargo publish -p pop-telemetry
@@ -93,6 +83,17 @@ cargo publish -p pop-cli
 ```
 
 **Note**: If permission denied, request access at https://github.com/orgs/r0gue-io/teams
+
+### Phase 4: GitHub Release
+
+#### 4.1 Create Release
+- [ ] Confirm all crates from Phase 3 are available on crates.io
+- [ ] Go to https://github.com/r0gue-io/pop-cli/releases
+- [ ] Click "Draft a new release"
+- [ ] Create new tag: `vX.Y.Z`
+- [ ] Generate release notes automatically
+- [ ] Add **Community Contributions** section manually
+- [ ] Match format of previous releases
 
 ### Phase 5: Announcements
 
@@ -111,9 +112,7 @@ Current version location: `Cargo.toml` → `[workspace.package]` → `version`
 
 ```toml
 [workspace.package]
-version = "0.12.1"  # Current
-version = "0.13.0"  # Next minor
-version = "1.0.0"   # Next major
+version = "X.Y.Z"
 ```
 
 ## Quick Commands
