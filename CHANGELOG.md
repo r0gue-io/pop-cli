@@ -19,6 +19,7 @@ All notable changes to this project will be documented in this file.
 - *(pop-cli)* Add --json support for bench pallet (#995)
 - *(pop-cli)* Add --json support for new, clean, completion, upgrade, and install commands (#994)
 - *(pop-cli)* Add --json support for up contract and network (#991)
+- *(pop-cli)* Add --json support for call chain and contract (#993)
 
 ### 🐛 Fixes
 
