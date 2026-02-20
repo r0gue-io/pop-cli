@@ -20,7 +20,8 @@ use clap::Args;
 use pop_common::{DefaultConfig, Keypair, parse_h160_account};
 use pop_contracts::{
 	CallExec, CallOpts, ContractCallable, ContractFunction, ContractStorage, DefaultEnvironment,
-	Verbosity, Weight, call_smart_contract, call_smart_contract_from_signed_payload,
+	Error as ContractsError, Verbosity, Weight, call_smart_contract,
+	call_smart_contract_from_signed_payload,
 	dry_run_gas_estimate_call, fetch_contract_storage_with_param, get_call_payload,
 	get_contract_storage_info, get_messages, set_up_call,
 };
@@ -753,11 +754,81 @@ impl CallContractCommand {
 	}
 }
 
-/// Maps `set_up_call` errors to `INTERNAL`. This function performs both local
-/// validation and RPC operations (connecting, fetching token metadata), so we
-/// cannot reliably distinguish network failures from input errors here.
-fn map_contract_json_setup_error(err: impl std::fmt::Display) -> anyhow::Error {
-	anyhow::anyhow!("{err}")
+/// Maps `set_up_call` errors into JSON envelope categories.
+///
+/// `set_up_call` performs a mix of local validation (paths, ABI, args, address parsing)
+/// and network operations (RPC metadata fetch). We classify obvious transport failures as
+/// `NETWORK_ERROR`, local validation failures as `INVALID_INPUT`, and everything else as
+/// `INTERNAL` to avoid over-classifying unknown failures.
+fn map_contract_json_setup_error(err: ContractsError) -> anyhow::Error {
+	if is_contract_setup_network_error(&err) {
+		return network_error(err.to_string());
+	}
+
+	match err {
+		ContractsError::BalanceParsing(_) |
+		ContractsError::CommonError(_) |
+		ContractsError::ContractMetadata(_) |
+		ContractsError::HexParsing(_) |
+		ContractsError::IncorrectArguments { .. } |
+		ContractsError::InvalidConstructorName(_) |
+		ContractsError::InvalidMessageName(_) |
+		ContractsError::InvalidName(_) |
+		ContractsError::IO(_) |
+		ContractsError::ManifestPath(_) |
+		ContractsError::MapAccountError(_) |
+		ContractsError::MissingArgument(_) |
+		ContractsError::ParseError(_) |
+		ContractsError::SerdeJson(_) => invalid_input_error(err.to_string()),
+		_ => anyhow::anyhow!("{err}"),
+	}
+}
+
+fn is_contract_setup_network_error(err: &ContractsError) -> bool {
+	match err {
+		ContractsError::HttpError(_) => true,
+		ContractsError::AnyhowError(inner) => {
+			anyhow_chain_contains_network_causes(inner) ||
+				looks_like_network_error_message(&inner.to_string())
+		},
+		_ => looks_like_network_error_message(&err.to_string()),
+	}
+}
+
+fn anyhow_chain_contains_network_causes(err: &anyhow::Error) -> bool {
+	err.chain().any(|cause| {
+		cause.downcast_ref::<reqwest::Error>().is_some() ||
+			cause.downcast_ref::<std::io::Error>().is_some_and(|io| {
+				matches!(
+					io.kind(),
+					std::io::ErrorKind::ConnectionRefused |
+						std::io::ErrorKind::ConnectionReset |
+						std::io::ErrorKind::ConnectionAborted |
+						std::io::ErrorKind::NotConnected |
+						std::io::ErrorKind::TimedOut |
+						std::io::ErrorKind::BrokenPipe |
+						std::io::ErrorKind::UnexpectedEof
+				)
+			})
+	})
+}
+
+fn looks_like_network_error_message(message: &str) -> bool {
+	const NETWORK_HINTS: [&str; 11] = [
+		"rpc error",
+		"transport error",
+		"websocket",
+		"connection refused",
+		"connection reset",
+		"connection closed",
+		"not connected",
+		"timed out",
+		"timeout",
+		"dns",
+		"failed to lookup",
+	];
+	let lowercase = message.to_ascii_lowercase();
+	NETWORK_HINTS.iter().any(|hint| lowercase.contains(hint))
 }
 
 /// Maps RPC/dry-run errors to `NETWORK_ERROR`.
@@ -778,6 +849,7 @@ mod tests {
 	use crate::{
 		cli::MockCli,
 		common::{urls, wallet::USE_WALLET_PROMPT},
+		output::{InvalidInputError, NetworkError},
 	};
 	use pop_contracts::{Param, mock_build_process, new_environment};
 	use std::{env, fs::write};
@@ -1514,5 +1586,28 @@ mod tests {
 		let cmd = CallContractCommand::default();
 		let err = cmd.execute_json().await.expect_err("expected prompt required error");
 		assert!(err.downcast_ref::<crate::output::PromptRequiredError>().is_some());
+	}
+
+	#[test]
+	fn map_contract_json_setup_error_maps_rpc_like_anyhow_to_network_error() {
+		let source = anyhow::anyhow!("RPC error: client error: connection refused (os error 61)");
+		let mapped = map_contract_json_setup_error(ContractsError::AnyhowError(source));
+		assert!(mapped.downcast_ref::<NetworkError>().is_some());
+	}
+
+	#[test]
+	fn map_contract_json_setup_error_maps_connection_refused_io_to_network_error() {
+		let source: anyhow::Error =
+			std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "no route").into();
+		let mapped = map_contract_json_setup_error(ContractsError::AnyhowError(source));
+		assert!(mapped.downcast_ref::<NetworkError>().is_some());
+	}
+
+	#[test]
+	fn map_contract_json_setup_error_maps_validation_errors_to_invalid_input() {
+		let mapped = map_contract_json_setup_error(ContractsError::InvalidMessageName(
+			"message does not exist".into(),
+		));
+		assert!(mapped.downcast_ref::<InvalidInputError>().is_some());
 	}
 }
