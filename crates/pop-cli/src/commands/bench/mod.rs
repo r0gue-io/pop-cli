@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0
 
-use crate::cli::{self};
+use crate::{
+	cli::{self},
+	output::{OutputMode, reject_unsupported_json},
+};
 use block::BenchmarkBlock;
 use clap::{Args, Subcommand};
 use machine::BenchmarkMachine;
@@ -46,7 +49,10 @@ pub enum Command {
 
 impl Command {
 	/// Executes the command.
-	pub(crate) async fn execute(args: &mut BenchmarkArgs) -> anyhow::Result<()> {
+	pub(crate) async fn execute(
+		args: &mut BenchmarkArgs,
+		output_mode: OutputMode,
+	) -> anyhow::Result<()> {
 		// Disable these log targets because they are spammy.
 		let unwanted_targets = [
 			"cranelift_codegen",
@@ -64,13 +70,25 @@ impl Command {
 			.with_env_filter(env_filter)
 			.with_writer(std::io::stderr)
 			.init();
-		let mut cli = cli::Cli;
-		match &mut args.command {
-			Command::Block(cmd) => cmd.execute(&mut cli).await,
-			Command::Machine(cmd) => cmd.execute(&mut cli).await,
-			Command::Overhead(cmd) => cmd.execute(&mut cli).await,
-			Command::Pallet(cmd) => cmd.execute(&mut cli).await,
-			Command::Storage(cmd) => cmd.execute(&mut cli).await,
+		match output_mode {
+			OutputMode::Human => {
+				let mut cli = cli::Cli;
+				match &mut args.command {
+					Command::Block(cmd) => cmd.execute(&mut cli).await,
+					Command::Machine(cmd) => cmd.execute(&mut cli).await,
+					Command::Overhead(cmd) => cmd.execute(&mut cli).await,
+					Command::Pallet(cmd) => cmd.execute(&mut cli).await,
+					Command::Storage(cmd) => cmd.execute(&mut cli).await,
+				}
+			},
+			OutputMode::Json => {
+				let mut cli = cli::JsonCli;
+				match &mut args.command {
+					Command::Pallet(cmd) =>
+						cmd.execute_with_output_mode(&mut cli, output_mode).await,
+					_ => reject_unsupported_json("bench"),
+				}
+			},
 		}
 	}
 }

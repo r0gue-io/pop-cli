@@ -199,22 +199,18 @@ impl Command {
 			},
 			#[cfg(feature = "chain")]
 			Self::Bench(args) => {
-				// Forward the global --json flag to bench pallet's json_output,
-				// preserving backward compatibility with `pop bench pallet --json`.
 				if output_mode == OutputMode::Json {
-					match &mut args.command {
-						bench::Command::Pallet(cmd) => {
+					match &args.command {
+						bench::Command::Pallet(cmd) =>
 							if cmd.json_file.is_some() {
 								return Err(anyhow::anyhow!(
 									"--json and --json-file cannot be used together"
 								));
-							}
-							cmd.json_output = true;
-						},
+							},
 						_ => return reject_unsupported_json("bench"),
 					}
 				}
-				bench::Command::execute(args).await
+				bench::Command::execute(args, output_mode).await
 			},
 			Self::Build(args) => {
 				env_logger::init();
