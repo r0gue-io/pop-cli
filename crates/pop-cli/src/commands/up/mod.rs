@@ -3,8 +3,10 @@
 use crate::{
 	cli::{self, Cli},
 	common::builds::ensure_project_path,
-	output::{invalid_input_error, reject_unsupported_json},
+	output::reject_unsupported_json,
 };
+#[cfg(feature = "chain")]
+use crate::output::invalid_input_error;
 use clap::{Args, Subcommand};
 #[cfg(feature = "chain")]
 use pop_chains::up::Relay;
@@ -50,6 +52,7 @@ pub(crate) struct UpContractOutput {
 }
 
 /// JSON output for local network launch.
+#[cfg(feature = "chain")]
 #[derive(Clone, Debug, Serialize)]
 pub(crate) struct UpNetworkOutput {
 	pub(crate) relay_chain: NetworkInfo,
@@ -57,6 +60,7 @@ pub(crate) struct UpNetworkOutput {
 }
 
 /// JSON output for one network group.
+#[cfg(feature = "chain")]
 #[derive(Clone, Debug, Serialize)]
 pub(crate) struct NetworkInfo {
 	pub(crate) name: String,
