@@ -70,7 +70,7 @@ jobs:
       - name: Build and archive instrumented tests
         run: |
           source <(cargo llvm-cov show-env --export-prefix --target x86_64-unknown-linux-gnu --coverage-target-only)
-          cargo nextest archive --locked --workspace --lib --bins --archive-file nextest-archive.tar.zst
+          cargo nextest archive --locked --workspace --all-features --lib --bins --archive-file nextest-archive.tar.zst
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
