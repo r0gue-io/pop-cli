@@ -527,7 +527,7 @@ impl NetworkConfiguration {
 
 			// Resolve paths to parachain binary and chain spec generator
 			let binary_path = NetworkConfiguration::resolve_path(&para.binary.path())?;
-			let mut chain_spec_generator = match &para.chain_spec_generator {
+			let chain_spec_generator = match &para.chain_spec_generator {
 				None => None,
 				Some(path) => Some(format!(
 					"{} {}",
