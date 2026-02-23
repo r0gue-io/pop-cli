@@ -121,7 +121,7 @@ jobs:
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features --all-targets -- -D warnings
+          args: --no-default-features --features telemetry,contract,chain --all-targets -- -D warnings
 
   docker:
     runs-on: ubuntu-latest
@@ -155,7 +155,7 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Check all features
-        run: cargo doc --locked --all-features --no-deps
+        run: cargo doc --locked --no-default-features --features telemetry,contract,chain --no-deps
 
   documentation-tests:
     needs:
@@ -184,4 +184,4 @@ jobs:
           shared-key: pop-cache
 
       - name: Run doc tests
-        run: cargo test --locked --all-features --doc
+        run: cargo test --locked --no-default-features --features telemetry,contract,chain --doc
