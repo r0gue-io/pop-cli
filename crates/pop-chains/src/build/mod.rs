@@ -1783,7 +1783,7 @@ edition = "2021"
 			profile: Profile::Release,
 		};
 		let original_chain_spec_path =
-			PathBuf::from("artifacts/passet-hub-spec.json").canonicalize()?;
+			PathBuf::from("artifacts/coretime-paseo-local.json").canonicalize()?;
 		assert!(original_chain_spec_path.exists());
 		let chain_spec_path = temp_dir.path().join(original_chain_spec_path.file_name().unwrap());
 		fs::copy(&original_chain_spec_path, &chain_spec_path)?;
@@ -1812,7 +1812,7 @@ edition = "2021"
 			profile: Profile::Release,
 		};
 		let original_chain_spec_path =
-			PathBuf::from("artifacts/passet-hub-spec.json").canonicalize()?;
+			PathBuf::from("artifacts/coretime-paseo-local.json").canonicalize()?;
 		let chain_spec_path = temp_dir.path().join(original_chain_spec_path.file_name().unwrap());
 		fs::copy(&original_chain_spec_path, &chain_spec_path)?;
 		let final_wasm_path = temp_dir.path().join("runtime.wasm");
