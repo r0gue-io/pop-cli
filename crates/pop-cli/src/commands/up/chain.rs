@@ -36,9 +36,6 @@ pub struct UpCommand {
 	/// ID to use. If not specified, a new ID will be reserved.
 	#[arg(short, long)]
 	pub(crate) id: Option<u32>,
-	/// Flag to skip the registration step.
-	#[arg(long, requires = "id")]
-	pub(crate) skip_registration: bool,
 	/// Path to the chain spec file. If provided, it will be used to generate genesis artifacts.
 	#[serde(skip_serializing)]
 	#[arg(long = "chain-spec")]
@@ -74,43 +71,19 @@ impl UpCommand {
 				return Ok(());
 			},
 		};
-		if !self.skip_registration {
-			match config.register(cli).await {
-				Ok(_) => cli.success(format!(
-					"Registration successful {}",
-					style(format!(
-						"https://polkadot.js.org/apps/?rpc={}#/parachains",
-						config.chain.url
-					))
-					.dim()
-				))?,
-				Err(e) => {
-					let chain_spec_arg =
-						if config.genesis_artifacts.chain_spec.to_string_lossy().is_empty() {
-							String::new()
-						} else {
-							format!(
-								" --chain-spec {}",
-								config.genesis_artifacts.chain_spec.display()
-							)
-						};
-					let pop_command = style(format!(
-						"`pop up --id {}{} --skip-registration`",
-						config.id, chain_spec_arg
-					))
-					.bold();
-					cli.outro_cancel(format!(
-						"{}\n{}",
-						e,
-						style(format!(
-							"Retry registration without reserve or rebuilding the chain specs using: {}",
-							pop_command
-						))
-						.black()
-					))?;
-					return Ok(());
-				},
-			}
+		match config.register(cli).await {
+			Ok(_) => cli.success(format!(
+				"Registration successful {}",
+				style(format!(
+					"https://polkadot.js.org/apps/?rpc={}#/parachains",
+					config.chain.url
+				))
+				.dim()
+			))?,
+			Err(e) => {
+				cli.outro_cancel(format!("{}", e))?;
+				return Ok(());
+			},
 		}
 		cli.info(self.display())?;
 		Ok(())
@@ -166,12 +139,9 @@ impl UpCommand {
 	}
 
 	fn display(&self) -> String {
-		let mut full_message = "pop up chain".to_string();
+		let mut full_message = "pop up rollup".to_string();
 		if let Some(id) = self.id {
 			full_message.push_str(&format!(" --id {}", id));
-		}
-		if self.skip_registration {
-			full_message.push_str(" --skip-registration");
 		}
 		if let Some(chain_spec) = &self.chain_spec {
 			full_message.push_str(&format!(" --chain-spec {}", chain_spec.display()));
@@ -318,7 +288,6 @@ mod tests {
 		let cmd = UpCommand {
 			path: PathBuf::from("./my-chain"),
 			id: Some(2000),
-			skip_registration: true,
 			chain_spec: Some(PathBuf::from("chain-spec.json")),
 			genesis_state: Some(StatePathBuf::from("genesis-state")),
 			genesis_code: Some(CodePathBuf::from("genesis-code")),
@@ -328,11 +297,11 @@ mod tests {
 		};
 		assert_eq!(
 			cmd.display(),
-			"pop up chain --id 2000 --skip-registration --chain-spec chain-spec.json --genesis-state genesis-state --genesis-code genesis-code --relay-chain-url ws://localhost:9944/ --proxy 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty --profile release"
+			"pop up rollup --id 2000 --chain-spec chain-spec.json --genesis-state genesis-state --genesis-code genesis-code --relay-chain-url ws://localhost:9944/ --proxy 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty --profile release"
 		);
 
 		let cmd = UpCommand { path: PathBuf::from("./"), ..Default::default() };
-		assert_eq!(cmd.display(), "pop up chain");
+		assert_eq!(cmd.display(), "pop up rollup");
 	}
 
 	#[tokio::test]
@@ -393,14 +362,7 @@ mod tests {
 				"You will need to sign a transaction to register on {}, using the `Registrar::register` function.",
 				Url::parse(&node_url)?.as_str()
 			))
-			.expect_outro_cancel(format!(
-				"Failed to find the pallet: Registrar\n{}",
-				style(format!(
-					"Retry registration without reserve or rebuilding the chain specs using: {}",
-					style("`pop up --id 2000 --skip-registration`").bold()
-				))
-				.black()
-			));
+			.expect_outro_cancel("Registration failed: Failed to find the pallet: Registrar");
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
 		UpCommand {
 			id: Some(2000),
