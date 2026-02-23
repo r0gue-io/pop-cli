@@ -106,17 +106,31 @@ On the [Pop Docs website](https://learn.onpop.io) you will find:
 
 ## Building Pop CLI locally
 
-Build the tool only for Parachain functionality:
+Build with default features (parachain support):
+
+```sh
+cargo build
+```
+
+Build with Smart Contracts support (opt-in):
+
+```sh
+cargo build --features contract
+```
+
+Build for parachain functionality only:
 
 ```sh
 cargo build --no-default-features --features chain
 ```
 
-Build the tool only for Smart Contracts functionality:
+Build for Smart Contracts functionality only:
 
 ```sh
 cargo build --no-default-features --features contract
 ```
+
+> :information_source: Smart contract (ink!) support is available as an opt-in feature. To install with contract support: `cargo install pop-cli --locked --features contract`
 
 ## Testing Pop CLI
 

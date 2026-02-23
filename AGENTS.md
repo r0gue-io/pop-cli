@@ -15,9 +15,9 @@ Pop CLI is organized as a Cargo workspace:
 - Packaging and release assets live in `debian/`, `Dockerfile*`, and `flake.nix`/`flake.lock` for Nix builds.
 
 ### Feature Flags
-- **Default features**: `["chain", "telemetry", "contract"]`
+- **Default features**: `["chain", "telemetry"]`
 - **`chain`** - Parachain development tools (includes `wallet-integration`)
-- **`contract`** - ink! smart contract support (includes `wallet-integration`)
+- **`contract`** - ink! smart contract support (opt-in, includes `wallet-integration`)
 - **`telemetry`** - Anonymous usage analytics
 - **`wallet-integration`** - Browser wallet connectivity for signing transactions
 - **`integration-tests`** - Enable integration test helpers in pop-common
@@ -46,7 +46,7 @@ Commands in `crates/pop-cli/src/commands/`:
 ## Build, Test, and Development Commands
 
 ### Build
-- `cargo build` - Build with default features (chain, contract, telemetry)
+- `cargo build` - Build with default features (chain, telemetry)
 - `cargo build --no-default-features --features chain` - Build for parachain functionality only
 - `cargo build --no-default-features --features contract` - Build for smart contracts functionality only
 

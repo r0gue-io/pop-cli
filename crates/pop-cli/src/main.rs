@@ -340,6 +340,7 @@ mod tests {
 				"call chain"
 			);
 			// Call contract command display.
+			#[cfg(feature = "contract")]
 			assert_eq!(
 				Cli {
 					json: false,
