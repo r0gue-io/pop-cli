@@ -102,7 +102,6 @@ pub enum ChainTemplate {
 			Repository = "https://github.com/r0gue-io/base-parachain",
 			Network = "./network.toml",
 			License = "Unlicense",
-			DeploymentName = "POP_STANDARD"
 		)
 	)]
 	Standard,
@@ -117,7 +116,6 @@ pub enum ChainTemplate {
 			Repository = "https://github.com/r0gue-io/assets-parachain",
 			Network = "./network.toml",
 			License = "Unlicense",
-			DeploymentName = "POP_ASSETS"
 		)
 	)]
 	Assets,
@@ -131,7 +129,6 @@ pub enum ChainTemplate {
 			Repository = "https://github.com/r0gue-io/contracts-parachain",
 			Network = "./network.toml",
 			License = "Unlicense",
-			DeploymentName = "POP_CONTRACTS"
 		)
 	)]
 	Contracts,
@@ -147,7 +144,6 @@ pub enum ChainTemplate {
 			SupportedVersions = "v1.0.0,v2.0.1,v2.0.3,v3.0.0,v4.0.0",
 			IsAudited = "true",
 			License = "GPL-3.0",
-			DeploymentName = "OZ_GENERIC"
 		)
 	)]
 	OpenZeppelinGeneric,
@@ -163,7 +159,6 @@ pub enum ChainTemplate {
 			SupportedVersions = "v2.0.3,v3.0.0,v4.0.0",
 			IsAudited = "true",
 			License = "GPL-3.0",
-			DeploymentName = "OZ_EVM"
 		)
 	)]
 	OpenZeppelinEVM,
@@ -177,7 +172,6 @@ pub enum ChainTemplate {
 			Repository = "https://github.com/paritytech/polkadot-sdk-parachain-template",
 			Network = "./zombienet.toml",
 			License = "Unlicense",
-			DeploymentName = "PARITY_GENERIC"
 		)
 	)]
 	ParityGeneric,
@@ -243,28 +237,6 @@ impl ChainTemplate {
 	/// The license used.
 	pub fn license(&self) -> Option<&str> {
 		self.get_str("License")
-	}
-
-	/// Returns the deployment name for the parachain if defined.
-	pub fn deployment_name(&self) -> Option<&str> {
-		self.get_str("DeploymentName")
-	}
-
-	/// Retrieves the deployment name from the `based_on` value.
-	pub fn deployment_name_from_based_on(based_on: &str) -> Option<String> {
-		// OpenZeppelin special cases first (https://github.com/OpenZeppelin/polkadot-runtime-templates/pull/406)
-		let mapped_based_on = match based_on {
-			"OpenZeppelin EVM Template" => Some(ChainTemplate::OpenZeppelinEVM),
-			"OpenZeppelin Generic Template" => Some(ChainTemplate::OpenZeppelinGeneric),
-			_ => None,
-		};
-		if let Some(variant) = mapped_based_on {
-			return variant.deployment_name().map(String::from);
-		}
-		ChainTemplate::VARIANTS
-			.iter()
-			.find(|variant| variant.as_ref() == based_on)
-			.and_then(|variant| variant.deployment_name().map(String::from))
 	}
 
 	/// Gets the template name, removing the provider if present.
@@ -375,20 +347,6 @@ mod tests {
 		.into()
 	}
 
-	fn template_deployment_name() -> HashMap<ChainTemplate, Option<&'static str>> {
-		[
-			(Standard, Some("POP_STANDARD")),
-			(Assets, Some("POP_ASSETS")),
-			(Contracts, Some("POP_CONTRACTS")),
-			(OpenZeppelinGeneric, Some("OZ_GENERIC")),
-			(OpenZeppelinEVM, Some("OZ_EVM")),
-			(ParityGeneric, Some("PARITY_GENERIC")),
-			(TestTemplate01, None),
-			(TestTemplate02, None),
-		]
-		.into()
-	}
-
 	#[test]
 	fn test_is_template_correct() {
 		for template in ChainTemplate::VARIANTS {
@@ -443,33 +401,6 @@ mod tests {
 		for template in ChainTemplate::VARIANTS {
 			assert_eq!(template.license(), licenses[template]);
 		}
-	}
-
-	#[test]
-	fn deployment_name_works() {
-		let deployment_name = template_deployment_name();
-		for template in ChainTemplate::VARIANTS {
-			assert_eq!(template.deployment_name(), deployment_name[template]);
-		}
-	}
-
-	#[test]
-	fn deployment_name_from_based_on_works() {
-		for template in ChainTemplate::VARIANTS {
-			assert_eq!(
-				ChainTemplate::deployment_name_from_based_on(template.as_ref()),
-				template.deployment_name().map(String::from),
-			);
-		}
-		// test special cases
-		assert_eq!(
-			ChainTemplate::deployment_name_from_based_on("OpenZeppelin EVM Template"),
-			Some(OpenZeppelinEVM.deployment_name().unwrap().to_string())
-		);
-		assert_eq!(
-			ChainTemplate::deployment_name_from_based_on("OpenZeppelin Generic Template"),
-			Some(OpenZeppelinGeneric.deployment_name().unwrap().to_string())
-		);
 	}
 
 	#[test]

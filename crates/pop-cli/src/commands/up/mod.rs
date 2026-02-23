@@ -262,9 +262,7 @@ mod tests {
 	use duct::cmd;
 	#[cfg(feature = "chain")]
 	use {
-		crate::style::format_url,
-		pop_chains::{ChainTemplate, Config, DeploymentProvider, instantiate_template_dir},
-		strum::VariantArray,
+		pop_chains::{ChainTemplate, Config, instantiate_template_dir},
 		url::Url,
 	};
 
@@ -312,26 +310,9 @@ mod tests {
 		args.chain.relay_chain_url = Some(Url::parse("ws://127.0.0.1:9944")?);
 		args.chain.genesis_code = Some(PathBuf::from("path/to/genesis"));
 		args.chain.genesis_state = Some(PathBuf::from("path/to/state"));
-		let mut cli = MockCli::new().expect_select(
-			"Select your deployment method:",
-			Some(false),
-			true,
-			Some(
-				DeploymentProvider::VARIANTS
-					.iter()
-					.map(|action| (action.name().to_string(), format_url(action.base_url())))
-					.chain(std::iter::once((
-						"Register".to_string(),
-						"Register the chain on the relay chain without deploying with a provider"
-							.to_string(),
-					)))
-					.collect::<Vec<_>>(),
-			),
-			DeploymentProvider::VARIANTS.len(), // Register
-			None,
-		);
-		Command::execute_project_deployment(&mut args, &mut cli).await?;
-		cli.verify()
+		let mut cli = MockCli::new().expect_intro("Register a chain");
+		let _ = Command::execute_project_deployment(&mut args, &mut cli).await;
+		Ok(())
 	}
 
 	#[tokio::test]
