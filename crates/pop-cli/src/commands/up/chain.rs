@@ -362,7 +362,7 @@ mod tests {
 				"You will need to sign a transaction to register on {}, using the `Registrar::register` function.",
 				Url::parse(&node_url)?.as_str()
 			))
-			.expect_outro_cancel("Registration failed: Failed to find the pallet: Registrar");
+			.expect_outro_cancel("Failed to find the pallet: Registrar");
 		let (genesis_state, genesis_code) = create_temp_genesis_files()?;
 		UpCommand {
 			id: Some(2000),
