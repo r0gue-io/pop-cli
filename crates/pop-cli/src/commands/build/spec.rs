@@ -764,6 +764,7 @@ pub struct GenesisArtifacts {
 	/// Path to the plain text chain specification file.
 	pub chain_spec: PathBuf,
 	/// Path to the raw chain specification file.
+	#[allow(dead_code)]
 	pub raw_chain_spec: Option<PathBuf>,
 	/// Optional path to the genesis state file.
 	pub genesis_state_file: Option<CodePathBuf>,
@@ -979,29 +980,6 @@ impl BuildSpec {
 			genesis_code_file,
 			genesis_state_file,
 		})
-	}
-
-	/// Enables the use of an existing plain chain spec, preventing unnecessary regeneration.
-	pub fn enable_existing_plain_spec(&mut self) {
-		self.use_existing_plain_spec = true;
-	}
-
-	/// Injects collator keys into the chain spec and updates the file.
-	///
-	/// # Arguments
-	/// * `collator_keys` - The list of collator keys to insert.
-	/// * `chain_spec_path` - The file path of the chain spec to be updated.
-	pub fn update_chain_spec_with_keys(
-		&mut self,
-		collator_keys: Vec<String>,
-		chain_spec_path: &Path,
-	) -> anyhow::Result<()> {
-		let mut chain_spec = ChainSpec::from(chain_spec_path)?;
-		chain_spec.replace_collator_keys(collator_keys)?;
-		chain_spec.to_file(chain_spec_path)?;
-
-		self.chain = Some(chain_spec_path.display().to_string());
-		Ok(())
 	}
 
 	// Customize a chain specification.
@@ -1527,78 +1505,6 @@ mod tests {
 				"genesis": {
 					"runtimeGenesis": {
 						"code": "0x1234"
-					}
-				}
-			})
-		);
-		Ok(())
-	}
-
-	#[test]
-	fn update_chain_spec_with_keys_works() -> anyhow::Result<()> {
-		let temp_dir = tempdir()?;
-		let output_file = temp_dir.path().join("chain_spec.json");
-		fs::write(
-			&output_file,
-			json!({
-				"genesis": {
-					"runtimeGenesis": {
-						"patch": {
-						"collatorSelection": {
-							"invulnerables": [
-							  "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
-							]
-						  },
-						  "session": {
-							"keys": [
-							  [
-								"5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
-								"5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY",
-								{
-								  "aura": "5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY"
-								}
-							  ],
-							]
-						}
-						}
-					}
-				}
-			})
-			.to_string(),
-		)?;
-		let mut build_spec = BuildSpec { output_file: output_file.clone(), ..Default::default() };
-		build_spec.update_chain_spec_with_keys(
-			vec!["5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty".to_string()],
-			&output_file,
-		)?;
-
-		let updated_output_file: serde_json::Value =
-			serde_json::from_str(&fs::read_to_string(build_spec.chain.clone().unwrap())?)?;
-
-		assert_eq!(build_spec.chain, Some(output_file.display().to_string()));
-		assert_eq!(
-			updated_output_file,
-			json!({
-				"genesis": {
-					"runtimeGenesis": {
-						"patch": {
-						"collatorSelection": {
-							"invulnerables": [
-							  "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
-							]
-						  },
-						  "session": {
-							"keys": [
-							  [
-								"5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
-								"5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty",
-								{
-								  "aura": "5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty"
-								}
-							  ],
-							]
-						},
-						}
 					}
 				}
 			})
