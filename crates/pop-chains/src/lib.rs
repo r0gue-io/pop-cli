@@ -10,8 +10,6 @@ pub mod bench;
 mod build;
 /// Provides functionality to construct, encode, sign, and submit chain extrinsics.
 mod call;
-/// Deployment providers' metadata and utility functions.
-mod deployer_providers;
 /// Error types and handling for the crate.
 mod errors;
 /// Code generation utilities.
@@ -26,6 +24,8 @@ pub mod omni_node;
 pub mod registry;
 /// Relay chain interaction and management.
 mod relay;
+/// Supported chains and their RPC endpoints.
+mod supported_chains;
 /// Template definitions and processing.
 mod templates;
 /// Common traits used throughout the crate.
@@ -62,12 +62,12 @@ pub use call::{
 	},
 	parse_and_format_events, set_up_client, sign_and_submit_extrinsic, submit_signed_extrinsic,
 };
-pub use deployer_providers::{DeploymentProvider, SupportedChains};
 pub use errors::Error;
 pub use indexmap::IndexSet;
 pub use new_chain::instantiate_template_dir;
 pub use new_pallet::{TemplatePalletConfig, create_pallet_template, new_pallet_options::*};
 pub use relay::{RelayChain, Reserved, clear_dmpq};
+pub use supported_chains::SupportedChains;
 pub use try_runtime::{
 	TryRuntimeCliCommand, binary::*, parse, parse_try_state_string, run_try_runtime,
 	shared_parameters::*, state, try_state_details, try_state_label, upgrade_checks_details,

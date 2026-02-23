@@ -20,8 +20,6 @@ use std::{
 mod cli;
 mod commands;
 mod common;
-#[cfg(feature = "chain")]
-mod deployment_api;
 pub(crate) mod output;
 mod style;
 #[cfg(feature = "wallet-integration")]
