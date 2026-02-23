@@ -82,7 +82,7 @@ scale.workspace = true
 temp-env.workspace = true
 
 [features]
-default = ["chain", "telemetry", "contract"]
+default = ["chain", "telemetry"]
 chain = ["dep:pop-chains", "dep:pop-fork", "dep:git2", "dep:tracing-subscriber", "dep:scale-value", "wallet-integration"]
 contract = ["dep:pop-contracts", "wallet-integration"]
 telemetry = ["dep:pop-telemetry"]
