@@ -63,7 +63,6 @@ const REGISTRAR: fn(Registry) -> Registry = |mut registry| {
 			BridgeHub::new(1_002, Paseo).into(),
 			Coretime::new(1_004, Paseo).into(),
 			People::new(1_005, Paseo).into(),
-			PassetHub::new(1_111, Paseo).into(),
 			// Others
 			Pop::new(4_001, "pop-devnet-local").into(),
 		],
@@ -304,7 +303,7 @@ mod tests {
 		assert!(contains::<BridgeHub>(registry, 1_002));
 		assert!(contains::<Coretime>(registry, 1_004));
 		assert!(contains::<People>(registry, 1_005));
-		assert!(contains::<PassetHub>(registry, 1_111));
+
 		assert!(contains::<Pop>(registry, 4_001));
 	}
 
