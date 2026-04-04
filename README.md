@@ -24,7 +24,7 @@
 curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
 
 # Install pop-cli
-cargo binstall pop-cli --locked
+cargo install pop-cli --locked
 ```
 
 ### macOS
